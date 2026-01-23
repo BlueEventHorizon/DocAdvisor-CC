@@ -3,7 +3,7 @@
 Generate pending YAML templates in .claude/doc-advisor/specs/.toc_work/
 
 Usage:
-    python3 .claude/skills/merge-specs-toc/create_pending_yaml.py [--full]
+    python3 .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py [--full]
 
 Options:
     --full    Process all files (default: changed files only)
@@ -16,10 +16,6 @@ import sys
 import hashlib
 import re
 from pathlib import Path
-
-# Add common module path
-COMMON_DIR = Path(__file__).parent.parent / "toc-common"
-sys.path.insert(0, str(COMMON_DIR))
 
 from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path
 

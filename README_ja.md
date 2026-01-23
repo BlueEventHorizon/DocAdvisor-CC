@@ -2,6 +2,17 @@
 
 AI を活用したドキュメント管理と自動インデックス化された目次（ToC）生成。
 
+## なぜ ToC（目次）が必要か
+
+生成AIには構造的な限界があります：
+
+- **Lost in the Middle**: 長いコンテキストの「真ん中」の情報は見落とされる
+- **Attention Dilution**: 入力が長いほど各トークンへの注意が希薄化
+
+**解決策**: 「全部読ませる」のではなく「必要なものだけ渡す」
+
+Doc Advisor は、ドキュメントを事前にインデックス化し、タスクに必要なファイルだけをAIに渡します。
+
 ## 概要
 
 Doc Advisor は、プロジェクトのドキュメントを自動的にインデックス化し、AI エージェントが必要な文書を素早く特定できるようにするツールです。
@@ -18,13 +29,14 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 
 Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメントを管理します。
 
+| カテゴリ | ディレクトリ | 用途 | 設定可能 |
+|----------|--------------|------|----------|
+| rule | `rules/` | 開発ドキュメント | Yes |
+| spec | `specs/` | プロジェクト仕様 | Yes |
+
 ### rule - 開発ドキュメント
 
-| doc_type | ディレクトリ | 構造 | DIR 設定可能 |
-|----------|--------------|------|--------------|
-| `rule` | `rules/` | 自由形式（任意のサブディレクトリ） | Yes |
-
-開発関連のドキュメント用の柔軟な構造。任意のサブディレクトリ内の `.md` ファイルがインデックス化されます。
+自由形式の構造。任意のサブディレクトリ内の `.md` ファイルがインデックス化されます。
 
 | コンテンツ種別 | 例 |
 |----------------|-----|
@@ -34,22 +46,18 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 
 ### spec - プロジェクト仕様
 
-| doc_type | ディレクトリ | 目的 | DIR 設定可能 |
-|----------|--------------|------|--------------|
-| `requirement` | `specs/**/requirements/` | 機能要件、ユースケース | Yes |
-| `design` | `specs/**/design/` | 技術設計、アーキテクチャ決定 | Yes |
-| `plan` | `specs/**/plan/` | プロジェクト計画、マイルストーン | Yes |
+パス内にサブディレクトリ名が含まれていれば、自動的に doc_type が判定されます。
 
-**フィーチャー** 別に整理された構造化ドキュメント。`specs/` と doc_type ディレクトリの間のパスがフィーチャー名を定義します。
+| doc_type | サブディレクトリ | 目的 | 設定可能 |
+|----------|------------------|------|----------|
+| `requirement` | `requirements/` | 機能要件、ユースケース | Yes |
+| `design` | `design/` | 技術設計、アーキテクチャ決定 | Yes |
+| `plan` | `plan/` | プロジェクト計画（定義のみ、ToC対象外） | - |
 
-| パス | フィーチャー | doc_type |
-|------|-------------|----------|
-| `specs/requirements/login.md` | *(なし)* | requirement |
-| `specs/main/requirements/login.md` | `main` | requirement |
-| `specs/auth/oauth/design/flow.md` | `auth/oauth` | design |
-| `specs/v2/billing/plan/roadmap.md` | `v2/billing` | plan |
-
-**パターン**: `specs/[{feature}/]{doc_type_dir}/**/*.md`
+例:
+- `specs/requirements/login.md` → requirement
+- `specs/main/design/architecture.md` → design
+- `specs/auth/oauth/requirements/api.md` → requirement
 
 ## インストール
 
@@ -183,10 +191,7 @@ DocAdvisor-CCPlugin/
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/                 # スキルテンプレート
-│   │   ├── toc-common/
-│   │   ├── merge-rules-toc/
-│   │   ├── merge-specs-toc/
-│   │   └── create-toc-checksums/
+│   │   └── doc-advisor/        # ToC 生成スクリプト
 │   └── doc-advisor/
 │       └── docs/               # ToC フォーマット/ワークフロー文書
 ├── setup.sh                    # プロジェクトセットアップスクリプト
@@ -208,10 +213,7 @@ your-project/
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/
-│   │   ├── toc-common/
-│   │   ├── merge-rules-toc/
-│   │   ├── merge-specs-toc/
-│   │   └── create-toc-checksums/
+│   │   └── doc-advisor/        # ToC 生成スクリプト
 │   └── doc-advisor/
 │       ├── config.yaml
 │       └── docs/               # ToC フォーマット/ワークフロー文書
@@ -258,7 +260,7 @@ specs:
 
   patterns:
     target_dirs:
-      requirement: requirements    # doc_type: ディレクトリ名
+      requirement: requirements
       design: design
     exclude:
       - ".toc_work"

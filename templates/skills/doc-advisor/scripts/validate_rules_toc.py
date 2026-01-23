@@ -21,10 +21,6 @@ rules_toc.yaml 検査スクリプト
 import sys
 from pathlib import Path
 
-# 共通モジュールのパスを追加
-COMMON_DIR = Path(__file__).parent.parent / "toc-common"
-sys.path.insert(0, str(COMMON_DIR))
-
 from toc_utils import get_project_root, load_config, resolve_config_path
 
 # Global configuration (initialized in init_config())

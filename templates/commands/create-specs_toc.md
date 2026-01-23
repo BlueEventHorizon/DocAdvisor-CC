@@ -198,45 +198,45 @@ Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/
 
 ```bash
 # 1. Merge
-python3 .claude/skills/merge-specs-toc/merge_specs_toc.py --mode full --cleanup
+python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode full --cleanup
 
 # 2. Validate (check return value)
-python3 .claude/skills/merge-specs-toc/validate_specs_toc.py
+python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/skills/create-toc-checksums/create_checksums.py --target specs
+python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ### Incremental Mode
 
 ```bash
 # 1. Merge
-python3 .claude/skills/merge-specs-toc/merge_specs_toc.py --mode incremental --cleanup
+python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental --cleanup
 
 # 2. Validate (check return value)
-python3 .claude/skills/merge-specs-toc/validate_specs_toc.py
+python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/skills/create-toc-checksums/create_checksums.py --target specs
+python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ### Delete-only Mode (N=0 and M>0)
 
 ```bash
 # 1. Delete only (no .toc_work/ needed)
-python3 .claude/skills/merge-specs-toc/merge_specs_toc.py --delete-only
+python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
 
 # 2. Validate (check return value)
-python3 .claude/skills/merge-specs-toc/validate_specs_toc.py
+python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/skills/create-toc-checksums/create_checksums.py --target specs
+python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ---

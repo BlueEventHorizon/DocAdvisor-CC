@@ -18,10 +18,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Add common module path
-COMMON_DIR = Path(__file__).parent.parent / "toc-common"
-sys.path.insert(0, str(COMMON_DIR))
-
 from toc_utils import (
     get_project_root,
     load_config,

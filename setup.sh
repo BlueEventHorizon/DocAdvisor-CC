@@ -117,13 +117,20 @@ RULES_DIR="${RULES_DIR:-$DEFAULT_RULES_DIR}"
 read -p "Specs directory [${DEFAULT_SPECS_DIR}]: " SPECS_DIR
 SPECS_DIR="${SPECS_DIR:-$DEFAULT_SPECS_DIR}"
 
+echo ""
+echo "Configure subdirectory names for specs:"
+
+read -p "  Requirements directory name [${DEFAULT_REQUIREMENT_DIR_NAME}]: " REQUIREMENT_DIR_NAME
+REQUIREMENT_DIR_NAME="${REQUIREMENT_DIR_NAME:-$DEFAULT_REQUIREMENT_DIR_NAME}"
+
+read -p "  Design directory name [${DEFAULT_DESIGN_DIR_NAME}]: " DESIGN_DIR_NAME
+DESIGN_DIR_NAME="${DESIGN_DIR_NAME:-$DEFAULT_DESIGN_DIR_NAME}"
+
 # Remove trailing slash if present (placeholders should not include trailing slash)
 RULES_DIR="${RULES_DIR%/}"
 SPECS_DIR="${SPECS_DIR%/}"
 
-# Subdirectory names (fixed for now, can be made configurable later)
-REQUIREMENT_DIR_NAME="${DEFAULT_REQUIREMENT_DIR_NAME}"
-DESIGN_DIR_NAME="${DEFAULT_DESIGN_DIR_NAME}"
+# Plan directory name (not configurable via prompt)
 PLAN_DIR_NAME="${DEFAULT_PLAN_DIR_NAME}"
 
 echo ""

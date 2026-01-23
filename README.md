@@ -2,6 +2,17 @@
 
 AI-powered documentation management with auto-indexed Table of Contents (ToC) generation.
 
+## Why ToC (Table of Contents)?
+
+Generative AI has structural limitations:
+
+- **Lost in the Middle**: Information in the "middle" of long contexts gets overlooked
+- **Attention Dilution**: The longer the input, the more attention spreads thin
+
+**Solution**: Don't feed everything—pass only what's needed.
+
+Doc Advisor pre-indexes your documents and provides only the relevant files for each task.
+
 ## Overview
 
 Doc Advisor helps you manage project documentation by automatically indexing documents and enabling AI agents to quickly identify relevant files for any task.
@@ -18,13 +29,14 @@ Doc Advisor helps you manage project documentation by automatically indexing doc
 
 Doc Advisor manages two categories of documents: **rule** and **spec**.
 
+| Category | Directory | Purpose | Configurable |
+|----------|-----------|---------|--------------|
+| rule | `rules/` | Development documentation | Yes |
+| spec | `specs/` | Project specifications | Yes |
+
 ### rule - Development Documentation
 
-| doc_type | Directory | Structure | Dir Configurable |
-|----------|-----------|-----------|------------------|
-| `rule` | `rules/` | Free-form (any subdirectory) | Yes |
-
-Flexible structure for development-related documentation. Any `.md` file in any subdirectory is indexed.
+Free-form structure. Any `.md` file in any subdirectory is indexed.
 
 | Content Type | Examples |
 |--------------|----------|
@@ -34,22 +46,18 @@ Flexible structure for development-related documentation. Any `.md` file in any 
 
 ### spec - Project Specifications
 
-| doc_type | Directory | Purpose | Dir Configurable |
-|----------|-----------|---------|------------------|
-| `requirement` | `specs/**/requirements/` | Functional requirements, use cases | Yes |
-| `design` | `specs/**/design/` | Technical design, architecture decisions | Yes |
-| `plan` | `specs/**/plan/` | Project plans, milestones, schedules | Yes |
+The doc_type is automatically determined if the subdirectory name appears anywhere in the path.
 
-Structured documentation organized by **feature**. The path between `specs/` and the doc_type directory defines the feature name.
+| doc_type | Subdirectory | Purpose | Configurable |
+|----------|--------------|---------|--------------|
+| `requirement` | `requirements/` | Functional requirements, use cases | Yes |
+| `design` | `design/` | Technical design, architecture decisions | Yes |
+| `plan` | `plan/` | Project plans (definition only, not indexed in ToC) | - |
 
-| Path | Feature | doc_type |
-|------|---------|----------|
-| `specs/requirements/login.md` | *(none)* | requirement |
-| `specs/main/requirements/login.md` | `main` | requirement |
-| `specs/auth/oauth/design/flow.md` | `auth/oauth` | design |
-| `specs/v2/billing/plan/roadmap.md` | `v2/billing` | plan |
-
-**Pattern**: `specs/[{feature}/]{doc_type_dir}/**/*.md`
+Examples:
+- `specs/requirements/login.md` → requirement
+- `specs/main/design/architecture.md` → design
+- `specs/auth/oauth/requirements/api.md` → requirement
 
 ## Installation
 
@@ -182,10 +190,7 @@ DocAdvisor-CCPlugin/
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/                 # Skill templates
-│   │   ├── toc-common/
-│   │   ├── merge-rules-toc/
-│   │   ├── merge-specs-toc/
-│   │   └── create-toc-checksums/
+│   │   └── doc-advisor/        # ToC generation scripts
 │   └── doc-advisor/
 │       └── docs/               # ToC format/workflow documentation
 ├── setup.sh                    # Project setup script
@@ -207,10 +212,7 @@ your-project/
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/
-│   │   ├── toc-common/
-│   │   ├── merge-rules-toc/
-│   │   ├── merge-specs-toc/
-│   │   └── create-toc-checksums/
+│   │   └── doc-advisor/        # ToC generation scripts
 │   └── doc-advisor/
 │       ├── config.yaml
 │       └── docs/               # ToC format/workflow documentation
@@ -257,7 +259,7 @@ specs:
 
   patterns:
     target_dirs:
-      requirement: requirements    # doc_type: directory_name
+      requirement: requirements
       design: design
     exclude:
       - ".toc_work"
