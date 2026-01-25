@@ -64,7 +64,7 @@ python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 python3 .claude/skills/doc-advisor/scripts/merge_rules_toc.py --mode incremental --cleanup
 python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 
-# Delete-only mode (deletions only, no .toc_work/ needed)
+# Delete-only mode (deletions only, no .claude/doc-advisor/rules/.toc_work/ needed)
 python3 .claude/skills/doc-advisor/scripts/merge_rules_toc.py --delete-only
 python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 ```
@@ -92,7 +92,7 @@ python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental --cleanup
 python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 
-# Delete-only mode (deletions only, no .toc_work/ needed)
+# Delete-only mode (deletions only, no .claude/doc-advisor/specs/.toc_work/ needed)
 python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
 python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 ```
@@ -104,8 +104,8 @@ python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 | `--full` | Process all files (for pending YAML generation) |
 | `--mode full` | Generate all entries from scratch (default) |
 | `--mode incremental` | Differential merge into existing ToC file |
-| `--delete-only` | Execute deletions only (no .toc_work/ needed) |
-| `--cleanup` | Delete `.toc_work/` directory after successful merge |
+| `--delete-only` | Execute deletions only (no `.claude/doc-advisor/<target>/.toc_work/` needed) |
+| `--cleanup` | Delete `.claude/doc-advisor/<target>/.toc_work/` directory after successful merge |
 | `--target rules/specs` | Specify target for checksum generation |
 
 ## Script Behavior
@@ -119,7 +119,7 @@ python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 
 ### Full Mode (Default)
 
-1. Read `.toc_work/*.yaml`
+1. Read `.claude/doc-advisor/<target>/.toc_work/*.yaml`
 2. Remove `_meta` section from each file
 3. Extract only entries with `status: completed`
 4. Merge using `source_file` as key
@@ -129,7 +129,7 @@ python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 
 1. Read existing ToC file
 2. Detect deleted files via checksum comparison and remove corresponding entries
-3. Overwrite/add entries from `.toc_work/*.yaml`
+3. Overwrite/add entries from `.claude/doc-advisor/<target>/.toc_work/*.yaml`
 4. Write updated ToC file
 
 ### Delete-only Mode
@@ -139,7 +139,7 @@ python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 3. Remove corresponding entries
 4. Write updated ToC file
 
-※ `.toc_work/` directory is not required
+※ `.claude/doc-advisor/<target>/.toc_work/` directory is not required
 
 ## Output Files
 
@@ -162,5 +162,5 @@ checksums:
 
 - Python 3 must be available (uses standard library only)
 - `.claude/doc-advisor/config.yaml` should exist (defaults are used if missing)
-- **Full/Incremental Mode**: YAML files with completed status must exist in `.toc_work/`
-- **Delete-only Mode**: `.toc_checksums.yaml` must exist
+- **Full/Incremental Mode**: YAML files with completed status must exist in `.claude/doc-advisor/<target>/.toc_work/`
+- **Delete-only Mode**: `.claude/doc-advisor/<target>/.toc_checksums.yaml` must exist

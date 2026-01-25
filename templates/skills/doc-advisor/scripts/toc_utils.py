@@ -132,9 +132,9 @@ def _get_default_config():
     return {
         'rules': {
             'root_dir': 'rules/',
-            'toc_file': 'rules_toc.yaml',
-            'checksums_file': '.toc_checksums.yaml',
-            'work_dir': '.toc_work/',
+            'toc_file': '.claude/doc-advisor/rules/rules_toc.yaml',
+            'checksums_file': '.claude/doc-advisor/rules/.toc_checksums.yaml',
+            'work_dir': '.claude/doc-advisor/rules/.toc_work/',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': ['.toc_work', 'rules_toc.yaml', 'reference']
@@ -146,9 +146,9 @@ def _get_default_config():
         },
         'specs': {
             'root_dir': 'specs/',
-            'toc_file': 'specs_toc.yaml',
-            'checksums_file': '.toc_checksums.yaml',
-            'work_dir': '.toc_work/',
+            'toc_file': '.claude/doc-advisor/specs/specs_toc.yaml',
+            'checksums_file': '.claude/doc-advisor/specs/.toc_checksums.yaml',
+            'work_dir': '.claude/doc-advisor/specs/.toc_work/',
             'patterns': {
                 'target_dirs': get_default_target_dirs(),
                 'exclude': ['.toc_work', '.toc_checksums.yaml', 'specs_toc.yaml', 'reference', '/info/']

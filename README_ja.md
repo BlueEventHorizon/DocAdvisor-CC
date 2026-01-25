@@ -216,12 +216,18 @@ your-project/
 │   │   └── doc-advisor/        # ToC 生成スクリプト
 │   └── doc-advisor/
 │       ├── config.yaml
-│       └── docs/               # ToC フォーマット/ワークフロー文書
+│       ├── docs/               # ToC フォーマット/ワークフロー文書
+│       ├── rules/              # rules の生成成果物
+│       │   ├── rules_toc.yaml
+│       │   ├── .toc_checksums.yaml
+│       │   └── .toc_work/
+│       └── specs/              # specs の生成成果物
+│           ├── specs_toc.yaml
+│           ├── .toc_checksums.yaml
+│           └── .toc_work/
 ├── rules/                      # Rules ドキュメント（設定可能）
-│   ├── rules_toc.yaml          # 生成された ToC インデックス
 │   └── *.md                    # ドキュメントファイル
 └── specs/                      # Specs ドキュメント（設定可能）
-    ├── specs_toc.yaml          # 生成された ToC インデックス
     ├── requirements/           # 要件定義書
     └── design/                 # 設計書
 ```
@@ -236,9 +242,9 @@ your-project/
 # === rules 設定 ===
 rules:
   root_dir: rules
-  toc_file: rules_toc.yaml
-  checksums_file: .toc_checksums.yaml
-  work_dir: .toc_work/
+  toc_file: .claude/doc-advisor/rules/rules_toc.yaml
+  checksums_file: .claude/doc-advisor/rules/.toc_checksums.yaml
+  work_dir: .claude/doc-advisor/rules/.toc_work/
 
   patterns:
     target_glob: "**/*.md"
@@ -254,9 +260,9 @@ rules:
 # === specs 設定 ===
 specs:
   root_dir: specs
-  toc_file: specs_toc.yaml
-  checksums_file: .toc_checksums.yaml
-  work_dir: .toc_work/
+  toc_file: .claude/doc-advisor/specs/specs_toc.yaml
+  checksums_file: .claude/doc-advisor/specs/.toc_checksums.yaml
+  work_dir: .claude/doc-advisor/specs/.toc_work/
 
   patterns:
     target_dirs:
@@ -327,7 +333,7 @@ ls -la /path/to/your-project/.claude/agents/
 
 1. ターゲットディレクトリがプロジェクトに存在するか確認
 2. 設定のパスが正しいか確認
-3. `.toc_work/` ディレクトリで復旧を確認
+3. `.claude/doc-advisor/{rules,specs}/.toc_work/` で復旧を確認
 
 ## v2.0（プラグインモード）からの移行
 
