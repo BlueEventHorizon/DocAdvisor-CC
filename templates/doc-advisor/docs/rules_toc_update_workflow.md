@@ -63,7 +63,7 @@ Cleanup
 
 ## Phase 1: Initialization (Orchestrator)
 
-### Step 1.1: Check .toc_work/ status
+### Step 1.1: Check .claude/doc-advisor/rules/.toc_work/ status
 
 ```bash
 test -d .claude/doc-advisor/rules/.toc_work && echo "EXISTS" || echo "NOT_EXISTS"
@@ -73,10 +73,10 @@ test -d .claude/doc-advisor/rules/.toc_work && echo "EXISTS" || echo "NOT_EXISTS
 
 | Condition | Processing |
 |-----------|------------|
-| `--full` option specified | Delete .toc_work/ → New processing in full mode |
-| .toc_work/ exists | Continue mode (process existing pending YAMLs) |
-| .toc_work/ doesn't exist + rules_toc.yaml doesn't exist | New processing in full mode |
-| .toc_work/ doesn't exist + rules_toc.yaml exists | incremental mode |
+| `--full` option specified | Delete .claude/doc-advisor/rules/.toc_work/ → New processing in full mode |
+| .claude/doc-advisor/rules/.toc_work/ exists | Continue mode (process existing pending YAMLs) |
+| .claude/doc-advisor/rules/.toc_work/ doesn't exist + rules_toc.yaml doesn't exist | New processing in full mode |
+| .claude/doc-advisor/rules/.toc_work/ doesn't exist + rules_toc.yaml exists | incremental mode |
 
 ### Step 1.3: Identify target files
 
@@ -85,7 +85,7 @@ test -d .claude/doc-advisor/rules/.toc_work && echo "EXISTS" || echo "NOT_EXISTS
 
 ### Step 1.4: Generate pending YAML templates
 
-Generate templates in `.toc_work/` for each target file.
+Generate templates in `.claude/doc-advisor/rules/.toc_work/` for each target file.
 
 ---
 
@@ -93,7 +93,7 @@ Generate templates in `.toc_work/` for each target file.
 
 ### Step 2.1: Identify pending YAMLs
 
-Read `.toc_work/*.yaml` and identify files with `_meta.status: pending`
+Read `.claude/doc-advisor/rules/.toc_work/*.yaml` and identify files with `_meta.status: pending`
 
 ### Step 2.2: Launch subagents in parallel
 
@@ -127,7 +127,7 @@ Repeat Steps 2.1-2.3 until all pending YAMLs are completed
 
 ### Step 3.1: Completion check
 
-Verify each `.toc_work/*.yaml` meets:
+Verify each `.claude/doc-advisor/rules/.toc_work/*.yaml` meets:
 - `_meta.status == completed`
 - `title != null`
 - `purpose != null`
@@ -137,7 +137,7 @@ Verify each `.toc_work/*.yaml` meets:
 ### Step 3.2: Merge processing
 
 **full mode**:
-1. Read all `.toc_work/*.yaml`
+1. Read all `.claude/doc-advisor/rules/.toc_work/*.yaml`
 2. Exclude `_meta` and convert to `docs` section
 3. Set `metadata` (generated_at, file_count)
 4. Write to `.claude/doc-advisor/rules/rules_toc.yaml`
@@ -145,7 +145,7 @@ Verify each `.toc_work/*.yaml` meets:
 **incremental mode**:
 1. Read existing `.claude/doc-advisor/rules/rules_toc.yaml`
 2. Delete entries recorded in `.toc_checksums.yaml` but file doesn't exist
-3. Overwrite/add entries from `.toc_work/*.yaml` (exclude `_meta`)
+3. Overwrite/add entries from `.claude/doc-advisor/rules/.toc_work/*.yaml` (exclude `_meta`)
 4. Update `metadata.generated_at`, `metadata.file_count`
 5. Write to `.claude/doc-advisor/rules/rules_toc.yaml`
 6. Update `.claude/doc-advisor/rules/.toc_checksums.yaml` (run `/create-toc-checksums` skill)

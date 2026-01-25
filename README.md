@@ -215,12 +215,18 @@ your-project/
 │   │   └── doc-advisor/        # ToC generation scripts
 │   └── doc-advisor/
 │       ├── config.yaml
-│       └── docs/               # ToC format/workflow documentation
+│       ├── docs/               # ToC format/workflow documentation
+│       ├── rules/              # Generated artifacts for rules
+│       │   ├── rules_toc.yaml
+│       │   ├── .toc_checksums.yaml
+│       │   └── .toc_work/
+│       └── specs/              # Generated artifacts for specs
+│           ├── specs_toc.yaml
+│           ├── .toc_checksums.yaml
+│           └── .toc_work/
 ├── rules/                      # Rules documentation (configurable)
-│   ├── rules_toc.yaml          # Generated ToC index
 │   └── *.md                    # Documentation files
 └── specs/                      # Specs documentation (configurable)
-    ├── specs_toc.yaml          # Generated ToC index
     ├── requirements/           # Requirement documents
     └── design/                 # Design documents
 ```
@@ -235,9 +241,9 @@ Located at `.claude/doc-advisor/config.yaml`:
 # === rules configuration ===
 rules:
   root_dir: rules
-  toc_file: rules_toc.yaml
-  checksums_file: .toc_checksums.yaml
-  work_dir: .toc_work/
+  toc_file: .claude/doc-advisor/rules/rules_toc.yaml
+  checksums_file: .claude/doc-advisor/rules/.toc_checksums.yaml
+  work_dir: .claude/doc-advisor/rules/.toc_work/
 
   patterns:
     target_glob: "**/*.md"
@@ -253,9 +259,9 @@ rules:
 # === specs configuration ===
 specs:
   root_dir: specs
-  toc_file: specs_toc.yaml
-  checksums_file: .toc_checksums.yaml
-  work_dir: .toc_work/
+  toc_file: .claude/doc-advisor/specs/specs_toc.yaml
+  checksums_file: .claude/doc-advisor/specs/.toc_checksums.yaml
+  work_dir: .claude/doc-advisor/specs/.toc_work/
 
   patterns:
     target_dirs:
@@ -326,7 +332,7 @@ ls -la /path/to/your-project/.claude/agents/
 
 1. Check if target directories exist in your project
 2. Verify config paths are correct
-3. Look for `.toc_work/` directory for recovery
+3. Look for `.claude/doc-advisor/{rules,specs}/.toc_work/` for recovery
 
 ## Migration from v2.0 (Plugin Mode)
 

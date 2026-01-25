@@ -50,7 +50,7 @@ Workflow for updating `.claude/doc-advisor/specs/specs_toc.yaml`. Uses **individ
 ```
 /create-specs_toc execution
     ↓
-Check .toc_work/ existence
+Check .claude/doc-advisor/specs/.toc_work/ existence
     ↓
 [If not exists] New processing
     ├─ full: Generate pending YAML for all files
@@ -72,7 +72,7 @@ Delete .toc_work/ (cleanup)
 
 ## Phase 1: Initialization (Orchestrator)
 
-### Step 1.1: Check .toc_work/ existence
+### Step 1.1: Check .claude/doc-advisor/specs/.toc_work/ existence
 
 ```bash
 test -d .claude/doc-advisor/specs/.toc_work && echo "EXISTS" || echo "NOT_EXISTS"
@@ -157,7 +157,7 @@ Output warning if incomplete (processing continues)
 
 #### full mode
 
-1. Read all `.toc_work/*.yaml`
+1. Read all `.claude/doc-advisor/specs/.toc_work/*.yaml`
 2. Aggregate into `docs` section (key: file path with `{{SPECS_DIR}}/` prefix)
 3. Set metadata:
    - `name`: "Requirement & Design Document Search Index"
@@ -219,7 +219,7 @@ Check before merge:
 
 ### On merge error
 
-- Do not delete `.toc_work/` (can re-run)
+- Do not delete `.claude/doc-advisor/specs/.toc_work/` (can re-run)
 - Report error content
 - Prompt manual intervention
 

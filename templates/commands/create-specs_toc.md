@@ -35,7 +35,7 @@ Read the following before processing:
 ### Phase 1: Initialization
 
 ```
-1. Check if .toc_work/ exists
+1. Check if .claude/doc-advisor/specs/.toc_work/ exists
     ↓
 [If exists] → Continue mode (jump to Phase 2)
     ↓
@@ -58,7 +58,7 @@ Read the following before processing:
 ### Phase 2: Parallel Processing
 
 ```
-1. Identify pending status files from .toc_work/*.yaml
+1. Identify pending status files from .claude/doc-advisor/specs/.toc_work/*.yaml
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
@@ -78,8 +78,8 @@ Read the following before processing:
     - All completed/error → Proceed to merge
     ↓
 2. Merge processing
-    - full: Generate new specs_toc.yaml from .toc_work/*.yaml
-    - incremental: Combine existing specs_toc.yaml + .toc_work/*.yaml + auto-detect deleted files
+    - full: Generate new specs_toc.yaml from .claude/doc-advisor/specs/.toc_work/*.yaml
+    - incremental: Combine existing specs_toc.yaml + .claude/doc-advisor/specs/.toc_work/*.yaml + auto-detect deleted files
     - Note: Skip error status files (output warning)
     ↓
 3. Run validation → **Check return value**
@@ -88,7 +88,7 @@ Read the following before processing:
     ↓
 4. Update checksums **only on validation success**
     ↓
-5. Cleanup (delete .toc_work/)
+5. Cleanup (delete .claude/doc-advisor/specs/.toc_work/)
     ↓
 6. Report completion (list error files if any)
 ```
@@ -97,7 +97,7 @@ Read the following before processing:
 
 ## Pending YAML Template Generation
 
-Generate `.toc_work/{filename}.yaml` for each target file.
+Generate `.claude/doc-advisor/specs/.toc_work/{filename}.yaml` for each target file.
 
 1. Convert file path to work filename (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/login.md` → `{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_login.yaml`)
 2. Determine doc_type from path (`{{REQUIREMENT_DIR_NAME}}/` → `requirement`, `{{DESIGN_DIR_NAME}}/` → `design`)
@@ -113,9 +113,9 @@ Generate `.toc_work/{filename}.yaml` for each target file.
 
 | Condition | Action |
 |-----------|--------|
-| `--full` + `.toc_work/` exists | Bash: `rm -rf .claude/doc-advisor/specs/.toc_work` → Start full mode |
-| `.toc_work/` exists + pending remain | Resume from pending (to Phase 2) |
-| `.toc_work/` exists + all completed | Go directly to merge phase (Phase 3) |
+| `--full` + `.claude/doc-advisor/specs/.toc_work/` exists | Bash: `rm -rf .claude/doc-advisor/specs/.toc_work` → Start full mode |
+| `.claude/doc-advisor/specs/.toc_work/` exists + pending remain | Resume from pending (to Phase 2) |
+| `.claude/doc-advisor/specs/.toc_work/` exists + all completed | Go directly to merge phase (Phase 3) |
 
 ---
 
@@ -168,14 +168,14 @@ shasum -a 256 {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md | cut 
 ```
 ✅ No changes - specs_toc.yaml is up to date
 ```
-End processing (no need to create .toc_work/)
+End processing (no need to create .claude/doc-advisor/specs/.toc_work/)
 
 **If N=0 and M>0**:
 ```
 📁 Detected deleted files: M items
 🔄 Running merge script to reflect deletions...
 ```
-→ Run merge script (go directly to Phase 3, no .toc_work/ needed)
+→ Run merge script (go directly to Phase 3, no .claude/doc-advisor/specs/.toc_work/ needed)
 
 ---
 
@@ -227,7 +227,7 @@ python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ### Delete-only Mode (N=0 and M>0)
 
 ```bash
-# 1. Delete only (no .toc_work/ needed)
+# 1. Delete only (no .claude/doc-advisor/specs/.toc_work/ needed)
 python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
 
 # 2. Validate (check return value)
@@ -243,7 +243,7 @@ python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 
 ## Error Handling
 
-### Continue Mode (when .toc_work/ exists)
+### Continue Mode (when .claude/doc-advisor/specs/.toc_work/ exists)
 
 - Resume from pending files
 - If all completed or error → Proceed to merge
@@ -287,5 +287,5 @@ _meta:
 - designs: {N}
 
 [Cleanup]
-- Deleted .toc_work/
+- Deleted .claude/doc-advisor/specs/.toc_work/
 ```

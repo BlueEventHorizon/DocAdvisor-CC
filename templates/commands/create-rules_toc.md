@@ -35,7 +35,7 @@ Read the following before processing:
 ### Phase 1: Initialization
 
 ```
-1. Check if .toc_work/ exists
+1. Check if .claude/doc-advisor/rules/.toc_work/ exists
     ↓
 [If exists] → Continue mode (jump to Phase 2)
     ↓
@@ -58,7 +58,7 @@ Read the following before processing:
 ### Phase 2: Parallel Processing
 
 ```
-1. Identify pending status files from .toc_work/*.yaml
+1. Identify pending status files from .claude/doc-advisor/rules/.toc_work/*.yaml
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
@@ -78,8 +78,8 @@ Read the following before processing:
     - All completed/error → Proceed to merge
     ↓
 2. Merge processing
-    - full: Generate new rules_toc.yaml from .toc_work/*.yaml
-    - incremental: Combine existing rules_toc.yaml + .toc_work/*.yaml + handle deletions
+    - full: Generate new rules_toc.yaml from .claude/doc-advisor/rules/.toc_work/*.yaml
+    - incremental: Combine existing rules_toc.yaml + .claude/doc-advisor/rules/.toc_work/*.yaml + handle deletions
     - Note: Skip error status files (output warning)
     ↓
 3. Run validation → **Check return value**
@@ -88,7 +88,7 @@ Read the following before processing:
     ↓
 4. Update checksums **only on validation success**
     ↓
-5. Cleanup (delete .toc_work/)
+5. Cleanup (delete .claude/doc-advisor/rules/.toc_work/)
     ↓
 6. Report completion (list error files if any)
 ```
@@ -97,7 +97,7 @@ Read the following before processing:
 
 ## Pending YAML Template Generation
 
-Generate `.toc_work/{filename}.yaml` for each target file.
+Generate `.claude/doc-advisor/rules/.toc_work/{filename}.yaml` for each target file.
 
 1. Extract filename from path (e.g., `{{RULES_DIR}}/core/architecture_rule.md` → `{{RULES_DIR}}_core_architecture_rule`)
 2. Generate template and save with Write
@@ -110,9 +110,9 @@ Generate `.toc_work/{filename}.yaml` for each target file.
 
 | Condition | Action |
 |-----------|--------|
-| `--full` + `.toc_work/` exists | Bash: `rm -rf .claude/doc-advisor/rules/.toc_work` → Start full mode |
-| `.toc_work/` exists + pending remain | Resume from pending (to Phase 2) |
-| `.toc_work/` exists + all completed | Go directly to merge phase (Phase 3) |
+| `--full` + `.claude/doc-advisor/rules/.toc_work/` exists | Bash: `rm -rf .claude/doc-advisor/rules/.toc_work` → Start full mode |
+| `.claude/doc-advisor/rules/.toc_work/` exists + pending remain | Resume from pending (to Phase 2) |
+| `.claude/doc-advisor/rules/.toc_work/` exists + all completed | Go directly to merge phase (Phase 3) |
 
 ---
 
@@ -165,14 +165,14 @@ shasum -a 256 {{RULES_DIR}}/core/architecture_rule.md | cut -d' ' -f1
 ```
 ✅ No changes - rules_toc.yaml is up to date
 ```
-End processing (no need to create .toc_work/)
+End processing (no need to create .claude/doc-advisor/rules/.toc_work/)
 
 **If N=0 and M>0**:
 ```
 📁 Detected deleted files: M items
 🔄 Running merge script to reflect deletions...
 ```
-→ Run merge script (go directly to Phase 3, no .toc_work/ needed)
+→ Run merge script (go directly to Phase 3, no .claude/doc-advisor/rules/.toc_work/ needed)
 
 ---
 
@@ -224,7 +224,7 @@ python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target rules
 ### Delete-only Mode (N=0 and M>0)
 
 ```bash
-# 1. Delete only (no .toc_work/ needed)
+# 1. Delete only (no .claude/doc-advisor/rules/.toc_work/ needed)
 python3 .claude/skills/doc-advisor/scripts/merge_rules_toc.py --delete-only
 
 # 2. Validate (check return value)
@@ -240,7 +240,7 @@ python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target rules
 
 ## Error Handling
 
-### Continue Mode (when .toc_work/ exists)
+### Continue Mode (when .claude/doc-advisor/rules/.toc_work/ exists)
 
 - Resume from pending files
 - If all completed or error → Proceed to merge
@@ -282,5 +282,5 @@ _meta:
 - Files processed: {N}
 
 [Cleanup]
-- Deleted .toc_work/
+- Deleted .claude/doc-advisor/rules/.toc_work/
 ```
