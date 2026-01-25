@@ -64,7 +64,7 @@ Examples:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin.git
+git clone https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 ```
 
 ### 2. Setup target project
@@ -72,7 +72,7 @@ git clone https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin.git
 Run `setup.sh` with your target project path:
 
 ```bash
-cd DocAdvisor-CCPlugin
+cd DocAdvisor-CC
 ./setup.sh /path/to/your-project
 ```
 
@@ -102,7 +102,7 @@ No `--plugin-dir` flag needed! All files are already in your project.
 ### Using Makefile (Alternative)
 
 ```bash
-cd DocAdvisor-CCPlugin
+cd DocAdvisor-CC
 make setup                            # Interactive mode
 make setup TARGET=/path/to/your-project  # Specify target
 ```
@@ -179,7 +179,7 @@ Task(subagent_type: *-advisor)
 ### Template Repository
 
 ```
-DocAdvisor-CCPlugin/
+DocAdvisor-CC/
 ├── templates/
 │   ├── commands/               # Command templates
 │   │   ├── create-rules_toc.md

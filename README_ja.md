@@ -64,7 +64,7 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 ### 1. リポジトリをクローン
 
 ```bash
-git clone https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin.git
+git clone https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 ```
 
 ### 2. ターゲットプロジェクトをセットアップ
@@ -72,7 +72,7 @@ git clone https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin.git
 `setup.sh` をターゲットプロジェクトのパスで実行：
 
 ```bash
-cd DocAdvisor-CCPlugin
+cd DocAdvisor-CC
 ./setup.sh /path/to/your-project
 ```
 
@@ -103,7 +103,7 @@ claude
 ### Makefile を使用（代替方法）
 
 ```bash
-cd DocAdvisor-CCPlugin
+cd DocAdvisor-CC
 make setup                            # 対話モード
 make setup TARGET=/path/to/your-project  # ターゲット指定
 ```
@@ -180,7 +180,7 @@ Task(subagent_type: *-advisor)
 ### テンプレートリポジトリ
 
 ```
-DocAdvisor-CCPlugin/
+DocAdvisor-CC/
 ├── templates/
 │   ├── commands/               # コマンドテンプレート
 │   │   ├── create-rules_toc.md
