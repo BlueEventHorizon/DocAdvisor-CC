@@ -32,11 +32,7 @@ The quality of this file determines task execution success. **Missing informatio
 ## Scan Targets [Single Source of Truth]
 
 ```
-{{RULES_DIR}}/core/**/*.md
-{{RULES_DIR}}/layer/**/*.md
-{{RULES_DIR}}/workflow/**/*.md
-{{RULES_DIR}}/format/**/*.md
-{{RULES_DIR}}/refactoring/**/*.md
+{{RULES_DIR}}/**/*.md
 ```
 
 **Exclusions**:
