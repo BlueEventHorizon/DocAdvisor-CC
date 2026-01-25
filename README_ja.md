@@ -1,6 +1,8 @@
 # Doc Advisor (v3.0)
 
-AI を活用したドキュメント管理と自動インデックス化された目次（ToC）生成。
+Doc Advisorは、生成AIのコンテキストをクリーンに保つため、ドキュメントをインデックス化し、生成AIに必要なドキュメントのみを精選して渡します。
+
+[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## なぜ ToC（目次）が必要か
 

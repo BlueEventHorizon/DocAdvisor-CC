@@ -1,1 +1,1 @@
-../../../moons/PrivateEnvironments/DocAdvisor-CCPlugin--apps--_WORKING_--dev/CLAUDE.md
+../../../moons/PrivateEnvironments/DocAdvisor-CC--apps--_WORKING_--dev/CLAUDE.md

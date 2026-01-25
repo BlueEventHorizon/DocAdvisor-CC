@@ -1,6 +1,8 @@
 # Doc Advisor (v3.0)
 
-AI-powered documentation management with auto-indexed Table of Contents (ToC) generation.
+Doc Advisor keeps your AI's context clean by indexing documents and delivering only what's needed.
+
+[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why ToC (Table of Contents)?
 
