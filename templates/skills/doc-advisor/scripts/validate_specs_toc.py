@@ -164,19 +164,22 @@ def validate_toc(toc_path):
     requirements, designs = load_existing_toc(toc_path)
 
     # 2. 必須フィールド検査
-    # 新形式: キーがファイルパス、doc_type/title/purpose が必須
-    required_fields = ['doc_type', 'title', 'purpose']
+    # 新形式: キーがファイルパス、doc_type/title/purpose が必須（文字列）
+    # content_details/applicable_tasks/keywords が必須（非空配列）
+    # フォーマット定義: No null, No empty arrays (specs_toc_format.md)
+    required_string_fields = ['doc_type', 'title', 'purpose']
+    required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
 
-    for file_path, entry in requirements.items():
-        for field in required_fields:
+    all_entries = list(requirements.items()) + list(designs.items())
+    for file_path, entry in all_entries:
+        for field in required_string_fields:
             if not entry.get(field):
                 field_errors.append(f"必須フィールド欠落: {file_path} に '{field}' がありません")
-
-    for file_path, entry in designs.items():
-        for field in required_fields:
-            if not entry.get(field):
-                field_errors.append(f"必須フィールド欠落: {file_path} に '{field}' がありません")
+        for field in required_array_fields:
+            value = entry.get(field)
+            if not isinstance(value, list) or len(value) == 0:
+                field_errors.append(f"必須配列フィールド不正: {file_path} の '{field}' が未設定または空配列です")
 
     if not field_errors:
         print(f"✓ 必須フィールド検査: OK（requirements: {len(requirements)}件, designs: {len(designs)}件）")

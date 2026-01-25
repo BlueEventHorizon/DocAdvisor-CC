@@ -16,7 +16,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs
 
 
 def calculate_file_hash(filepath):
@@ -137,8 +137,7 @@ def main():
         md_files = find_md_files_rules(root_dir, exclude_patterns)
     else:
         # target_dirs はマッピング形式: {doc_type: dir_name}
-        # e.g., {'requirement': 'requirements', 'design': 'design'}
-        target_dirs_map = patterns_config.get('target_dirs', {'requirement': 'requirements', 'design': 'design'})
+        target_dirs_map = patterns_config.get('target_dirs', get_default_target_dirs())
         target_dir_names = list(target_dirs_map.values())  # ['requirements', 'design']
         md_files = find_md_files_specs(root_dir, exclude_patterns, target_dir_names)
 

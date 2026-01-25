@@ -17,7 +17,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs
 
 # Global configuration (initialized in init_config())
 CONFIG = None
@@ -59,8 +59,7 @@ def init_config():
     SPECS_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), SPECS_DIR, PROJECT_ROOT)
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
     # target_dirs はマッピング形式: {doc_type: dir_name}
-    # e.g., {'requirement': 'requirements', 'design': 'design'}
-    TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', {'requirement': 'requirements', 'design': 'design'})
+    TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', get_default_target_dirs())
     EXCLUDE_PATTERNS = PATTERNS_CONFIG.get('exclude', ['.toc_work', '.toc_checksums.yaml', 'specs_toc.yaml', 'reference', '/info/'])
     return True
 
@@ -154,13 +153,25 @@ def get_source_file_path(md_file):
 
 
 def get_doc_type(source_file):
-    """Determine doc_type from path using TARGET_DIRS"""
+    """
+    Determine doc_type from path using TARGET_DIRS
+
+    Args:
+        source_file: Project-relative path (e.g., 'specs/main/requirements/login.md')
+
+    Returns:
+        str: doc_type ('requirement', 'design', etc.) or None
+    """
     parts = source_file.split('/')
-    # ディレクトリ名 → doc_type の逆引きマップを作成
-    # {'requirements': 'requirement', 'design': 'design'}
+    # Skip the first part (root directory like 'specs') to avoid false matches
+    # when subdirectory name equals root directory name
+    parts_without_root = parts[1:] if len(parts) > 1 else parts
+
+    # Create reverse mapping: directory name → doc_type
+    # e.g., {'requirements': 'requirement', 'design': 'design'}
     dir_to_doctype = {v: k for k, v in TARGET_DIRS.items()}
 
-    for part in parts:
+    for part in parts_without_root:
         if part in dir_to_doctype:
             return dir_to_doctype[part]
     return None

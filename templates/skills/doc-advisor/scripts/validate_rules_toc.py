@@ -144,13 +144,21 @@ def validate_toc(toc_path):
     docs = load_existing_toc(toc_path)
 
     # 2. 必須フィールド検査
-    required_fields = ['title', 'purpose']
+    # title/purpose が必須（文字列）
+    # content_details/applicable_tasks/keywords が必須（非空配列）
+    # フォーマット定義: No null, No empty arrays (rules_toc_format.md)
+    required_string_fields = ['title', 'purpose']
+    required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
 
     for filepath, entry in docs.items():
-        for field in required_fields:
+        for field in required_string_fields:
             if not entry.get(field):
                 field_errors.append(f"必須フィールド欠落: '{filepath}' に '{field}' がありません")
+        for field in required_array_fields:
+            value = entry.get(field)
+            if not isinstance(value, list) or len(value) == 0:
+                field_errors.append(f"必須配列フィールド不正: '{filepath}' の '{field}' が未設定または空配列です")
 
     if not field_errors:
         print(f"✓ 必須フィールド検査: OK（{len(docs)}件のエントリ）")

@@ -29,6 +29,7 @@ from toc_utils import (
     cleanup_work_dir,
     should_exclude,
     resolve_config_path,
+    get_default_target_dirs,
 )
 
 # Global configuration (initialized in init_config())
@@ -73,8 +74,7 @@ def init_config():
     OUTPUT_CONFIG = CONFIG.get('output', {})
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
     # target_dirs はマッピング形式: {doc_type: dir_name}
-    # e.g., {'requirement': 'requirements', 'design': 'design'}
-    TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', {'requirement': 'requirements', 'design': 'design'})
+    TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', get_default_target_dirs())
     EXCLUDE_PATTERNS = PATTERNS_CONFIG.get('exclude', ['.toc_work', '.toc_checksums.yaml', 'specs_toc.yaml', 'reference', '/info/'])
     return True
 

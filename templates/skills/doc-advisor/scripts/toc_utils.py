@@ -109,6 +109,24 @@ def load_config(target=None):
     return config
 
 
+def get_default_target_dirs():
+    """
+    Return default target_dirs configuration for specs.
+
+    This is the single source of truth for default directory mappings.
+    Other scripts should use this instead of hardcoding values.
+
+    Returns:
+        dict: Mapping of doc_type to directory name
+              e.g., {'requirement': 'requirements', 'design': 'design'}
+              Note: 'plan' is excluded per DES-002 (read in full during work, no search index needed)
+    """
+    return {
+        'requirement': 'requirements',
+        'design': 'design',
+    }
+
+
 def _get_default_config():
     """Return default configuration"""
     return {
@@ -132,11 +150,7 @@ def _get_default_config():
             'checksums_file': '.toc_checksums.yaml',
             'work_dir': '.toc_work/',
             'patterns': {
-                'target_dirs': {
-                    'requirement': 'requirements',
-                    'design': 'design',
-                    'plan': 'plan'
-                },
+                'target_dirs': get_default_target_dirs(),
                 'exclude': ['.toc_work', '.toc_checksums.yaml', 'specs_toc.yaml', 'reference', '/info/']
             },
             'output': {
