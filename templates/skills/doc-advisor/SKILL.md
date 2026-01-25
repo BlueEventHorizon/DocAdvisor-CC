@@ -145,8 +145,8 @@ python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 
 ### Checksum Files
 
-- `{{RULES_DIR}}/.toc_checksums.yaml`
-- `{{SPECS_DIR}}/.toc_checksums.yaml`
+- `.claude/doc-advisor/rules/.toc_checksums.yaml`
+- `.claude/doc-advisor/specs/.toc_checksums.yaml`
 
 ```yaml
 # Checksum file for *_toc.yaml
