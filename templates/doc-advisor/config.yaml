@@ -11,7 +11,8 @@ rules:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      # Add project-specific patterns below (e.g., "reference", "archive")
+      # - reference
+      # - archive
 
   output:
     header_comment: "Development documentation search index for rules-advisor subagent"
@@ -28,9 +29,10 @@ specs:
     target_dirs:
       requirement: {{REQUIREMENT_DIR_NAME}}
       design: {{DESIGN_DIR_NAME}}
-      # plan is NOT included - read in full during work, no search needed
     exclude:
-      # Add project-specific patterns below (e.g., "reference", "/info/", "plan")
+      - {{PLAN_DIR_NAME}}  # Read in full during work, no search needed
+      # - reference
+      # - /info/
 
   output:
     header_comment: "Requirements and design document search index for specs-advisor subagent"

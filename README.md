@@ -61,6 +61,36 @@ Examples:
 - `specs/main/design/architecture.md` → design
 - `specs/auth/oauth/requirements/api.md` → requirement
 
+### How ToC Generation Works
+
+#### Search Scope
+
+The system recursively searches under `specs/` and targets files whose path contains a `requirement` or `design` directory. There is no depth limit.
+
+| Path Example | Included | Reason |
+|--------------|----------|--------|
+| `specs/feature1/requirements/app.md` | ✅ | Contains `requirements` |
+| `specs/main/sub/design/api.md` | ✅ | Contains `design` |
+| `specs/feature1/plan/task.md` | ❌ | Not included |
+
+#### Why plan is Excluded
+
+The `plan` directory is excluded from ToC indexing:
+
+1. **Read in full during work**: Plans are read entirely at execution time, so partial search indexing is unnecessary
+2. **Pre-defined execution plans**: requirement/design are "what to build" references; plan is the "how to build" execution plan
+
+#### Processing Time
+
+| Process | Executor | Speed |
+|---------|----------|-------|
+| Recursive search | Python (`rglob`) | Fast |
+| Change detection | Python (SHA-256) | Fast |
+| Content analysis | Claude (LLM) | **Slow** |
+| Merge | Python | Fast |
+
+The bottleneck is LLM content analysis. Incremental mode (default) optimizes by processing only changed files.
+
 ## Installation
 
 ### 1. Clone the repository

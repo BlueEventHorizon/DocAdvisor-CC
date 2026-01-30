@@ -91,21 +91,32 @@ add_pattern_to_section() {
     local pattern="$2"
     local file="$3"
 
-    # Find the line number of the section's exclude comment
-    # and insert before the comment line
+    # Find the last line of exclude section (before output: or next section)
     if [[ "$section" == "rules" ]]; then
-        # Find "# Add project-specific" in rules section
-        local line_num=$(awk '/^rules:/,/^specs:/{if(/# Add project-specific/) print NR}' "$file")
+        # Find last exclude item line in rules section (before "  output:")
+        local line_num=$(awk '/^rules:/,/^specs:/{
+            if(/^  patterns:/) in_patterns=1
+            if(in_patterns && /exclude:/) in_exclude=1
+            if(in_exclude && /^      [#-]/) last_line=NR
+            if(in_exclude && /^  output:/) {print last_line; exit}
+        }' "$file")
     else
-        # Find "# Add project-specific" in specs section (after specs:)
-        local line_num=$(awk '/^specs:/,/^common:/{if(/# Add project-specific/) print NR}' "$file")
+        # Find last exclude item line in specs section (before "  output:")
+        local line_num=$(awk '/^specs:/,/^common:/{
+            if(/^  patterns:/) in_patterns=1
+            if(in_patterns && /exclude:/) in_exclude=1
+            if(in_exclude && /^      [#-]/) last_line=NR
+            if(in_exclude && /^  output:/) {print last_line; exit}
+        }' "$file")
     fi
 
     if [[ -n "$line_num" ]]; then
-        # Insert before the comment line
-        sed -i '' "${line_num}i\\
-      - \"${pattern}\"
+        # Insert after the last exclude item
+        sed -i '' "${line_num}a\\
+      - ${pattern}
 " "$file"
+    else
+        echo "Warning: Could not find exclude section in $section"
     fi
 }
 

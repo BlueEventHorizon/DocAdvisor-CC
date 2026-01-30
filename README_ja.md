@@ -61,6 +61,36 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 - `specs/main/design/architecture.md` → design
 - `specs/auth/oauth/requirements/api.md` → requirement
 
+### ToC 生成の仕組み
+
+#### 探索範囲
+
+`specs/` 配下を再帰的に探索し、パスに `requirement` または `design` ディレクトリが含まれるファイルを対象とします。深さ制限はありません。
+
+| パス例 | 対象 | 理由 |
+|--------|------|------|
+| `specs/feature1/requirements/app.md` | ✅ | `requirements` を含む |
+| `specs/main/sub/design/api.md` | ✅ | `design` を含む |
+| `specs/feature1/plan/task.md` | ❌ | 対象外 |
+
+#### plan が対象外の理由
+
+`plan` ディレクトリは ToC の対象外です。理由：
+
+1. **作業中に全文読む**: plan は実行時に全文参照するため、検索インデックスによる部分参照は不要
+2. **定義済みの実行計画**: requirement/design は「何を作るか」の参照用、plan は「どう作るか」の定義済み実行計画
+
+#### 処理時間
+
+| 処理 | 実行者 | 速度 |
+|------|--------|------|
+| 再帰探索 | Python (`rglob`) | 高速 |
+| 差分検出 | Python (SHA-256) | 高速 |
+| 内容解析 | Claude (LLM) | **遅い** |
+| 統合 | Python | 高速 |
+
+ボトルネックは LLM による解析です。インクリメンタルモード（デフォルト）では変更ファイルのみ処理することで最適化しています。
+
 ## インストール
 
 ### 1. リポジトリをクローン
