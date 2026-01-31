@@ -306,9 +306,8 @@ rules:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      - ".toc_work"
-      - "rules_toc.yaml"
-      - "reference"
+      # - reference    # Uncomment to exclude
+      # - archive
 
   output:
     header_comment: "Development documentation search index for rules-advisor subagent"
@@ -326,11 +325,9 @@ specs:
       requirement: requirements
       design: design
     exclude:
-      - ".toc_work"
-      - ".toc_checksums.yaml"
-      - "specs_toc.yaml"
-      - "reference"
-      - "/info/"
+      - plan           # Read in full during work, no search needed
+      # - reference
+      # - /info/
 
   output:
     header_comment: "Requirements and design document search index for specs-advisor subagent"
@@ -342,6 +339,8 @@ common:
     max_workers: 5
     fallback_to_serial: true
 ```
+
+> **Note**: System files (`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`) are automatically excluded and do not need to be listed in config.
 
 ### Customizing Configuration
 

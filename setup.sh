@@ -10,6 +10,13 @@
 
 set -e
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 # Get script directory (plugin root)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
@@ -99,9 +106,9 @@ TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || {
     exit 1
 }
 
-echo "=========================================="
-echo "Doc Advisor Setup (v3.0)"
-echo "=========================================="
+echo -e "${GREEN}==========================================${NC}"
+echo -e "${GREEN}Doc Advisor Setup (v3.0)${NC}"
+echo -e "${GREEN}==========================================${NC}"
 echo ""
 echo "Target project: ${TARGET_DIR}"
 echo ""
@@ -133,19 +140,31 @@ SPECS_DIR="${SPECS_DIR%/}"
 # Plan directory name (not configurable via prompt)
 PLAN_DIR_NAME="${DEFAULT_PLAN_DIR_NAME}"
 
-# Detect Python path (to avoid safe-chain or other wrappers)
-PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || which python3 2>/dev/null || echo "python3")
-# Replace $HOME with ~ for portability
-PYTHON_PATH="${PYTHON_PATH/#$HOME/~}"
+# Detect Python path
+# Check if shell wrapper exists (e.g., Claude Code shell-snapshots directory)
+if [[ -d "$HOME/.claude/shell-snapshots" ]] && [[ -n "$(ls -A "$HOME/.claude/shell-snapshots" 2>/dev/null)" ]]; then
+    # Shell wrapper likely present: use full path to bypass
+    PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || echo "python3")
+    # Replace $HOME with ~ for portability
+    PYTHON_PATH="${PYTHON_PATH/#$HOME/~}"
+    PYTHON_WRAPPED="yes"
+else
+    # No wrapper detected: use simple command
+    PYTHON_PATH="python3"
+    PYTHON_WRAPPED="no"
+fi
 
 echo ""
 echo "Configuration:"
-echo "  RULES_DIR: ${RULES_DIR}"
-echo "  SPECS_DIR: ${SPECS_DIR}"
-echo "  REQUIREMENT_DIR_NAME: ${REQUIREMENT_DIR_NAME}"
-echo "  DESIGN_DIR_NAME: ${DESIGN_DIR_NAME}"
-echo "  PLAN_DIR_NAME: ${PLAN_DIR_NAME}"
-echo "  PYTHON_PATH: ${PYTHON_PATH}"
+echo -e "  RULES_DIR: ${BLUE}${RULES_DIR}${NC}"
+echo -e "  SPECS_DIR: ${BLUE}${SPECS_DIR}${NC}"
+echo -e "  REQUIREMENT_DIR_NAME: ${BLUE}${REQUIREMENT_DIR_NAME}${NC}"
+echo -e "  DESIGN_DIR_NAME: ${BLUE}${DESIGN_DIR_NAME}${NC}"
+echo -e "  PLAN_DIR_NAME: ${BLUE}${PLAN_DIR_NAME}${NC}"
+echo -e "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}"
+if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
+    echo -e "    ${RED}(python3 may be wrapped: using explicit path for reliability)${NC}"
+fi
 echo ""
 
 # Create directories
@@ -238,9 +257,9 @@ echo "Generated configuration:"
 echo "  ${CONFIG_DIR}/config.yaml"
 
 echo ""
-echo "=========================================="
-echo "Setup Complete"
-echo "=========================================="
+echo -e "${GREEN}==========================================${NC}"
+echo -e "${GREEN}Setup Complete${NC}"
+echo -e "${GREEN}==========================================${NC}"
 echo ""
 echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
@@ -261,10 +280,10 @@ EOF
 
 echo ""
 echo "Next steps:"
-echo "  1. Verify ${RULES_DIR} and ${SPECS_DIR} directories exist in your project"
+echo -e "  1. Verify ${BLUE}${RULES_DIR}${NC} and ${BLUE}${SPECS_DIR}${NC} directories exist in your project"
 echo "  2. Start Claude Code:"
-echo "     cd ${TARGET_DIR}"
+echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"
-echo "  3. Run /create-rules_toc --full for initial ToC generation"
-echo "  4. Run /create-specs_toc --full for initial ToC generation"
+echo -e "  3. Run ${YELLOW}/create-rules_toc --full${NC} for initial ToC generation"
+echo -e "  4. Run ${YELLOW}/create-specs_toc --full${NC} for initial ToC generation"
 echo ""

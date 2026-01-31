@@ -307,9 +307,8 @@ rules:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      - ".toc_work"
-      - "rules_toc.yaml"
-      - "reference"
+      # - reference    # 必要に応じてコメント解除
+      # - archive
 
   output:
     header_comment: "Development documentation search index for rules-advisor subagent"
@@ -327,11 +326,9 @@ specs:
       requirement: requirements
       design: design
     exclude:
-      - ".toc_work"
-      - ".toc_checksums.yaml"
-      - "specs_toc.yaml"
-      - "reference"
-      - "/info/"
+      - plan           # 作業中に全文読むため、検索不要
+      # - reference
+      # - /info/
 
   output:
     header_comment: "Requirements and design document search index for specs-advisor subagent"
@@ -343,6 +340,8 @@ common:
     max_workers: 5
     fallback_to_serial: true
 ```
+
+> **注**: システムファイル（`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`）は自動的に除外されるため、設定に記載する必要はありません。
 
 ### 設定のカスタマイズ
 
