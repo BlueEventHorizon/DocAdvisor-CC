@@ -6,3 +6,7 @@
 /rules
 /specs
 /meta
+
+# Python cache
+__pycache__/
+*.pyc

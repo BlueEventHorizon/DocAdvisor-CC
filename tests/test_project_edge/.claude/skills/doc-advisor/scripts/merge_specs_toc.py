@@ -167,7 +167,8 @@ def load_existing_toc(toc_path):
 
         if current_section == 'docs':
             # Detect file path as key (e.g., main/requirements/app.md:)
-            if re.match(r'^[a-zA-Z0-9_/.-]+\.md:$', stripped):
+            # Unicode-safe: 2-space indent (not 4-space) and .md: suffix
+            if line.startswith('  ') and not line.startswith('    ') and stripped.endswith('.md:'):
                 if current_path and current_entry:
                     docs[current_path] = current_entry
                 current_path = stripped.rstrip(':')

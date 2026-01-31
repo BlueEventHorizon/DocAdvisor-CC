@@ -1,0 +1,15 @@
+# Test ToC with Japanese filename
+docs:
+  日本語ドキュメント.md:
+    title: "日本語タイトル"
+    summary: "日本語の要約文"
+    doc_type: requirement
+    keywords:
+      - "キーワード1"
+      - "キーワード2"
+  specs/main/requirements/special_chars.md:
+    title: "Special Characters Test"
+    summary: "Test document"
+    doc_type: requirement
+    keywords:
+      - "test"

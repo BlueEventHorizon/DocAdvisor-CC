@@ -56,6 +56,7 @@ run_test "Phase 1: Basic Setup" "test.sh"
 run_test "Phase 2a: write_pending.py" "test_write_pending.sh"
 run_test "Phase 2b: merge_toc.py" "test_merge.sh"
 run_test "Phase 2c: create_checksums.py" "test_checksums.sh"
+run_test "Phase 2d: should_exclude()" "test_should_exclude.sh"
 
 # Phase 3: Custom directory tests
 run_test "Phase 3: Custom Directories" "test_custom_dirs.sh"
