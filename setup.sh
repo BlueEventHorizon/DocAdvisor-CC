@@ -135,6 +135,8 @@ PLAN_DIR_NAME="${DEFAULT_PLAN_DIR_NAME}"
 
 # Detect Python path (to avoid safe-chain or other wrappers)
 PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || which python3 2>/dev/null || echo "python3")
+# Replace $HOME with ~ for portability
+PYTHON_PATH="${PYTHON_PATH/#$HOME/~}"
 
 echo ""
 echo "Configuration:"
