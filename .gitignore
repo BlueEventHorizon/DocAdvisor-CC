@@ -1,2 +1,8 @@
 # Last setup settings (user-specific)
 .last_setup
+.DS_Store
+/.claude
+/CLAUDE.md
+/rules
+/specs
+/meta

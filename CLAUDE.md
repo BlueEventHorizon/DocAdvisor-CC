@@ -1,1 +1,0 @@
-../../../moons/PrivateEnvironments/DocAdvisor-CC/privates/CLAUDE.md
