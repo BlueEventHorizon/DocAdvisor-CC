@@ -1,0 +1,33 @@
+# .claude/doc-advisor/specs/specs_toc.yaml
+# Requirements and design document search index for specs-advisor subagent
+
+metadata:
+  name: Requirements and Design Document Search Index
+  generated_at: 2026-01-31T12:40:54Z
+  file_count: 2
+
+docs:
+  specs/main/requirements/special_chars.md:
+    doc_type: requirement
+    title: "Special: \\\"quotes\\\" & ampersand"
+    purpose: Test YAML escaping for special characters
+    content_details:
+      - "Single 'quotes"
+      - "Double \\\"quotes\\"
+      - "Ampersand &"
+      - "Colon: value"
+      - "Pipe | char"
+    applicable_tasks:
+      - YAML escaping test
+    keywords:
+      - special
+      - chars
+      - yaml
+      - escape
+      - test
+  日本語ドキュメント.md:
+    doc_type: requirement
+    title: 日本語タイトル
+    keywords:
+      - キーワード1
+      - キーワード2

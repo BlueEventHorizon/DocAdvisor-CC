@@ -583,9 +583,28 @@ def should_exclude(filepath, root_dir, exclude_patterns):
 
     Returns:
         bool: True if should be excluded
+
+    Note:
+        - All patterns are matched against directory path only (filename excluded)
+        - Patterns containing '/' are matched as path substring
+        - Patterns without '/' are matched as exact directory name
+        - This prevents 'plan' from excluding 'planning.md'
     """
     rel_path = str(filepath.relative_to(root_dir))
+    path_parts = rel_path.split('/')
+    dir_parts = path_parts[:-1]  # ファイル名を除く
+    dir_path = '/'.join(dir_parts)  # ディレクトリパスのみ
+
     for pattern in exclude_patterns:
-        if pattern in rel_path:
-            return True
+        # 先頭・末尾の / を除去
+        normalized = pattern.strip('/')
+
+        if '/' in normalized:
+            # パターンに / が含まれる場合はパス部分文字列としてマッチ
+            if normalized in dir_path:
+                return True
+        else:
+            # ディレクトリ名として完全一致でチェック
+            if normalized in dir_parts:
+                return True
     return False

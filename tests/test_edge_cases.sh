@@ -223,6 +223,74 @@ fi
 echo ""
 
 echo "=================================================="
+echo "Test 4-6: Unicode filename in incremental merge"
+echo "=================================================="
+
+# Create initial specs_toc.yaml with Japanese filename
+mkdir -p .claude/doc-advisor/specs
+cat > .claude/doc-advisor/specs/specs_toc.yaml << 'TOCEOF'
+# Test ToC with Japanese filename
+docs:
+  日本語ドキュメント.md:
+    title: "日本語タイトル"
+    summary: "日本語の要約文"
+    doc_type: requirement
+    keywords:
+      - "キーワード1"
+      - "キーワード2"
+  specs/main/requirements/special_chars.md:
+    title: "Special Characters Test"
+    summary: "Test document"
+    doc_type: requirement
+    keywords:
+      - "test"
+TOCEOF
+
+# Create a pending YAML file for incremental merge
+mkdir -p .claude/doc-advisor/specs/.toc_work
+cat > .claude/doc-advisor/specs/.toc_work/specs_new_file.yaml << 'PENDINGEOF'
+# metadata
+source_file: specs/main/requirements/new_file.md
+doc_type: requirement
+status: completed
+updated_at: "2026-01-31T12:00:00Z"
+---
+title: "New File"
+summary: "A new file for testing"
+keywords:
+  - "new"
+  - "test"
+PENDINGEOF
+
+# Run incremental merge (--mode incremental)
+$PYTHON_CMD .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental 2>/dev/null
+EXIT_CODE=$?
+
+if [[ $EXIT_CODE -eq 0 ]]; then
+    # Check if Japanese filename entry is preserved
+    if grep -q "日本語ドキュメント.md:" .claude/doc-advisor/specs/specs_toc.yaml 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}: Japanese filename preserved in incremental merge"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: Japanese filename lost in incremental merge"
+        ((FAIL_COUNT++))
+    fi
+
+    # Check if Japanese content is preserved
+    if grep -q "日本語タイトル" .claude/doc-advisor/specs/specs_toc.yaml 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}: Japanese content preserved"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: Japanese content lost"
+        ((FAIL_COUNT++))
+    fi
+else
+    echo -e "${RED}FAIL${NC}: merge_specs_toc.py failed (exit=$EXIT_CODE)"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+echo "=================================================="
 echo "Summary"
 echo "=================================================="
 echo ""

@@ -1,0 +1,11 @@
+# metadata
+source_file: specs/main/requirements/new_file.md
+doc_type: requirement
+status: completed
+updated_at: "2026-01-31T12:00:00Z"
+---
+title: "New File"
+summary: "A new file for testing"
+keywords:
+  - "new"
+  - "test"
