@@ -121,6 +121,8 @@ your-project/.claude/
 Setup will interactively ask for:
 - Rules directory (default: `rules/`)
 - Specs directory (default: `specs/`)
+- Requirements subdirectory name (default: `requirements`)
+- Design subdirectory name (default: `design`)
 
 ### 3. Launch Claude Code
 
@@ -160,6 +162,30 @@ Automatically identify documents needed for a task:
 ```
 Task(subagent_type: rules-advisor, prompt: "Identify documents for implementing user authentication")
 Task(subagent_type: specs-advisor, prompt: "Find requirements for screen navigation")
+```
+
+### Recommended CLAUDE.md Entry
+
+Add the following to your project's `CLAUDE.md` to make Claude automatically reference documents:
+
+```markdown
+## Task Execution Flow [MANDATORY]
+
+When receiving a work task, follow this flow:
+
+1. Identify rule documents with rules-advisor Subagent
+   ```
+   Task(subagent_type: rules-advisor, prompt: [task description])
+   ```
+
+2. Identify requirements/design documents with specs-advisor Subagent
+   ```
+   Task(subagent_type: specs-advisor, prompt: [task description])
+   ```
+
+3. Read **all** required documents (or pass to Subagent)
+
+4. Execute the task
 ```
 
 ## Architecture

@@ -133,6 +133,11 @@ SPECS_DIR="${SPECS_DIR%/}"
 # Plan directory name (not configurable via prompt)
 PLAN_DIR_NAME="${DEFAULT_PLAN_DIR_NAME}"
 
+# Detect Python path (to avoid safe-chain or other wrappers)
+PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || which python3 2>/dev/null || echo "python3")
+# Replace $HOME with ~ for portability
+PYTHON_PATH="${PYTHON_PATH/#$HOME/~}"
+
 echo ""
 echo "Configuration:"
 echo "  RULES_DIR: ${RULES_DIR}"
@@ -140,6 +145,7 @@ echo "  SPECS_DIR: ${SPECS_DIR}"
 echo "  REQUIREMENT_DIR_NAME: ${REQUIREMENT_DIR_NAME}"
 echo "  DESIGN_DIR_NAME: ${DESIGN_DIR_NAME}"
 echo "  PLAN_DIR_NAME: ${PLAN_DIR_NAME}"
+echo "  PYTHON_PATH: ${PYTHON_PATH}"
 echo ""
 
 # Create directories
@@ -168,6 +174,7 @@ copy_and_substitute() {
             -e "s|{{REQUIREMENT_DIR_NAME}}|${REQUIREMENT_DIR_NAME}|g" \
             -e "s|{{DESIGN_DIR_NAME}}|${DESIGN_DIR_NAME}|g" \
             -e "s|{{PLAN_DIR_NAME}}|${PLAN_DIR_NAME}|g" \
+            -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
             "$src" > "$dst"
     fi
 }

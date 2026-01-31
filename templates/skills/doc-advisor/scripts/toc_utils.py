@@ -12,6 +12,28 @@ import shutil
 from pathlib import Path
 
 
+# System files that are always excluded (not configurable)
+SYSTEM_EXCLUDE_PATTERNS_RULES = ['.toc_work', 'rules_toc.yaml', '.toc_checksums.yaml']
+SYSTEM_EXCLUDE_PATTERNS_SPECS = ['.toc_work', 'specs_toc.yaml', '.toc_checksums.yaml']
+
+
+def get_system_exclude_patterns(category):
+    """
+    Get system exclude patterns that are always applied.
+
+    Args:
+        category: 'rules' or 'specs'
+
+    Returns:
+        list: System exclude patterns
+    """
+    if category == 'rules':
+        return SYSTEM_EXCLUDE_PATTERNS_RULES.copy()
+    elif category == 'specs':
+        return SYSTEM_EXCLUDE_PATTERNS_SPECS.copy()
+    return []
+
+
 def get_project_root():
     """
     Detect project root (searches for .git or .claude directory)
@@ -137,7 +159,7 @@ def _get_default_config():
             'work_dir': '.claude/doc-advisor/rules/.toc_work/',
             'patterns': {
                 'target_glob': '**/*.md',
-                'exclude': ['.toc_work', 'rules_toc.yaml', 'reference']
+                'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
                 'header_comment': 'Development Document Search Index for rules-advisor Subagent',
@@ -151,7 +173,7 @@ def _get_default_config():
             'work_dir': '.claude/doc-advisor/specs/.toc_work/',
             'patterns': {
                 'target_dirs': get_default_target_dirs(),
-                'exclude': ['.toc_work', '.toc_checksums.yaml', 'specs_toc.yaml', 'reference', '/info/']
+                'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
                 'header_comment': 'Requirement & Design Document Search Index for specs-advisor Subagent',

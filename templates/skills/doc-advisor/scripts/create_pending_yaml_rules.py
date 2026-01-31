@@ -17,7 +17,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns
 
 # Global configuration (initialized in init_config())
 CONFIG = None
@@ -57,7 +57,8 @@ def init_config():
     CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), RULES_DIR, PROJECT_ROOT)
     RULES_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), RULES_DIR, PROJECT_ROOT)
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
-    EXCLUDE_PATTERNS = PATTERNS_CONFIG.get('exclude', ['.toc_work', 'rules_toc.yaml', 'reference'])
+    # System patterns (always excluded) + user-defined patterns
+    EXCLUDE_PATTERNS = get_system_exclude_patterns('rules') + PATTERNS_CONFIG.get('exclude', [])
     return True
 
 # Pending YAML template

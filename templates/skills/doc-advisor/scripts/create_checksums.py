@@ -16,7 +16,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs, get_system_exclude_patterns
 
 
 def calculate_file_hash(filepath):
@@ -123,7 +123,8 @@ def main():
     root_dir = project_root / root_dir_name
     output_file = resolve_config_path(config.get('checksums_file', '.toc_checksums.yaml'), root_dir, project_root)
     patterns_config = config.get('patterns', {})
-    exclude_patterns = patterns_config.get('exclude', [])
+    # System patterns (always excluded) + user-defined patterns
+    exclude_patterns = get_system_exclude_patterns(target) + patterns_config.get('exclude', [])
 
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)

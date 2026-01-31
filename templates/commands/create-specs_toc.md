@@ -48,11 +48,14 @@ Read the following before processing:
     ↓
 3. Create .toc_work/ directory
     ↓
-4. Identify target files
-    - full: Get all files with Glob
-    - incremental: Detect changed files with hash method (deletions auto-detected at merge)
-    ↓
-5. Generate pending YAML templates
+4. Identify target files and generate pending YAML templates
+    ```bash
+    # Full mode
+    {{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py --full
+
+    # Incremental mode
+    {{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py
+    ```
 ```
 
 ### Phase 2: Parallel Processing
@@ -97,13 +100,21 @@ Read the following before processing:
 
 ## Pending YAML Template Generation
 
-Generate `.claude/doc-advisor/specs/.toc_work/{filename}.yaml` for each target file.
+Use the script to generate `.claude/doc-advisor/specs/.toc_work/{filename}.yaml` for each target file.
 
-1. Convert file path to work filename (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/login.md` → `{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_login.yaml`)
-2. Determine doc_type from path (`{{REQUIREMENT_DIR_NAME}}/` → `requirement`, `{{DESIGN_DIR_NAME}}/` → `design`)
-3. Generate template and save with Write
+```bash
+# Full mode (all files)
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py --full
 
-**Filename conversion rule**: `/` → `_`, `.md` → `.yaml`
+# Incremental mode (changed files only)
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py
+```
+
+The script handles:
+1. File discovery and change detection (SHA-256 hash comparison)
+2. doc_type determination from path (`{{REQUIREMENT_DIR_NAME}}/` → `requirement`, `{{DESIGN_DIR_NAME}}/` → `design`)
+3. Filename conversion (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/login.md` → `{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_login.yaml`)
+4. Template generation with pending status
 
 **Template format**: See "Intermediate File Schema" section in `.claude/doc-advisor/docs/specs_toc_format.md`
 
@@ -198,45 +209,45 @@ Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/
 
 ```bash
 # 1. Merge
-python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode full --cleanup
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode full --cleanup
 
 # 2. Validate (check return value)
-python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ### Incremental Mode
 
 ```bash
 # 1. Merge
-python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental --cleanup
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental --cleanup
 
 # 2. Validate (check return value)
-python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ### Delete-only Mode (N=0 and M>0)
 
 ```bash
 # 1. Delete only (no .claude/doc-advisor/specs/.toc_work/ needed)
-python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
 
 # 2. Validate (check return value)
-python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ---
@@ -272,6 +283,16 @@ _meta:
 - Don't delete `.toc_work/`
 - Report error content
 - Can recover by re-running
+
+### On Unexpected Error
+
+**Do NOT attempt automatic recovery or workarounds.**
+
+When encountering unexpected errors (e.g., sandbox restrictions, permission errors, environment issues):
+
+1. Report the error details clearly
+2. Ask the user how to proceed
+3. Wait for user instructions before taking any action
 
 ---
 

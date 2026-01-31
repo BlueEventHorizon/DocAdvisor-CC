@@ -122,6 +122,8 @@ your-project/.claude/
 セットアップは対話形式で以下を聞いてきます：
 - Rules ディレクトリ（デフォルト: `rules/`）
 - Specs ディレクトリ（デフォルト: `specs/`）
+- Requirements サブディレクトリ名（デフォルト: `requirements`）
+- Design サブディレクトリ名（デフォルト: `design`）
 
 ### 3. Claude Code を起動
 
@@ -161,6 +163,30 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 ```
 Task(subagent_type: rules-advisor, prompt: "ユーザー認証機能の実装に必要な文書を特定")
 Task(subagent_type: specs-advisor, prompt: "画面遷移に関する要件定義書を特定")
+```
+
+### CLAUDE.md への推奨記載
+
+プロジェクトの `CLAUDE.md` に以下を追記すると、Claude が自動的にドキュメントを参照するようになります：
+
+```markdown
+## 作業タスク実施の基本フロー [MANDATORY]
+
+作業タスクを受け取ったら、以下のフローに従うこと：
+
+1. rules-advisor Subagent でルール文書を特定
+   ```
+   Task(subagent_type: rules-advisor, prompt: [タスク内容])
+   ```
+
+2. specs-advisor Subagent で要件定義書・設計書を特定
+   ```
+   Task(subagent_type: specs-advisor, prompt: [タスク内容])
+   ```
+
+3. 必要となる文書セット**全て**を読む（または Subagent に渡す）
+
+4. 作業タスクを実行
 ```
 
 ## アーキテクチャ

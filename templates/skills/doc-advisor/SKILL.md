@@ -24,6 +24,8 @@ This skill consolidates all ToC-related functionality:
 | `create_checksums.py` | Checksum file generation |
 | `create_pending_yaml_rules.py` | Phase 1: Generate pending YAML templates for rules |
 | `create_pending_yaml_specs.py` | Phase 1: Generate pending YAML templates for specs |
+| `write_rules_pending.py` | Phase 2: Write completed entry to pending YAML for rules |
+| `write_specs_pending.py` | Phase 2: Write completed entry to pending YAML for specs |
 | `merge_rules_toc.py` | Phase 3: Merge processing for rules |
 | `merge_specs_toc.py` | Phase 3: Merge processing for specs |
 | `validate_rules_toc.py` | Phase 3: Validation for rules |
@@ -35,10 +37,10 @@ This skill consolidates all ToC-related functionality:
 
 ```bash
 # For rules
-python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target rules
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_checksums.py --target rules
 
 # For specs
-python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 ```
 
 ### rules_toc.yaml Generation
@@ -47,26 +49,38 @@ python3 .claude/skills/doc-advisor/scripts/create_checksums.py --target specs
 
 ```bash
 # Full mode (all files)
-python3 .claude/skills/doc-advisor/scripts/create_pending_yaml_rules.py --full
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_rules.py --full
 
 # Incremental mode (changed files only)
-python3 .claude/skills/doc-advisor/scripts/create_pending_yaml_rules.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_rules.py
+```
+
+#### Phase 2: Write Completed Entry (called by subagent)
+
+```bash
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/write_rules_pending.py \
+  --entry-file ".claude/doc-advisor/rules/.toc_work/xxx.yaml" \
+  --title "Document Title" \
+  --purpose "Document purpose description" \
+  --content-details "detail1,detail2,detail3,detail4,detail5" \
+  --applicable-tasks "task1,task2" \
+  --keywords "kw1,kw2,kw3,kw4,kw5"
 ```
 
 #### Phase 3: Merge & Validation
 
 ```bash
 # Full mode (new generation)
-python3 .claude/skills/doc-advisor/scripts/merge_rules_toc.py --mode full --cleanup
-python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_rules_toc.py --mode full --cleanup
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 
 # Incremental mode (differential merge)
-python3 .claude/skills/doc-advisor/scripts/merge_rules_toc.py --mode incremental --cleanup
-python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_rules_toc.py --mode incremental --cleanup
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 
 # Delete-only mode (deletions only, no .claude/doc-advisor/rules/.toc_work/ needed)
-python3 .claude/skills/doc-advisor/scripts/merge_rules_toc.py --delete-only
-python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_rules_toc.py --delete-only
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 ```
 
 ### specs_toc.yaml Generation
@@ -75,26 +89,38 @@ python3 .claude/skills/doc-advisor/scripts/validate_rules_toc.py
 
 ```bash
 # Full mode (all files)
-python3 .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py --full
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py --full
 
 # Incremental mode (changed files only)
-python3 .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/create_pending_yaml_specs.py
+```
+
+#### Phase 2: Write Completed Entry (called by subagent)
+
+```bash
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/write_specs_pending.py \
+  --entry-file ".claude/doc-advisor/specs/.toc_work/xxx.yaml" \
+  --title "Document Title" \
+  --purpose "Document purpose description" \
+  --content-details "detail1,detail2,detail3,detail4,detail5" \
+  --applicable-tasks "task1,task2" \
+  --keywords "kw1,kw2,kw3,kw4,kw5"
 ```
 
 #### Phase 3: Merge & Validation
 
 ```bash
 # Full mode (new generation)
-python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode full --cleanup
-python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode full --cleanup
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 
 # Incremental mode (differential merge)
-python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental --cleanup
-python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_specs_toc.py --mode incremental --cleanup
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 
 # Delete-only mode (deletions only, no .claude/doc-advisor/specs/.toc_work/ needed)
-python3 .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
-python3 .claude/skills/doc-advisor/scripts/validate_specs_toc.py
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/merge_specs_toc.py --delete-only
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/validate_specs_toc.py
 ```
 
 ## Options

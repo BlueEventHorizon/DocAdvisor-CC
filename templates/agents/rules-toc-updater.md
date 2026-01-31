@@ -3,6 +3,7 @@ name: rules-toc-updater
 description: Specialized agent that generates ToC entries for a single rule document. Processes individual YAML files in .claude/doc-advisor/rules/.toc_work/.
 model: opus
 color: orange
+tools: Read, Bash
 ---
 
 ## Overview
@@ -24,12 +25,23 @@ Read the following before processing:
 
 ## Procedure
 
-1. Read `{entry_file}`
+1. Read `{entry_file}` to get `_meta.source_file`
 2. Read the rule document using `_meta.source_file` value (resolves from project root, e.g., `{{RULES_DIR}}/core/architecture_rule.md`)
-3. Extract and set each field according to "Field Guidelines" in `rules_toc_format.md`
-4. Set `_meta.status: completed` and `_meta.updated_at: {current time ISO 8601}`
-5. Write to `{entry_file}`
+3. Extract each field according to "Field Guidelines" in `rules_toc_format.md`
+4. Call the write script to save the completed entry:
+
+```bash
+{{PYTHON_PATH}} .claude/skills/doc-advisor/scripts/write_rules_pending.py \
+  --entry-file "{entry_file}" \
+  --title "{extracted title}" \
+  --purpose "{extracted purpose}" \
+  --content-details "{comma-separated details}" \
+  --applicable-tasks "{comma-separated tasks}" \
+  --keywords "{comma-separated keywords}"
+```
+
+**Important**: Arrays are passed as comma-separated strings. Avoid using commas within individual items.
 
 ## Notes
 
-- **On error**: Do not update the entry file, report the error and exit
+- **On error**: Do NOT attempt automatic recovery or workarounds. Report the error details and exit immediately. Let the orchestrator decide how to proceed.

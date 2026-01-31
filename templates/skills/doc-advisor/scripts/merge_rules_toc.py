@@ -28,6 +28,7 @@ from toc_utils import (
     cleanup_work_dir,
     should_exclude,
     resolve_config_path,
+    get_system_exclude_patterns,
 )
 
 # Global configuration (initialized in init_config())
@@ -70,7 +71,8 @@ def init_config():
     CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), RULES_DIR, PROJECT_ROOT)
     OUTPUT_CONFIG = CONFIG.get('output', {})
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
-    EXCLUDE_PATTERNS = PATTERNS_CONFIG.get('exclude', ['.toc_work', 'rules_toc.yaml', 'reference'])
+    # System patterns (always excluded) + user-defined patterns
+    EXCLUDE_PATTERNS = get_system_exclude_patterns('rules') + PATTERNS_CONFIG.get('exclude', [])
     return True
 
 

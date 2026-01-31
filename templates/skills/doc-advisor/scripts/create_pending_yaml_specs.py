@@ -17,7 +17,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs, get_system_exclude_patterns
 
 # Global configuration (initialized in init_config())
 CONFIG = None
@@ -60,7 +60,8 @@ def init_config():
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
     # target_dirs はマッピング形式: {doc_type: dir_name}
     TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', get_default_target_dirs())
-    EXCLUDE_PATTERNS = PATTERNS_CONFIG.get('exclude', ['.toc_work', '.toc_checksums.yaml', 'specs_toc.yaml', 'reference', '/info/'])
+    # System patterns (always excluded) + user-defined patterns
+    EXCLUDE_PATTERNS = get_system_exclude_patterns('specs') + PATTERNS_CONFIG.get('exclude', [])
     return True
 
 # Pending YAML template
