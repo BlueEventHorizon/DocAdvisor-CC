@@ -1,0 +1,22 @@
+_meta:
+  source_file: specs/main/requirements/special_chars.md
+  doc_type: requirement
+  status: completed
+  updated_at: 2026-01-31T09:38:42Z
+
+title: "Special: \"quotes\" & ampersand"
+purpose: Test YAML escaping for special characters
+content_details:
+  - "Single 'quotes'"
+  - "Double \"quotes\""
+  - "Ampersand &"
+  - "Colon: value"
+  - "Pipe | char"
+applicable_tasks:
+  - YAML escaping test
+keywords:
+  - special
+  - chars
+  - yaml
+  - escape
+  - test

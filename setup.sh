@@ -145,8 +145,8 @@ PLAN_DIR_NAME="${DEFAULT_PLAN_DIR_NAME}"
 if [[ -d "$HOME/.claude/shell-snapshots" ]] && [[ -n "$(ls -A "$HOME/.claude/shell-snapshots" 2>/dev/null)" ]]; then
     # Shell wrapper likely present: use full path to bypass
     PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || echo "python3")
-    # Replace $HOME with ~ for portability
-    PYTHON_PATH="${PYTHON_PATH/#$HOME/~}"
+    # Replace $HOME with $HOME variable (expands at runtime)
+    PYTHON_PATH="${PYTHON_PATH/#$HOME/\$HOME}"
     PYTHON_WRAPPED="yes"
 else
     # No wrapper detected: use simple command
