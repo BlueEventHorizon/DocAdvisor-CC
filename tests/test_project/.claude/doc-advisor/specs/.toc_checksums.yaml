@@ -1,0 +1,7 @@
+# specs_toc.yaml 用チェックサムファイル
+# 自動生成 - 手動編集禁止
+generated_at: 2026-01-31T07:04:14Z
+file_count: 2
+checksums:
+  specs/main/design/authentication_api.md: 2d81cba5cacc6bb3131783fa4f6b9c89e77b3bd0056607d4accd896a94debc30
+  specs/main/requirements/user_authentication.md: c9eeee259478b276892b08bbf51645f5da753041a83129acc5b3cacf3ac8fd91
