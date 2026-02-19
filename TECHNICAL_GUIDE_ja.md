@@ -432,8 +432,10 @@ ls -la /path/to/your-project/.claude/agents/
 - `.claude/commands/create-rules_toc.md`
 - `.claude/commands/create-specs_toc.md`
 - `.claude/skills/doc-advisor/`（削除、分割されたスキルに置き換え）
+- `.claude/doc-advisor/docs/`（テンプレートから再作成）
 
 **インストール**（v3.1+ 構造）:
+- `.claude/agents/`（rules-advisor, specs-advisor, rules-toc-updater, specs-toc-updater）
 - `.claude/skills/create-rules-toc/SKILL.md`（rules ToC 生成）
 - `.claude/skills/create-specs-toc/SKILL.md`（specs ToC 生成）
 - `.claude/doc-advisor/config.yaml`
