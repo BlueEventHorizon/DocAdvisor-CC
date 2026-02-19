@@ -4,7 +4,7 @@ description: Format definition for specs_toc.yaml (Single Source of Truth)
 applicable_when:
   - Creating or updating specs ToC entries
   - Validating specs_toc.yaml structure
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 # specs_toc.yaml Format Definition
@@ -109,7 +109,7 @@ Determine doc_type from path:
 
 ```yaml
 metadata:
-  name: string              # Index name (fixed: "Requirement & Design Document Search Index")
+  name: string              # Index name (fixed: "Requirements and Design Document Search Index")
   generated_at: datetime    # Generation time (ISO 8601 format)
   file_count: integer       # Total target file count
 
@@ -226,7 +226,7 @@ docs:
 # .claude/doc-advisor/toc/specs/specs_toc.yaml
 
 metadata:
-  name: Requirement & Design Document Search Index
+  name: Requirements and Design Document Search Index
   generated_at: 2026-01-11T12:00:00Z
   file_count: 25
 

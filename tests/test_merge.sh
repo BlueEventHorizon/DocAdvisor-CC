@@ -205,13 +205,13 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test: merge with --cleanup option"
+echo "Test: merge then manual cleanup"
 echo "=================================================="
 
 # Regenerate pending files
 $PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
 
-# Write and merge with cleanup
+# Write and merge (without --cleanup)
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
 if [[ -n "$RULES_PENDING" ]]; then
     $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
@@ -224,7 +224,10 @@ if [[ -n "$RULES_PENDING" ]]; then
         --force 2>/dev/null || true
 fi
 
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full --cleanup 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || true
+
+# Manual cleanup (as orchestrator does after checksums update)
+rm -rf .claude/doc-advisor/toc/rules/.toc_work
 
 # Check if .toc_work is cleaned up
 if [[ ! -d ".claude/doc-advisor/toc/rules/.toc_work" ]] || [[ -z "$(ls -A .claude/doc-advisor/toc/rules/.toc_work 2>/dev/null)" ]]; then

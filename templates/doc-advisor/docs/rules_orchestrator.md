@@ -4,7 +4,7 @@ description: Orchestrator workflow for rules_toc.yaml generation
 applicable_when:
   - Executing /create-rules-toc skill
   - Coordinating rules ToC generation process
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 # rules_toc.yaml Orchestrator Workflow
@@ -221,7 +221,7 @@ Task(subagent_type: rules-toc-updater, prompt: "entry_file: .claude/doc-advisor/
 
 ```bash
 # 1. Merge
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_rules_toc.py --mode full --cleanup
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_rules_toc.py --mode full
 
 # 2. Validate (check return value)
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_rules_toc.py
@@ -232,13 +232,16 @@ Task(subagent_type: rules-toc-updater, prompt: "entry_file: .claude/doc-advisor/
 #    Use Phase 1 snapshot instead of recalculating current hashes.
 #    This ensures files modified during Phase 2 will be re-processed next time.
 cp .claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/rules/.toc_checksums.yaml
+
+# 4. Cleanup
+rm -rf .claude/doc-advisor/toc/rules/.toc_work
 ```
 
 ### Incremental Mode
 
 ```bash
 # 1. Merge
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_rules_toc.py --mode incremental --cleanup
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_rules_toc.py --mode incremental
 
 # 2. Validate (check return value)
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_rules_toc.py
@@ -249,6 +252,9 @@ cp .claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/d
 #    Use Phase 1 snapshot instead of recalculating current hashes.
 #    This ensures files modified during Phase 2 will be re-processed next time.
 cp .claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/rules/.toc_checksums.yaml
+
+# 4. Cleanup
+rm -rf .claude/doc-advisor/toc/rules/.toc_work
 ```
 
 ### Delete-only Mode (N=0 and M>0)
@@ -279,13 +285,24 @@ cp .claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/d
 
 When subagent fails, **immediately change to error status without retry**:
 
-1. Change `_meta.status` to `error` in the YAML
-2. Record error content in `_meta.error_message`
-3. Exclude from processing (skip at merge)
-4. List error files in completion report
+1. Read the entry YAML file to get its current content
+2. Edit `_meta.status` from `pending` to `error` in the YAML
+3. Add `_meta.error_message` with the error details from the subagent response
+4. Exclude from processing (skip at merge)
+5. List error files in completion report
+
+**Concrete steps** (orchestrator uses Edit tool):
+```
+# 1. Read the failed entry file
+Read(".claude/doc-advisor/toc/rules/.toc_work/{filename}.yaml")
+
+# 2. Edit _meta.status and add error_message
+Edit: change "status: pending" → "status: error"
+Edit: add "error_message: {error details from subagent}"
+```
 
 ```yaml
-# Example of error status YAML
+# Example of error status YAML (after Edit)
 _meta:
   status: error
   source_file: {{RULES_DIR}}/core/architecture_rule.md

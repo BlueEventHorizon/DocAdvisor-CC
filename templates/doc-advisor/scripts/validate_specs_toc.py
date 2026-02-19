@@ -13,7 +13,7 @@ specs_toc.yaml 検査スクリプト
     --file    検査対象ファイル（デフォルト: .claude/doc-advisor/toc/specs/specs_toc.yaml）
 
 検査項目:
-    1. YAML構文検査
+    1. ファイル読み込み検査
     2. 必須フィールド検査
     3. ファイル参照検査
     4. 重複ID検査
@@ -149,13 +149,13 @@ def validate_toc(toc_path):
 
     errors = []
 
-    # 1. YAML構文検査（ファイルが読み込めるか）
+    # 1. ファイル読み込み検査（ファイルが読み込めるか）
     try:
         with open(toc_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        print("✓ YAML構文検査: OK（ファイル読み込み成功）")
+        print("✓ ファイル読み込み検査: OK（ファイル読み込み成功）")
     except Exception as e:
-        errors.append(f"YAML構文検査: ファイル読み込み失敗 - {e}")
+        errors.append(f"ファイル読み込み検査: ファイル読み込み失敗 - {e}")
         print(f"\n❌ 検査失敗: {len(errors)} 件のエラー")
         for err in errors:
             print(f"  - {err}")

@@ -4,18 +4,18 @@ description: Specialized agent that generates ToC entries for a single requireme
 model: {{AGENT_MODEL}}
 tools: Read, Bash
 color: cyan
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 ## Overview
 
 Processes a single requirement/design document and completes the corresponding entry YAML in `.claude/doc-advisor/toc/specs/.toc_work/`.
 
-**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-specs_toc command) via parallel invocation.
+**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-specs-toc command) via parallel invocation.
 
 ## EXECUTION RULES
 - Exit plan mode if active. Do NOT ask for confirmation
-- If a step fails, report the error and continue to the next step
+- If a step fails, report the error and exit immediately
 
 ## Parameters
 
@@ -50,7 +50,7 @@ Read the following before processing:
 **Important**:
 - Arrays are passed as `|||`-separated strings (NOT comma-separated). This allows commas within items (e.g., "10,000件").
 - For `--references`, pass empty string `""` if no references found.
-- For `--references`, verify file paths exist using Glob before including them. Do NOT guess or hallucinate file paths.
+- For `--references`, verify concrete file paths exist using Glob before including them. Do NOT guess or hallucinate file paths. If the document explicitly mentions a reference but the specific path cannot be determined, record the reference as written in the source document.
 
 ## Completion Response
 

@@ -4,7 +4,7 @@ description: Format definition for rules_toc.yaml (Single Source of Truth)
 applicable_when:
   - Creating or updating rules ToC entries
   - Validating rules_toc.yaml structure
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 # rules_toc.yaml Format Definition
@@ -98,7 +98,7 @@ keywords: []
 
 ```yaml
 metadata:
-  name: string              # Index name (fixed: "Development Document Search Index")
+  name: string              # Index name (fixed: "Development Documentation Search Index")
   generated_at: datetime    # Generation time (ISO 8601 format)
   file_count: integer       # Total target file count
 
@@ -186,7 +186,7 @@ docs:
 # .claude/doc-advisor/toc/rules/rules_toc.yaml
 
 metadata:
-  name: Development Document Search Index
+  name: Development Documentation Search Index
   generated_at: 2026-01-11T12:00:00Z
   file_count: 25
 

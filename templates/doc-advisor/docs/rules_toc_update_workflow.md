@@ -5,7 +5,7 @@ applicable_when:
   - Running as rules-toc-updater Agent
   - Executing /create-rules-toc
   - After adding, modifying, or deleting rule/workflow/format documents
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 # rules_toc.yaml Update Workflow
@@ -149,7 +149,7 @@ Verify each `.claude/doc-advisor/toc/rules/.toc_work/*.yaml` meets:
 3. Overwrite/add entries from `.claude/doc-advisor/toc/rules/.toc_work/*.yaml` (exclude `_meta`)
 4. Update `metadata.generated_at`, `metadata.file_count`
 5. Write to `.claude/doc-advisor/toc/rules/rules_toc.yaml`
-6. Update `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` (run `/create-toc-checksums` skill)
+6. Update checksums: `cp .claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/rules/.toc_checksums.yaml`
 
 ### Step 3.3: Cleanup
 

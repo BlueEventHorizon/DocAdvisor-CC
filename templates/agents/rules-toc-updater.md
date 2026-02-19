@@ -4,18 +4,18 @@ description: Specialized agent that generates ToC entries for a single rule docu
 model: {{AGENT_MODEL}}
 color: orange
 tools: Read, Bash
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 ## Overview
 
 Processes a single rule document (`.md` file under `{{RULES_DIR}}`) and completes the corresponding entry YAML in `.claude/doc-advisor/toc/rules/.toc_work/`.
 
-**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-rules_toc command) via parallel invocation.
+**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-rules-toc command) via parallel invocation.
 
 ## EXECUTION RULES
 - Exit plan mode if active. Do NOT ask for confirmation
-- If a step fails, report the error and continue to the next step
+- If a step fails, report the error and exit immediately
 
 ## Parameters
 

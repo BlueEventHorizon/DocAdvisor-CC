@@ -8,10 +8,9 @@ Reads all entries from .claude/doc-advisor/toc/specs/.toc_work/*.yaml,
 removes _meta sections, merges them, and generates .claude/doc-advisor/toc/specs/specs_toc.yaml.
 
 Usage:
-    python3 merge_specs_toc.py [--cleanup] [--mode full|incremental]
+    python3 merge_specs_toc.py [--mode full|incremental]
 
 Options:
-    --cleanup   Delete .toc_work/ after successful merge
     --mode      full (default): Generate new, incremental: Differential merge
 """
 
@@ -27,7 +26,6 @@ from toc_utils import (
     yaml_escape,
     backup_existing_file,
     load_checksums,
-    cleanup_work_dir,
     should_exclude,
     resolve_config_path,
     get_default_target_dirs,
@@ -374,7 +372,6 @@ def main():
     if not init_config():
         return 1
 
-    cleanup = '--cleanup' in sys.argv
     delete_only = '--delete-only' in sys.argv
     mode = 'full'
     if '--mode' in sys.argv:
@@ -390,9 +387,6 @@ def main():
         success = delete_only_mode()
     else:
         success = merge_toc_files(mode)
-
-    if success and cleanup:
-        cleanup_work_dir(TOC_WORK_DIR)
 
     return 0 if success else 1
 

@@ -12,9 +12,9 @@ status を completed に変更する。
       --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
       --title "タイトル" \
       --purpose "目的" \
-      --content-details "項目1,項目2,項目3,項目4,項目5" \
-      --applicable-tasks "タスク1,タスク2" \
-      --keywords "kw1,kw2,kw3,kw4,kw5"
+      --content-details "項目1 ||| 項目2 ||| 項目3 ||| 項目4 ||| 項目5" \
+      --applicable-tasks "タスク1 ||| タスク2" \
+      --keywords "kw1 ||| kw2 ||| kw3 ||| kw4 ||| kw5"
 
 終了コード:
     0: 成功

@@ -3,7 +3,7 @@ name: specs-advisor
 description: Agent that identifies requirement and design documents needed for a task
 model: {{AGENT_MODEL}}
 color: cyan
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 ## Role
@@ -46,4 +46,4 @@ Required documents:
 
 - False negatives are strictly prohibited. When in doubt, include it
 - Correctly identify the feature (main, csv_import, etc.)
-- Target is {feature}/{{REQUIREMENT_DIR_NAME}}/ and {feature}/{{DESIGN_DIR_NAME}}/ only
+- Target is <feature>/{{REQUIREMENT_DIR_NAME}}/ and <feature>/{{DESIGN_DIR_NAME}}/ only

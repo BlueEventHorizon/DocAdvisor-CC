@@ -5,7 +5,7 @@ applicable_when:
   - Running as specs-toc-updater Agent
   - Executing /create-specs-toc
   - After adding, modifying, or deleting requirement/design documents
-doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}"
+doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
 # specs_toc.yaml Update Workflow
@@ -174,7 +174,7 @@ Output warning if incomplete (processing continues)
 3. Overwrite/add entries from `.toc_work/*.yaml`
 4. Update metadata
 5. Write to `.claude/doc-advisor/toc/specs/specs_toc.yaml`
-6. Update `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` (run `/create-toc-checksums` skill)
+6. Update checksums: `cp .claude/doc-advisor/toc/specs/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/specs/.toc_checksums.yaml`
 
 ### Step 3.3: Cleanup
 
@@ -215,9 +215,10 @@ Check before merge:
 
 ### On subagent error
 
-- Log error information
-- `_meta.status` remains `pending`
-- Retry in next batch
+- Immediately change `_meta.status` to `error` (do NOT leave as `pending`)
+- Record error content in `_meta.error_message`
+- Do NOT retry — error files require manual review
+- This prevents infinite loops from recurring failures
 
 ### On merge error
 
