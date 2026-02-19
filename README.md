@@ -30,6 +30,7 @@ Key features:
 - **Parallel processing**: Up to 5 concurrent workers
 - **Interruption recovery**: Preserve completed work and resume
 - **Symlink support**: Include external documentation via symbolic links (v3.2+)
+- **Multi-source aggregation**: Add external directories or git repos via symlinks under `.claude/doc-advisor/docs/` (v3.7+)
 
 For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
 

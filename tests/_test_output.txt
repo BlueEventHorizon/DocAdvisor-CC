@@ -1,0 +1,1486 @@
+==================================================
+DocAdvisor-CC Full Test Suite
+==================================================
+
+======================================
+Running: Phase 1: Basic Setup
+======================================
+
+==================================================
+DocAdvisor-CC Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+==================================================
+Test 1: Run setup.sh
+==================================================
+
+Running setup.sh for test project...
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: rules
+  Specs source: specs
+  REQUIREMENT_DIR_NAME: requirements
+  DESIGN_DIR_NAME: design
+  PLAN_DIR_NAME: plan
+  AGENT_MODEL: opus
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/rules → rules/
+  Created: docs/requirements/specs → specs/requirements/
+  Created: docs/design/specs → specs/design/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/CLAUDE.md (create new)
+
+Setup completed.
+
+==================================================
+Test 2: Verify variable substitution
+==================================================
+
+PASS: PYTHON_PATH substituted
+  Value: $HOME/.pyenv/shims/python3
+PASS: RULES_DIR substituted
+
+==================================================
+Test 3: Run create_pending_yaml_rules.py
+==================================================
+
+Using Python: /Users/moons/.pyenv/shims/python3
+
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+PASS: create_pending_yaml_rules.py executed successfully
+
+PASS: Pending YAML files created
+total 24
+drwxr-xr-x@ 5 moons  staff  160  2月 20 01:58 .
+drwxr-xr-x@ 3 moons  staff   96  2月 20 01:58 ..
+-rw-r--r--@ 1 moons  staff  402  2月 20 01:58 .toc_checksums_pending.yaml
+-rw-r--r--@ 1 moons  staff  189  2月 20 01:58 24278da600ca.yaml
+-rw-r--r--@ 1 moons  staff  197  2月 20 01:58 760813063ea9.yaml
+
+==================================================
+Test 4: Run create_pending_yaml_specs.py
+==================================================
+
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/design/specs/authentication_api.md
+  - .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+
+PASS: create_pending_yaml_specs.py executed successfully
+
+PASS: Pending YAML files created
+total 24
+drwxr-xr-x@ 5 moons  staff  160  2月 20 01:58 .
+drwxr-xr-x@ 3 moons  staff   96  2月 20 01:58 ..
+-rw-r--r--@ 1 moons  staff  423  2月 20 01:58 .toc_checksums_pending.yaml
+-rw-r--r--@ 1 moons  staff  246  2月 20 01:58 a62c977be0b6.yaml
+-rw-r--r--@ 1 moons  staff  234  2月 20 01:58 b5d4abc2e4a0.yaml
+
+==================================================
+All tests completed!
+==================================================
+
+To clean up: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test.sh --clean
+
+======================================
+Running: Phase 2a: write_pending.py
+======================================
+
+==================================================
+write_pending.py Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Setting up test project...
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: rules
+  Specs source: specs
+  REQUIREMENT_DIR_NAME: requirements
+  DESIGN_DIR_NAME: design
+  PLAN_DIR_NAME: plan
+  AGENT_MODEL: opus
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/rules → rules/
+  Created: docs/requirements/specs → specs/requirements/
+  Created: docs/design/specs → specs/design/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/CLAUDE.md (create new)
+
+Using Python: /Users/moons/.pyenv/shims/python3
+
+Generating pending YAML files...
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/design/specs/authentication_api.md
+  - .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+
+Rules pending: .claude/doc-advisor/toc/rules/.toc_work/24278da600ca.yaml
+Specs pending: .claude/doc-advisor/toc/specs/.toc_work/a62c977be0b6.yaml
+
+==================================================
+Test 2-1: write_rules_pending.py - Normal case
+==================================================
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+Entry completed: .claude/doc-advisor/toc/rules/.toc_work/24278da600ca.yaml
+  source_file: .claude/doc-advisor/docs/rules/rules/new_rule.md
+  status: completed
+  updated_at: 2026-02-19T16:58:59Z
+PASS: write_rules_pending normal (expected=0, actual=0)
+PASS: status changed to completed
+
+==================================================
+Test 2-2: write_rules_pending.py - Missing argument
+==================================================
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+PASS: Missing arguments detected (exit=2)
+
+==================================================
+Test 2-3: write_rules_pending.py - Insufficient keywords
+==================================================
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+Error: keywords requires at least 5 items (got 2)
+  Provided: one, two
+PASS: write_rules_pending insufficient keywords (expected=3, actual=3)
+
+==================================================
+Test 2-4: write_specs_pending.py - Normal case with doc_type
+==================================================
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/design/specs/authentication_api.md
+  - .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+Entry completed: .claude/doc-advisor/toc/specs/.toc_work/a62c977be0b6.yaml
+  source_file: .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+  doc_type: requirement
+  status: completed
+  updated_at: 2026-02-19T16:59:00Z
+PASS: write_specs_pending normal (expected=0, actual=0)
+PASS: doc_type field preserved
+
+==================================================
+Test 2-5: write_rules_pending.py - File not found
+==================================================
+Error: Entry file not found: /nonexistent/path/file.yaml
+PASS: write_rules_pending file not found (expected=1, actual=1)
+
+==================================================
+Summary
+==================================================
+
+Passed: 7
+Failed: 0
+
+All tests passed!
+
+======================================
+Running: Phase 2b: merge_toc.py
+======================================
+
+==================================================
+merge_toc.py Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Setting up test project...
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: rules
+  Specs source: specs
+  REQUIREMENT_DIR_NAME: requirements
+  DESIGN_DIR_NAME: design
+  PLAN_DIR_NAME: plan
+  AGENT_MODEL: opus
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/rules → rules/
+  Created: docs/requirements/specs → specs/requirements/
+  Created: docs/design/specs → specs/design/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/CLAUDE.md (create new)
+
+Using Python: /Users/moons/.pyenv/shims/python3
+
+==================================================
+Test 2-5: merge_rules_toc.py - Full mode
+==================================================
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+Entry completed: .claude/doc-advisor/toc/rules/.toc_work/24278da600ca.yaml
+  source_file: .claude/doc-advisor/docs/rules/rules/new_rule.md
+  status: completed
+  updated_at: 2026-02-19T16:59:00Z
+==================================================
+rules_toc.yaml Merge Script
+==================================================
+Target files: 2
+Mode: full
+  .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+Warnings:
+  - 760813063ea9.yaml: Status is not completed (pending)
+
+Generation complete: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/rules_toc.yaml
+   - File count: 1
+PASS: merge_rules_toc full mode (expected=0, actual=0)
+PASS: rules_toc.yaml created
+PASS: rules_toc.yaml has docs section
+
+==================================================
+Test 2-6: merge_rules_toc.py - Incremental mode
+==================================================
+==================================================
+rules_toc.yaml Merge Script
+==================================================
+Target files: 1
+Mode: incremental
+Backup created: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/rules_toc.yaml.bak
+  .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+Generation complete: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/rules_toc.yaml
+   - File count: 1
+PASS: merge_rules_toc incremental mode (expected=0, actual=0)
+FAIL: Expected 2+ entries, got 1
+
+==================================================
+Test 2-7: merge_specs_toc.py - Full mode with doc_type
+==================================================
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/design/specs/authentication_api.md
+  - .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+Entry completed: .claude/doc-advisor/toc/specs/.toc_work/a62c977be0b6.yaml
+  source_file: .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+  doc_type: requirement
+  status: completed
+  updated_at: 2026-02-19T16:59:00Z
+Entry completed: .claude/doc-advisor/toc/specs/.toc_work/b5d4abc2e4a0.yaml
+  source_file: .claude/doc-advisor/docs/design/specs/authentication_api.md
+  doc_type: design
+  status: completed
+  updated_at: 2026-02-19T16:59:01Z
+==================================================
+specs_toc.yaml Merge Script
+==================================================
+Target files: 2
+Mode: full
+  .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+  .claude/doc-advisor/docs/design/specs/authentication_api.md
+
+Generation complete: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/specs/specs_toc.yaml
+   - docs: 2
+PASS: merge_specs_toc full mode (expected=0, actual=0)
+PASS: specs_toc.yaml created
+PASS: specs_toc.yaml has doc_type fields
+
+==================================================
+Test: merge then manual cleanup
+==================================================
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+Entry completed: .claude/doc-advisor/toc/rules/.toc_work/24278da600ca.yaml
+  source_file: .claude/doc-advisor/docs/rules/rules/new_rule.md
+  status: completed
+  updated_at: 2026-02-19T16:59:01Z
+==================================================
+rules_toc.yaml Merge Script
+==================================================
+Target files: 3
+Mode: full
+Backup created: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/rules_toc.yaml.bak
+  .claude/doc-advisor/docs/rules/rules/new_rule.md
+  .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+Warnings:
+  - 760813063ea9.yaml: Status is not completed (pending)
+
+Generation complete: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/rules_toc.yaml
+   - File count: 1
+PASS: .toc_work cleaned up after merge
+
+==================================================
+Summary
+==================================================
+
+Passed: 8
+Failed: 1
+
+Some tests failed.
+
+======================================
+Running: Phase 2c: create_checksums.py
+======================================
+
+==================================================
+create_checksums.py Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Setting up test project...
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: rules
+  Specs source: specs
+  REQUIREMENT_DIR_NAME: requirements
+  DESIGN_DIR_NAME: design
+  PLAN_DIR_NAME: plan
+  AGENT_MODEL: opus
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/rules → rules/
+  Created: docs/requirements/specs → specs/requirements/
+  Created: docs/design/specs → specs/design/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/CLAUDE.md (create new)
+
+Using Python: /Users/moons/.pyenv/shims/python3
+
+==================================================
+Test 2-7a: create_checksums.py - Rules target
+==================================================
+==================================================
+.toc_checksums.yaml 生成スクリプト（rules）
+==================================================
+対象ファイル: 2 件
+  ✓ .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  ✓ .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/.toc_checksums.yaml
+   - ファイル数: 2
+PASS: create_checksums rules (expected=0, actual=0)
+PASS: Rules checksums file created
+PASS: Checksums file has correct format
+PASS: Checksums contain valid SHA-256 hashes
+
+==================================================
+Test 2-7b: create_checksums.py - Specs target
+==================================================
+==================================================
+.toc_checksums.yaml 生成スクリプト（specs）
+==================================================
+対象ファイル: 2 件
+  ✓ .claude/doc-advisor/docs/design/specs/authentication_api.md
+  ✓ .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/specs/.toc_checksums.yaml
+   - ファイル数: 2
+PASS: create_checksums specs (expected=0, actual=0)
+PASS: Specs checksums file created
+PASS: Multiple spec files hashed (2 entries)
+
+==================================================
+Test: Checksums change detection
+==================================================
+==================================================
+.toc_checksums.yaml 生成スクリプト（rules）
+==================================================
+対象ファイル: 2 件
+  ✓ .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  ✓ .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/.toc_checksums.yaml
+   - ファイル数: 2
+PASS: Checksum changed after file modification
+head: illegal line count -- -1
+
+==================================================
+Test: Invalid target
+==================================================
+エラー: --target は 'rules' または 'specs' を指定してください（指定: invalid）
+PASS: Invalid target rejected (exit=1)
+
+==================================================
+Test: Pending checksums generated by create_pending_yaml (rules)
+==================================================
+==================================================
+.toc_checksums.yaml 生成スクリプト（rules）
+==================================================
+対象ファイル: 2 件
+  ✓ .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  ✓ .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/.toc_checksums.yaml
+   - ファイル数: 2
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+PASS: .toc_checksums_pending.yaml created (rules)
+PASS: Pending checksums has correct format
+PASS: Pending checksums includes all files (expected=2, actual=2)
+
+==================================================
+Test: Pending checksums generated by create_pending_yaml (specs)
+==================================================
+==================================================
+.toc_checksums.yaml 生成スクリプト（specs）
+==================================================
+対象ファイル: 2 件
+  ✓ .claude/doc-advisor/docs/design/specs/authentication_api.md
+  ✓ .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/specs/.toc_checksums.yaml
+   - ファイル数: 2
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/design/specs/authentication_api.md
+  - .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+PASS: .toc_checksums_pending.yaml created (specs)
+PASS: Pending checksums contain valid SHA-256 hashes
+
+==================================================
+Summary
+==================================================
+
+Passed: 14
+Failed: 0
+
+All tests passed!
+
+======================================
+Running: Phase 2d: should_exclude()
+======================================
+
+==================================================
+should_exclude() Unit Test Suite
+==================================================
+
+Using Python: /Users/moons/.pyenv/shims/python3
+
+==================================================
+Test: should_exclude directory matching
+==================================================
+
+PASS: plan directory should be excluded
+PASS: nested plan directory should be excluded
+PASS: planning.md should NOT be excluded by 'plan' pattern
+PASS: deployment_plan.md should NOT be excluded by 'plan' pattern
+PASS: project_plan_v2.md should NOT be excluded by 'plan' pattern
+PASS: path containing /archive/ should be excluded
+PASS: archived.md should NOT be excluded by '/archive/' pattern
+PASS: file in plan dir with multiple patterns
+PASS: file in draft dir with multiple patterns
+PASS: normal file should not be excluded
+PASS: empty patterns should exclude nothing
+PASS: deeply nested plan directory
+PASS: deeply nested planning directory should NOT match 'plan'
+
+==================================================
+Summary
+==================================================
+
+Passed: 13
+Failed: 0
+
+All tests passed!
+
+======================================
+Running: Phase 2e: symlink support
+======================================
+
+==================================================
+Symlink Support Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Setting up test project...
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: rules
+  Specs source: specs
+  REQUIREMENT_DIR_NAME: requirements
+  DESIGN_DIR_NAME: design
+  PLAN_DIR_NAME: plan
+  AGENT_MODEL: opus
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/rules → rules/
+  Created: docs/requirements/specs → specs/requirements/
+  Created: docs/design/specs → specs/design/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/CLAUDE.md (create new)
+
+Using Python: /Users/moons/.pyenv/shims/python3
+
+Setting up symlinked test directories...
+Symlinks created:
+lrwxr-xr-x   1 moons  staff   97  2月 20 01:59 external_rules -> /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/external_for_symlink_test/external_rules
+lrwxr-xr-x   1 moons  staff   17  2月 20 01:59 rules -> ../../../../rules
+lrwxr-xr-x   1 moons  staff   96  2月 20 01:59 external_reqs -> /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/external_for_symlink_test/external_reqs
+lrwxr-xr-x   1 moons  staff   30  2月 20 01:59 specs -> ../../../../specs/requirements
+
+==================================================
+Test 1: create_checksums.py with symlinks (rules)
+==================================================
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+==================================================
+.toc_checksums.yaml 生成スクリプト（rules）
+==================================================
+対象ファイル: 3 件
+  ✓ .claude/doc-advisor/docs/rules/external_rules/external_rule.md
+  ✓ .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  ✓ .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/.toc_checksums.yaml
+   - ファイル数: 3
+PASS: create_checksums rules exit code
+PASS: External rule via symlink included in checksums
+
+==================================================
+Test 2: create_checksums.py with symlinks (specs)
+==================================================
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+==================================================
+.toc_checksums.yaml 生成スクリプト（specs）
+==================================================
+対象ファイル: 3 件
+  ✓ .claude/doc-advisor/docs/design/specs/authentication_api.md
+  ✓ .claude/doc-advisor/docs/requirements/external_reqs/external_req.md
+  ✓ .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/specs/.toc_checksums.yaml
+   - ファイル数: 3
+PASS: create_checksums specs exit code
+PASS: External spec via symlink included in checksums
+
+==================================================
+Test 3: create_pending_yaml_rules.py with symlinks
+==================================================
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+rules_toc.yaml not found, running in full mode
+Full mode: processing 3 files
+Saved pending checksums: 3 files
+
+Created 3 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/external_rules/external_rule.md
+  - .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  - .claude/doc-advisor/docs/rules/rules/new_rule.md
+PASS: create_pending_yaml_rules exit code
+PASS: Pending YAML created for external rule
+
+==================================================
+Test 4: create_pending_yaml_specs.py with symlinks
+==================================================
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+specs_toc.yaml not found, running in full mode
+Full mode: processing 3 files
+Saved pending checksums: 3 files
+
+Created 3 pending YAMLs:
+  - .claude/doc-advisor/docs/design/specs/authentication_api.md
+  - .claude/doc-advisor/docs/requirements/external_reqs/external_req.md
+  - .claude/doc-advisor/docs/requirements/specs/user_authentication.md
+PASS: create_pending_yaml_specs exit code
+PASS: Pending YAML created for external spec
+
+==================================================
+Test 5: Symlink loop detection
+==================================================
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+==================================================
+.toc_checksums.yaml 生成スクリプト（rules）
+==================================================
+対象ファイル: 3 件
+  ✓ .claude/doc-advisor/docs/rules/external_rules/external_rule.md
+  ✓ .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  ✓ .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/.toc_checksums.yaml
+   - ファイル数: 3
+PASS: Symlink loop handled correctly (no hang)
+
+==================================================
+Test 6: Duplicate file detection via multiple symlinks
+==================================================
+ERROR:root:code for hash blake2b was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2b
+ERROR:root:code for hash blake2s was not found.
+Traceback (most recent call last):
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 245, in <module>
+    globals()[__func_name] = __get_hash(__func_name)
+                             ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 129, in __get_openssl_constructor
+    return __get_builtin_constructor(name)
+  File "/Users/moons/.pyenv/versions/3.13.2/lib/python3.13/hashlib.py", line 123, in __get_builtin_constructor
+    raise ValueError('unsupported hash type ' + name)
+ValueError: unsupported hash type blake2s
+==================================================
+.toc_checksums.yaml 生成スクリプト（rules）
+==================================================
+対象ファイル: 3 件
+  ✓ .claude/doc-advisor/docs/rules/external_rules/external_rule.md
+  ✓ .claude/doc-advisor/docs/rules/rules/coding_standards.md
+  ✓ .claude/doc-advisor/docs/rules/rules/new_rule.md
+
+✅ 生成完了: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project/.claude/doc-advisor/toc/rules/.toc_checksums.yaml
+   - ファイル数: 3
+PASS: Duplicate file via multiple symlinks detected and deduplicated (count=1)
+
+==================================================
+Cleanup
+==================================================
+Cleanup complete
+
+==================================================
+Summary
+==================================================
+
+Passed: 10
+Failed: 0
+
+All tests passed!
+
+======================================
+Running: Phase 3: Custom Directories
+======================================
+
+==================================================
+Custom Directory Names Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_custom
+
+==================================================
+Test 3-1: Setup with custom directory names
+==================================================
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_custom
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: guidelines
+  Specs source: documents
+  REQUIREMENT_DIR_NAME: reqs
+  DESIGN_DIR_NAME: arch
+  PLAN_DIR_NAME: roadmap
+  AGENT_MODEL: sonnet
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/guidelines → guidelines/
+  Created: docs/reqs/documents → documents/reqs/
+  Created: docs/arch/documents → documents/arch/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_custom/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_custom/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_custom/CLAUDE.md (create new)
+PASS: .claude directory created
+
+==================================================
+Test 3-2: Verify config.yaml has custom values
+==================================================
+PASS: rules root_dir is '.claude/doc-advisor/docs/rules'
+PASS: specs root_dir is '.claude/doc-advisor/docs'
+PASS: requirement dir is 'reqs'
+PASS: design dir is 'arch'
+
+==================================================
+Test 3-2b: Verify symlinks use custom names
+==================================================
+PASS: rules symlink uses 'guidelines' name
+PASS: requirements symlink uses 'documents' name
+PASS: design symlink uses 'documents' name
+
+==================================================
+Test 3-3: Run create_pending_yaml_rules.py with custom dir
+==================================================
+Using Python: /Users/moons/.pyenv/shims/python3
+rules_toc.yaml not found, running in full mode
+Full mode: processing 1 files
+Saved pending checksums: 1 files
+
+Created 1 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/guidelines/coding.md
+PASS: create_pending_yaml_rules (custom) (expected=0, actual=0)
+PASS: Rules pending YAML created
+PASS: source_file uses 'guidelines/' in path
+
+==================================================
+Test 3-4: Run create_pending_yaml_specs.py with custom dirs
+==================================================
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/arch/documents/api.md
+  - .claude/doc-advisor/docs/reqs/documents/auth.md
+PASS: create_pending_yaml_specs (custom) (expected=0, actual=0)
+PASS: Specs pending YAML created
+PASS: source_file uses docs/ prefix
+PASS: doc_type 'requirement' detected for reqs/
+PASS: doc_type 'design' detected for arch/
+
+==================================================
+Test 3-5: Verify exclude with custom plan dir name
+==================================================
+specs_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/arch/documents/api.md
+  - .claude/doc-advisor/docs/reqs/documents/auth.md
+PASS: roadmap/ files correctly excluded
+
+==================================================
+Summary
+==================================================
+
+Passed: 17
+Failed: 0
+
+All tests passed!
+
+======================================
+Running: Phase 4: Edge Cases
+======================================
+
+==================================================
+Edge Cases Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge
+
+==================================================
+Setup test project
+==================================================
+==========================================
+Doc Advisor Setup
+==========================================
+
+Target project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge
+
+Configure document directories for your project.
+(Press Enter to use default value)
+
+
+Configure subdirectory names for specs:
+
+Configure agent model (opus, sonnet, haiku, inherit):
+
+Configuration:
+  Rules source: rules
+  Specs source: specs
+  REQUIREMENT_DIR_NAME: requirements
+  DESIGN_DIR_NAME: design
+  PLAN_DIR_NAME: plan
+  AGENT_MODEL: opus
+  PYTHON_PATH: $HOME/.pyenv/shims/python3
+    (python3 may be wrapped: using explicit path for reliability)
+
+Copying templates...
+
+  agents/ ...
+  skills/create-rules-toc/ ...
+  skills/create-specs-toc/ ...
+  skills/query-rules/ ...
+  skills/query-specs/ ...
+  doc-advisor/ ...
+
+Creating document symlinks...
+  Created: docs/rules/rules → rules/
+  Created: docs/requirements/specs → specs/requirements/
+  Created: docs/design/specs → specs/design/
+  Generated: docs/link_list.md
+
+Generated configuration:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge/.claude/doc-advisor/config.yaml
+
+==========================================
+Setup Complete
+==========================================
+
+Files created at:
+  /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge/.claude/
+    agents/            # Worker agents (toc-updater)
+    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)
+    doc-advisor/       # Runtime output (ToC files)
+
+CLAUDE.md に Doc Advisor のルールを追記しますか？
+  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。
+  Target: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge/CLAUDE.md (create new)
+Using Python: /Users/moons/.pyenv/shims/python3
+
+==================================================
+Test 4-1: Deep nested files (5 levels)
+==================================================
+rules_toc.yaml not found, running in full mode
+Full mode: processing 2 files
+Saved pending checksums: 2 files
+
+Created 2 pending YAMLs:
+  - .claude/doc-advisor/docs/rules/rules/a/b/c/d/e/deep_rule.md
+  - .claude/doc-advisor/docs/rules/rules/日本語ルール.md
+PASS: create_pending_yaml_rules (deep) (expected=0, actual=0)
+PASS: Deep nested file found
+PASS: Deep path correctly captured
+
+==================================================
+Test 4-2: Japanese filename
+==================================================
+PASS: Japanese filename found
+PASS: Japanese characters in YAML
+
+==================================================
+Test 4-3: Empty directory handling
+==================================================
+specs_toc.yaml not found, running in full mode
+Full mode: processing 3 files
+Saved pending checksums: 3 files
+
+Created 3 pending YAMLs:
+  - .claude/doc-advisor/docs/requirements/specs/new_file.md
+  - .claude/doc-advisor/docs/requirements/specs/special_chars.md
+  - .claude/doc-advisor/docs/requirements/specs/日本語ドキュメント.md
+PASS: create_pending_yaml_specs (empty dir) (expected=0, actual=0)
+PASS: .gitkeep correctly ignored
+
+==================================================
+Test 4-4: Special characters in content
+==================================================
+PASS: Special chars file processed
+Entry completed: .claude/doc-advisor/toc/specs/.toc_work/7312be036f17.yaml
+  source_file: .claude/doc-advisor/docs/requirements/specs/special_chars.md
+  doc_type: requirement
+  status: completed
+  updated_at: 2026-02-19T16:59:04Z
+PASS: write_specs_pending (special chars) (expected=0, actual=0)
+YAML valid
+PASS: YAML with special chars is valid
+
+==================================================
+Test 4-5: File count verification
+==================================================
+Rules pending files: 2
+PASS: Correct number of rules files (2)
+Specs pending files: 3
+PASS: Specs files found (3)
+
+==================================================
+Test 4-6: Unicode filename in incremental merge
+==================================================
+==================================================
+specs_toc.yaml Merge Script
+==================================================
+Target files: 4
+Mode: incremental
+Backup created: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge/.claude/doc-advisor/toc/specs/specs_toc.yaml.bak
+  .claude/doc-advisor/docs/requirements/specs/special_chars.md
+  .claude/doc-advisor/docs/requirements/specs/new_file.md
+
+Warnings:
+  - c00f243a9309.yaml: Status is not completed (pending)
+  - fbf6b2e40ca1.yaml: Status is not completed (pending)
+
+Generation complete: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_edge/.claude/doc-advisor/toc/specs/specs_toc.yaml
+   - docs: 3
+PASS: Japanese filename preserved in incremental merge
+PASS: Japanese content preserved
+
+==================================================
+Summary
+==================================================
+
+Passed: 14
+Failed: 0
+
+All tests passed!
+
+======================================
+Running: Phase 5: Setup Upgrade
+======================================
+
+==================================================
+Setup Upgrade Test Suite
+==================================================
+
+Project root: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC
+Test project: /Users/moons/data/dev/_WORKING_/apps/DocAdvisor-CC/tests/test_project_upgrade
+Current version: 3.6
+
+==================================================
+Test 1: Clean install (no existing .claude)
+==================================================
+PASS: agents/ created
+PASS: skills/create-rules-toc/SKILL.md created
+PASS: skills/create-specs-toc/SKILL.md created
+PASS: No skills/doc-advisor/ (legacy)
+PASS: doc-advisor/config.yaml created
+PASS: doc-advisor/docs/ created
+PASS: doc-advisor/scripts/ created
+PASS: doc-advisor/toc/rules/ created
+PASS: doc-advisor/toc/specs/ created
+PASS: No commands/ (legacy)
+
+==================================================
+Test 2: Legacy commands/ auto-deleted (file-specific)
+==================================================
+PASS: Legacy create-rules_toc.md deleted
+PASS: Legacy create-specs_toc.md deleted
+PASS: User custom command preserved
+
+==================================================
+Test 3: v3.2 structure verification (split skills)
+==================================================
+PASS: config.yaml in doc-advisor/
+PASS: docs/ in doc-advisor/
+PASS: scripts/ in doc-advisor/
+PASS: toc/rules/ in doc-advisor/
+PASS: toc/specs/ in doc-advisor/
+PASS: SKILL.md in skills/create-rules-toc/
+PASS: SKILL.md in skills/create-specs-toc/
+PASS: No legacy skills/doc-advisor/
+
+==================================================
+Test 4: config.yaml skip (preserve existing)
+==================================================
+PASS: Custom config preserved (skip)
+
+==================================================
+Test 5: config.yaml overwrite with backup
+==================================================
+PASS: Backup created
+PASS: Custom in backup
+PASS: Custom NOT in new config
+
+==================================================
+Test 6: v3.0 skills/doc-advisor/ removed when upgrading to v3.1 (split skills)
+==================================================
+PASS: Legacy skills/doc-advisor/ removed
+PASS: skills/create-rules-toc/SKILL.md exists
+PASS: skills/create-specs-toc/SKILL.md exists
+
+==================================================
+Test 7: agents/ custom agent preserved
+==================================================
+PASS: Custom agent preserved
+PASS: Managed agent exists
+
+==================================================
+Test 8: Repeated setup preserves toc/ directory structure
+==================================================
+PASS: rules_toc.yaml preserved
+PASS: specs_toc.yaml preserved
+
+==================================================
+Test 9: Version-based protection (current version protected, no identifier deleted)
+==================================================
+PASS: File with current version protected
+PASS: File without identifier deleted
+
+==================================================
+Test 10: Old version is deleted, current version is protected
+==================================================
+PASS: skills/doc-advisor/ with old version deleted
+PASS: skills/doc-advisor/ with current version protected
+
+==================================================
+Test 11: CLAUDE.md に Doc Advisor ルールを追記 (y)
+==================================================
+PASS: CLAUDE.md marker added
+PASS: Existing CLAUDE.md content preserved
+
+==================================================
+Test 12: CLAUDE.md 新規作成 (y)
+==================================================
+PASS: CLAUDE.md created
+PASS: CLAUDE.md marker exists
+
+==================================================
+Test 13: CLAUDE.md マーカー既存でスキップ
+==================================================
+PASS: CLAUDE.md marker not duplicated
+
+==================================================
+Test 14: CLAUDE.md スキップ (n)
+==================================================
+PASS: CLAUDE.md marker not added (skipped)
+
+==================================================
+Summary
+==================================================
+
+Passed: 42
+Failed: 0
+
+All tests passed!
+
+==================================================
+Test Results Summary
+==================================================
+
++----------------------------------+--------+
+| Test Suite                       | Result |
++----------------------------------+--------+
+| Phase 1: Basic Setup             | PASS   |
+| Phase 2a: write_pending.py       | PASS   |
+| Phase 2b: merge_toc.py           | FAIL   |
+| Phase 2c: create_checksums.py    | PASS   |
+| Phase 2d: should_exclude()       | PASS   |
+| Phase 2e: symlink support        | PASS   |
+| Phase 3: Custom Directories      | PASS   |
+| Phase 4: Edge Cases              | PASS   |
+| Phase 5: Setup Upgrade           | PASS   |
++----------------------------------+--------+
+
+==================================================
+Final Summary
+==================================================
+
+  PASS: 8
+  FAIL: 1
+  SKIP: 0
+
+Some tests failed.

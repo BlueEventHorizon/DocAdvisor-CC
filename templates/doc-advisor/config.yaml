@@ -4,7 +4,7 @@
 
 # === rules configuration ===
 rules:
-  root_dir: {{RULES_DIR}}
+  root_dir: .claude/doc-advisor/docs/rules
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
@@ -21,7 +21,7 @@ rules:
 
 # === specs configuration ===
 specs:
-  root_dir: {{SPECS_DIR}}
+  root_dir: .claude/doc-advisor/docs
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/
@@ -32,6 +32,7 @@ specs:
       design: {{DESIGN_DIR_NAME}}
     exclude:
       - {{PLAN_DIR_NAME}}  # Read in full during work, no search needed
+      - rules              # Scanned separately by rules config
       # - reference
       # - /info/
 

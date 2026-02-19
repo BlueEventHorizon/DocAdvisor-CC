@@ -58,8 +58,35 @@ The doc_type is automatically determined if the subdirectory name appears anywhe
 
 Examples:
 - `specs/requirements/login.md` → requirement
-- `specs/main/design/architecture.md` → design
-- `specs/auth/oauth/requirements/api.md` → requirement
+- `specs/design/architecture.md` → design
+
+### Document Aggregation (v3.7+)
+
+All documents are aggregated under `.claude/doc-advisor/docs/` via symlinks. This allows including external sources (other directories, git repositories) without modifying your project structure.
+
+```
+.claude/doc-advisor/docs/
+├── rules/
+│   └── rules → ../../../../rules          # Your project's rules
+├── requirements/
+│   └── specs → ../../../../specs/requirements  # Your project's requirements
+├── design/
+│   └── specs → ../../../../specs/design        # Your project's designs
+└── link_list.md                            # Source registry
+```
+
+To add external sources, create symlinks or clone repositories into the appropriate directory:
+
+```bash
+# Add external rules via symlink
+ln -s /path/to/org/standards .claude/doc-advisor/docs/rules/org-standards
+
+# Add external specs via git clone
+git clone --depth=1 https://github.com/org/specs.git \
+  .claude/doc-advisor/docs/requirements/org-specs
+```
+
+After adding sources, regenerate the ToC with `--full`.
 
 ### How ToC Generation Works
 
@@ -93,15 +120,11 @@ The bottleneck is LLM content analysis. Incremental mode (default) optimizes by 
 
 #### Symlink Support (v3.2+)
 
-All scripts follow symbolic links when scanning directories. This allows you to include external documentation by creating symlinks:
-
-```bash
-# Example: Include external docs via symlink
-ln -s /path/to/external/docs rules/external
-```
+All scripts follow symbolic links when scanning directories.
 
 - Symlink loops are detected and prevented (inode tracking)
 - Duplicate files via multiple symlinks are processed only once
+- See "Document Aggregation" above for how to add external sources
 
 ## Installation
 
@@ -297,24 +320,31 @@ your-project/
 │   │   │   └── SKILL.md        # rules ToC generation skill
 │   │   └── create-specs-toc/
 │   │       └── SKILL.md        # specs ToC generation skill
-│   └── doc-advisor/            # All resources and runtime output
+│   └── doc-advisor/
 │       ├── config.yaml         # Configuration
-│       ├── docs/               # Orchestrator, format, workflow docs
+│       ├── docs/               # Document aggregation (symlinks + reference docs)
+│       │   ├── rules/          # Symlinks to rules sources
+│       │   │   └── rules → ../../../../rules
+│       │   ├── requirements/   # Symlinks to requirement sources
+│       │   │   └── specs → ../../../../specs/requirements
+│       │   ├── design/         # Symlinks to design sources
+│       │   │   └── specs → ../../../../specs/design
+│       │   └── link_list.md    # Source registry
 │       ├── scripts/            # Python scripts
 │       └── toc/                # Runtime output
-│           ├── rules/          # Generated artifacts for rules
+│           ├── rules/
 │           │   ├── rules_toc.yaml
 │           │   ├── .toc_checksums.yaml
 │           │   └── .toc_work/
-│           └── specs/          # Generated artifacts for specs
+│           └── specs/
 │               ├── specs_toc.yaml
 │               ├── .toc_checksums.yaml
 │               └── .toc_work/
 ├── rules/                      # Rules documentation (configurable)
-│   └── *.md                    # Documentation files
+│   └── *.md
 └── specs/                      # Specs documentation (configurable)
-    ├── requirements/           # Requirement documents
-    └── design/                 # Design documents
+    ├── requirements/
+    └── design/
 ```
 
 ## Configuration
@@ -326,7 +356,7 @@ Located at `.claude/doc-advisor/config.yaml`:
 ```yaml
 # === rules configuration ===
 rules:
-  root_dir: rules
+  root_dir: .claude/doc-advisor/docs/rules    # Document aggregation directory
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
@@ -343,7 +373,7 @@ rules:
 
 # === specs configuration ===
 specs:
-  root_dir: specs
+  root_dir: .claude/doc-advisor/docs    # Document aggregation directory
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/
@@ -354,6 +384,7 @@ specs:
       design: design
     exclude:
       - plan           # Read in full during work, no search needed
+      - rules          # Scanned separately by rules config
       # - reference
       # - /info/
 
@@ -436,7 +467,8 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 - `.claude/commands/create-rules_toc.md`
 - `.claude/commands/create-specs_toc.md`
 - `.claude/skills/doc-advisor/` (removed, replaced with split skills)
-- `.claude/doc-advisor/docs/` (recreated from templates)
+- `.claude/agents/rules-advisor.md` (replaced by query-rules skill)
+- `.claude/agents/specs-advisor.md` (replaced by query-specs skill)
 
 **Installed** (v3.7+ structure):
 - `.claude/agents/` (rules-toc-updater, specs-toc-updater)

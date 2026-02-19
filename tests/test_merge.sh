@@ -44,6 +44,8 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
+# Remove new_rule.md from previous runs (will be created fresh in incremental test)
+rm -f rules/new_rule.md
 # Pass explicit values: rules, specs, requirements, design, plan, agent_model
 echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
@@ -109,14 +111,17 @@ echo "=================================================="
 echo "Test 2-6: merge_rules_toc.py - Incremental mode"
 echo "=================================================="
 
+# Clean .toc_work from previous test to isolate this test
+rm -rf .claude/doc-advisor/toc/rules/.toc_work
+
 # Add another pending entry (simulate new file)
 # Create the actual source file so merge won't skip it as missing
 echo "# New Rule" > "rules/new_rule.md"
 WORK_DIR=".claude/doc-advisor/toc/rules/.toc_work"
 mkdir -p "$WORK_DIR"
-cat > "$WORK_DIR/rules_new_rule.yaml" << 'EOF'
+cat > "$WORK_DIR/incremental_new_rule.yaml" << 'EOF'
 _meta:
-  source_file: rules/new_rule.md
+  source_file: .claude/doc-advisor/docs/rules/rules/new_rule.md
   status: completed
   updated_at: "2026-01-31T00:00:00Z"
 
@@ -145,7 +150,7 @@ $PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode incremental 2>/dev/null || 
 test_result "merge_rules_toc incremental mode" "0" "$EXIT_CODE"
 
 # Verify both entries exist (count lines starting with 2 spaces followed by path)
-ENTRY_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null | tr -d '[:space:]' || echo "0")
+ENTRY_COUNT=$(grep -cE "^  \.claude/doc-advisor/docs/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null | tr -d '[:space:]' || echo "0")
 if [[ -z "$ENTRY_COUNT" ]]; then ENTRY_COUNT=0; fi
 if [[ "$ENTRY_COUNT" -ge 2 ]]; then
     echo -e "${GREEN}PASS${NC}: Multiple entries merged ($ENTRY_COUNT entries)"
