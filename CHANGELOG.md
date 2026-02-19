@@ -7,6 +7,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ---
 
 
+## [3.6.0] - 2026-02-19
+
+### Fixed
+- **`--cleanup` flag removal**: Removed broken `--cleanup` flag from merge scripts and orchestrator docs; cleanup is now a separate `rm -rf` step in Phase 3
+- **Error policy contradiction**: Updater agents L18 changed from "continue to next step" to "exit immediately" to match L74/79
+- **References contradiction**: specs-toc-updater now allows abstract references when explicitly mentioned in source document
+- **Non-existent skill reference**: Replaced `/create-toc-checksums` with `cp` command in both workflow docs
+- **Command name typo**: `create-rules_toc` → `create-rules-toc`, `create-specs_toc` → `create-specs-toc` in updater agents
+- **`{feature}` placeholder notation**: Changed to `<feature>` in specs-advisor for clarity
+- **Frontmatter extra `"`**: Removed trailing `"` from `doc-advisor-version-xK9XmQ` in all 12 template files
+- **Validate script label**: "YAML構文検査" → "ファイル読み込み検査" (actual behavior is file read, not YAML parsing)
+- **metadata.name mismatch**: Format docs now match config.yaml values
+- **Pending template missing field**: Added `references: []` to specs pending YAML template
+- **Docstring separator**: Updated usage examples from comma to `|||` separator in write_*_pending.py
+
+### Changed
+- **Error handling docs**: Added concrete Read → Edit steps for `_meta.status` error transition in orchestrator docs
+- **Error handling workflow**: specs_toc_update_workflow.md error handling aligned with orchestrator (error → no retry)
+- **Version identifier**: Updated from `3.5` to `3.6` across all managed files
+
+### Files modified
+- `merge_rules_toc.py`, `merge_specs_toc.py` - Removed `--cleanup` flag
+- `rules_orchestrator.md`, `specs_orchestrator.md` - `--cleanup` removal, cleanup step, error handling steps
+- `rules-toc-updater.md`, `specs-toc-updater.md` - Command name, error policy, frontmatter fix
+- `specs-advisor.md` - `<feature>` notation, frontmatter fix
+- `rules-advisor.md` - Frontmatter fix
+- `rules_toc_format.md`, `specs_toc_format.md` - metadata.name, frontmatter fix
+- `rules_toc_update_workflow.md`, `specs_toc_update_workflow.md` - Checksum command, frontmatter fix
+- `create-rules-toc/SKILL.md`, `create-specs-toc/SKILL.md` - Frontmatter fix
+- `validate_rules_toc.py`, `validate_specs_toc.py` - Label fix
+- `create_pending_yaml_specs.py` - `references: []` addition
+- `write_rules_pending.py`, `write_specs_pending.py` - Docstring separator fix
+- `test_merge.sh` - `--cleanup` → manual cleanup
+
+---
+
 ## [3.5.0] - 2026-02-11
 
 ### Changed
