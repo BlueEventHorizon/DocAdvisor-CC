@@ -1,8 +1,17 @@
 ---
-name: rules-advisor
-description: Agent that identifies development documents ({{RULES_DIR}}) needed for a task
+name: query-rules
+description: |
+  Search the pre-analyzed document index (ToC) to identify rule documents
+  needed for a task. The ToC contains AI-extracted metadata (keywords,
+  applicable_tasks) that enables discovery beyond simple file search.
+  Trigger:
+  - "What rules apply to this task?"
+  - Before starting implementation work
+context: fork
+agent: general-purpose
 model: {{AGENT_MODEL}}
-color: orange
+user-invocable: true
+argument-hint: "[task description]"
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 

@@ -1,6 +1,12 @@
 ---
 name: create-specs-toc
-description: Update specs search index (ToC) after modifying, creating, or deleting markdown files in specs/ directories.
+description: |
+  Update the specs search index (ToC) after modifying, creating, or deleting
+  requirement or design documents such as functional requirements,
+  use cases, or technical design specs.
+  Trigger:
+  - After editing, adding, or removing spec documents
+  - "Rebuild the specs ToC"
 allowed-tools: Bash, Read, Task
 user-invocable: true
 argument-hint: "[--full]"

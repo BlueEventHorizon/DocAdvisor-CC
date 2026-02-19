@@ -123,8 +123,12 @@ cd DocAdvisor-CC
 これにより、必要なファイルがプロジェクトにコピーされます：
 ```
 your-project/.claude/
-├── agents/            # エージェント定義
+├── agents/            # ワーカーエージェント（toc-updater）
 ├── skills/
+│   ├── query-rules/
+│   │   └── SKILL.md   # rules ドキュメント検索スキル
+│   ├── query-specs/
+│   │   └── SKILL.md   # specs ドキュメント検索スキル
 │   ├── create-rules-toc/
 │   │   └── SKILL.md   # rules ToC 生成スキル
 │   └── create-specs-toc/
@@ -175,13 +179,13 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 /create-specs-toc --full   # 全ファイル再生成
 ```
 
-### Advisor エージェント
+### ドキュメント検索スキル
 
 タスクに必要なドキュメントを自動特定：
 
-```
-Task(subagent_type: rules-advisor, prompt: "ユーザー認証機能の実装に必要な文書を特定")
-Task(subagent_type: specs-advisor, prompt: "画面遷移に関する要件定義書を特定")
+```bash
+/query-rules ユーザー認証機能の実装に必要な文書を特定
+/query-specs 画面遷移に関する要件定義書を特定
 ```
 
 ### CLAUDE.md への推奨記載
@@ -193,17 +197,13 @@ Task(subagent_type: specs-advisor, prompt: "画面遷移に関する要件定義
 
 作業タスクを受け取ったら、以下のフローに従うこと：
 
-1. rules-advisor Subagent でルール文書を特定
-```
-   Task(subagent_type: rules-advisor, prompt: [タスク内容])
-   ```
+1. ルール文書を特定
+   /query-rules [タスク内容]
 
-2. specs-advisor Subagent で要件定義書・設計書を特定
-   ```
-   Task(subagent_type: specs-advisor, prompt: [タスク内容])
-   ```
+2. 要件定義書・設計書を特定
+   /query-specs [タスク内容]
 
-3. 必要となる文書セット**全て**を読む（または Subagent に渡す）
+3. 必要となる文書セット**全て**を読む
 
 4. 作業タスクを実行
    ```
@@ -240,10 +240,10 @@ Task(subagent_type: specs-advisor, prompt: "画面遷移に関する要件定義
 +-------------------------------------+
 ```
 
-### Advisor フロー
+### ドキュメント検索フロー
 
 ```
-Task(subagent_type: *-advisor)
+/query-rules or /query-specs
         |
         v
 +-------------------+     +-------------------+
@@ -259,12 +259,14 @@ Task(subagent_type: *-advisor)
 ```
 DocAdvisor-CC/
 ├── templates/
-│   ├── agents/                 # エージェントテンプレート
-│   │   ├── rules-advisor.md
-│   │   ├── specs-advisor.md
+│   ├── agents/                 # ワーカーエージェントテンプレート
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/
+│   │   ├── query-rules/
+│   │   │   └── SKILL.md        # rules ドキュメント検索スキル
+│   │   ├── query-specs/
+│   │   │   └── SKILL.md        # specs ドキュメント検索スキル
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC 生成スキル
 │   │   └── create-specs-toc/
@@ -284,11 +286,13 @@ DocAdvisor-CC/
 your-project/
 ├── .claude/
 │   ├── agents/
-│   │   ├── rules-advisor.md
-│   │   ├── specs-advisor.md
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/
+│   │   ├── query-rules/
+│   │   │   └── SKILL.md        # rules ドキュメント検索スキル
+│   │   ├── query-specs/
+│   │   │   └── SKILL.md        # specs ドキュメント検索スキル
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC 生成スキル
 │   │   └── create-specs-toc/
@@ -434,8 +438,10 @@ ls -la /path/to/your-project/.claude/agents/
 - `.claude/skills/doc-advisor/`（削除、分割されたスキルに置き換え）
 - `.claude/doc-advisor/docs/`（テンプレートから再作成）
 
-**インストール**（v3.1+ 構造）:
-- `.claude/agents/`（rules-advisor, specs-advisor, rules-toc-updater, specs-toc-updater）
+**インストール**（v3.7+ 構造）:
+- `.claude/agents/`（rules-toc-updater, specs-toc-updater）
+- `.claude/skills/query-rules/SKILL.md`（rules ドキュメント検索）
+- `.claude/skills/query-specs/SKILL.md`（specs ドキュメント検索）
 - `.claude/skills/create-rules-toc/SKILL.md`（rules ToC 生成）
 - `.claude/skills/create-specs-toc/SKILL.md`（specs ToC 生成）
 - `.claude/doc-advisor/config.yaml`

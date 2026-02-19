@@ -206,7 +206,7 @@ echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/set
 
 # Verify: custom agent preserved, managed agents still exist
 test_result "Custom agent preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/my-custom-agent.md" ]] && echo 0 || echo 1)"
-test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-advisor.md" ]] && echo 0 || echo 1)"
+test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================

@@ -1,6 +1,12 @@
 ---
 name: create-rules-toc
-description: Update rules search index (ToC) after modifying, creating, or deleting markdown files in rules/ directories.
+description: |
+  Update the rules search index (ToC) after modifying, creating, or deleting
+  development documents such as coding standards, architecture rules,
+  or workflow guides.
+  Trigger:
+  - After editing, adding, or removing rule documents
+  - "Rebuild the rules ToC"
 allowed-tools: Bash, Read, Task
 user-invocable: true
 argument-hint: "[--full]"

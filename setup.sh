@@ -58,8 +58,8 @@ while [[ $# -gt 0 ]]; do
             echo "  ./setup.sh -h, --help    # Show help"
             echo ""
             echo "This script creates:"
-            echo "  TARGET_DIR/.claude/agents/         # Agent definitions"
-            echo "  TARGET_DIR/.claude/skills/         # Skill modules (create-rules-toc, create-specs-toc)"
+            echo "  TARGET_DIR/.claude/agents/         # Worker agents (toc-updater)"
+            echo "  TARGET_DIR/.claude/skills/         # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Runtime output (ToC files)"
             echo ""
             echo "Default directories:"
@@ -284,6 +284,18 @@ if [[ -d "${SKILLS_DIR}/doc-advisor" ]]; then
     fi
 fi
 
+# v3.7 advisor agents → query-* skills migration
+# Remove advisor agents (replaced by query-rules and query-specs skills)
+for advisor_agent in "rules-advisor.md" "specs-advisor.md"; do
+    if [[ -f "${AGENTS_DIR}/${advisor_agent}" ]]; then
+        if ! has_current_doc_advisor_version "${AGENTS_DIR}/${advisor_agent}"; then
+            rm -f "${AGENTS_DIR}/${advisor_agent}"
+            echo -e "${GREEN}Removed legacy: agents/${advisor_agent} (replaced by skill)${NC}"
+            LEGACY_CLEANED=1
+        fi
+    fi
+done
+
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
 fi
@@ -389,7 +401,7 @@ fi
 echo "  agents/ ..."
 if [[ -d "${AGENTS_DIR}" ]]; then
     # doc-advisor managed agents (will be overwritten)
-    MANAGED_AGENTS="rules-advisor.md specs-advisor.md rules-toc-updater.md specs-toc-updater.md"
+    MANAGED_AGENTS="rules-toc-updater.md specs-toc-updater.md"
     # Check for non-managed agents and notify user
     for agent in "${AGENTS_DIR}"/*.md; do
         [[ -e "$agent" ]] || continue
@@ -409,6 +421,14 @@ copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-rules-toc/SKILL.md" "
 echo "  skills/create-specs-toc/ ..."
 mkdir -p "${SKILLS_DIR}/create-specs-toc"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-specs-toc/SKILL.md" "${SKILLS_DIR}/create-specs-toc/SKILL.md"
+
+echo "  skills/query-rules/ ..."
+mkdir -p "${SKILLS_DIR}/query-rules"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-rules/SKILL.md" "${SKILLS_DIR}/query-rules/SKILL.md"
+
+echo "  skills/query-specs/ ..."
+mkdir -p "${SKILLS_DIR}/query-specs"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
 
 # Copy doc-advisor resources (config, docs, scripts)
 echo "  doc-advisor/ ..."
@@ -452,8 +472,8 @@ echo -e "${GREEN}==========================================${NC}"
 echo ""
 echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
-echo "    agents/            # Agent definitions"
-echo "    skills/            # Skill modules (create-rules-toc, create-specs-toc)"
+echo "    agents/            # Worker agents (toc-updater)"
+echo "    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)"
 echo "    doc-advisor/       # Runtime output (ToC files)"
 
 # =============================================================================

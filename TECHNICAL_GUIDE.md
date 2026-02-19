@@ -123,8 +123,12 @@ cd DocAdvisor-CC
 This copies all necessary files to your project:
 ```
 your-project/.claude/
-├── agents/            # Agent definitions
+├── agents/            # Worker agents (toc-updater)
 ├── skills/
+│   ├── query-rules/
+│   │   └── SKILL.md   # rules document search skill
+│   ├── query-specs/
+│   │   └── SKILL.md   # specs document search skill
 │   ├── create-rules-toc/
 │   │   └── SKILL.md   # rules ToC generation skill
 │   └── create-specs-toc/
@@ -175,13 +179,13 @@ make setup TARGET=/path/to/your-project  # Specify target
 /create-specs-toc --full   # Full rebuild
 ```
 
-### Advisor Agents
+### Document Search Skills
 
 Automatically identify documents needed for a task:
 
-```
-Task(subagent_type: rules-advisor, prompt: "Identify documents for implementing user authentication")
-Task(subagent_type: specs-advisor, prompt: "Find requirements for screen navigation")
+```bash
+/query-rules Identify documents for implementing user authentication
+/query-specs Find requirements for screen navigation
 ```
 
 ### Recommended CLAUDE.md Entry
@@ -193,17 +197,13 @@ Add the following to your project's `CLAUDE.md` to make Claude automatically ref
 
 When receiving a work task, follow this flow:
 
-1. Identify rule documents with rules-advisor Subagent
-```
-   Task(subagent_type: rules-advisor, prompt: [task description])
-   ```
+1. Identify rule documents
+   /query-rules [task description]
 
-2. Identify requirements/design documents with specs-advisor Subagent
-   ```
-   Task(subagent_type: specs-advisor, prompt: [task description])
-   ```
+2. Identify requirements/design documents
+   /query-specs [task description]
 
-3. Read **all** required documents (or pass to Subagent)
+3. Read **all** required documents
 
 4. Execute the task
    ```
@@ -240,10 +240,10 @@ The scripts use the following configuration file:
 +-------------------------------------+
 ```
 
-### Advisor Flow
+### Document Search Flow
 
 ```
-Task(subagent_type: *-advisor)
+/query-rules or /query-specs
         |
         v
 +-------------------+     +-------------------+
@@ -259,12 +259,14 @@ Task(subagent_type: *-advisor)
 ```
 DocAdvisor-CC/
 ├── templates/
-│   ├── agents/                 # Agent templates
-│   │   ├── rules-advisor.md
-│   │   ├── specs-advisor.md
+│   ├── agents/                 # Worker agent templates
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/
+│   │   ├── query-rules/
+│   │   │   └── SKILL.md        # rules document search skill
+│   │   ├── query-specs/
+│   │   │   └── SKILL.md        # specs document search skill
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC generation skill
 │   │   └── create-specs-toc/
@@ -284,11 +286,13 @@ DocAdvisor-CC/
 your-project/
 ├── .claude/
 │   ├── agents/
-│   │   ├── rules-advisor.md
-│   │   ├── specs-advisor.md
 │   │   ├── rules-toc-updater.md
 │   │   └── specs-toc-updater.md
 │   ├── skills/
+│   │   ├── query-rules/
+│   │   │   └── SKILL.md        # rules document search skill
+│   │   ├── query-specs/
+│   │   │   └── SKILL.md        # specs document search skill
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC generation skill
 │   │   └── create-specs-toc/
@@ -434,8 +438,10 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 - `.claude/skills/doc-advisor/` (removed, replaced with split skills)
 - `.claude/doc-advisor/docs/` (recreated from templates)
 
-**Installed** (v3.1+ structure):
-- `.claude/agents/` (rules-advisor, specs-advisor, rules-toc-updater, specs-toc-updater)
+**Installed** (v3.7+ structure):
+- `.claude/agents/` (rules-toc-updater, specs-toc-updater)
+- `.claude/skills/query-rules/SKILL.md` (rules document search)
+- `.claude/skills/query-specs/SKILL.md` (specs document search)
 - `.claude/skills/create-rules-toc/SKILL.md` (rules ToC generation)
 - `.claude/skills/create-specs-toc/SKILL.md` (specs ToC generation)
 - `.claude/doc-advisor/config.yaml`

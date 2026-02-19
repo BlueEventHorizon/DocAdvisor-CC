@@ -98,11 +98,11 @@ claude
 /create-specs-toc --full   # Full rebuild
 ```
 
-### Advisor agents
+### Document search skills
 
-```
-Task(subagent_type: rules-advisor, prompt: "Identify documents for implementing authentication")
-Task(subagent_type: specs-advisor, prompt: "Find requirements for screen navigation")
+```bash
+/query-rules Identify documents for implementing authentication
+/query-specs Find requirements for screen navigation
 ```
 
 ## Configuration

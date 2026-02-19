@@ -1,8 +1,18 @@
 ---
-name: specs-advisor
-description: Agent that identifies requirement and design documents needed for a task
+name: query-specs
+description: |
+  Search the pre-analyzed document index (ToC) to identify requirement
+  and design documents needed for a task. The ToC contains AI-extracted
+  metadata (keywords, applicable_tasks) that enables discovery beyond
+  simple file search.
+  Trigger:
+  - "What specs apply to this task?"
+  - Before starting implementation work
+context: fork
+agent: general-purpose
 model: {{AGENT_MODEL}}
-color: cyan
+user-invocable: true
+argument-hint: "[task description]"
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
