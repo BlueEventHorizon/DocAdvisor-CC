@@ -96,11 +96,11 @@ claude
 /create-specs-toc --full   # 全件再生成
 ```
 
-### Advisor エージェント
+### ドキュメント検索スキル
 
-```
-Task(subagent_type: rules-advisor, prompt: "認証機能の実装に必要な文書を特定")
-Task(subagent_type: specs-advisor, prompt: "画面遷移の要件を特定")
+```bash
+/query-rules 認証機能の実装に必要な文書を特定
+/query-specs 画面遷移の要件を特定
 ```
 
 ## 設定
