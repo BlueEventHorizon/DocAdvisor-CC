@@ -56,13 +56,14 @@ echo "Using Python: $PYTHON_CMD"
 echo ""
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
+DOCS_DIR="$TEST_PROJECT/.claude/doc-advisor/docs"
 
 # Create external directories with .md files for symlink testing
 echo "Setting up symlinked test directories..."
 EXTERNAL_DIR="$SCRIPT_DIR/external_for_symlink_test"
 rm -rf "$EXTERNAL_DIR"
 mkdir -p "$EXTERNAL_DIR/external_rules"
-mkdir -p "$EXTERNAL_DIR/external_specs/requirements"
+mkdir -p "$EXTERNAL_DIR/external_reqs"
 
 # Create test files in external directories
 cat > "$EXTERNAL_DIR/external_rules/external_rule.md" << 'EOF'
@@ -71,19 +72,21 @@ cat > "$EXTERNAL_DIR/external_rules/external_rule.md" << 'EOF'
 This is an external rule linked via symlink for testing.
 EOF
 
-cat > "$EXTERNAL_DIR/external_specs/requirements/external_req.md" << 'EOF'
+cat > "$EXTERNAL_DIR/external_reqs/external_req.md" << 'EOF'
 # External Requirement
 
 This is an external requirement linked via symlink for testing.
 EOF
 
-# Create symlinks in rules/ and specs/
-ln -sf "$EXTERNAL_DIR/external_rules" "$TEST_PROJECT/rules/linked_rules"
-ln -sf "$EXTERNAL_DIR/external_specs" "$TEST_PROJECT/specs/linked_specs"
+# Create symlinks in docs/ directory (new architecture)
+# External rules: docs/rules/external_rules → external directory
+ln -sf "$EXTERNAL_DIR/external_rules" "$DOCS_DIR/rules/external_rules"
+# External specs: docs/requirements/external_reqs → external directory
+ln -sf "$EXTERNAL_DIR/external_reqs" "$DOCS_DIR/requirements/external_reqs"
 
 echo "Symlinks created:"
-ls -la "$TEST_PROJECT/rules/" | grep "^l" || echo "  (no symlinks in rules/)"
-ls -la "$TEST_PROJECT/specs/" | grep "^l" || echo "  (no symlinks in specs/)"
+ls -la "$DOCS_DIR/rules/" | grep "^l" || echo "  (no symlinks in docs/rules/)"
+ls -la "$DOCS_DIR/requirements/" | grep "^l" || echo "  (no symlinks in docs/requirements/)"
 echo ""
 
 echo "=================================================="
@@ -98,8 +101,8 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1 || EXIT_CODE=
 
 test_result "create_checksums rules exit code" "0" "$EXIT_CODE"
 
-# Check if external file is included
-if grep -q "linked_rules/external_rule.md" "$RULES_CHECKSUMS" 2>/dev/null; then
+# Check if external file is included (path through docs/rules/)
+if grep -q "external_rules/external_rule.md" "$RULES_CHECKSUMS" 2>/dev/null; then
     echo -e "${GREEN}PASS${NC}: External rule via symlink included in checksums"
     ((PASS_COUNT++))
 else
@@ -123,7 +126,7 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target specs 2>&1 || EXIT_CODE=
 test_result "create_checksums specs exit code" "0" "$EXIT_CODE"
 
 # Check if external file is included
-if grep -q "linked_specs/requirements/external_req.md" "$SPECS_CHECKSUMS" 2>/dev/null; then
+if grep -q "external_reqs/external_req.md" "$SPECS_CHECKSUMS" 2>/dev/null; then
     echo -e "${GREEN}PASS${NC}: External spec via symlink included in checksums"
     ((PASS_COUNT++))
 else
@@ -145,17 +148,17 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>&1 || EXIT_CODE
 
 test_result "create_pending_yaml_rules exit code" "0" "$EXIT_CODE"
 
-# Check if pending YAML was created for external file
-PENDING_FILE=".claude/doc-advisor/toc/rules/.toc_work/rules_linked_rules_external_rule.yaml"
-if [[ -f "$PENDING_FILE" ]]; then
+# Check if pending YAML was created for external file (by content, not filename)
+if grep -rl "external_rules/external_rule.md" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 | grep -q .; then
     echo -e "${GREEN}PASS${NC}: Pending YAML created for external rule"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Pending YAML NOT created for external rule"
     ((FAIL_COUNT++))
-    echo "  Looking for: $PENDING_FILE"
     echo "  Files in .toc_work:"
     ls -la ".claude/doc-advisor/toc/rules/.toc_work/" 2>/dev/null | head -10
+    echo "  Contents:"
+    cat ".claude/doc-advisor/toc/rules/.toc_work/"*.yaml 2>/dev/null | grep source_file
 fi
 echo ""
 
@@ -170,17 +173,17 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>&1 || EXIT_CODE
 
 test_result "create_pending_yaml_specs exit code" "0" "$EXIT_CODE"
 
-# Check if pending YAML was created for external file
-PENDING_FILE=".claude/doc-advisor/toc/specs/.toc_work/specs_linked_specs_requirements_external_req.yaml"
-if [[ -f "$PENDING_FILE" ]]; then
+# Check if pending YAML was created for external file (by content, not filename)
+if grep -rl "external_reqs/external_req.md" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | head -1 | grep -q .; then
     echo -e "${GREEN}PASS${NC}: Pending YAML created for external spec"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Pending YAML NOT created for external spec"
     ((FAIL_COUNT++))
-    echo "  Looking for: $PENDING_FILE"
     echo "  Files in .toc_work:"
     ls -la ".claude/doc-advisor/toc/specs/.toc_work/" 2>/dev/null | head -10
+    echo "  Contents:"
+    cat ".claude/doc-advisor/toc/specs/.toc_work/"*.yaml 2>/dev/null | grep source_file
 fi
 echo ""
 
@@ -188,9 +191,9 @@ echo "=================================================="
 echo "Test 5: Symlink loop detection"
 echo "=================================================="
 
-# Create a symlink loop
-mkdir -p "$TEST_PROJECT/rules/loop_test"
-ln -sf "$TEST_PROJECT/rules/loop_test" "$TEST_PROJECT/rules/loop_test/self_loop"
+# Create a symlink loop inside docs/rules/
+mkdir -p "$DOCS_DIR/rules/loop_test"
+ln -sf "$DOCS_DIR/rules/loop_test" "$DOCS_DIR/rules/loop_test/self_loop"
 
 # This should not hang or crash
 EXIT_CODE=0
@@ -209,7 +212,7 @@ else
 fi
 
 # Cleanup loop
-rm -rf "$TEST_PROJECT/rules/loop_test"
+rm -rf "$DOCS_DIR/rules/loop_test"
 echo ""
 
 echo "=================================================="
@@ -217,7 +220,7 @@ echo "Test 6: Duplicate file detection via multiple symlinks"
 echo "=================================================="
 
 # Create multiple symlinks to same directory
-ln -sf "$EXTERNAL_DIR/external_rules" "$TEST_PROJECT/rules/linked_rules_dup"
+ln -sf "$EXTERNAL_DIR/external_rules" "$DOCS_DIR/rules/external_rules_dup"
 
 rm -f "$RULES_CHECKSUMS"
 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1
@@ -236,7 +239,7 @@ else
 fi
 
 # Cleanup duplicate link
-rm -f "$TEST_PROJECT/rules/linked_rules_dup"
+rm -f "$DOCS_DIR/rules/external_rules_dup"
 echo ""
 
 echo "=================================================="
@@ -244,8 +247,8 @@ echo "Cleanup"
 echo "=================================================="
 
 # Remove symlinks
-rm -f "$TEST_PROJECT/rules/linked_rules"
-rm -f "$TEST_PROJECT/specs/linked_specs"
+rm -f "$DOCS_DIR/rules/external_rules"
+rm -f "$DOCS_DIR/requirements/external_reqs"
 rm -rf "$EXTERNAL_DIR"
 echo "Cleanup complete"
 echo ""

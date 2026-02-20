@@ -58,20 +58,61 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 
 例:
 - `specs/requirements/login.md` → requirement
-- `specs/main/design/architecture.md` → design
-- `specs/auth/oauth/requirements/api.md` → requirement
+- `specs/design/architecture.md` → design
+
+### ドキュメント集約 (v3.7+)
+
+すべてのドキュメントは `.claude/doc-advisor/docs/` 配下にシンボリックリンクで集約されます。これにより、プロジェクト構造を変更せずに外部ソース（他のディレクトリ、git リポジトリ）を追加できます。
+
+```
+.claude/doc-advisor/docs/
+├── rules/
+│   └── rules → ../../../../rules          # プロジェクトの rules
+├── requirements/
+│   └── specs → ../../../../specs/requirements  # プロジェクトの要件定義
+├── design/
+│   └── specs → ../../../../specs/design        # プロジェクトの設計書
+└── link_list.md                            # ソース一覧
+```
+
+外部ソースを追加するには、`config.yaml` に定義して `/sync-docs` を実行します：
+
+```yaml
+# .claude/doc-advisor/config.yaml
+external_sources:
+  rules:
+    - name: org-standards
+      type: git
+      url: https://github.com/org/standards.git
+      branch: main
+    - name: shared-rules
+      type: local
+      path: /shared/standards
+  requirements:
+    - name: partner-specs
+      type: git
+      url: https://github.com/partner/specs.git
+      sparse_path: specs/requirements
+```
+
+```bash
+/sync-docs              # 全外部ソースを同期
+/sync-docs --status     # 同期状態を確認
+/sync-docs --cleanup    # 設定から削除されたソースを除去
+```
+
+**動作方式**:
+- `type: git` は **git submodule** として追加（`.gitmodules` で管理）
+- `type: local` は **シンボリックリンク** を作成
+- `sparse_path` を指定すると、リポジトリ内の特定サブディレクトリのみを参照
+
+ソース追加後は `--full` で ToC を再生成してください。
 
 ### ToC 生成の仕組み
 
 #### 探索範囲
 
-`specs/` 配下を再帰的に探索し、パスに `requirement` または `design` ディレクトリが含まれるファイルを対象とします。深さ制限はありません。
-
-| パス例 | 対象 | 理由 |
-|--------|------|------|
-| `specs/feature1/requirements/app.md` | ✅ | `requirements` を含む |
-| `specs/main/sub/design/api.md` | ✅ | `design` を含む |
-| `specs/feature1/plan/task.md` | ❌ | 対象外 |
+`.claude/doc-advisor/docs/` 配下を再帰的に探索し、パスに `requirements` または `design` ディレクトリが含まれるファイルを対象とします。シンボリックリンクは自動的に follow されます。
 
 #### plan が対象外の理由
 
@@ -93,15 +134,11 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 
 #### シンボリックリンク対応 (v3.2+)
 
-すべてのスクリプトがディレクトリ走査時にシンボリックリンクを follow します。これにより、シンボリックリンク経由で外部ドキュメントを含めることができます：
-
-```bash
-# 例: シンボリックリンクで外部ドキュメントを含める
-ln -s /path/to/external/docs rules/external
-```
+すべてのスクリプトがディレクトリ走査時にシンボリックリンクを follow します。
 
 - シンボリックリンクのループは検出・防止されます（inode 追跡）
 - 複数のシンボリックリンクで同じファイルを参照している場合、重複処理を回避します
+- 外部ソースの追加方法は上記「ドキュメント集約」を参照
 
 ## インストール
 
@@ -131,8 +168,10 @@ your-project/.claude/
 │   │   └── SKILL.md   # specs ドキュメント検索スキル
 │   ├── create-rules-toc/
 │   │   └── SKILL.md   # rules ToC 生成スキル
-│   └── create-specs-toc/
-│       └── SKILL.md   # specs ToC 生成スキル
+│   ├── create-specs-toc/
+│   │   └── SKILL.md   # specs ToC 生成スキル
+│   └── sync-docs/
+│       └── SKILL.md   # 外部ソース同期スキル
 └── doc-advisor/       # すべてのリソースとランタイム出力
     ├── config.yaml
     ├── docs/
@@ -186,6 +225,17 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 ```bash
 /query-rules ユーザー認証機能の実装に必要な文書を特定
 /query-specs 画面遷移に関する要件定義書を特定
+```
+
+### 外部ソース同期
+
+`config.yaml` に定義した外部ドキュメントソースを同期：
+
+```bash
+/sync-docs              # 全外部ソースを同期
+/sync-docs --status     # 同期状態を確認
+/sync-docs --force      # 強制再同期
+/sync-docs --cleanup    # 設定から削除されたソースを除去
 ```
 
 ### CLAUDE.md への推奨記載
@@ -269,8 +319,10 @@ DocAdvisor-CC/
 │   │   │   └── SKILL.md        # specs ドキュメント検索スキル
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC 生成スキル
-│   │   └── create-specs-toc/
-│   │       └── SKILL.md        # specs ToC 生成スキル
+│   │   ├── create-specs-toc/
+│   │   │   └── SKILL.md        # specs ToC 生成スキル
+│   │   └── sync-docs/
+│   │       └── SKILL.md        # 外部ソース同期スキル
 │   └── doc-advisor/            # ToC 生成リソース
 │       ├── config.yaml         # 設定テンプレート
 │       ├── docs/               # オーケストレータ、フォーマット、ワークフロー文書
@@ -295,26 +347,35 @@ your-project/
 │   │   │   └── SKILL.md        # specs ドキュメント検索スキル
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC 生成スキル
-│   │   └── create-specs-toc/
-│   │       └── SKILL.md        # specs ToC 生成スキル
-│   └── doc-advisor/            # すべてのリソースとランタイム出力
+│   │   ├── create-specs-toc/
+│   │   │   └── SKILL.md        # specs ToC 生成スキル
+│   │   └── sync-docs/
+│   │       └── SKILL.md        # 外部ソース同期スキル
+│   └── doc-advisor/
 │       ├── config.yaml         # 設定
-│       ├── docs/               # オーケストレータ、フォーマット、ワークフロー文書
+│       ├── docs/               # ドキュメント集約（シンボリンク＋参考文書）
+│       │   ├── rules/          # rules ソースへのシンボリンク
+│       │   │   └── rules → ../../../../rules
+│       │   ├── requirements/   # requirements ソースへのシンボリンク
+│       │   │   └── specs → ../../../../specs/requirements
+│       │   ├── design/         # design ソースへのシンボリンク
+│       │   │   └── specs → ../../../../specs/design
+│       │   └── link_list.md    # ソース一覧
 │       ├── scripts/            # Python スクリプト
 │       └── toc/                # ランタイム出力
-│           ├── rules/          # rules の生成成果物
+│           ├── rules/
 │           │   ├── rules_toc.yaml
 │           │   ├── .toc_checksums.yaml
 │           │   └── .toc_work/
-│           └── specs/          # specs の生成成果物
+│           └── specs/
 │               ├── specs_toc.yaml
 │               ├── .toc_checksums.yaml
 │               └── .toc_work/
 ├── rules/                      # Rules ドキュメント（設定可能）
-│   └── *.md                    # ドキュメントファイル
+│   └── *.md
 └── specs/                      # Specs ドキュメント（設定可能）
-    ├── requirements/           # 要件定義書
-    └── design/                 # 設計書
+    ├── requirements/
+    └── design/
 ```
 
 ## 設定
@@ -326,7 +387,7 @@ your-project/
 ```yaml
 # === rules 設定 ===
 rules:
-  root_dir: rules
+  root_dir: .claude/doc-advisor/docs/rules    # ドキュメント集約ディレクトリ
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
@@ -343,7 +404,7 @@ rules:
 
 # === specs 設定 ===
 specs:
-  root_dir: specs
+  root_dir: .claude/doc-advisor/docs    # ドキュメント集約ディレクトリ
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/
@@ -354,6 +415,7 @@ specs:
       design: design
     exclude:
       - plan           # 作業中に全文読むため、検索不要
+      - rules          # rules 設定で別途スキャン
       # - reference
       # - /info/
 

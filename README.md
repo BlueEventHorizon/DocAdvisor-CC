@@ -30,6 +30,8 @@ Key features:
 - **Parallel processing**: Up to 5 concurrent workers
 - **Interruption recovery**: Preserve completed work and resume
 - **Symlink support**: Include external documentation via symbolic links (v3.2+)
+- **Multi-source aggregation**: Add external directories or git repos via symlinks under `.claude/doc-advisor/docs/` (v3.7+)
+- **External source sync**: Sync git submodules and local directories via `/sync-docs` (v3.8+)
 
 For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
 
@@ -103,6 +105,13 @@ claude
 ```bash
 /query-rules Identify documents for implementing authentication
 /query-specs Find requirements for screen navigation
+```
+
+### External source sync
+
+```bash
+/sync-docs              # Sync external sources defined in config.yaml
+/sync-docs --status     # Check sync status
 ```
 
 ## Configuration

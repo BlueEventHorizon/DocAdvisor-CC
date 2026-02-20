@@ -212,7 +212,8 @@ if [[ -f "$PENDING_CHECKSUMS" ]]; then
 
     # Verify all target files are included (not just changed ones)
     PENDING_ENTRY_COUNT=$(grep -c '^  ' "$PENDING_CHECKSUMS" 2>/dev/null || echo "0")
-    RULES_FILE_COUNT=$(find rules -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+    # Count .md files accessible through the docs/rules symlink tree (-L follows symlinks)
+    RULES_FILE_COUNT=$(find -L .claude/doc-advisor/docs/rules -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
     test_result "Pending checksums includes all files" "$RULES_FILE_COUNT" "$PENDING_ENTRY_COUNT"
 else
     echo -e "${RED}FAIL${NC}: .toc_checksums_pending.yaml not created (rules)"

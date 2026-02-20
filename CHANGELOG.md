@@ -7,6 +7,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ---
 
 
+
+## [3.8.0] - 2026-02-20
+
+### Added
+- **External source sync**: `sync_external_sources.py` script and `/sync-docs` skill for syncing external document sources
+- **git submodule support**: External git repositories are added as git submodules (not git clone)
+- **Local symlink support**: Local directories can be linked as external sources
+- **sparse_path support**: Include only a subdirectory of a git repository via `.submodules/`
+- **Orphan detection**: `--status` detects sources on disk but not in config; `--cleanup` removes them
+- **config.yaml external_sources**: New optional section with commented example for defining external sources
+
+### Changed
+- **Version identifier**: Updated from `3.6` to `3.8` across all managed files
+- **setup.sh**: Now copies `sync-docs` skill to target project
+- **Documentation**: Updated TECHNICAL_GUIDE, README (EN/JA) with `/sync-docs` usage and directory structure
+
+---
 ## [3.6.0] - 2026-02-19
 
 ### Fixed

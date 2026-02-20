@@ -120,11 +120,11 @@ echo "Configure document directories for your project."
 echo "(Press Enter to use default value)"
 echo ""
 
-read -p "Rules directory [${DEFAULT_RULES_DIR}]: " RULES_DIR
-RULES_DIR="${RULES_DIR:-$DEFAULT_RULES_DIR}"
+read -p "Rules directory [${DEFAULT_RULES_DIR}]: " USER_RULES_DIR
+USER_RULES_DIR="${USER_RULES_DIR:-$DEFAULT_RULES_DIR}"
 
-read -p "Specs directory [${DEFAULT_SPECS_DIR}]: " SPECS_DIR
-SPECS_DIR="${SPECS_DIR:-$DEFAULT_SPECS_DIR}"
+read -p "Specs directory [${DEFAULT_SPECS_DIR}]: " USER_SPECS_DIR
+USER_SPECS_DIR="${USER_SPECS_DIR:-$DEFAULT_SPECS_DIR}"
 
 echo ""
 echo "Configure subdirectory names for specs:"
@@ -153,9 +153,13 @@ case "$AGENT_MODEL" in
         ;;
 esac
 
-# Remove trailing slash if present (placeholders should not include trailing slash)
-RULES_DIR="${RULES_DIR%/}"
-SPECS_DIR="${SPECS_DIR%/}"
+# Remove trailing slash if present
+USER_RULES_DIR="${USER_RULES_DIR%/}"
+USER_SPECS_DIR="${USER_SPECS_DIR%/}"
+
+# Template substitution values (scan roots under .claude/doc-advisor/docs/)
+RULES_DIR=".claude/doc-advisor/docs/rules"
+SPECS_DIR=".claude/doc-advisor/docs"
 
 # Detect Python path
 # Check if shell wrapper exists (e.g., Claude Code shell-snapshots directory)
@@ -173,8 +177,8 @@ fi
 
 echo ""
 echo "Configuration:"
-echo -e "  RULES_DIR: ${BLUE}${RULES_DIR}${NC}"
-echo -e "  SPECS_DIR: ${BLUE}${SPECS_DIR}${NC}"
+echo -e "  Rules source: ${BLUE}${USER_RULES_DIR}${NC}"
+echo -e "  Specs source: ${BLUE}${USER_SPECS_DIR}${NC}"
 echo -e "  REQUIREMENT_DIR_NAME: ${BLUE}${REQUIREMENT_DIR_NAME}${NC}"
 echo -e "  DESIGN_DIR_NAME: ${BLUE}${DESIGN_DIR_NAME}${NC}"
 echo -e "  PLAN_DIR_NAME: ${BLUE}${PLAN_DIR_NAME}${NC}"
@@ -194,7 +198,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="3.6"
+DOC_ADVISOR_VERSION="3.8"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -267,11 +271,18 @@ if [[ -d "${SKILLS_DIR}/doc-advisor/scripts" ]]; then
     LEGACY_CLEANED=1
 fi
 
-# v3.0 moved docs to doc-advisor/ - clean old docs directory if it exists with outdated files
-# (scripts and config are handled by the copy process, only docs/ needs explicit cleanup)
+# v3.0 moved docs to doc-advisor/docs/ - legacy cleanup
+# Note: v3.7+ uses docs/ as the document aggregation directory with symlinks.
+# Only clean up if docs/ contains non-symlink files from v3.0 (actual doc copies).
+# Symlinks and directories are preserved.
 if [[ -d "${DOC_ADVISOR_DIR}/docs" ]]; then
-    rm -rf "${DOC_ADVISOR_DIR}/docs"
-    LEGACY_CLEANED=1
+    # Check for v3.0 legacy: actual .md files (not symlinks) directly in docs/
+    LEGACY_DOC_COUNT=$(find "${DOC_ADVISOR_DIR}/docs" -maxdepth 1 -type f -name "*.md" ! -name "link_list.md" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$LEGACY_DOC_COUNT" -gt 0 ]]; then
+        echo -e "${YELLOW}Found legacy docs in doc-advisor/docs/ - cleaning up non-link files${NC}"
+        find "${DOC_ADVISOR_DIR}/docs" -maxdepth 1 -type f -name "*.md" ! -name "link_list.md" -delete 2>/dev/null
+        LEGACY_CLEANED=1
+    fi
 fi
 
 # v3.0 unified skill → v3.1 split skills (create-rules-toc, create-specs-toc)
@@ -303,6 +314,9 @@ fi
 mkdir -p "${DOC_ADVISOR_DIR}"
 mkdir -p "${DOC_ADVISOR_DIR}/toc/rules"    # ToC/checksums for rules
 mkdir -p "${DOC_ADVISOR_DIR}/toc/specs"    # ToC/checksums for specs
+mkdir -p "${DOC_ADVISOR_DIR}/docs/rules"        # Document aggregation: rules
+mkdir -p "${DOC_ADVISOR_DIR}/docs/${REQUIREMENT_DIR_NAME}"  # Document aggregation: requirements
+mkdir -p "${DOC_ADVISOR_DIR}/docs/${DESIGN_DIR_NAME}"       # Document aggregation: designs
 mkdir -p "${AGENTS_DIR}"
 mkdir -p "${SKILLS_DIR}"
 
@@ -430,6 +444,10 @@ echo "  skills/query-specs/ ..."
 mkdir -p "${SKILLS_DIR}/query-specs"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
 
+echo "  skills/sync-docs/ ..."
+mkdir -p "${SKILLS_DIR}/sync-docs"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/sync-docs/SKILL.md" "${SKILLS_DIR}/sync-docs/SKILL.md"
+
 # Copy doc-advisor resources (config, docs, scripts)
 echo "  doc-advisor/ ..."
 
@@ -460,6 +478,63 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
     echo ""
     echo -e "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}"
 fi
+
+# =============================================================================
+# Create primary symlinks (project docs → .claude/doc-advisor/docs/)
+# =============================================================================
+echo ""
+echo "Creating document symlinks..."
+
+# Symlink: docs/rules/{name} → project's rules directory
+RULES_LINK="${DOC_ADVISOR_DIR}/docs/rules/${USER_RULES_DIR}"
+if [[ ! -L "$RULES_LINK" ]]; then
+    ln -sfn "../../../../${USER_RULES_DIR}" "$RULES_LINK"
+    echo -e "  ${GREEN}Created: docs/rules/${USER_RULES_DIR} → ${USER_RULES_DIR}/${NC}"
+else
+    echo -e "  ${BLUE}Exists: docs/rules/${USER_RULES_DIR}${NC}"
+fi
+
+# Symlink: docs/requirements/{name} → project's specs/requirements directory
+REQ_LINK="${DOC_ADVISOR_DIR}/docs/${REQUIREMENT_DIR_NAME}/${USER_SPECS_DIR}"
+if [[ ! -L "$REQ_LINK" ]]; then
+    ln -sfn "../../../../${USER_SPECS_DIR}/${REQUIREMENT_DIR_NAME}" "$REQ_LINK"
+    echo -e "  ${GREEN}Created: docs/${REQUIREMENT_DIR_NAME}/${USER_SPECS_DIR} → ${USER_SPECS_DIR}/${REQUIREMENT_DIR_NAME}/${NC}"
+else
+    echo -e "  ${BLUE}Exists: docs/${REQUIREMENT_DIR_NAME}/${USER_SPECS_DIR}${NC}"
+fi
+
+# Symlink: docs/designs/{name} → project's specs/design directory
+DESIGN_LINK="${DOC_ADVISOR_DIR}/docs/${DESIGN_DIR_NAME}/${USER_SPECS_DIR}"
+if [[ ! -L "$DESIGN_LINK" ]]; then
+    ln -sfn "../../../../${USER_SPECS_DIR}/${DESIGN_DIR_NAME}" "$DESIGN_LINK"
+    echo -e "  ${GREEN}Created: docs/${DESIGN_DIR_NAME}/${USER_SPECS_DIR} → ${USER_SPECS_DIR}/${DESIGN_DIR_NAME}/${NC}"
+else
+    echo -e "  ${BLUE}Exists: docs/${DESIGN_DIR_NAME}/${USER_SPECS_DIR}${NC}"
+fi
+
+# Generate link_list.md
+LINK_LIST="${DOC_ADVISOR_DIR}/docs/link_list.md"
+cat > "$LINK_LIST" << LINKLIST_EOF
+# Document Sources
+
+Generated by Doc Advisor setup script.
+
+## rules
+| Name | Type | Source |
+|------|------|--------|
+| ${USER_RULES_DIR} | symlink | ../../../../${USER_RULES_DIR} |
+
+## ${REQUIREMENT_DIR_NAME}
+| Name | Type | Source |
+|------|------|--------|
+| ${USER_SPECS_DIR} | symlink | ../../../../${USER_SPECS_DIR}/${REQUIREMENT_DIR_NAME} |
+
+## ${DESIGN_DIR_NAME}
+| Name | Type | Source |
+|------|------|--------|
+| ${USER_SPECS_DIR} | symlink | ../../../../${USER_SPECS_DIR}/${DESIGN_DIR_NAME} |
+LINKLIST_EOF
+echo -e "  ${GREEN}Generated: docs/link_list.md${NC}"
 
 echo ""
 echo "Generated configuration:"
@@ -524,8 +599,8 @@ fi
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
 LAST_TARGET_DIR="${TARGET_DIR}"
-LAST_RULES_DIR="${RULES_DIR}"
-LAST_SPECS_DIR="${SPECS_DIR}"
+LAST_RULES_DIR="${USER_RULES_DIR}"
+LAST_SPECS_DIR="${USER_SPECS_DIR}"
 LAST_REQUIREMENT_DIR_NAME="${REQUIREMENT_DIR_NAME}"
 LAST_DESIGN_DIR_NAME="${DESIGN_DIR_NAME}"
 LAST_PLAN_DIR_NAME="${PLAN_DIR_NAME}"
@@ -534,7 +609,7 @@ EOF
 
 echo ""
 echo "Next steps:"
-echo -e "  1. Verify ${BLUE}${RULES_DIR}${NC} and ${BLUE}${SPECS_DIR}${NC} directories exist in your project"
+echo -e "  1. Verify ${BLUE}${USER_RULES_DIR}/${NC} and ${BLUE}${USER_SPECS_DIR}/${NC} directories exist in your project"
 echo "  2. Start Claude Code:"
 echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"

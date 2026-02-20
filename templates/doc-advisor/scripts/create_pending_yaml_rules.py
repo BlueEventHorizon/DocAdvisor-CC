@@ -140,8 +140,9 @@ def get_source_file_path(md_file):
 
 
 def get_yaml_filename(source_file):
-    """Generate YAML filename from source_file"""
-    return source_file.replace("/", "_").replace(".md", ".yaml")
+    """Generate YAML filename from source_file using hash"""
+    hash_value = hashlib.sha256(source_file.encode()).hexdigest()[:12]
+    return f"{hash_value}.yaml"
 
 
 def create_pending_yaml(source_file):

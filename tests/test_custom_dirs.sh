@@ -82,25 +82,26 @@ echo "=================================================="
 CONFIG_FILE=".claude/doc-advisor/config.yaml"
 
 if [[ -f "$CONFIG_FILE" ]]; then
-    # Check rules_dir
-    if grep -q "root_dir: guidelines" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: rules root_dir is 'guidelines'"
+    # root_dir is now fixed in the new architecture
+    # Check that rules root_dir points to docs/rules
+    if grep -q "root_dir: .claude/doc-advisor/docs/rules" "$CONFIG_FILE"; then
+        echo -e "${GREEN}PASS${NC}: rules root_dir is '.claude/doc-advisor/docs/rules'"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: rules root_dir not set to 'guidelines'"
+        echo -e "${RED}FAIL${NC}: rules root_dir not set correctly"
         ((FAIL_COUNT++))
     fi
 
-    # Check specs_dir
-    if grep -q "root_dir: documents" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: specs root_dir is 'documents'"
+    # Check that specs root_dir points to docs
+    if grep -q "root_dir: .claude/doc-advisor/docs$" "$CONFIG_FILE"; then
+        echo -e "${GREEN}PASS${NC}: specs root_dir is '.claude/doc-advisor/docs'"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: specs root_dir not set to 'documents'"
+        echo -e "${RED}FAIL${NC}: specs root_dir not set correctly"
         ((FAIL_COUNT++))
     fi
 
-    # Check target_dirs
+    # Check custom target_dirs
     if grep -q "requirement: reqs" "$CONFIG_FILE"; then
         echo -e "${GREEN}PASS${NC}: requirement dir is 'reqs'"
         ((PASS_COUNT++))
@@ -123,6 +124,42 @@ fi
 echo ""
 
 echo "=================================================="
+echo "Test 3-2b: Verify symlinks use custom names"
+echo "=================================================="
+
+# Check that symlinks were created with custom directory names
+if [[ -L ".claude/doc-advisor/docs/rules/guidelines" ]]; then
+    echo -e "${GREEN}PASS${NC}: rules symlink uses 'guidelines' name"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: rules symlink 'guidelines' not found"
+    ((FAIL_COUNT++))
+    echo "  Contents of docs/rules/:"
+    ls -la .claude/doc-advisor/docs/rules/ 2>/dev/null
+fi
+
+if [[ -L ".claude/doc-advisor/docs/reqs/documents" ]]; then
+    echo -e "${GREEN}PASS${NC}: requirements symlink uses 'documents' name"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: requirements symlink 'documents' not found"
+    ((FAIL_COUNT++))
+    echo "  Contents of docs/reqs/:"
+    ls -la .claude/doc-advisor/docs/reqs/ 2>/dev/null
+fi
+
+if [[ -L ".claude/doc-advisor/docs/arch/documents" ]]; then
+    echo -e "${GREEN}PASS${NC}: design symlink uses 'documents' name"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: design symlink 'documents' not found"
+    ((FAIL_COUNT++))
+    echo "  Contents of docs/arch/:"
+    ls -la .claude/doc-advisor/docs/arch/ 2>/dev/null
+fi
+echo ""
+
+echo "=================================================="
 echo "Test 3-3: Run create_pending_yaml_rules.py with custom dir"
 echo "=================================================="
 
@@ -141,13 +178,15 @@ if ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 1>/dev/null 2>&1; then
     echo -e "${GREEN}PASS${NC}: Rules pending YAML created"
     ((PASS_COUNT++))
 
-    # Verify source_file path uses custom dir name
-    if grep -q "source_file: guidelines/" .claude/doc-advisor/toc/rules/.toc_work/*.yaml; then
-        echo -e "${GREEN}PASS${NC}: source_file uses 'guidelines/' prefix"
+    # Verify source_file path uses custom dir name in docs path
+    if grep -q "source_file: .claude/doc-advisor/docs/rules/guidelines/" .claude/doc-advisor/toc/rules/.toc_work/*.yaml; then
+        echo -e "${GREEN}PASS${NC}: source_file uses 'guidelines/' in path"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: source_file does not use 'guidelines/' prefix"
+        echo -e "${RED}FAIL${NC}: source_file does not use 'guidelines/' in path"
         ((FAIL_COUNT++))
+        echo "  Actual source_file values:"
+        grep "source_file:" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null
     fi
 else
     echo -e "${RED}FAIL${NC}: No rules pending YAML created"
@@ -170,18 +209,19 @@ if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
     ((PASS_COUNT++))
 
     # Verify source_file path uses custom dir name
-    if grep -q "source_file: documents/" .claude/doc-advisor/toc/specs/.toc_work/*.yaml; then
-        echo -e "${GREEN}PASS${NC}: source_file uses 'documents/' prefix"
+    if grep -q "source_file: .claude/doc-advisor/docs/" .claude/doc-advisor/toc/specs/.toc_work/*.yaml; then
+        echo -e "${GREEN}PASS${NC}: source_file uses docs/ prefix"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: source_file does not use 'documents/' prefix"
+        echo -e "${RED}FAIL${NC}: source_file does not use docs/ prefix"
         ((FAIL_COUNT++))
+        echo "  Actual source_file values:"
+        grep "source_file:" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null
     fi
 
     # Verify doc_type is correctly detected with custom dir names
     # reqs/ should map to requirement
-    if grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*reqs*.yaml 2>/dev/null || \
-       grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*auth*.yaml 2>/dev/null; then
+    if grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null; then
         echo -e "${GREEN}PASS${NC}: doc_type 'requirement' detected for reqs/"
         ((PASS_COUNT++))
     else
@@ -189,8 +229,7 @@ if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
     fi
 
     # arch/ should map to design
-    if grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*arch*.yaml 2>/dev/null || \
-       grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*api*.yaml 2>/dev/null; then
+    if grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null; then
         echo -e "${GREEN}PASS${NC}: doc_type 'design' detected for arch/"
         ((PASS_COUNT++))
     else
@@ -207,14 +246,14 @@ echo "Test 3-5: Verify exclude with custom plan dir name"
 echo "=================================================="
 
 # Create a plan file that should be excluded
-mkdir -p documents/main/roadmap
-echo "# Test Roadmap" > documents/main/roadmap/test_plan.md
+mkdir -p .claude/doc-advisor/docs/roadmap
+echo "# Test Roadmap" > .claude/doc-advisor/docs/roadmap/test_plan.md
 
 # Regenerate
 $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || true
 
-# Check that roadmap files are NOT included
-if ls .claude/doc-advisor/toc/specs/.toc_work/*roadmap*.yaml 1>/dev/null 2>&1; then
+# Check that roadmap files are NOT included (search by content)
+if grep -rl "roadmap/test_plan.md" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | head -1 | grep -q .; then
     echo -e "${RED}FAIL${NC}: roadmap/ files should be excluded"
     ((FAIL_COUNT++))
 else
@@ -223,7 +262,7 @@ else
 fi
 
 # Cleanup
-rm -rf documents/main/roadmap
+rm -rf .claude/doc-advisor/docs/roadmap
 echo ""
 
 echo "=================================================="
