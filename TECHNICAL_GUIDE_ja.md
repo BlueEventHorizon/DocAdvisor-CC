@@ -75,16 +75,36 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 └── link_list.md                            # ソース一覧
 ```
 
-外部ソースを追加するには、適切なディレクトリにシンボリックリンクを作成するか、リポジトリをクローンします：
+外部ソースを追加するには、`config.yaml` に定義して `/sync-docs` を実行します：
+
+```yaml
+# .claude/doc-advisor/config.yaml
+external_sources:
+  rules:
+    - name: org-standards
+      type: git
+      url: https://github.com/org/standards.git
+      branch: main
+    - name: shared-rules
+      type: local
+      path: /shared/standards
+  requirements:
+    - name: partner-specs
+      type: git
+      url: https://github.com/partner/specs.git
+      sparse_path: specs/requirements
+```
 
 ```bash
-# シンボリックリンクで外部ルールを追加
-ln -s /path/to/org/standards .claude/doc-advisor/docs/rules/org-standards
-
-# git clone で外部仕様書を追加
-git clone --depth=1 https://github.com/org/specs.git \
-  .claude/doc-advisor/docs/requirements/org-specs
+/sync-docs              # 全外部ソースを同期
+/sync-docs --status     # 同期状態を確認
+/sync-docs --cleanup    # 設定から削除されたソースを除去
 ```
+
+**動作方式**:
+- `type: git` は **git submodule** として追加（`.gitmodules` で管理）
+- `type: local` は **シンボリックリンク** を作成
+- `sparse_path` を指定すると、リポジトリ内の特定サブディレクトリのみを参照
 
 ソース追加後は `--full` で ToC を再生成してください。
 
@@ -148,8 +168,10 @@ your-project/.claude/
 │   │   └── SKILL.md   # specs ドキュメント検索スキル
 │   ├── create-rules-toc/
 │   │   └── SKILL.md   # rules ToC 生成スキル
-│   └── create-specs-toc/
-│       └── SKILL.md   # specs ToC 生成スキル
+│   ├── create-specs-toc/
+│   │   └── SKILL.md   # specs ToC 生成スキル
+│   └── sync-docs/
+│       └── SKILL.md   # 外部ソース同期スキル
 └── doc-advisor/       # すべてのリソースとランタイム出力
     ├── config.yaml
     ├── docs/
@@ -203,6 +225,17 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 ```bash
 /query-rules ユーザー認証機能の実装に必要な文書を特定
 /query-specs 画面遷移に関する要件定義書を特定
+```
+
+### 外部ソース同期
+
+`config.yaml` に定義した外部ドキュメントソースを同期：
+
+```bash
+/sync-docs              # 全外部ソースを同期
+/sync-docs --status     # 同期状態を確認
+/sync-docs --force      # 強制再同期
+/sync-docs --cleanup    # 設定から削除されたソースを除去
 ```
 
 ### CLAUDE.md への推奨記載
@@ -286,8 +319,10 @@ DocAdvisor-CC/
 │   │   │   └── SKILL.md        # specs ドキュメント検索スキル
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC 生成スキル
-│   │   └── create-specs-toc/
-│   │       └── SKILL.md        # specs ToC 生成スキル
+│   │   ├── create-specs-toc/
+│   │   │   └── SKILL.md        # specs ToC 生成スキル
+│   │   └── sync-docs/
+│   │       └── SKILL.md        # 外部ソース同期スキル
 │   └── doc-advisor/            # ToC 生成リソース
 │       ├── config.yaml         # 設定テンプレート
 │       ├── docs/               # オーケストレータ、フォーマット、ワークフロー文書
@@ -312,8 +347,10 @@ your-project/
 │   │   │   └── SKILL.md        # specs ドキュメント検索スキル
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC 生成スキル
-│   │   └── create-specs-toc/
-│   │       └── SKILL.md        # specs ToC 生成スキル
+│   │   ├── create-specs-toc/
+│   │   │   └── SKILL.md        # specs ToC 生成スキル
+│   │   └── sync-docs/
+│   │       └── SKILL.md        # 外部ソース同期スキル
 │   └── doc-advisor/
 │       ├── config.yaml         # 設定
 │       ├── docs/               # ドキュメント集約（シンボリンク＋参考文書）

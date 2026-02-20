@@ -29,6 +29,7 @@ Doc Advisor の目的は「必要な文書を、短時間で、確実に特定�
 - **中断耐性**: 完了分を保持し再開可能
 - **シンボリックリンク対応**: シンボリックリンク経由で外部ドキュメントを統合 (v3.2+)
 - **マルチソース集約**: `.claude/doc-advisor/docs/` 配下に外部ディレクトリや git リポジトリを symlink で追加 (v3.7+)
+- **外部ソース同期**: `/sync-docs` で git submodule やローカルディレクトリを自動同期 (v3.8+)
 
 詳細は [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md) を参照してください。
 
@@ -102,6 +103,13 @@ claude
 ```bash
 /query-rules 認証機能の実装に必要な文書を特定
 /query-specs 画面遷移の要件を特定
+```
+
+### 外部ソース同期
+
+```bash
+/sync-docs              # config.yaml の外部ソースを同期
+/sync-docs --status     # 同期状態を確認
 ```
 
 ## 設定

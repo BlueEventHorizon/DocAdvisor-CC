@@ -45,3 +45,27 @@ common:
   parallel:
     max_workers: 5
     fallback_to_serial: true
+
+# === external sources (optional) ===
+# Add external document sources via git submodule or local symlink.
+# Run /sync-docs after editing this section.
+#
+# external_sources:
+#   rules:
+#     - name: org-standards
+#       type: git
+#       url: https://github.com/org/standards.git
+#       branch: main
+#       sparse_path: rules/
+#     - name: shared-rules
+#       type: local
+#       path: /shared/standards
+#   requirements:
+#     - name: partner-specs
+#       type: git
+#       url: https://github.com/partner/specs.git
+#   design:
+#     - name: partner-design
+#       type: git
+#       url: https://github.com/partner/specs.git
+#       sparse_path: design/

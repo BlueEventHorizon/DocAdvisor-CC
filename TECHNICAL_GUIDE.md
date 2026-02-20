@@ -75,18 +75,38 @@ All documents are aggregated under `.claude/doc-advisor/docs/` via symlinks. Thi
 └── link_list.md                            # Source registry
 ```
 
-To add external sources, create symlinks or clone repositories into the appropriate directory:
+To add external sources, define them in `config.yaml` and run `/sync-docs`:
 
-```bash
-# Add external rules via symlink
-ln -s /path/to/org/standards .claude/doc-advisor/docs/rules/org-standards
-
-# Add external specs via git clone
-git clone --depth=1 https://github.com/org/specs.git \
-  .claude/doc-advisor/docs/requirements/org-specs
+```yaml
+# .claude/doc-advisor/config.yaml
+external_sources:
+  rules:
+    - name: org-standards
+      type: git
+      url: https://github.com/org/standards.git
+      branch: main
+    - name: shared-rules
+      type: local
+      path: /shared/standards
+  requirements:
+    - name: partner-specs
+      type: git
+      url: https://github.com/partner/specs.git
+      sparse_path: specs/requirements
 ```
 
-After adding sources, regenerate the ToC with `--full`.
+```bash
+/sync-docs              # Sync all external sources
+/sync-docs --status     # Check sync status
+/sync-docs --cleanup    # Remove orphaned sources
+```
+
+**How it works**:
+- `type: git` sources are added as **git submodules** (tracked in `.gitmodules`)
+- `type: local` sources are added as **symlinks**
+- `sparse_path` allows including only a subdirectory of a git repository
+
+After syncing, regenerate the ToC with `--full`.
 
 ### How ToC Generation Works
 
@@ -154,8 +174,10 @@ your-project/.claude/
 │   │   └── SKILL.md   # specs document search skill
 │   ├── create-rules-toc/
 │   │   └── SKILL.md   # rules ToC generation skill
-│   └── create-specs-toc/
-│       └── SKILL.md   # specs ToC generation skill
+│   ├── create-specs-toc/
+│   │   └── SKILL.md   # specs ToC generation skill
+│   └── sync-docs/
+│       └── SKILL.md   # External source sync skill
 └── doc-advisor/       # All resources and runtime output
     ├── config.yaml
     ├── docs/
@@ -209,6 +231,17 @@ Automatically identify documents needed for a task:
 ```bash
 /query-rules Identify documents for implementing user authentication
 /query-specs Find requirements for screen navigation
+```
+
+### External Source Sync
+
+Synchronize external document sources defined in `config.yaml`:
+
+```bash
+/sync-docs              # Sync all external sources
+/sync-docs --status     # Check sync status
+/sync-docs --force      # Force re-sync
+/sync-docs --cleanup    # Remove orphaned sources
 ```
 
 ### Recommended CLAUDE.md Entry
@@ -292,8 +325,10 @@ DocAdvisor-CC/
 │   │   │   └── SKILL.md        # specs document search skill
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC generation skill
-│   │   └── create-specs-toc/
-│   │       └── SKILL.md        # specs ToC generation skill
+│   │   ├── create-specs-toc/
+│   │   │   └── SKILL.md        # specs ToC generation skill
+│   │   └── sync-docs/
+│   │       └── SKILL.md        # External source sync skill
 │   └── doc-advisor/            # ToC generation resources
 │       ├── config.yaml         # Configuration template
 │       ├── docs/               # Orchestrator, format, workflow docs
@@ -318,18 +353,22 @@ your-project/
 │   │   │   └── SKILL.md        # specs document search skill
 │   │   ├── create-rules-toc/
 │   │   │   └── SKILL.md        # rules ToC generation skill
-│   │   └── create-specs-toc/
-│   │       └── SKILL.md        # specs ToC generation skill
+│   │   ├── create-specs-toc/
+│   │   │   └── SKILL.md        # specs ToC generation skill
+│   │   └── sync-docs/
+│   │       └── SKILL.md        # External source sync skill
 │   └── doc-advisor/
 │       ├── config.yaml         # Configuration
 │       ├── docs/               # Document aggregation (symlinks + reference docs)
 │       │   ├── rules/          # Symlinks to rules sources
-│       │   │   └── rules → ../../../../rules
+│       │   │   ├── rules → ../../../../rules
+│       │   │   └── org-standards/    # git submodule (via /sync-docs)
 │       │   ├── requirements/   # Symlinks to requirement sources
 │       │   │   └── specs → ../../../../specs/requirements
 │       │   ├── design/         # Symlinks to design sources
 │       │   │   └── specs → ../../../../specs/design
 │       │   └── link_list.md    # Source registry
+│       ├── .submodules/        # For sparse_path git sources only
 │       ├── scripts/            # Python scripts
 │       └── toc/                # Runtime output
 │           ├── rules/

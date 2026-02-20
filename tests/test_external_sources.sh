@@ -282,6 +282,424 @@ rm -rf "$EXTERNAL_DIR"
 echo ""
 
 echo "=================================================="
+echo "Test 5: sync_external_sources.py with local source"
+echo "=================================================="
+
+# Create external local directory
+EXTERNAL_LOCAL="$SCRIPT_DIR/external_local_test"
+rm -rf "$EXTERNAL_LOCAL"
+mkdir -p "$EXTERNAL_LOCAL/team_rules"
+echo "# Team Coding Standard" > "$EXTERNAL_LOCAL/team_rules/coding.md"
+echo "# Team Architecture" > "$EXTERNAL_LOCAL/team_rules/architecture.md"
+
+# Add external_sources to config.yaml
+cat >> .claude/doc-advisor/config.yaml << EXTEOF
+
+external_sources:
+  rules:
+    - name: team-rules
+      type: local
+      path: $EXTERNAL_LOCAL/team_rules
+EXTEOF
+
+# Run sync
+EXIT_CODE=0
+$PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" 2>&1 || EXIT_CODE=$?
+test_result "sync_external_sources.py with local source exits 0" "0" "$EXIT_CODE"
+
+# Verify symlink was created
+if [[ -L "$DOCS_DIR/rules/team-rules" ]]; then
+    echo -e "${GREEN}PASS${NC}: Local source symlink created"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Local source symlink not created"
+    ((FAIL_COUNT++))
+fi
+
+# Verify files accessible
+if [[ -f "$DOCS_DIR/rules/team-rules/coding.md" ]]; then
+    echo -e "${GREEN}PASS${NC}: Local source files accessible via symlink"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Local source files not accessible"
+    ((FAIL_COUNT++))
+fi
+
+# Verify link_list.md updated
+if grep -q "team-rules" "$DOCS_DIR/link_list.md"; then
+    echo -e "${GREEN}PASS${NC}: link_list.md updated with local source"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: link_list.md not updated with local source"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+echo "=================================================="
+echo "Test 6: sync_external_sources.py --status"
+echo "=================================================="
+
+STATUS_OUTPUT=$($PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" --status 2>&1)
+
+if echo "$STATUS_OUTPUT" | grep -q "team-rules"; then
+    echo -e "${GREEN}PASS${NC}: --status shows team-rules"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: --status does not show team-rules"
+    ((FAIL_COUNT++))
+    echo "  Output: $STATUS_OUTPUT"
+fi
+
+if echo "$STATUS_OUTPUT" | grep -q "linked"; then
+    echo -e "${GREEN}PASS${NC}: --status shows linked status"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: --status does not show linked status"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+echo "=================================================="
+echo "Test 7: sync idempotency (re-sync local source)"
+echo "=================================================="
+
+RESYNC_OUTPUT=$($PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" 2>&1)
+
+if echo "$RESYNC_OUTPUT" | grep -q "skipped"; then
+    echo -e "${GREEN}PASS${NC}: Re-sync skips existing local source"
+    ((PASS_COUNT++))
+else
+    # Already linked is also acceptable
+    if echo "$RESYNC_OUTPUT" | grep -q "Already linked\|Already exists"; then
+        echo -e "${GREEN}PASS${NC}: Re-sync recognizes existing local source"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: Re-sync did not skip existing source"
+        ((FAIL_COUNT++))
+        echo "  Output: $RESYNC_OUTPUT"
+    fi
+fi
+echo ""
+
+echo "=================================================="
+echo "Test 8: sync with git submodule"
+echo "=================================================="
+
+# Initialize test_project as git repo (required for git submodule)
+cd "$TEST_PROJECT"
+NEED_GIT_CLEANUP=0
+if [[ ! -d ".git" ]]; then
+    git init -b main >/dev/null 2>&1
+    git add -A >/dev/null 2>&1
+    git commit -m "init" >/dev/null 2>&1
+    NEED_GIT_CLEANUP=1
+fi
+
+# Allow local file:// transport (required for git submodule with local bare repos)
+# Environment variables ensure the setting propagates to git subcommands
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=protocol.file.allow
+export GIT_CONFIG_VALUE_0=always
+
+# Create test bare repo
+BARE_REPO="$SCRIPT_DIR/test_bare_repo.git"
+TEMP_CLONE="$SCRIPT_DIR/temp_clone_for_test"
+rm -rf "$BARE_REPO" "$TEMP_CLONE"
+
+git init --bare --initial-branch=main "$BARE_REPO" >/dev/null 2>&1
+git clone "$BARE_REPO" "$TEMP_CLONE" >/dev/null 2>&1
+mkdir -p "$TEMP_CLONE/rules"
+echo "# External Standard" > "$TEMP_CLONE/rules/external_standard.md"
+cd "$TEMP_CLONE" && git add -A >/dev/null 2>&1 && git commit -m "init" >/dev/null 2>&1 && git push -u origin main >/dev/null 2>&1
+cd "$TEST_PROJECT"
+rm -rf "$TEMP_CLONE"
+
+# Remove previous external_sources and add git source
+# First, remove the local source config added in Test 5
+$PYTHON_CMD -c "
+import sys
+lines = open('.claude/doc-advisor/config.yaml').readlines()
+# Find and remove external_sources section
+result = []
+in_external = False
+for line in lines:
+    stripped = line.strip()
+    indent = len(line) - len(line.lstrip())
+    if indent == 0 and stripped == 'external_sources:':
+        in_external = True
+        continue
+    if in_external:
+        if indent == 0 and stripped and not stripped.startswith('#'):
+            in_external = False
+            result.append(line)
+        continue
+    result.append(line)
+with open('.claude/doc-advisor/config.yaml', 'w') as f:
+    f.writelines(result)
+"
+
+# Add git source to config
+cat >> .claude/doc-advisor/config.yaml << GITEOF
+
+external_sources:
+  rules:
+    - name: team-rules
+      type: local
+      path: $EXTERNAL_LOCAL/team_rules
+    - name: ext-standards
+      type: git
+      url: $BARE_REPO
+GITEOF
+
+# Run sync
+SYNC_OUTPUT=$($PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" 2>&1)
+EXIT_CODE=$?
+
+# Check if git submodule was added
+if [[ -f "$DOCS_DIR/rules/ext-standards/rules/external_standard.md" ]]; then
+    echo -e "${GREEN}PASS${NC}: Git submodule content accessible"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Git submodule content not accessible"
+    ((FAIL_COUNT++))
+    echo "  Sync output: $SYNC_OUTPUT"
+    ls -la "$DOCS_DIR/rules/ext-standards/" 2>/dev/null || echo "  Directory does not exist"
+fi
+
+# Check .gitmodules
+if [[ -f "$TEST_PROJECT/.gitmodules" ]]; then
+    if grep -q "ext-standards" "$TEST_PROJECT/.gitmodules"; then
+        echo -e "${GREEN}PASS${NC}: .gitmodules contains ext-standards"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: .gitmodules does not contain ext-standards"
+        ((FAIL_COUNT++))
+    fi
+else
+    echo -e "${RED}FAIL${NC}: .gitmodules not created"
+    ((FAIL_COUNT++))
+fi
+
+# Verify submodule is registered
+if git -C "$TEST_PROJECT" submodule status 2>/dev/null | grep -q "ext-standards"; then
+    echo -e "${GREEN}PASS${NC}: Git submodule registered"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Git submodule not registered"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+echo "=================================================="
+echo "Test 9: sync with sparse_path"
+echo "=================================================="
+
+# Create bare repo with subdirectory structure
+SPARSE_BARE="$SCRIPT_DIR/test_sparse_bare.git"
+SPARSE_CLONE="$SCRIPT_DIR/temp_sparse_clone"
+rm -rf "$SPARSE_BARE" "$SPARSE_CLONE"
+
+git init --bare --initial-branch=main "$SPARSE_BARE" >/dev/null 2>&1
+git clone "$SPARSE_BARE" "$SPARSE_CLONE" >/dev/null 2>&1
+mkdir -p "$SPARSE_CLONE/docs/requirements" "$SPARSE_CLONE/docs/design" "$SPARSE_CLONE/other"
+echo "# Partner Requirement" > "$SPARSE_CLONE/docs/requirements/partner_req.md"
+echo "# Partner Design" > "$SPARSE_CLONE/docs/design/partner_design.md"
+echo "# Other file" > "$SPARSE_CLONE/other/ignore.md"
+cd "$SPARSE_CLONE" && git add -A >/dev/null 2>&1 && git commit -m "init" >/dev/null 2>&1 && git push -u origin main >/dev/null 2>&1
+cd "$TEST_PROJECT"
+rm -rf "$SPARSE_CLONE"
+
+# Remove previous external_sources and add sparse config
+$PYTHON_CMD -c "
+lines = open('.claude/doc-advisor/config.yaml').readlines()
+result = []
+in_external = False
+for line in lines:
+    stripped = line.strip()
+    indent = len(line) - len(line.lstrip())
+    if indent == 0 and stripped == 'external_sources:':
+        in_external = True
+        continue
+    if in_external:
+        if indent == 0 and stripped and not stripped.startswith('#'):
+            in_external = False
+            result.append(line)
+        continue
+    result.append(line)
+with open('.claude/doc-advisor/config.yaml', 'w') as f:
+    f.writelines(result)
+"
+
+cat >> .claude/doc-advisor/config.yaml << SPARSEEOF
+
+external_sources:
+  requirements:
+    - name: partner-reqs
+      type: git
+      url: $SPARSE_BARE
+      sparse_path: docs/requirements
+SPARSEEOF
+
+# Run sync
+SYNC_OUTPUT=$($PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" 2>&1)
+
+# Check .submodules directory
+if [[ -d ".claude/doc-advisor/.submodules/partner-reqs" ]]; then
+    echo -e "${GREEN}PASS${NC}: Sparse submodule in .submodules/"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Sparse submodule not in .submodules/"
+    ((FAIL_COUNT++))
+    echo "  Sync output: $SYNC_OUTPUT"
+fi
+
+# Check symlink from docs/requirements/partner-reqs
+if [[ -L "$DOCS_DIR/requirements/partner-reqs" ]]; then
+    echo -e "${GREEN}PASS${NC}: Sparse symlink created in docs/"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Sparse symlink not created"
+    ((FAIL_COUNT++))
+fi
+
+# Check file accessible via sparse path
+if [[ -f "$DOCS_DIR/requirements/partner-reqs/partner_req.md" ]]; then
+    echo -e "${GREEN}PASS${NC}: Sparse path file accessible"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Sparse path file not accessible"
+    ((FAIL_COUNT++))
+    echo "  Expected: $DOCS_DIR/requirements/partner-reqs/partner_req.md"
+    ls -la "$DOCS_DIR/requirements/partner-reqs/" 2>/dev/null || echo "  Symlink target missing"
+fi
+
+# Ensure other files are NOT directly accessible via docs/
+if [[ ! -f "$DOCS_DIR/requirements/partner-reqs/partner_design.md" ]]; then
+    echo -e "${GREEN}PASS${NC}: Non-sparse files not in docs/"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Non-sparse files leaked into docs/"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+echo "=================================================="
+echo "Test 10: orphan detection"
+echo "=================================================="
+
+# Remove external_sources from config but leave submodules/symlinks on disk
+$PYTHON_CMD -c "
+lines = open('.claude/doc-advisor/config.yaml').readlines()
+result = []
+in_external = False
+for line in lines:
+    stripped = line.strip()
+    indent = len(line) - len(line.lstrip())
+    if indent == 0 and stripped == 'external_sources:':
+        in_external = True
+        continue
+    if in_external:
+        if indent == 0 and stripped and not stripped.startswith('#'):
+            in_external = False
+            result.append(line)
+        continue
+    result.append(line)
+with open('.claude/doc-advisor/config.yaml', 'w') as f:
+    f.writelines(result)
+"
+
+STATUS_OUTPUT=$($PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" --status 2>&1)
+
+if echo "$STATUS_OUTPUT" | grep -qi "orphan"; then
+    echo -e "${GREEN}PASS${NC}: Orphans detected in status"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Orphans not detected"
+    ((FAIL_COUNT++))
+    echo "  Status output: $STATUS_OUTPUT"
+fi
+echo ""
+
+echo "=================================================="
+echo "Test 11: error handling (invalid source)"
+echo "=================================================="
+
+# Add invalid source to config
+cat >> .claude/doc-advisor/config.yaml << ERREOF
+
+external_sources:
+  rules:
+    - name: bad-source
+      type: git
+      url: /nonexistent/repo.git
+    - name: good-source
+      type: local
+      path: $EXTERNAL_LOCAL/team_rules
+ERREOF
+
+SYNC_OUTPUT=$($PYTHON_CMD "$SCRIPTS_DIR/sync_external_sources.py" 2>&1)
+EXIT_CODE=$?
+
+# Should exit non-zero (has failures)
+if [[ $EXIT_CODE -ne 0 ]]; then
+    echo -e "${GREEN}PASS${NC}: Non-zero exit on failure"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Should exit non-zero with failed sources"
+    ((FAIL_COUNT++))
+fi
+
+# Good source should still be processed
+if [[ -L "$DOCS_DIR/rules/good-source" ]]; then
+    echo -e "${GREEN}PASS${NC}: Good source processed despite bad source"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Good source not processed"
+    ((FAIL_COUNT++))
+    echo "  Output: $SYNC_OUTPUT"
+fi
+
+if echo "$SYNC_OUTPUT" | grep -q "failed"; then
+    echo -e "${GREEN}PASS${NC}: Failure reported in summary"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Failure not reported"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# =============================================================================
+# Cleanup
+# =============================================================================
+
+echo "Cleaning up..."
+
+# Remove git submodules and .git from test_project
+cd "$TEST_PROJECT"
+if [[ -f ".gitmodules" ]]; then
+    # Deinit all submodules
+    git submodule deinit --all -f >/dev/null 2>&1
+    git rm -f --cached .claude/doc-advisor/docs/rules/ext-standards >/dev/null 2>&1
+    git rm -f --cached .claude/doc-advisor/.submodules/partner-reqs >/dev/null 2>&1
+    rm -f .gitmodules
+fi
+
+if [[ $NEED_GIT_CLEANUP -eq 1 ]]; then
+    rm -rf "$TEST_PROJECT/.git"
+fi
+
+rm -rf "$BARE_REPO" "$SPARSE_BARE"
+rm -rf "$EXTERNAL_LOCAL"
+rm -rf "$TEST_PROJECT/.claude/doc-advisor/.submodules"
+rm -rf "$DOCS_DIR/rules/team-rules"
+rm -rf "$DOCS_DIR/rules/good-source"
+rm -rf "$DOCS_DIR/rules/ext-standards"
+rm -rf "$DOCS_DIR/requirements/partner-reqs"
+rm -rf "$TEST_PROJECT/.git/modules" 2>/dev/null
+
+echo ""
+
+echo "=================================================="
 echo "Summary"
 echo "=================================================="
 echo ""

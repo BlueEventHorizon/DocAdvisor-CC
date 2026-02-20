@@ -198,7 +198,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="3.6"
+DOC_ADVISOR_VERSION="3.8"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -443,6 +443,10 @@ copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-rules/SKILL.md" "${SKI
 echo "  skills/query-specs/ ..."
 mkdir -p "${SKILLS_DIR}/query-specs"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
+
+echo "  skills/sync-docs/ ..."
+mkdir -p "${SKILLS_DIR}/sync-docs"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/sync-docs/SKILL.md" "${SKILLS_DIR}/sync-docs/SKILL.md"
 
 # Copy doc-advisor resources (config, docs, scripts)
 echo "  doc-advisor/ ..."
