@@ -9,20 +9,17 @@ set -e
 
 # Get script directory (plugin root)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
-
-# Load previous settings if available
-DEFAULT_TARGET_DIR=""
-if [[ -f "$LAST_SETUP_FILE" ]]; then
-    source "$LAST_SETUP_FILE"
-    DEFAULT_TARGET_DIR="${LAST_TARGET_DIR:-}"
-fi
-
 # Parse arguments
 TARGET_DIR="$1"
 
 # Use default or prompt if not specified
 if [[ -z "$TARGET_DIR" ]]; then
+    # Default: pwd (except when pwd is DocAdvisor itself)
+    DEFAULT_TARGET_DIR=""
+    CURRENT_DIR="$(pwd)"
+    if [[ "$CURRENT_DIR" != "$SCRIPT_DIR" ]]; then
+        DEFAULT_TARGET_DIR="$CURRENT_DIR"
+    fi
     if [[ -n "$DEFAULT_TARGET_DIR" ]]; then
         read -p "Enter target project directory [${DEFAULT_TARGET_DIR}]: " TARGET_DIR
         TARGET_DIR="${TARGET_DIR:-$DEFAULT_TARGET_DIR}"

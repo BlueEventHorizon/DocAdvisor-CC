@@ -31,7 +31,6 @@ DEFAULT_AGENT_MODEL="opus"
 if [[ -f "$LAST_SETUP_FILE" ]]; then
     source "$LAST_SETUP_FILE"
     # Use saved values as defaults
-    DEFAULT_TARGET_DIR="${LAST_TARGET_DIR:-}"
     DEFAULT_RULES_DIR="${LAST_RULES_DIR:-$DEFAULT_RULES_DIR}"
     DEFAULT_SPECS_DIR="${LAST_SPECS_DIR:-$DEFAULT_SPECS_DIR}"
     DEFAULT_AGENT_MODEL="${LAST_AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
@@ -82,6 +81,13 @@ done
 if [[ -z "$TARGET_DIR" ]]; then
     echo "Doc Advisor Setup Script"
     echo ""
+    # Default: pwd (except when pwd is DocAdvisor itself)
+    if [[ -z "$DEFAULT_TARGET_DIR" ]]; then
+        CURRENT_DIR="$(pwd)"
+        if [[ "$CURRENT_DIR" != "$SCRIPT_DIR" ]]; then
+            DEFAULT_TARGET_DIR="$CURRENT_DIR"
+        fi
+    fi
     if [[ -n "$DEFAULT_TARGET_DIR" ]]; then
         read -p "Enter target project directory [${DEFAULT_TARGET_DIR}]: " TARGET_DIR
         TARGET_DIR="${TARGET_DIR:-$DEFAULT_TARGET_DIR}"
@@ -679,7 +685,6 @@ fi
 # Save settings for next run
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
-LAST_TARGET_DIR="${TARGET_DIR}"
 LAST_RULES_DIR="${RULES_DIR}"
 LAST_SPECS_DIR="${SPECS_DIR}"
 LAST_AGENT_MODEL="${AGENT_MODEL}"
