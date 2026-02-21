@@ -206,19 +206,21 @@ if [[ "$RULES_COUNT" -eq 2 ]]; then
     echo -e "${GREEN}PASS${NC}: Correct number of rules files ($RULES_COUNT)"
     ((PASS_COUNT++))
 else
-    echo -e "${YELLOW}WARN${NC}: Expected 2 rules files, got $RULES_COUNT"
+    echo -e "${RED}FAIL${NC}: Expected 2 rules files, got $RULES_COUNT"
+    ((FAIL_COUNT++))
 fi
 
 # Count specs pending files
 SPECS_COUNT=$(ls -1 .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | wc -l | tr -d ' ')
 echo "Specs pending files: $SPECS_COUNT"
 
-# Should have 1 file: special_chars.md (design/ is empty)
-if [[ "$SPECS_COUNT" -eq 1 ]]; then
+# Should have 3 files: special_chars.md, 日本語ドキュメント.md, new_file.md
+if [[ "$SPECS_COUNT" -eq 3 ]]; then
     echo -e "${GREEN}PASS${NC}: Correct number of specs files ($SPECS_COUNT)"
     ((PASS_COUNT++))
 else
-    echo -e "${YELLOW}WARN${NC}: Expected 1 specs file, got $SPECS_COUNT"
+    echo -e "${RED}FAIL${NC}: Expected 3 specs files, got $SPECS_COUNT"
+    ((FAIL_COUNT++))
 fi
 echo ""
 

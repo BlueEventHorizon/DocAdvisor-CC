@@ -263,9 +263,10 @@ rm -rf .claude/doc-advisor/toc/rules/.toc_work
 # Count entries before deletion
 BEFORE_COUNT=$(grep -c "^  " .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null || echo 0)
 
-# Delete a source .md file
+# Delete a source .md file (save content for restore)
 DELETED_FILE=$(ls rules/*.md 2>/dev/null | head -1 || echo "")
 if [[ -n "$DELETED_FILE" ]]; then
+    DELETED_CONTENT=$(cat "$DELETED_FILE")
     rm -f "$DELETED_FILE"
 
     # Update checksums (so delete-only can detect the deletion)
@@ -285,6 +286,9 @@ if [[ -n "$DELETED_FILE" ]]; then
         echo -e "${RED}FAIL${NC}: Entry count not decreased ($BEFORE_COUNT -> $AFTER_COUNT)"
         ((FAIL_COUNT++))
     fi
+
+    # Restore deleted file (preserve test fixtures for subsequent tests)
+    echo "$DELETED_CONTENT" > "$DELETED_FILE"
 else
     echo -e "${YELLOW}SKIP${NC}: No rules .md file to delete"
 fi

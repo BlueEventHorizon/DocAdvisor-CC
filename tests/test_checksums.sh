@@ -123,7 +123,8 @@ if [[ -f "$SPECS_CHECKSUMS" ]]; then
         echo -e "${GREEN}PASS${NC}: Multiple spec files hashed ($ENTRY_COUNT entries)"
         ((PASS_COUNT++))
     else
-        echo -e "${YELLOW}WARN${NC}: Expected 2+ entries, got $ENTRY_COUNT"
+        echo -e "${RED}FAIL${NC}: Expected 2+ entries, got $ENTRY_COUNT"
+        ((FAIL_COUNT++))
     fi
 else
     echo -e "${RED}FAIL${NC}: Specs checksums file not created"
@@ -156,11 +157,12 @@ if [[ -n "$ORIGINAL_HASH" ]]; then
         ((FAIL_COUNT++))
     fi
 
-    # Restore file (remove added newline)
-    head -n -1 rules/coding_standards.md > rules/coding_standards.md.tmp
+    # Restore file (remove added newline) - use sed '$d' for macOS/Linux compatibility
+    sed '$d' rules/coding_standards.md > rules/coding_standards.md.tmp
     mv rules/coding_standards.md.tmp rules/coding_standards.md
 else
-    echo -e "${YELLOW}WARN${NC}: Could not extract original hash for comparison"
+    echo -e "${RED}FAIL${NC}: Could not extract original hash for comparison"
+    ((FAIL_COUNT++))
 fi
 echo ""
 
