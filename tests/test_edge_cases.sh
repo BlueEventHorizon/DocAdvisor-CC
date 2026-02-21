@@ -56,7 +56,7 @@ echo "=================================================="
 rm -rf .claude .last_setup
 
 # Run setup with explicit values: rules, specs, agent_model
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 if [[ ! -d ".claude" ]]; then
     echo -e "${RED}ERROR: Setup failed${NC}"
@@ -64,10 +64,18 @@ if [[ ! -d ".claude" ]]; then
 fi
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 echo ""
+
+# Set root_dirs in config.yaml (setup.sh now leaves them empty)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
@@ -76,9 +84,9 @@ echo "Test 4-1: Deep nested files (5 levels)"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_rules (deep)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml rules (deep)" "0" "$EXIT_CODE"
 
 # Check if deep file was found
 if ls .claude/doc-advisor/toc/rules/.toc_work/*deep*.yaml 1>/dev/null 2>&1; then
@@ -127,9 +135,9 @@ echo "Test 4-3: Empty directory handling"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_specs (empty dir)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml specs (empty dir)" "0" "$EXIT_CODE"
 
 # design/ is empty (only .gitkeep), should not create YAML for .gitkeep
 if ls .claude/doc-advisor/toc/specs/.toc_work/*gitkeep*.yaml 1>/dev/null 2>&1; then
@@ -154,12 +162,12 @@ else
     ((FAIL_COUNT++))
 fi
 
-# Test write_specs_pending with special characters
+# Test write_pending specs with special characters
 SPECS_PENDING=$(ls .claude/doc-advisor/toc/specs/.toc_work/*special*.yaml 2>/dev/null | head -1 || echo "")
 
 if [[ -n "$SPECS_PENDING" ]]; then
     EXIT_CODE=0
-    $PYTHON_CMD "$SCRIPTS_DIR/write_specs_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target specs \
         --entry-file "$SPECS_PENDING" \
         --title "Special: \"quotes\" & ampersand" \
         --purpose "Test YAML escaping for special characters" \
@@ -169,7 +177,7 @@ if [[ -n "$SPECS_PENDING" ]]; then
         --force \
         2>/dev/null || EXIT_CODE=$?
 
-    test_result "write_specs_pending (special chars)" "0" "$EXIT_CODE"
+    test_result "write_pending specs (special chars)" "0" "$EXIT_CODE"
 
     # Verify YAML is valid (can be parsed)
     if $PYTHON_CMD -c "
@@ -304,7 +312,7 @@ references: []
 PENDINGEOF
 
 # Run incremental merge (--mode incremental)
-$PYTHON_CMD .claude/doc-advisor/scripts/merge_specs_toc.py --mode incremental 2>/dev/null
+$PYTHON_CMD .claude/doc-advisor/scripts/merge_toc.py --target specs --mode incremental 2>/dev/null
 EXIT_CODE=$?
 
 if [[ $EXIT_CODE -eq 0 ]]; then
@@ -326,7 +334,7 @@ if [[ $EXIT_CODE -eq 0 ]]; then
         ((FAIL_COUNT++))
     fi
 else
-    echo -e "${RED}FAIL${NC}: merge_specs_toc.py failed (exit=$EXIT_CODE)"
+    echo -e "${RED}FAIL${NC}: merge_toc.py --target specs failed (exit=$EXIT_CODE)"
     ((FAIL_COUNT++))
 fi
 echo ""

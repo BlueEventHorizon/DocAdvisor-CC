@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test script for write_rules_pending.py and write_specs_pending.py
+# Test script for write_pending.py (rules and specs targets)
 # Usage: ./test_write_pending.sh
 
 # Note: Do not use 'set -e' as some tests expect failures
@@ -45,21 +45,29 @@ echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
 # Pass explicit values: rules, specs, agent_model
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
+
+# Set root_dirs in config.yaml (setup.sh now leaves them empty)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 echo ""
 
 # Ensure pending YAML exists
 echo "Generating pending YAML files..."
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full 2>/dev/null || true
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || true
 echo ""
 
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
@@ -79,18 +87,18 @@ echo "Rules pending: $RULES_PENDING"
 echo "Specs pending: $SPECS_PENDING"
 echo ""
 
-WRITE_RULES="$TEST_PROJECT/.claude/doc-advisor/scripts/write_rules_pending.py"
-WRITE_SPECS="$TEST_PROJECT/.claude/doc-advisor/scripts/write_specs_pending.py"
+WRITE_RULES="$TEST_PROJECT/.claude/doc-advisor/scripts/write_pending.py"
+WRITE_SPECS="$TEST_PROJECT/.claude/doc-advisor/scripts/write_pending.py"
 
 echo "=================================================="
-echo "Test 2-1: write_rules_pending.py - Normal case"
+echo "Test 2-1: write_pending rules - Normal case"
 echo "=================================================="
 
 # Reset pending file first
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || true
 
 EXIT_CODE=0
-$PYTHON_CMD "$WRITE_RULES" \
+$PYTHON_CMD "$WRITE_RULES" --target rules \
     --entry-file "$RULES_PENDING" \
     --title "Coding Standards" \
     --purpose "Define consistent coding practices for the team" \
@@ -100,7 +108,7 @@ $PYTHON_CMD "$WRITE_RULES" \
     --force \
     || EXIT_CODE=$?
 
-test_result "write_rules_pending normal" "0" "$EXIT_CODE"
+test_result "write_pending rules normal" "0" "$EXIT_CODE"
 
 # Verify status changed to completed
 if grep -q "status: completed" "$RULES_PENDING"; then
@@ -113,14 +121,14 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-2: write_rules_pending.py - Missing argument"
+echo "Test 2-2: write_pending rules - Missing argument"
 echo "=================================================="
 
 # Reset pending file
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || true
 
 EXIT_CODE=0
-$PYTHON_CMD "$WRITE_RULES" \
+$PYTHON_CMD "$WRITE_RULES" --target rules \
     --entry-file "$RULES_PENDING" \
     --title "Test" \
     2>/dev/null || EXIT_CODE=$?
@@ -136,14 +144,14 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-3: write_rules_pending.py - Insufficient keywords"
+echo "Test 2-3: write_pending rules - Insufficient keywords"
 echo "=================================================="
 
 # Reset pending file
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || true
 
 EXIT_CODE=0
-$PYTHON_CMD "$WRITE_RULES" \
+$PYTHON_CMD "$WRITE_RULES" --target rules \
     --entry-file "$RULES_PENDING" \
     --title "Test" \
     --purpose "Test purpose" \
@@ -152,18 +160,18 @@ $PYTHON_CMD "$WRITE_RULES" \
     --keywords "one ||| two" \
     2>/dev/null || EXIT_CODE=$?
 
-test_result "write_rules_pending insufficient keywords" "3" "$EXIT_CODE"
+test_result "write_pending rules insufficient keywords" "3" "$EXIT_CODE"
 echo ""
 
 echo "=================================================="
-echo "Test 2-4: write_specs_pending.py - Normal case"
+echo "Test 2-4: write_pending specs - Normal case"
 echo "=================================================="
 
 # Reset pending file
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || true
 
 EXIT_CODE=0
-$PYTHON_CMD "$WRITE_SPECS" \
+$PYTHON_CMD "$WRITE_SPECS" --target specs \
     --entry-file "$SPECS_PENDING" \
     --title "User Authentication Requirements" \
     --purpose "Define requirements for user authentication" \
@@ -173,7 +181,7 @@ $PYTHON_CMD "$WRITE_SPECS" \
     --force \
     || EXIT_CODE=$?
 
-test_result "write_specs_pending normal" "0" "$EXIT_CODE"
+test_result "write_pending specs normal" "0" "$EXIT_CODE"
 
 # Verify doc_type is NOT present (removed in v3.8)
 if grep -q "doc_type:" "$SPECS_PENDING"; then
@@ -186,11 +194,11 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-5: write_rules_pending.py - File not found"
+echo "Test 2-5: write_pending rules - File not found"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$WRITE_RULES" \
+$PYTHON_CMD "$WRITE_RULES" --target rules \
     --entry-file "/nonexistent/path/file.yaml" \
     --title "Test" \
     --purpose "Test purpose" \
@@ -199,7 +207,7 @@ $PYTHON_CMD "$WRITE_RULES" \
     --keywords "a ||| b ||| c ||| d ||| e" \
     2>/dev/null || EXIT_CODE=$?
 
-test_result "write_rules_pending file not found" "1" "$EXIT_CODE"
+test_result "write_pending rules file not found" "1" "$EXIT_CODE"
 echo ""
 
 echo "=================================================="

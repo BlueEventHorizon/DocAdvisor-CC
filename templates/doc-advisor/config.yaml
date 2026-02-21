@@ -4,8 +4,7 @@
 
 # === rules configuration ===
 rules:
-  root_dirs:
-{{RULES_DIRS_YAML}}
+  root_dirs: []    # Auto-classified by /classify-docs
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
@@ -22,8 +21,7 @@ rules:
 
 # === specs configuration ===
 specs:
-  root_dirs:
-{{SPECS_DIRS_YAML}}
+  root_dirs: []    # Auto-classified by /classify-docs
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test script for merge_rules_toc.py and merge_specs_toc.py
+# Test script for merge_toc.py --target rules and merge_toc.py --target specs
 # Usage: ./test_merge.sh
 
 # Note: Do not use 'set -e' as some tests expect failures
@@ -45,32 +45,40 @@ echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
 # Pass explicit values: rules, specs, agent_model
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
+
+# Set root_dirs in config.yaml (setup.sh now leaves them empty)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 echo ""
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
 echo "=================================================="
-echo "Test 2-5: merge_rules_toc.py - Full mode"
+echo "Test 2-5: merge_toc.py --target rules - Full mode"
 echo "=================================================="
 
 # Clean and regenerate
 rm -f .claude/doc-advisor/toc/rules/rules_toc.yaml
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || true
 
 # Get pending file and write completed entry
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
 if [[ -n "$RULES_PENDING" ]]; then
-    $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target rules \
         --entry-file "$RULES_PENDING" \
         --title "Coding Standards" \
         --purpose "Define coding practices" \
@@ -82,9 +90,9 @@ fi
 
 # Run merge
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || EXIT_CODE=$?
 
-test_result "merge_rules_toc full mode" "0" "$EXIT_CODE"
+test_result "merge_toc rules full mode" "0" "$EXIT_CODE"
 
 # Verify output file exists
 if [[ -f ".claude/doc-advisor/toc/rules/rules_toc.yaml" ]]; then
@@ -106,7 +114,7 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-6: merge_rules_toc.py - Incremental mode"
+echo "Test 2-6: merge_toc.py --target rules - Incremental mode"
 echo "=================================================="
 
 # Add another pending entry (simulate new file)
@@ -140,9 +148,9 @@ EOF
 
 # Run incremental merge
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode incremental 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode incremental 2>/dev/null || EXIT_CODE=$?
 
-test_result "merge_rules_toc incremental mode" "0" "$EXIT_CODE"
+test_result "merge_toc rules incremental mode" "0" "$EXIT_CODE"
 
 # Verify both entries exist (count lines starting with 2 spaces followed by path)
 ENTRY_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null | tr -d '[:space:]' || echo "0")
@@ -157,18 +165,18 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-7: merge_specs_toc.py - Full mode"
+echo "Test 2-7: merge_toc.py --target specs - Full mode"
 echo "=================================================="
 
 # Clean and regenerate
 rm -f .claude/doc-advisor/toc/specs/specs_toc.yaml
 rm -rf .claude/doc-advisor/toc/specs/.toc_work
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || true
 
 # Get pending files and write completed entries
 for SPECS_PENDING in .claude/doc-advisor/toc/specs/.toc_work/*.yaml; do
     if [[ -f "$SPECS_PENDING" ]]; then
-        $PYTHON_CMD "$SCRIPTS_DIR/write_specs_pending.py" \
+        $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target specs \
             --entry-file "$SPECS_PENDING" \
             --title "Test Spec Document" \
             --purpose "Testing specs merge" \
@@ -181,9 +189,9 @@ done
 
 # Run merge
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/merge_specs_toc.py" --mode full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target specs --mode full 2>/dev/null || EXIT_CODE=$?
 
-test_result "merge_specs_toc full mode" "0" "$EXIT_CODE"
+test_result "merge_toc specs full mode" "0" "$EXIT_CODE"
 
 # Verify output file exists and has no doc_type (removed in v3.8)
 if [[ -f ".claude/doc-advisor/toc/specs/specs_toc.yaml" ]]; then
@@ -209,12 +217,12 @@ echo "Test: merge then manual cleanup"
 echo "=================================================="
 
 # Regenerate pending files
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || true
 
 # Write and merge (without --cleanup)
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
 if [[ -n "$RULES_PENDING" ]]; then
-    $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target rules \
         --entry-file "$RULES_PENDING" \
         --title "Cleanup Test" \
         --purpose "Test cleanup option" \
@@ -224,7 +232,7 @@ if [[ -n "$RULES_PENDING" ]]; then
         --force 2>/dev/null || true
 fi
 
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
 
 # Manual cleanup (as orchestrator does after checksums update)
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
@@ -243,11 +251,11 @@ echo "Test: --delete-only mode (rules)"
 echo "=================================================="
 
 # Setup: create a ToC with an entry, then delete the source file
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || true
 
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
 if [[ -n "$RULES_PENDING" ]]; then
-    $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target rules \
         --entry-file "$RULES_PENDING" \
         --title "Delete Test" \
         --purpose "Test delete-only mode" \
@@ -257,7 +265,7 @@ if [[ -n "$RULES_PENDING" ]]; then
         --force 2>/dev/null || true
 fi
 
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
 
 # Count entries before deletion
@@ -274,9 +282,9 @@ if [[ -n "$DELETED_FILE" ]]; then
 
     # Run --delete-only
     EXIT_CODE=0
-    $PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --delete-only 2>/dev/null || EXIT_CODE=$?
+    $PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --delete-only 2>/dev/null || EXIT_CODE=$?
 
-    test_result "merge_rules_toc --delete-only exit code" "0" "$EXIT_CODE"
+    test_result "merge_toc rules --delete-only exit code" "0" "$EXIT_CODE"
 
     AFTER_COUNT=$(grep -c "^  " .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null || echo 0)
     if [[ $AFTER_COUNT -lt $BEFORE_COUNT ]]; then

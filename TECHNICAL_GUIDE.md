@@ -260,8 +260,7 @@ The scripts use the following configuration file:
 DocAdvisor-CC/
 ├── templates/
 │   ├── agents/                 # Worker agent templates
-│   │   ├── rules-toc-updater.md
-│   │   └── specs-toc-updater.md
+│   │   └── toc-updater.md
 │   ├── skills/
 │   │   ├── query-rules/
 │   │   │   └── SKILL.md        # rules document search skill
@@ -286,9 +285,10 @@ DocAdvisor-CC/
 your-project/
 ├── .claude/
 │   ├── agents/
-│   │   ├── rules-toc-updater.md
-│   │   └── specs-toc-updater.md
+│   │   └── toc-updater.md
 │   ├── skills/
+│   │   ├── classify-docs/
+│   │   │   └── SKILL.md        # document directory auto-classification skill
 │   │   ├── query-rules/
 │   │   │   └── SKILL.md        # rules document search skill
 │   │   ├── query-specs/
@@ -438,8 +438,9 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 - `.claude/skills/doc-advisor/` (removed, replaced with split skills)
 - `.claude/doc-advisor/docs/` (recreated from templates)
 
-**Installed** (v3.7+ structure):
-- `.claude/agents/` (rules-toc-updater, specs-toc-updater)
+**Installed** (v3.8+ structure):
+- `.claude/agents/toc-updater.md` (unified worker agent)
+- `.claude/skills/classify-docs/SKILL.md` (document directory auto-classification)
 - `.claude/skills/query-rules/SKILL.md` (rules document search)
 - `.claude/skills/query-specs/SKILL.md` (specs document search)
 - `.claude/skills/create-rules-toc/SKILL.md` (rules ToC generation)

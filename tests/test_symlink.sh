@@ -44,16 +44,24 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 echo ""
+
+# Set root_dirs in config.yaml (setup.sh now leaves them empty)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
@@ -135,15 +143,15 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3: create_pending_yaml_rules.py with symlinks"
+echo "Test 3: create_pending_yaml.py --target rules with symlinks"
 echo "=================================================="
 
 rm -rf ".claude/doc-advisor/toc/rules/.toc_work"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>&1 || EXIT_CODE=$?
 
-test_result "create_pending_yaml_rules exit code" "0" "$EXIT_CODE"
+test_result "create_pending_yaml rules exit code" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created for external file
 PENDING_FILE=".claude/doc-advisor/toc/rules/.toc_work/rules_linked_rules_external_rule.yaml"
@@ -160,15 +168,15 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 4: create_pending_yaml_specs.py with symlinks"
+echo "Test 4: create_pending_yaml.py --target specs with symlinks"
 echo "=================================================="
 
 rm -rf ".claude/doc-advisor/toc/specs/.toc_work"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>&1 || EXIT_CODE=$?
 
-test_result "create_pending_yaml_specs exit code" "0" "$EXIT_CODE"
+test_result "create_pending_yaml specs exit code" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created for external file
 PENDING_FILE=".claude/doc-advisor/toc/specs/.toc_work/specs_linked_specs_requirements_external_req.yaml"

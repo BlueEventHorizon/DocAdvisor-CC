@@ -42,10 +42,9 @@ Analyze task content and return a list of required specification document paths.
 
 ```
 Required documents:
-
-- {{SPECS_DIR}}/requirements/login_screen.md
-- {{SPECS_DIR}}/requirements/user_authentication.md
-- {{SPECS_DIR}}/design/login_screen_design.md
+- specs/requirements/login_screen.md
+- specs/requirements/user_authentication.md
+- specs/design/login_screen_design.md
 ```
 
 ## Notes

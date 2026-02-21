@@ -61,8 +61,18 @@ echo "=================================================="
 rm -rf .claude .last_setup
 
 # Run setup with custom values
-# Format: rules_dir, done, specs_dir, done, agent_model
-echo -e "guidelines\ndone\ndocuments\ndone\nsonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Format: agent_model (setup.sh now only asks for model name)
+echo "sonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+
+# Set custom root_dirs in config.yaml (setup.sh now leaves them empty)
+PYTHON_CMD_TEMP=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD_TEMP=$(eval echo "$PYTHON_CMD_TEMP")
+$PYTHON_CMD_TEMP -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - guidelines', 1)
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - documents', 1)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 
 # Verify .claude directory created
 if [[ -d ".claude" ]]; then
@@ -115,18 +125,18 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-3: Run create_pending_yaml_rules.py with custom dir"
+echo "Test 3-3: Run create_pending_yaml rules with custom dir"
 echo "=================================================="
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 
 EXIT_CODE=0
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_rules (custom)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml rules (custom)" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created
 if ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 1>/dev/null 2>&1; then
@@ -148,13 +158,13 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-4: Run create_pending_yaml_specs.py with custom dirs"
+echo "Test 3-4: Run create_pending_yaml specs with custom dirs"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_specs (custom)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml specs (custom)" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created
 if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
@@ -197,7 +207,7 @@ sed -i '' 's|^    exclude:|    exclude:\n      - archive|' .claude/doc-advisor/c
 
 # Regenerate
 rm -rf .claude/doc-advisor/toc/specs/.toc_work
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || true
 
 # Check that archive files are NOT included
 if ls .claude/doc-advisor/toc/specs/.toc_work/*archive*.yaml 1>/dev/null 2>&1; then

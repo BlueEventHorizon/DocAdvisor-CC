@@ -21,9 +21,6 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 
-# Default values (no trailing slash)
-DEFAULT_RULES_DIR="rules"
-DEFAULT_SPECS_DIR="specs"
 # Agent model (opus, sonnet, haiku, inherit)
 DEFAULT_AGENT_MODEL="opus"
 
@@ -31,8 +28,6 @@ DEFAULT_AGENT_MODEL="opus"
 if [[ -f "$LAST_SETUP_FILE" ]]; then
     source "$LAST_SETUP_FILE"
     # Use saved values as defaults
-    DEFAULT_RULES_DIR="${LAST_RULES_DIR:-$DEFAULT_RULES_DIR}"
-    DEFAULT_SPECS_DIR="${LAST_SPECS_DIR:-$DEFAULT_SPECS_DIR}"
     DEFAULT_AGENT_MODEL="${LAST_AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
 fi
 
@@ -51,12 +46,10 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "This script creates:"
             echo "  TARGET_DIR/.claude/agents/         # Worker agents (toc-updater)"
-            echo "  TARGET_DIR/.claude/skills/         # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)"
-            echo "  TARGET_DIR/.claude/doc-advisor/    # Runtime output (ToC files)"
+            echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc, classify-docs)"
+            echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
-            echo "Default directories:"
-            echo "  Rules: ${DEFAULT_RULES_DIR}"
-            echo "  Specs: ${DEFAULT_SPECS_DIR}"
+            echo "After setup, run /classify-docs to auto-detect document directories."
             exit 0
             ;;
         -*)
@@ -115,171 +108,8 @@ echo "Target project: ${TARGET_DIR}"
 echo ""
 
 # =============================================================================
-# Directory candidate scanning and selection
+# Agent model selection
 # =============================================================================
-
-# Scan TARGET_DIR for directories containing .md files
-# Excludes: .git, .claude, node_modules, .venv, __pycache__, .toc_work
-scan_candidate_dirs() {
-    local target="$1"
-    local candidates=()
-    local exclude_dirs=(".git" ".claude" "node_modules" ".venv" "__pycache__" ".toc_work" ".github")
-
-    for dir in "$target"/*/; do
-        [[ -d "$dir" ]] || continue
-        local dirname
-        dirname=$(basename "$dir")
-
-        # Skip excluded directories
-        local skip=0
-        for exc in "${exclude_dirs[@]}"; do
-            if [[ "$dirname" == "$exc" ]]; then
-                skip=1
-                break
-            fi
-        done
-        [[ $skip -eq 1 ]] && continue
-
-        # Count .md files recursively
-        local count
-        count=$(find "$dir" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-        if [[ $count -gt 0 ]]; then
-            candidates+=("${dirname}|${count}")
-        fi
-    done
-
-    printf '%s\n' "${candidates[@]}"
-}
-
-# Interactive loop to select directories
-# Args: $1=category (Rules/Specs), $2=default_dir, $3=candidates (newline-separated)
-# Output: space-separated list of selected directories
-select_dirs_loop() {
-    local category="$1"
-    local default_dir="$2"
-    local candidates_input="$3"
-    local selected=()
-    local candidates=()
-    local first_input=1
-
-    # Parse candidates into array
-    while IFS= read -r line; do
-        [[ -n "$line" ]] && candidates+=("$line")
-    done <<< "$candidates_input"
-
-    echo -e "${GREEN}=== ${category} directories ===${NC}" >&2
-    echo "" >&2
-
-    # Show candidates
-    if [[ ${#candidates[@]} -gt 0 ]]; then
-        echo "Candidates:" >&2
-        local i=1
-        for cand in "${candidates[@]}"; do
-            local name="${cand%%|*}"
-            local count="${cand##*|}"
-            echo "  [${i}] ${name}/ (${count} .md files)" >&2
-            ((i++))
-        done
-    else
-        echo "  (no directories with .md files found)" >&2
-    fi
-    echo "" >&2
-
-    # Selection loop
-    while true; do
-        # Show current selection
-        if [[ ${#selected[@]} -eq 0 ]]; then
-            echo -e "Selected: ${YELLOW}(none)${NC}" >&2
-        else
-            echo -e "Selected: ${BLUE}$(IFS=', '; echo "${selected[*]}")${NC}" >&2
-        fi
-
-        # Determine default value
-        local prompt_default
-        if [[ $first_input -eq 1 ]]; then
-            # First input: default is the default_dir (usually matches candidate [1])
-            prompt_default="$default_dir"
-        else
-            prompt_default="done"
-        fi
-
-        read -p "Add directory (number/path/done) [${prompt_default}]: " input
-        input="${input:-$prompt_default}"
-
-        # Handle 'done'
-        if [[ "$input" == "done" ]]; then
-            if [[ ${#selected[@]} -eq 0 ]]; then
-                echo -e "${RED}  At least one directory is required.${NC}" >&2
-                continue
-            fi
-            break
-        fi
-
-        local dir_to_add=""
-
-        # Handle number input
-        if [[ "$input" =~ ^[0-9]+$ ]] && [[ $input -ge 1 ]] && [[ $input -le ${#candidates[@]} ]]; then
-            local cand="${candidates[$((input-1))]}"
-            dir_to_add="${cand%%|*}"
-        else
-            # Handle path input (remove trailing slash)
-            dir_to_add="${input%/}"
-        fi
-
-        # Validate: check for duplicates
-        local dup=0
-        for s in "${selected[@]}"; do
-            if [[ "$s" == "$dir_to_add" ]]; then
-                echo -e "${YELLOW}  Already selected: ${dir_to_add}/${NC}" >&2
-                dup=1
-                break
-            fi
-        done
-        [[ $dup -eq 1 ]] && continue
-
-        # Validate: check directory exists in target project
-        if [[ -d "${TARGET_DIR}/${dir_to_add}" ]]; then
-            local count
-            count=$(find "${TARGET_DIR}/${dir_to_add}" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
-            selected+=("$dir_to_add")
-            echo -e "${GREEN}  ✓ ${dir_to_add}/ added (${count} .md files)${NC}" >&2
-        else
-            echo -e "${YELLOW}  Directory not found: ${dir_to_add}/ (will be created when you add documents)${NC}" >&2
-            selected+=("$dir_to_add")
-            echo -e "${GREEN}  ✓ ${dir_to_add}/ added${NC}" >&2
-        fi
-
-        first_input=0
-        echo "" >&2
-    done
-
-    echo "" >&2
-    printf '%s\n' "${selected[@]}"
-}
-
-# =============================================================================
-# Interactive directory selection
-# =============================================================================
-
-echo "Configure document directories for your project."
-echo ""
-
-# Scan for candidates
-CANDIDATES=$(scan_candidate_dirs "$TARGET_DIR")
-
-# Select rules directories
-RULES_RESULT=$(select_dirs_loop "Rules" "$DEFAULT_RULES_DIR" "$CANDIDATES")
-RULES_DIRS_ARRAY=()
-while IFS= read -r line; do
-    [[ -n "$line" ]] && RULES_DIRS_ARRAY+=("$line")
-done <<< "$RULES_RESULT"
-
-# Select specs directories
-SPECS_RESULT=$(select_dirs_loop "Specs" "$DEFAULT_SPECS_DIR" "$CANDIDATES")
-SPECS_DIRS_ARRAY=()
-while IFS= read -r line; do
-    [[ -n "$line" ]] && SPECS_DIRS_ARRAY+=("$line")
-done <<< "$SPECS_RESULT"
 
 echo "Configure agent model (opus, sonnet, haiku, inherit):"
 read -p "  Agent model [${DEFAULT_AGENT_MODEL}]: " AGENT_MODEL
@@ -294,14 +124,6 @@ case "$AGENT_MODEL" in
         AGENT_MODEL="opus"
         ;;
 esac
-
-# Primary directory (first element, used for example paths in .md templates)
-RULES_DIR="${RULES_DIRS_ARRAY[0]}"
-SPECS_DIR="${SPECS_DIRS_ARRAY[0]}"
-
-# YAML array format (for config.yaml root_dirs)
-RULES_DIRS_YAML=$(printf '    - %s\n' "${RULES_DIRS_ARRAY[@]}")
-SPECS_DIRS_YAML=$(printf '    - %s\n' "${SPECS_DIRS_ARRAY[@]}")
 
 # Detect Python path
 # Check if shell wrapper exists (e.g., Claude Code shell-snapshots directory)
@@ -319,8 +141,6 @@ fi
 
 echo ""
 echo "Configuration:"
-echo -e "  Rules dirs: ${BLUE}$(IFS=', '; echo "${RULES_DIRS_ARRAY[*]}")${NC}"
-echo -e "  Specs dirs: ${BLUE}$(IFS=', '; echo "${SPECS_DIRS_ARRAY[*]}")${NC}"
 echo -e "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}"
 echo -e "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}"
 if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
@@ -439,6 +259,29 @@ for advisor_agent in "rules-advisor.md" "specs-advisor.md"; do
     fi
 done
 
+# v3.8 unified scripts (6 per-category scripts → 3 unified --target scripts)
+# No version check: these files are replaced by unified scripts regardless of version
+for old_script in \
+    "create_pending_yaml_rules.py" "create_pending_yaml_specs.py" \
+    "write_rules_pending.py" "write_specs_pending.py" \
+    "merge_rules_toc.py" "merge_specs_toc.py"; do
+    if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
+        rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
+        echo -e "${GREEN}Removed legacy: scripts/${old_script} (unified)${NC}"
+        LEGACY_CLEANED=1
+    fi
+done
+
+# v3.8 unified agents (per-category agents → single toc-updater.md)
+# No version check: these files are replaced by toc-updater.md regardless of version
+for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
+    if [[ -f "${AGENTS_DIR}/${old_agent}" ]]; then
+        rm -f "${AGENTS_DIR}/${old_agent}"
+        echo -e "${GREEN}Removed legacy: agents/${old_agent} (unified into toc-updater.md)${NC}"
+        LEGACY_CLEANED=1
+    fi
+done
+
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
 fi
@@ -455,35 +298,10 @@ copy_and_substitute() {
     local dst="$2"
 
     if [[ -f "$src" ]]; then
-        # Step 1: Replace single-line placeholders with sed
-        sed -e "s|{{RULES_DIR}}|${RULES_DIR}|g" \
-            -e "s|{{SPECS_DIR}}|${SPECS_DIR}|g" \
-            -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
+        sed -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
             -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
             -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
-            "$src" > "$dst.tmp"
-
-        # Step 2: Replace multi-line YAML array placeholders
-        # {{RULES_DIRS_YAML}} and {{SPECS_DIRS_YAML}} expand to multiple "    - dir" lines
-        # Use temp files to avoid awk -v newline issues
-        local rules_yaml_file specs_yaml_file
-        rules_yaml_file=$(mktemp)
-        specs_yaml_file=$(mktemp)
-        printf '%s' "${RULES_DIRS_YAML}" > "$rules_yaml_file"
-        printf '%s' "${SPECS_DIRS_YAML}" > "$specs_yaml_file"
-
-        awk '
-        /\{\{RULES_DIRS_YAML\}\}/ {
-            while ((getline line < "'"$rules_yaml_file"'") > 0) print line
-            next
-        }
-        /\{\{SPECS_DIRS_YAML\}\}/ {
-            while ((getline line < "'"$specs_yaml_file"'") > 0) print line
-            next
-        }
-        { print }
-        ' "$dst.tmp" > "$dst"
-        rm -f "$dst.tmp" "$rules_yaml_file" "$specs_yaml_file"
+            "$src" > "$dst"
     fi
 }
 
@@ -531,7 +349,7 @@ SKIP_CONFIG=0
 
 if [[ -f "$EXISTING_CONFIG" ]]; then
     echo -e "${YELLOW}Existing config.yaml found: ${EXISTING_CONFIG}${NC}"
-    echo "  This file may contain your custom settings (exclude patterns, etc.)."
+    echo "  This file may contain your custom settings (root_dirs, exclude patterns, etc.)."
     echo ""
     echo "  Options:"
     echo "    [o] Overwrite (backup to config.yaml.bak)"
@@ -563,7 +381,7 @@ fi
 echo "  agents/ ..."
 if [[ -d "${AGENTS_DIR}" ]]; then
     # doc-advisor managed agents (will be overwritten)
-    MANAGED_AGENTS="rules-toc-updater.md specs-toc-updater.md"
+    MANAGED_AGENTS="toc-updater.md"
     # Check for non-managed agents and notify user
     for agent in "${AGENTS_DIR}"/*.md; do
         [[ -e "$agent" ]] || continue
@@ -575,7 +393,11 @@ if [[ -d "${AGENTS_DIR}" ]]; then
 fi
 copy_dir_with_substitution "${SCRIPT_DIR}/templates/agents" "${AGENTS_DIR}"
 
-# Copy skills/create-rules-toc/ and skills/create-specs-toc/
+# Copy skills
+echo "  skills/classify-docs/ ..."
+mkdir -p "${SKILLS_DIR}/classify-docs"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/classify-docs/SKILL.md" "${SKILLS_DIR}/classify-docs/SKILL.md"
+
 echo "  skills/create-rules-toc/ ..."
 mkdir -p "${SKILLS_DIR}/create-rules-toc"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-rules-toc/SKILL.md" "${SKILLS_DIR}/create-rules-toc/SKILL.md"
@@ -635,8 +457,8 @@ echo ""
 echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
 echo "    agents/            # Worker agents (toc-updater)"
-echo "    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)"
-echo "    doc-advisor/       # Runtime output (ToC files)"
+echo "    skills/            # Skills (query-*, create-*-toc, classify-docs)"
+echo "    doc-advisor/       # Config, docs, scripts, ToC files"
 
 # =============================================================================
 # CLAUDE.md - Add Doc Advisor rules
@@ -685,19 +507,15 @@ fi
 # Save settings for next run
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
-LAST_RULES_DIR="${RULES_DIR}"
-LAST_SPECS_DIR="${SPECS_DIR}"
 LAST_AGENT_MODEL="${AGENT_MODEL}"
 EOF
-# Note: LAST_RULES_DIR / LAST_SPECS_DIR save the primary (first) directory.
-# Multi-dir is re-selected each run via the interactive loop.
 
 echo ""
 echo "Next steps:"
-echo -e "  1. Verify document directories exist in your project"
-echo "  2. Start Claude Code:"
+echo "  1. Start Claude Code:"
 echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"
+echo -e "  2. Run ${YELLOW}/classify-docs${NC} to auto-detect document directories"
 echo -e "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
 echo -e "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
 echo ""

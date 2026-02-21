@@ -2,22 +2,26 @@
 # -*- coding: utf-8 -*-
 # doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 """
-specs_toc.yaml Merge Script (standard library only)
+{target}_toc.yaml Merge Script (standard library only)
 
-Reads all entries from .claude/doc-advisor/toc/specs/.toc_work/*.yaml,
-removes _meta sections, merges them, and generates .claude/doc-advisor/toc/specs/specs_toc.yaml.
+Reads all entries from .claude/doc-advisor/toc/{target}/.toc_work/*.yaml,
+removes _meta sections, merges them, and generates
+.claude/doc-advisor/toc/{target}/{target}_toc.yaml.
 
 Usage:
-    python3 merge_specs_toc.py [--mode full|incremental]
+    python3 merge_toc.py --target rules [--mode full|incremental]
+    python3 merge_toc.py --target specs [--mode full|incremental]
+    python3 merge_toc.py --target rules --delete-only
 
 Options:
-    --mode      full (default): Generate new, incremental: Differential merge
+    --target       Target category: rules or specs (required)
+    --mode         full (default): Generate new, incremental: Differential merge
+    --delete-only  Apply deletions without .toc_work/
 """
 
 import sys
-import re
+import argparse
 from datetime import datetime, timezone
-from pathlib import Path
 
 from toc_utils import (
     get_project_root,
@@ -36,7 +40,7 @@ from toc_utils import (
 # Global configuration (initialized in init_config())
 CONFIG = None
 PROJECT_ROOT = None
-SPECS_ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
+ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
 TOC_WORK_DIR = None
 OUTPUT_FILE = None
 CHECKSUMS_FILE = None
@@ -44,20 +48,40 @@ OUTPUT_CONFIG = None
 PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
+TARGET = None  # 'rules' or 'specs'
 
 
-def init_config():
+def parse_args():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description='Merge pending YAML entries into ToC file'
+    )
+    parser.add_argument('--target', required=True, choices=['rules', 'specs'],
+                        help='Target category: rules or specs')
+    parser.add_argument('--mode', default='full', choices=['full', 'incremental'],
+                        help='Merge mode: full (default) or incremental')
+    parser.add_argument('--delete-only', action='store_true',
+                        help='Apply deletions without .toc_work/')
+    return parser.parse_args()
+
+
+def init_config(target):
     """
-    Initialize configuration. Call this at the start of main().
+    Initialize configuration.
+
+    Args:
+        target: 'rules' or 'specs'
 
     Returns:
         bool: True on success, False on failure
     """
-    global CONFIG, PROJECT_ROOT, SPECS_ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
-    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS
+    global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
+    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET
+
+    TARGET = target
 
     try:
-        CONFIG = load_config('specs')
+        CONFIG = load_config(target)
         PROJECT_ROOT = get_project_root()
     except RuntimeError as e:
         print(f"Error: {e}")
@@ -66,24 +90,106 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    root_dirs_config = CONFIG.get('root_dirs', ['specs/'])
+    default_dir = f'{target}/'
+    root_dirs_config = CONFIG.get('root_dirs', [default_dir])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
-    SPECS_ROOT_DIRS = []
+    ROOT_DIRS = []
     for entry in root_dirs_config:
         name = entry.rstrip('/')
-        SPECS_ROOT_DIRS.append((PROJECT_ROOT / name, name))
+        ROOT_DIRS.append((PROJECT_ROOT / name, name))
 
-    first_specs_dir = SPECS_ROOT_DIRS[0][0] if SPECS_ROOT_DIRS else PROJECT_ROOT / 'specs'
-    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_specs_dir, PROJECT_ROOT)
-    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), first_specs_dir, PROJECT_ROOT)
-    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_specs_dir, PROJECT_ROOT)
+    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / target
+    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_dir, PROJECT_ROOT)
+    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', f'{target}_toc.yaml'), first_dir, PROJECT_ROOT)
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_dir, PROJECT_ROOT)
     OUTPUT_CONFIG = CONFIG.get('output', {})
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
     TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
-    EXCLUDE_PATTERNS = get_system_exclude_patterns('specs') + PATTERNS_CONFIG.get('exclude', [])
+    EXCLUDE_PATTERNS = get_system_exclude_patterns(target) + PATTERNS_CONFIG.get('exclude', [])
     return True
+
+
+def load_existing_toc(toc_path):
+    """Load existing {target}_toc.yaml"""
+    if not toc_path.exists():
+        return {}
+
+    try:
+        with open(toc_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except (IOError, OSError, PermissionError) as e:
+        print(f"Warning: Failed to read {toc_path}: {e}")
+        return {}
+
+    docs = {}
+    current_section = None
+    current_path = None
+    current_entry = {}
+    current_list = None
+
+    for line in content.split('\n'):
+        stripped = line.strip()
+
+        if stripped.startswith('#') or not stripped:
+            continue
+
+        if stripped == 'docs:':
+            current_section = 'docs'
+            continue
+        elif stripped.startswith('metadata:'):
+            current_section = 'metadata'
+            continue
+
+        if current_section != 'docs':
+            continue
+
+        # Detect file path as key (2-space indent, .md: suffix)
+        if line.startswith('  ') and not line.startswith('    ') and stripped.endswith('.md:'):
+            if current_path and current_entry:
+                docs[current_path] = current_entry
+            current_path = stripped.rstrip(':')
+            current_entry = {}
+            current_list = None
+        elif line.startswith('    ') and ':' in stripped and not stripped.startswith('-'):
+            if current_path:
+                key, _, val = stripped.partition(':')
+                key = key.strip()
+                val = val.strip().strip('"\'')
+                if val == '[]':
+                    # Inline empty array (e.g., "references: []")
+                    current_list = []
+                    current_entry[key] = current_list
+                elif val:
+                    current_entry[key] = val
+                    current_list = None
+                else:
+                    current_list = []
+                    current_entry[key] = current_list
+        elif stripped.startswith('- ') and current_list is not None:
+            item = stripped[2:].strip().strip('"\'')
+            current_list.append(item)
+
+    if current_path and current_entry:
+        docs[current_path] = current_entry
+
+    return docs
+
+
+def get_existing_files():
+    """Get list of currently existing files across all root_dirs (symlink-aware)"""
+    files = set()
+    for root_dir, root_dir_name in ROOT_DIRS:
+        if not root_dir.exists():
+            continue
+        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
+            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
+                continue
+            rel_path = normalize_path(filepath.relative_to(root_dir))
+            prefixed_path = f"{root_dir_name}/{rel_path}"
+            files.add(prefixed_path)
+    return files
 
 
 def write_yaml_output(docs, output_path):
@@ -95,11 +201,12 @@ def write_yaml_output(docs, output_path):
     """
     lines = []
 
-    # File header comment
-    header_comment = OUTPUT_CONFIG.get('header_comment', 'Project Specification Document Search Index for specs-advisor Subagent')
-    metadata_name = OUTPUT_CONFIG.get('metadata_name', 'Project Specification Document Search Index')
+    toc_name = f"{TARGET}_toc.yaml"
+    toc_rel_path = f".claude/doc-advisor/toc/{TARGET}/{toc_name}"
+    header_comment = OUTPUT_CONFIG.get('header_comment', f'Document Search Index for {TARGET}')
+    metadata_name = OUTPUT_CONFIG.get('metadata_name', f'Document Search Index ({TARGET})')
 
-    lines.append("# .claude/doc-advisor/toc/specs/specs_toc.yaml")
+    lines.append(f"# {toc_rel_path}")
     lines.append(f"# {header_comment}")
     lines.append("")
 
@@ -109,26 +216,21 @@ def write_yaml_output(docs, output_path):
     lines.append(f"  file_count: {len(docs)}")
     lines.append("")
 
-    # docs section
     lines.append("docs:")
-    for file_path, entry in sorted(docs.items()):
-        lines.append(f"  {file_path}:")
+    for source_file, entry in sorted(docs.items()):
+        lines.append(f"  {source_file}:")
+
         for key in ['title', 'purpose']:
             if key in entry:
                 lines.append(f"    {key}: {yaml_escape(entry[key])}")
-        if 'content_details' in entry and entry['content_details']:
-            lines.append("    content_details:")
-            for item in entry['content_details']:
-                lines.append(f"      - {yaml_escape(item)}")
-        if 'applicable_tasks' in entry and entry['applicable_tasks']:
-            lines.append("    applicable_tasks:")
-            for task in entry['applicable_tasks']:
-                lines.append(f"      - {yaml_escape(task)}")
-        if 'keywords' in entry and entry['keywords']:
-            lines.append("    keywords:")
-            for kw in entry['keywords']:
-                lines.append(f"      - {yaml_escape(kw)}")
-        # references フィールド（空配列許容）
+
+        for key in ['content_details', 'applicable_tasks', 'keywords']:
+            if key in entry and entry[key]:
+                lines.append(f"    {key}:")
+                for item in entry[key]:
+                    lines.append(f"      - {yaml_escape(item)}")
+
+        # references field (specs only, preserved if present)
         if 'references' in entry:
             if entry['references']:
                 lines.append("    references:")
@@ -146,95 +248,13 @@ def write_yaml_output(docs, output_path):
         return False
 
 
-def load_existing_toc(toc_path):
-    """Load existing specs_toc.yaml"""
-    if not toc_path.exists():
-        return {}
-
-    try:
-        with open(toc_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except (IOError, OSError, PermissionError) as e:
-        print(f"Warning: Failed to read {toc_path}: {e}")
-        return {}
-
-    docs = {}
-    current_section = None
-    current_path = None
-    current_entry = {}
-    current_list = None
-    current_list_key = None
-
-    for line in content.split('\n'):
-        stripped = line.strip()
-
-        if stripped.startswith('#') or not stripped:
-            continue
-
-        if stripped == 'docs:':
-            current_section = 'docs'
-            continue
-        elif stripped.startswith('metadata:'):
-            current_section = 'metadata'
-            continue
-
-        if current_section == 'docs':
-            # Detect file path as key (e.g., main/requirements/app.md:)
-            # Unicode-safe: 2-space indent (not 4-space) and .md: suffix
-            if line.startswith('  ') and not line.startswith('    ') and stripped.endswith('.md:'):
-                if current_path and current_entry:
-                    docs[current_path] = current_entry
-                current_path = stripped.rstrip(':')
-                current_entry = {}
-                current_list = None
-                current_list_key = None
-            elif line.startswith('    ') and ':' in stripped and not stripped.startswith('-'):
-                if current_path:
-                    key, _, val = stripped.partition(':')
-                    key = key.strip()
-                    val = val.strip().strip('"\'')
-                    if val == '[]':
-                        # Inline empty array (e.g., "references: []")
-                        current_list = []
-                        current_list_key = key
-                        current_entry[key] = current_list
-                    elif val:
-                        current_entry[key] = val
-                    else:
-                        current_list = []
-                        current_list_key = key
-                        current_entry[key] = current_list
-            elif stripped.startswith('- ') and current_list is not None:
-                item = stripped[2:].strip().strip('"\'')
-                current_list.append(item)
-
-    if current_path and current_entry:
-        docs[current_path] = current_entry
-
-    return docs
-
-
-def get_existing_files():
-    """Get list of currently existing files across all root_dirs (symlink-aware)"""
-    files = set()
-    for root_dir, root_dir_name in SPECS_ROOT_DIRS:
-        if not root_dir.exists():
-            continue
-        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
-            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
-                continue
-            rel_path = normalize_path(filepath.relative_to(root_dir))
-            prefixed_path = f"{root_dir_name}/{rel_path}"
-            files.add(prefixed_path)
-    return files
-
-
 def delete_only_mode():
     """Delete-only mode: Apply deletions without .toc_work/"""
+    toc_name = f"{TARGET}_toc.yaml"
     print("Mode: delete-only")
 
     if not OUTPUT_FILE.exists():
-        print("Error: specs_toc.yaml does not exist")
+        print(f"Error: {toc_name} does not exist")
         return False
 
     # Create backup
@@ -286,7 +306,7 @@ def merge_toc_files(mode='full'):
     # Create backup (common to all modes)
     backup_existing_file(OUTPUT_FILE)
 
-    # Get current valid files (exclude/target_dir applied)
+    # Get current valid files (exclude applied)
     existing_files = get_existing_files()
 
     # In incremental mode, load existing data
@@ -319,12 +339,11 @@ def merge_toc_files(mode='full'):
                 errors.append(f"{filename}: Status is not completed ({status})")
                 continue
 
-            # Skip excluded or non-target files
+            # Skip excluded or missing files
             if source_file not in existing_files:
                 errors.append(f"{filename}: Skipped (excluded or missing: {source_file})")
                 continue
 
-            # Add to docs (key is file path)
             docs[source_file] = entry
             print(f"  {source_file}")
 
@@ -351,31 +370,28 @@ def merge_toc_files(mode='full'):
         return False
 
     print(f"\nGeneration complete: {OUTPUT_FILE}")
-    print(f"   - docs: {len(docs)}")
+    print(f"   - File count: {len(docs)}")
 
     return True
 
 
 def main():
+    args = parse_args()
+
     # Initialize configuration
-    if not init_config():
+    if not init_config(args.target):
         return 1
 
-    delete_only = '--delete-only' in sys.argv
-    mode = 'full'
-    if '--mode' in sys.argv:
-        idx = sys.argv.index('--mode')
-        if idx + 1 < len(sys.argv):
-            mode = sys.argv[idx + 1]
+    toc_name = f"{TARGET}_toc.yaml"
 
     print("=" * 50)
-    print("specs_toc.yaml Merge Script")
+    print(f"{toc_name} Merge Script")
     print("=" * 50)
 
-    if delete_only:
+    if args.delete_only:
         success = delete_only_mode()
     else:
-        success = merge_toc_files(mode)
+        success = merge_toc_files(args.mode)
 
     return 0 if success else 1
 

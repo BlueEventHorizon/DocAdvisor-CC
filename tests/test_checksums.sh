@@ -45,15 +45,23 @@ echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
 # Pass explicit values: rules, specs, agent_model
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
+
+# Set root_dirs in config.yaml (setup.sh now leaves them empty)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
+content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 echo ""
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
@@ -193,9 +201,9 @@ rm -f "$RULES_CHECKSUMS"
 # First create checksums (needed for incremental detection base)
 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || true
 
-# Run create_pending_yaml_rules.py in full mode
+# Run create_pending_yaml.py --target rules in full mode
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || EXIT_CODE=$?
 
 PENDING_CHECKSUMS=".claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml"
 
@@ -236,9 +244,9 @@ rm -f "$SPECS_CHECKSUMS"
 # First create checksums (needed for incremental detection base)
 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target specs 2>/dev/null || true
 
-# Run create_pending_yaml_specs.py in full mode
+# Run create_pending_yaml.py --target specs in full mode
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || EXIT_CODE=$?
 
 PENDING_CHECKSUMS_SPECS=".claude/doc-advisor/toc/specs/.toc_work/.toc_checksums_pending.yaml"
 

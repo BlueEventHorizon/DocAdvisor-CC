@@ -30,9 +30,9 @@ Generate/update rules ToC (Table of Contents) for AI-searchable document index.
 
 ## Execution Flow
 
-1. Read `.claude/doc-advisor/docs/rules_orchestrator.md` for orchestrator workflow
-2. Read `.claude/doc-advisor/docs/rules_toc_format.md` for format definition
-3. Execute Phase 1-3 as described in the orchestrator document
+1. Read `.claude/doc-advisor/docs/toc_orchestrator.md` for orchestrator workflow
+2. Read `.claude/doc-advisor/docs/toc_format.md` for format definition
+3. Execute Phase 1-3 as described in the orchestrator document, with **target = rules**
    - If `$0` = `--full`: Execute in **full mode** (rebuild entire ToC)
    - Otherwise: Execute in **incremental mode** (process changes only)
 

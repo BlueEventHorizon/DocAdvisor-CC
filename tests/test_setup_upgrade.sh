@@ -61,7 +61,7 @@ echo "=================================================="
 setup_test_project
 
 # Run setup with defaults
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify structure
 test_result "agents/ created" "0" "$([[ -d "$TEST_PROJECT/.claude/agents" ]] && echo 0 || echo 1)"
@@ -90,7 +90,7 @@ echo "# Legacy command" > "$TEST_PROJECT/.claude/commands/create-specs_toc.md"
 echo "# User custom command" > "$TEST_PROJECT/.claude/commands/my-custom-command.md"
 
 # Run setup - legacy files are auto-deleted (no user confirmation)
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: doc-advisor commands deleted, user custom preserved
 test_result "Legacy create-rules_toc.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/commands/create-rules_toc.md" ]] && echo 0 || echo 1)"
@@ -106,7 +106,7 @@ echo "=================================================="
 setup_test_project
 
 # Run setup
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify new structure
 test_result "config.yaml in doc-advisor/" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
@@ -127,14 +127,14 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add custom exclude to config
 echo "      - my_custom_exclude" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 CUSTOM_LINE=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | tr -d '[:space:]')
 
 # Run setup again with 's' to skip config
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify custom line is preserved
 CUSTOM_LINE_AFTER=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
@@ -149,13 +149,13 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add custom exclude to config
 echo "      - my_custom_exclude" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 
 # Run setup again with 'o' to overwrite
-echo -e "rules\ndone\nspecs\ndone\nopus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify backup exists and custom line is gone from main config
 test_result "Backup created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml.bak" ]] && echo 0 || echo 1)"
@@ -173,14 +173,14 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create fake v3.0 structure (unified skill)
 mkdir -p "$TEST_PROJECT/.claude/skills/doc-advisor"
 echo "# Old v3.0 skill" > "$TEST_PROJECT/.claude/skills/doc-advisor/SKILL.md"
 
 # Run setup again with 'o' to overwrite config
-echo -e "rules\ndone\nspecs\ndone\nopus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: v3.0 unified skill removed, v3.1 split skills installed
 test_result "Legacy skills/doc-advisor/ removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -196,17 +196,17 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add custom agent
 echo "# My custom agent" > "$TEST_PROJECT/.claude/agents/my-custom-agent.md"
 
 # Run setup again
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: custom agent preserved, managed agents still exist
 test_result "Custom agent preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/my-custom-agent.md" ]] && echo 0 || echo 1)"
-test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
@@ -217,14 +217,14 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create fake ToC files (simulating generated output)
 echo "# Generated ToC" > "$TEST_PROJECT/.claude/doc-advisor/toc/rules/rules_toc.yaml"
 echo "# Generated ToC" > "$TEST_PROJECT/.claude/doc-advisor/toc/specs/specs_toc.yaml"
 
 # Run setup again with 's' to skip config
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: toc files are preserved
 test_result "rules_toc.yaml preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/toc/rules/rules_toc.yaml" ]] && echo 0 || echo 1)"
@@ -239,7 +239,7 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create legacy file WITH CURRENT version (should be protected)
 mkdir -p "$TEST_PROJECT/.claude/commands"
@@ -255,7 +255,7 @@ EOF
 echo "# No identifier - legacy file" > "$TEST_PROJECT/.claude/commands/create-specs_toc.md"
 
 # Run setup again
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: file with current version is protected, file without is deleted
 test_result "File with current version protected" "0" "$([[ -f "$TEST_PROJECT/.claude/commands/create-rules_toc.md" ]] && echo 0 || echo 1)"
@@ -270,7 +270,7 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create skills/doc-advisor/ with OLD version (should be deleted)
 mkdir -p "$TEST_PROJECT/.claude/skills/doc-advisor"
@@ -283,7 +283,7 @@ name: doc-advisor
 EOF
 
 # Run setup again
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: skills/doc-advisor/ with old version is deleted
 test_result "skills/doc-advisor/ with old version deleted" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -299,7 +299,7 @@ name: doc-advisor
 EOF
 
 # Run setup again
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: skills/doc-advisor/ with current version is protected
 test_result "skills/doc-advisor/ with current version protected" "0" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -318,7 +318,7 @@ echo "" >> "$TEST_PROJECT/CLAUDE.md"
 echo "Existing content here." >> "$TEST_PROJECT/CLAUDE.md"
 
 # Run setup with 'y' for CLAUDE.md prompt
-echo -e "rules\ndone\nspecs\ndone\nopus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: marker exists and existing content preserved
 MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null || echo 0)
@@ -337,7 +337,7 @@ setup_test_project
 # No CLAUDE.md exists
 
 # Run setup with 'y' for CLAUDE.md prompt
-echo -e "rules\ndone\nspecs\ndone\nopus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: CLAUDE.md created with marker
 test_result "CLAUDE.md created" "0" "$([[ -f "$TEST_PROJECT/CLAUDE.md" ]] && echo 0 || echo 1)"
@@ -362,7 +362,7 @@ cat > "$TEST_PROJECT/CLAUDE.md" << 'EOF'
 EOF
 
 # Run setup (no extra input needed - marker detected, prompt skipped)
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: marker still only appears once (not duplicated)
 MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null || echo 0)
@@ -380,7 +380,7 @@ setup_test_project
 echo "# My Project" > "$TEST_PROJECT/CLAUDE.md"
 
 # Run setup with 'n' for CLAUDE.md prompt
-echo -e "rules\ndone\nspecs\ndone\nopus\nn" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\nn" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: no marker added
 MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null; true)
@@ -395,20 +395,20 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create legacy advisor agent files (should be deleted on next setup)
 echo "# Legacy rules advisor" > "$TEST_PROJECT/.claude/agents/rules-advisor.md"
 echo "# Legacy specs advisor" > "$TEST_PROJECT/.claude/agents/specs-advisor.md"
 
 # Run setup again
-echo -e "rules\ndone\nspecs\ndone\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: advisor agents deleted
 test_result "rules-advisor.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-advisor.md" ]] && echo 0 || echo 1)"
 test_result "specs-advisor.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/specs-advisor.md" ]] && echo 0 || echo 1)"
 # Verify: managed agents still exist
-test_result "rules-toc-updater.md preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "toc-updater.md exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
@@ -419,11 +419,90 @@ echo "=================================================="
 setup_test_project
 
 # Run setup
-echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: query-rules and query-specs skills installed
 test_result "query-rules/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/query-rules/SKILL.md" ]] && echo 0 || echo 1)"
 test_result "query-specs/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/query-specs/SKILL.md" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 17: classify-docs skill installed"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: classify-docs skill installed
+test_result "classify-docs/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 18: v3.8 unified scripts (old scripts removed)"
+echo "=================================================="
+
+setup_test_project
+
+# First install (old scripts don't exist in fresh install, simulate upgrade)
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create old per-category scripts (simulate pre-3.8 installation)
+echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml_rules.py"
+echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_rules_toc.py"
+echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/write_rules_pending.py"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: old scripts removed, new unified scripts exist
+test_result "Old create_pending_yaml_rules.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml_rules.py" ]] && echo 0 || echo 1)"
+test_result "Old merge_rules_toc.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_rules_toc.py" ]] && echo 0 || echo 1)"
+test_result "Old write_rules_pending.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/write_rules_pending.py" ]] && echo 0 || echo 1)"
+test_result "New create_pending_yaml.py exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml.py" ]] && echo 0 || echo 1)"
+test_result "New merge_toc.py exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_toc.py" ]] && echo 0 || echo 1)"
+test_result "New write_pending.py exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/write_pending.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 19: v3.8 unified agents (old agents removed)"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create old per-category agents (simulate pre-3.8 installation)
+echo "# Old agent" > "$TEST_PROJECT/.claude/agents/rules-toc-updater.md"
+echo "# Old agent" > "$TEST_PROJECT/.claude/agents/specs-toc-updater.md"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: old agents removed, new unified agent exists
+test_result "Old rules-toc-updater.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "Old specs-toc-updater.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/specs-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "New toc-updater.md exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 20: config.yaml root_dirs is empty after setup"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: root_dirs is empty array
+RULES_EMPTY=$(grep -A1 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "root_dirs: \[\]" || echo 0)
+test_result "rules root_dirs is empty" "1" "$RULES_EMPTY"
 echo ""
 
 # ==================================================
