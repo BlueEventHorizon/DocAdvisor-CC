@@ -5,7 +5,7 @@
 # === rules configuration ===
 rules:
   root_dirs:
-    - {{RULES_DIR}}
+{{RULES_DIRS_YAML}}
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
@@ -23,7 +23,7 @@ rules:
 # === specs configuration ===
 specs:
   root_dirs:
-    - {{SPECS_DIR}}
+{{SPECS_DIRS_YAML}}
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/

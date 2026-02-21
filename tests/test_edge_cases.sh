@@ -56,7 +56,7 @@ echo "=================================================="
 rm -rf .claude .last_setup
 
 # Run setup with explicit values: rules, specs, agent_model
-echo -e "rules\nspecs\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 if [[ ! -d ".claude" ]]; then
     echo -e "${RED}ERROR: Setup failed${NC}"

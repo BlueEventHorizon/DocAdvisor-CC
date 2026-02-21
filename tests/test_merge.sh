@@ -45,7 +45,7 @@ echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
 # Pass explicit values: rules, specs, agent_model
-echo -e "rules\nspecs\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo -e "rules\ndone\nspecs\ndone\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"

@@ -61,8 +61,8 @@ echo "=================================================="
 rm -rf .claude .last_setup
 
 # Run setup with custom values
-# Format: rules_dir, specs_dir, agent_model
-echo -e "guidelines\ndocuments\nsonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Format: rules_dir, done, specs_dir, done, agent_model
+echo -e "guidelines\ndone\ndocuments\ndone\nsonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 # Verify .claude directory created
 if [[ -d ".claude" ]]; then

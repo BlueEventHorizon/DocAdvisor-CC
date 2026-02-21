@@ -108,18 +108,173 @@ echo ""
 echo "Target project: ${TARGET_DIR}"
 echo ""
 
-# Interactive prompts for directories
+# =============================================================================
+# Directory candidate scanning and selection
+# =============================================================================
+
+# Scan TARGET_DIR for directories containing .md files
+# Excludes: .git, .claude, node_modules, .venv, __pycache__, .toc_work
+scan_candidate_dirs() {
+    local target="$1"
+    local candidates=()
+    local exclude_dirs=(".git" ".claude" "node_modules" ".venv" "__pycache__" ".toc_work" ".github")
+
+    for dir in "$target"/*/; do
+        [[ -d "$dir" ]] || continue
+        local dirname
+        dirname=$(basename "$dir")
+
+        # Skip excluded directories
+        local skip=0
+        for exc in "${exclude_dirs[@]}"; do
+            if [[ "$dirname" == "$exc" ]]; then
+                skip=1
+                break
+            fi
+        done
+        [[ $skip -eq 1 ]] && continue
+
+        # Count .md files recursively
+        local count
+        count=$(find "$dir" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+        if [[ $count -gt 0 ]]; then
+            candidates+=("${dirname}|${count}")
+        fi
+    done
+
+    printf '%s\n' "${candidates[@]}"
+}
+
+# Interactive loop to select directories
+# Args: $1=category (Rules/Specs), $2=default_dir, $3=candidates (newline-separated)
+# Output: space-separated list of selected directories
+select_dirs_loop() {
+    local category="$1"
+    local default_dir="$2"
+    local candidates_input="$3"
+    local selected=()
+    local candidates=()
+    local first_input=1
+
+    # Parse candidates into array
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && candidates+=("$line")
+    done <<< "$candidates_input"
+
+    echo -e "${GREEN}=== ${category} directories ===${NC}" >&2
+    echo "" >&2
+
+    # Show candidates
+    if [[ ${#candidates[@]} -gt 0 ]]; then
+        echo "Candidates:" >&2
+        local i=1
+        for cand in "${candidates[@]}"; do
+            local name="${cand%%|*}"
+            local count="${cand##*|}"
+            echo "  [${i}] ${name}/ (${count} .md files)" >&2
+            ((i++))
+        done
+    else
+        echo "  (no directories with .md files found)" >&2
+    fi
+    echo "" >&2
+
+    # Selection loop
+    while true; do
+        # Show current selection
+        if [[ ${#selected[@]} -eq 0 ]]; then
+            echo -e "Selected: ${YELLOW}(none)${NC}" >&2
+        else
+            echo -e "Selected: ${BLUE}$(IFS=', '; echo "${selected[*]}")${NC}" >&2
+        fi
+
+        # Determine default value
+        local prompt_default
+        if [[ $first_input -eq 1 ]]; then
+            # First input: default is the default_dir (usually matches candidate [1])
+            prompt_default="$default_dir"
+        else
+            prompt_default="done"
+        fi
+
+        read -p "Add directory (number/path/done) [${prompt_default}]: " input
+        input="${input:-$prompt_default}"
+
+        # Handle 'done'
+        if [[ "$input" == "done" ]]; then
+            if [[ ${#selected[@]} -eq 0 ]]; then
+                echo -e "${RED}  At least one directory is required.${NC}" >&2
+                continue
+            fi
+            break
+        fi
+
+        local dir_to_add=""
+
+        # Handle number input
+        if [[ "$input" =~ ^[0-9]+$ ]] && [[ $input -ge 1 ]] && [[ $input -le ${#candidates[@]} ]]; then
+            local cand="${candidates[$((input-1))]}"
+            dir_to_add="${cand%%|*}"
+        else
+            # Handle path input (remove trailing slash)
+            dir_to_add="${input%/}"
+        fi
+
+        # Validate: check for duplicates
+        local dup=0
+        for s in "${selected[@]}"; do
+            if [[ "$s" == "$dir_to_add" ]]; then
+                echo -e "${YELLOW}  Already selected: ${dir_to_add}/${NC}" >&2
+                dup=1
+                break
+            fi
+        done
+        [[ $dup -eq 1 ]] && continue
+
+        # Validate: check directory exists in target project
+        if [[ -d "${TARGET_DIR}/${dir_to_add}" ]]; then
+            local count
+            count=$(find "${TARGET_DIR}/${dir_to_add}" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+            selected+=("$dir_to_add")
+            echo -e "${GREEN}  ✓ ${dir_to_add}/ added (${count} .md files)${NC}" >&2
+        else
+            echo -e "${YELLOW}  Directory not found: ${dir_to_add}/ (will be created when you add documents)${NC}" >&2
+            selected+=("$dir_to_add")
+            echo -e "${GREEN}  ✓ ${dir_to_add}/ added${NC}" >&2
+        fi
+
+        first_input=0
+        echo "" >&2
+    done
+
+    echo "" >&2
+    printf '%s\n' "${selected[@]}"
+}
+
+# =============================================================================
+# Interactive directory selection
+# =============================================================================
+
 echo "Configure document directories for your project."
-echo "(Press Enter to use default value)"
 echo ""
 
-read -p "Rules directory [${DEFAULT_RULES_DIR}]: " RULES_DIR
-RULES_DIR="${RULES_DIR:-$DEFAULT_RULES_DIR}"
+# Scan for candidates
+CANDIDATES=$(scan_candidate_dirs "$TARGET_DIR")
 
-read -p "Specs directory [${DEFAULT_SPECS_DIR}]: " SPECS_DIR
-SPECS_DIR="${SPECS_DIR:-$DEFAULT_SPECS_DIR}"
+# Select rules directories
+RULES_RESULT=$(select_dirs_loop "Rules" "$DEFAULT_RULES_DIR" "$CANDIDATES")
+RULES_DIRS_ARRAY=()
+while IFS= read -r line; do
+    [[ -n "$line" ]] && RULES_DIRS_ARRAY+=("$line")
+done <<< "$RULES_RESULT"
 
-echo ""
+# Select specs directories
+SPECS_RESULT=$(select_dirs_loop "Specs" "$DEFAULT_SPECS_DIR" "$CANDIDATES")
+SPECS_DIRS_ARRAY=()
+while IFS= read -r line; do
+    [[ -n "$line" ]] && SPECS_DIRS_ARRAY+=("$line")
+done <<< "$SPECS_RESULT"
+
 echo "Configure agent model (opus, sonnet, haiku, inherit):"
 read -p "  Agent model [${DEFAULT_AGENT_MODEL}]: " AGENT_MODEL
 AGENT_MODEL="${AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
@@ -134,9 +289,13 @@ case "$AGENT_MODEL" in
         ;;
 esac
 
-# Remove trailing slash if present (placeholders should not include trailing slash)
-RULES_DIR="${RULES_DIR%/}"
-SPECS_DIR="${SPECS_DIR%/}"
+# Primary directory (first element, used for example paths in .md templates)
+RULES_DIR="${RULES_DIRS_ARRAY[0]}"
+SPECS_DIR="${SPECS_DIRS_ARRAY[0]}"
+
+# YAML array format (for config.yaml root_dirs)
+RULES_DIRS_YAML=$(printf '    - %s\n' "${RULES_DIRS_ARRAY[@]}")
+SPECS_DIRS_YAML=$(printf '    - %s\n' "${SPECS_DIRS_ARRAY[@]}")
 
 # Detect Python path
 # Check if shell wrapper exists (e.g., Claude Code shell-snapshots directory)
@@ -154,8 +313,8 @@ fi
 
 echo ""
 echo "Configuration:"
-echo -e "  RULES_DIR: ${BLUE}${RULES_DIR}${NC}"
-echo -e "  SPECS_DIR: ${BLUE}${SPECS_DIR}${NC}"
+echo -e "  Rules dirs: ${BLUE}$(IFS=', '; echo "${RULES_DIRS_ARRAY[*]}")${NC}"
+echo -e "  Specs dirs: ${BLUE}$(IFS=', '; echo "${SPECS_DIRS_ARRAY[*]}")${NC}"
 echo -e "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}"
 echo -e "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}"
 if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
@@ -290,13 +449,35 @@ copy_and_substitute() {
     local dst="$2"
 
     if [[ -f "$src" ]]; then
-        # Perform variable substitution
+        # Step 1: Replace single-line placeholders with sed
         sed -e "s|{{RULES_DIR}}|${RULES_DIR}|g" \
             -e "s|{{SPECS_DIR}}|${SPECS_DIR}|g" \
             -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
             -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
             -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
-            "$src" > "$dst"
+            "$src" > "$dst.tmp"
+
+        # Step 2: Replace multi-line YAML array placeholders
+        # {{RULES_DIRS_YAML}} and {{SPECS_DIRS_YAML}} expand to multiple "    - dir" lines
+        # Use temp files to avoid awk -v newline issues
+        local rules_yaml_file specs_yaml_file
+        rules_yaml_file=$(mktemp)
+        specs_yaml_file=$(mktemp)
+        printf '%s' "${RULES_DIRS_YAML}" > "$rules_yaml_file"
+        printf '%s' "${SPECS_DIRS_YAML}" > "$specs_yaml_file"
+
+        awk '
+        /\{\{RULES_DIRS_YAML\}\}/ {
+            while ((getline line < "'"$rules_yaml_file"'") > 0) print line
+            next
+        }
+        /\{\{SPECS_DIRS_YAML\}\}/ {
+            while ((getline line < "'"$specs_yaml_file"'") > 0) print line
+            next
+        }
+        { print }
+        ' "$dst.tmp" > "$dst"
+        rm -f "$dst.tmp" "$rules_yaml_file" "$specs_yaml_file"
     fi
 }
 
@@ -410,7 +591,7 @@ echo "  doc-advisor/ ..."
 
 # Backup config to temp location if skipping
 if [[ $SKIP_CONFIG -eq 1 ]]; then
-    cp "$EXISTING_CONFIG" "${DOC_ADVISOR_DIR}/config.yaml.tmp"
+    cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.skip_bak"
 fi
 
 # Copy templates/doc-advisor/ to .claude/doc-advisor/
@@ -418,7 +599,7 @@ copy_dir_with_substitution "${SCRIPT_DIR}/templates/doc-advisor" "${DOC_ADVISOR_
 
 # Restore config if skipped
 if [[ $SKIP_CONFIG -eq 1 ]]; then
-    mv "${DOC_ADVISOR_DIR}/config.yaml.tmp" "$EXISTING_CONFIG"
+    mv "${SKILLS_DIR}/config.yaml.skip_bak" "$EXISTING_CONFIG"
 fi
 
 # Move backup to final location (overwrite mode)
@@ -503,10 +684,12 @@ LAST_RULES_DIR="${RULES_DIR}"
 LAST_SPECS_DIR="${SPECS_DIR}"
 LAST_AGENT_MODEL="${AGENT_MODEL}"
 EOF
+# Note: LAST_RULES_DIR / LAST_SPECS_DIR save the primary (first) directory.
+# Multi-dir is re-selected each run via the interactive loop.
 
 echo ""
 echo "Next steps:"
-echo -e "  1. Verify ${BLUE}${RULES_DIR}${NC} and ${BLUE}${SPECS_DIR}${NC} directories exist in your project"
+echo -e "  1. Verify document directories exist in your project"
 echo "  2. Start Claude Code:"
 echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"
