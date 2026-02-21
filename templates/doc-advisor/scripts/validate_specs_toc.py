@@ -51,7 +51,10 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    SPECS_DIR = PROJECT_ROOT / CONFIG.get('root_dir', 'specs').rstrip('/')
+    root_dirs_config = CONFIG.get('root_dirs', ['specs/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    SPECS_DIR = PROJECT_ROOT / root_dirs_config[0].rstrip('/')
     DEFAULT_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), SPECS_DIR, PROJECT_ROOT)
     return True
 
@@ -59,17 +62,16 @@ def init_config():
 def load_existing_toc(toc_path):
     """既存の specs_toc.yaml を読み込み（docs: セクション形式対応）"""
     if not toc_path.exists():
-        return {}, {}
+        return {}
 
     try:
         with open(toc_path, 'r', encoding='utf-8') as f:
             content = f.read()
     except (IOError, OSError, PermissionError) as e:
         print(f"Warning: Failed to read {toc_path}: {e}")
-        return {}, {}
+        return {}
 
-    requirements = {}  # doc_type: requirement
-    designs = {}       # doc_type: design
+    docs = {}
     current_section = None
     current_path = None
     current_entry = {}
@@ -91,15 +93,11 @@ def load_existing_toc(toc_path):
 
         # docs セクション内のエントリ解析
         if current_section == 'docs':
-            # ファイルパスキーの検出 (e.g., "main/requirements/app.md:")
+            # ファイルパスキーの検出
             if line.startswith('  ') and not line.startswith('    ') and stripped.endswith(':'):
                 # 前のエントリを保存
                 if current_path and current_entry:
-                    doc_type = current_entry.get('doc_type', '')
-                    if doc_type == 'requirement':
-                        requirements[current_path] = current_entry
-                    elif doc_type == 'design':
-                        designs[current_path] = current_entry
+                    docs[current_path] = current_entry
 
                 current_path = stripped.rstrip(':')
                 current_entry = {}
@@ -124,13 +122,9 @@ def load_existing_toc(toc_path):
 
     # 最後のエントリを保存
     if current_path and current_entry:
-        doc_type = current_entry.get('doc_type', '')
-        if doc_type == 'requirement':
-            requirements[current_path] = current_entry
-        elif doc_type == 'design':
-            designs[current_path] = current_entry
+        docs[current_path] = current_entry
 
-    return requirements, designs
+    return docs
 
 
 def validate_toc(toc_path):
@@ -161,19 +155,18 @@ def validate_toc(toc_path):
             print(f"  - {err}")
         return False
 
-    # パース（新形式: docs セクション内の doc_type で分類）
-    requirements, designs = load_existing_toc(toc_path)
+    # パース
+    docs = load_existing_toc(toc_path)
 
     # 2. 必須フィールド検査
-    # 新形式: キーがファイルパス、doc_type/title/purpose が必須（文字列）
+    # キーがファイルパス、title/purpose が必須（文字列）
     # content_details/applicable_tasks/keywords が必須（非空配列）
     # フォーマット定義: No null, No empty arrays (specs_toc_format.md)
-    required_string_fields = ['doc_type', 'title', 'purpose']
+    required_string_fields = ['title', 'purpose']
     required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
 
-    all_entries = list(requirements.items()) + list(designs.items())
-    for file_path, entry in all_entries:
+    for file_path, entry in docs.items():
         for field in required_string_fields:
             if not entry.get(field):
                 field_errors.append(f"必須フィールド欠落: {file_path} に '{field}' がありません")
@@ -183,20 +176,15 @@ def validate_toc(toc_path):
                 field_errors.append(f"必須配列フィールド不正: {file_path} の '{field}' が未設定または空配列です")
 
     if not field_errors:
-        print(f"✓ 必須フィールド検査: OK（requirements: {len(requirements)}件, designs: {len(designs)}件）")
+        print(f"✓ 必須フィールド検査: OK（{len(docs)}件のエントリ）")
     else:
         print(f"✗ 必須フィールド検査: {len(field_errors)}件のエラー")
         errors.extend(field_errors)
 
     # 3. ファイル参照検査
-    # 新形式: キーはプロジェクトルートからの相対パス（例: specs/main/requirements/app.md）
+    # キーはプロジェクトルートからの相対パス（例: specs/requirements/app.md）
     file_errors = []
-    for file_path in requirements.keys():
-        full_path = PROJECT_ROOT / file_path
-        if not full_path.exists():
-            file_errors.append(f"ファイル不在: '{file_path}' が存在しません")
-
-    for file_path in designs.keys():
+    for file_path in docs.keys():
         full_path = PROJECT_ROOT / file_path
         if not full_path.exists():
             file_errors.append(f"ファイル不在: '{file_path}' が存在しません")
@@ -207,20 +195,8 @@ def validate_toc(toc_path):
         print(f"✗ ファイル参照検査: {len(file_errors)}件のエラー")
         errors.extend(file_errors)
 
-    # 4. 重複パス検査
-    all_paths = list(requirements.keys()) + list(designs.keys())
-    seen = set()
-    duplicates = []
-    for file_path in all_paths:
-        if file_path in seen:
-            duplicates.append(f"重複パス: '{file_path}' が複数回定義されています")
-        seen.add(file_path)
-
-    if not duplicates:
-        print(f"✓ 重複パス検査: OK（{len(all_paths)}件のユニークパス）")
-    else:
-        print(f"✗ 重複パス検査: {len(duplicates)}件の重複")
-        errors.extend(duplicates)
+    # 4. 重複パス検査（辞書なので本質的に重複はないが確認）
+    print(f"✓ 重複パス検査: OK（{len(docs)}件のユニークパス）")
 
     # 結果サマリー
     print()

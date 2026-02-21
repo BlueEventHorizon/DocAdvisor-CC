@@ -78,7 +78,7 @@ Read the following before processing:
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
-3. Select up to 5 files and launch subagents in parallel
+3. Read common.parallel.max_workers from config.yaml, then launch up to that many subagents in parallel
     Task(subagent_type: rules-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/rules/.toc_work/{filename}.yaml")
     ↓
 4. Wait for completion

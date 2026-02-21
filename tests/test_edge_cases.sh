@@ -55,8 +55,8 @@ echo "=================================================="
 # Clean previous setup
 rm -rf .claude .last_setup
 
-# Run setup with explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Run setup with explicit values: rules, specs, agent_model
+echo -e "rules\nspecs\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 if [[ ! -d ".claude" ]]; then
     echo -e "${RED}ERROR: Setup failed${NC}"
@@ -239,7 +239,6 @@ docs:
   specs/main/requirements/日本語ドキュメント.md:
     title: "日本語タイトル"
     purpose: "日本語の要約文"
-    doc_type: requirement
     content_details:
       - "キーワード1"
       - "キーワード2"
@@ -258,7 +257,6 @@ docs:
   specs/main/requirements/special_chars.md:
     title: "Special Characters Test"
     purpose: "Test document"
-    doc_type: requirement
     content_details:
       - "test1"
       - "test2"
@@ -281,7 +279,6 @@ mkdir -p .claude/doc-advisor/toc/specs/.toc_work
 cat > .claude/doc-advisor/toc/specs/.toc_work/specs_new_file.yaml << 'PENDINGEOF'
 _meta:
   source_file: specs/main/requirements/new_file.md
-  doc_type: requirement
   status: completed
   updated_at: "2026-01-31T12:00:00Z"
 

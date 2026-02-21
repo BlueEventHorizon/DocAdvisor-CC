@@ -44,8 +44,8 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
-# Pass explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Pass explicit values: rules, specs, agent_model
+echo -e "rules\nspecs\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
@@ -157,7 +157,7 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-7: merge_specs_toc.py - Full mode with doc_type"
+echo "Test 2-7: merge_specs_toc.py - Full mode"
 echo "=================================================="
 
 # Clean and regenerate
@@ -185,18 +185,18 @@ $PYTHON_CMD "$SCRIPTS_DIR/merge_specs_toc.py" --mode full 2>/dev/null || EXIT_CO
 
 test_result "merge_specs_toc full mode" "0" "$EXIT_CODE"
 
-# Verify output file exists and has doc_type
+# Verify output file exists and has no doc_type (removed in v3.8)
 if [[ -f ".claude/doc-advisor/toc/specs/specs_toc.yaml" ]]; then
     echo -e "${GREEN}PASS${NC}: specs_toc.yaml created"
     ((PASS_COUNT++))
 
-    # Verify doc_type is preserved
+    # Verify doc_type is NOT present (removed in v3.8)
     if grep -q "doc_type:" .claude/doc-advisor/toc/specs/specs_toc.yaml; then
-        echo -e "${GREEN}PASS${NC}: specs_toc.yaml has doc_type fields"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: specs_toc.yaml missing doc_type fields"
+        echo -e "${RED}FAIL${NC}: specs_toc.yaml should NOT have doc_type fields (removed in v3.8)"
         ((FAIL_COUNT++))
+    else
+        echo -e "${GREEN}PASS${NC}: specs_toc.yaml correctly has no doc_type fields"
+        ((PASS_COUNT++))
     fi
 else
     echo -e "${RED}FAIL${NC}: specs_toc.yaml not created"
@@ -235,6 +235,58 @@ if [[ ! -d ".claude/doc-advisor/toc/rules/.toc_work" ]] || [[ -z "$(ls -A .claud
     ((PASS_COUNT++))
 else
     echo -e "${YELLOW}WARN${NC}: .toc_work not fully cleaned up (may have pending entries)"
+fi
+echo ""
+
+echo "=================================================="
+echo "Test: --delete-only mode (rules)"
+echo "=================================================="
+
+# Setup: create a ToC with an entry, then delete the source file
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
+
+RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
+if [[ -n "$RULES_PENDING" ]]; then
+    $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
+        --entry-file "$RULES_PENDING" \
+        --title "Delete Test" \
+        --purpose "Test delete-only mode" \
+        --content-details "a ||| b ||| c ||| d ||| e" \
+        --applicable-tasks "test" \
+        --keywords "a ||| b ||| c ||| d ||| e" \
+        --force 2>/dev/null || true
+fi
+
+$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || true
+rm -rf .claude/doc-advisor/toc/rules/.toc_work
+
+# Count entries before deletion
+BEFORE_COUNT=$(grep -c "^  " .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null || echo 0)
+
+# Delete a source .md file
+DELETED_FILE=$(ls rules/*.md 2>/dev/null | head -1 || echo "")
+if [[ -n "$DELETED_FILE" ]]; then
+    rm -f "$DELETED_FILE"
+
+    # Update checksums (so delete-only can detect the deletion)
+    $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || true
+
+    # Run --delete-only
+    EXIT_CODE=0
+    $PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --delete-only 2>/dev/null || EXIT_CODE=$?
+
+    test_result "merge_rules_toc --delete-only exit code" "0" "$EXIT_CODE"
+
+    AFTER_COUNT=$(grep -c "^  " .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null || echo 0)
+    if [[ $AFTER_COUNT -lt $BEFORE_COUNT ]]; then
+        echo -e "${GREEN}PASS${NC}: Entry count decreased ($BEFORE_COUNT -> $AFTER_COUNT)"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: Entry count not decreased ($BEFORE_COUNT -> $AFTER_COUNT)"
+        ((FAIL_COUNT++))
+    fi
+else
+    echo -e "${YELLOW}SKIP${NC}: No rules .md file to delete"
 fi
 echo ""
 

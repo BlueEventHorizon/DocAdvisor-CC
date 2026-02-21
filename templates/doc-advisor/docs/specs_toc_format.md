@@ -11,7 +11,7 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 ## Purpose
 
-`.claude/doc-advisor/toc/specs/specs_toc.yaml` is the **single source of truth** for the **specs-advisor Subagent** to identify requirement and design documents needed for tasks.
+`.claude/doc-advisor/toc/specs/specs_toc.yaml` is the **single source of truth** for the **specs-advisor Subagent** to identify project specification documents needed for tasks.
 
 The quality of this file determines task execution success. **Missing information is not acceptable.**
 
@@ -21,10 +21,10 @@ The quality of this file determines task execution success. **Missing informatio
 
 ## Key Principles [MANDATORY]
 
-- Include all requirement and design documents without omission
+- Include all specification documents without omission
 - Support task matching through keywords
 - When in doubt, include it (never miss documents)
-- **Key format**: With `{{SPECS_DIR}}/` prefix (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md`)
+- **Key format**: With `{{SPECS_DIR}}/` prefix (e.g., `{{SPECS_DIR}}/requirements/app_overview.md`)
 
 ### YAML Formatting Rules
 
@@ -46,8 +46,8 @@ Structure definition for work files used in individual entry file method.
 
 ```
 .claude/doc-advisor/toc/specs/.toc_work/        # Work directory (.gitignore target)
-├── {{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_app_overview.yaml
-├── {{SPECS_DIR}}_main_{{DESIGN_DIR_NAME}}_list_screen_design.yaml
+├── {{SPECS_DIR}}_requirements_app_overview.yaml
+├── {{SPECS_DIR}}_design_list_screen_design.yaml
 └── ... (for each target file)
 ```
 
@@ -56,9 +56,8 @@ Structure definition for work files used in individual entry file method.
 Generate YAML filename from document path (including `{{SPECS_DIR}}/` prefix):
 
 ```
-{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md → {{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_app_overview.yaml
-{{SPECS_DIR}}/main/{{DESIGN_DIR_NAME}}/list_screen_design.md → {{SPECS_DIR}}_main_{{DESIGN_DIR_NAME}}_list_screen_design.yaml
-{{SPECS_DIR}}/feature/{{REQUIREMENT_DIR_NAME}}/screens/login.md → {{SPECS_DIR}}_feature_{{REQUIREMENT_DIR_NAME}}_screens_login.yaml
+{{SPECS_DIR}}/requirements/app_overview.md → {{SPECS_DIR}}_requirements_app_overview.yaml
+{{SPECS_DIR}}/design/list_screen_design.md → {{SPECS_DIR}}_design_list_screen_design.yaml
 ```
 
 Conversion rule: `/` → `_`, `.md` → `.yaml`
@@ -66,11 +65,10 @@ Conversion rule: `/` → `_`, `.md` → `.yaml`
 ### Entry YAML Structure
 
 ```yaml
-# .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_app_overview.yaml
+# .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_requirements_app_overview.yaml
 
 _meta:
-  source_file: {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md  # Path from project root
-  doc_type: requirement                             # requirement | design
+  source_file: {{SPECS_DIR}}/requirements/app_overview.md  # Path from project root
   status: pending                                  # pending | completed
   updated_at: null                                 # Completion time (ISO 8601)
 
@@ -87,19 +85,9 @@ references: []
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source_file` | string | Target document path (from project root, e.g., `{{SPECS_DIR}}/main/...`) |
-| `doc_type` | enum | `requirement` (requirement) or `design` (design document) |
+| `source_file` | string | Target document path (from project root, e.g., `{{SPECS_DIR}}/requirements/...`) |
 | `status` | enum | `pending` (unprocessed) or `completed` (done) |
 | `updated_at` | datetime/null | Completion time (ISO 8601), `null` if incomplete |
-
-### doc_type Determination Rule
-
-Determine doc_type from path:
-
-| Path Pattern | doc_type |
-|--------------|----------|
-| `{{SPECS_DIR}}/{feature}/{{REQUIREMENT_DIR_NAME}}/**/*.md` | requirement |
-| `{{SPECS_DIR}}/{feature}/{{DESIGN_DIR_NAME}}/**/*.md` | design |
 
 ---
 
@@ -109,7 +97,7 @@ Determine doc_type from path:
 
 ```yaml
 metadata:
-  name: string              # Index name (fixed: "Requirements and Design Document Search Index")
+  name: string              # Index name (fixed: "Project Specification Document Search Index")
   generated_at: datetime    # Generation time (ISO 8601 format)
   file_count: integer       # Total target file count
 
@@ -122,8 +110,7 @@ docs: object                # Document entries (key: file path)
 
 ```yaml
 docs:
-  <file_path>:                   # Path from project root (e.g., "{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md")
-    doc_type: string             # Document type ("requirement" | "design")
+  <file_path>:                   # Path from project root (e.g., "{{SPECS_DIR}}/requirements/app_overview.md")
     title: string                # Title (extracted from H1)
     purpose: string              # Purpose (1-2 lines, what it defines)
     content_details: array[string] # Content details (5+ items, main requirements/design content)
@@ -135,8 +122,7 @@ docs:
 **Example**:
 ```yaml
 docs:
-  {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md:
-    doc_type: requirement
+  {{SPECS_DIR}}/requirements/app_overview.md:
     title: Application Overview Specification
     purpose: Defines overall requirements, feature scope, and use cases for the application
     content_details:
@@ -157,8 +143,7 @@ docs:
       - screen navigation
     references: []
 
-  {{SPECS_DIR}}/main/{{DESIGN_DIR_NAME}}/list_screen_design.md:
-    doc_type: design
+  {{SPECS_DIR}}/design/list_screen_design.md:
     title: List Screen Design
     purpose: Defines UI design, state management, and data flow for the list screen
     content_details:
@@ -178,7 +163,7 @@ docs:
       - state management
       - AsyncStream
     references:
-      - {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md
+      - {{SPECS_DIR}}/requirements/app_overview.md
 ```
 
 ---
@@ -213,7 +198,7 @@ docs:
 
 - List documents **directly referenced** in this file
 - Do NOT follow references (only record what this document mentions)
-- Prefer concrete paths (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/auth.md`)
+- Prefer concrete paths (e.g., `{{SPECS_DIR}}/requirements/auth.md`)
 - Abstract references are allowed if specific path is unknown (e.g., "authentication design document")
 - Empty array `[]` is allowed if no references found
 - Do NOT include self-reference
@@ -226,13 +211,12 @@ docs:
 # .claude/doc-advisor/toc/specs/specs_toc.yaml
 
 metadata:
-  name: Requirements and Design Document Search Index
+  name: Project Specification Document Search Index
   generated_at: 2026-01-11T12:00:00Z
   file_count: 25
 
 docs:
-  {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md:
-    doc_type: requirement
+  {{SPECS_DIR}}/requirements/app_overview.md:
     title: Application Overview Specification
     purpose: Defines overall requirements and feature scope for the application
     content_details:
@@ -249,8 +233,7 @@ docs:
       - feature list
     references: []
 
-  {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/screens/login_screen.md:
-    doc_type: requirement
+  {{SPECS_DIR}}/requirements/screens/login_screen.md:
     title: Login Screen Requirements
     purpose: Defines functional requirements, input validation, and error handling for the login screen
     content_details:
@@ -267,11 +250,10 @@ docs:
       - validation
       - screen
     references:
-      - {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/auth/authentication.md
+      - {{SPECS_DIR}}/requirements/auth/authentication.md
       - error handling design document
 
-  {{SPECS_DIR}}/main/{{DESIGN_DIR_NAME}}/login_screen_design.md:
-    doc_type: design
+  {{SPECS_DIR}}/design/login_screen_design.md:
     title: Login Screen Design
     purpose: Defines UI design, ViewModel, and state management for the login screen
     content_details:
@@ -288,5 +270,5 @@ docs:
       - SwiftUI
       - authentication
     references:
-      - {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/screens/login_screen.md
+      - {{SPECS_DIR}}/requirements/screens/login_screen.md
 ```

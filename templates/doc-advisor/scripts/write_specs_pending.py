@@ -83,7 +83,7 @@ def validate_array(name, items, min_count):
 
 def write_entry_yaml(filepath, meta, entry):
     """
-    entry YAML ファイルを書き込む（specs 用: doc_type を含む）
+    entry YAML ファイルを書き込む（specs 用）
 
     Args:
         filepath: 出力ファイルパス
@@ -95,10 +95,9 @@ def write_entry_yaml(filepath, meta, entry):
     """
     lines = []
 
-    # _meta セクション（doc_type を含む）
+    # _meta セクション
     lines.append("_meta:")
     lines.append(f"  source_file: {meta.get('source_file', '')}")
-    lines.append(f"  doc_type: {meta.get('doc_type', '')}")
     lines.append(f"  status: {meta.get('status', 'completed')}")
     lines.append(f"  updated_at: {meta.get('updated_at', '')}")
     lines.append("")
@@ -161,11 +160,6 @@ def main():
         print(f"Error: Entry file missing _meta.source_file: {entry_file}")
         return 1
 
-    # doc_type 確認（specs 用必須）
-    if 'doc_type' not in meta:
-        print(f"Error: Entry file missing _meta.doc_type: {entry_file}")
-        return 1
-
     # completed 状態チェック
     if meta.get('status') == 'completed' and not args.force:
         print(f"Error: Entry file already completed: {entry_file}")
@@ -190,10 +184,9 @@ def main():
     if not valid:
         return 3
 
-    # _meta 更新（doc_type を保持）
+    # _meta 更新
     updated_meta = {
         'source_file': meta['source_file'],
-        'doc_type': meta['doc_type'],
         'status': 'completed',
         'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     }
@@ -215,7 +208,6 @@ def main():
     # 成功メッセージ
     print(f"Entry completed: {entry_file}")
     print(f"  source_file: {updated_meta['source_file']}")
-    print(f"  doc_type: {updated_meta['doc_type']}")
     print(f"  status: {updated_meta['status']}")
     print(f"  updated_at: {updated_meta['updated_at']}")
 

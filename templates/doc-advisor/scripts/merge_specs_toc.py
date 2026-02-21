@@ -28,7 +28,6 @@ from toc_utils import (
     load_checksums,
     should_exclude,
     resolve_config_path,
-    get_default_target_dirs,
     get_system_exclude_patterns,
     rglob_follow_symlinks,
     normalize_path,
@@ -37,14 +36,13 @@ from toc_utils import (
 # Global configuration (initialized in init_config())
 CONFIG = None
 PROJECT_ROOT = None
-SPECS_DIR = None
-SPECS_DIR_NAME = None
+SPECS_ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
 TOC_WORK_DIR = None
 OUTPUT_FILE = None
 CHECKSUMS_FILE = None
 OUTPUT_CONFIG = None
 PATTERNS_CONFIG = None
-TARGET_DIRS = None
+TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 
 
@@ -55,8 +53,8 @@ def init_config():
     Returns:
         bool: True on success, False on failure
     """
-    global CONFIG, PROJECT_ROOT, SPECS_DIR, SPECS_DIR_NAME, TOC_WORK_DIR, OUTPUT_FILE
-    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_DIRS, EXCLUDE_PATTERNS
+    global CONFIG, PROJECT_ROOT, SPECS_ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
+    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS
 
     try:
         CONFIG = load_config('specs')
@@ -68,15 +66,21 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    SPECS_DIR_NAME = CONFIG.get('root_dir', 'specs').rstrip('/')
-    SPECS_DIR = PROJECT_ROOT / SPECS_DIR_NAME
-    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), SPECS_DIR, PROJECT_ROOT)
-    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), SPECS_DIR, PROJECT_ROOT)
-    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), SPECS_DIR, PROJECT_ROOT)
+    root_dirs_config = CONFIG.get('root_dirs', ['specs/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    SPECS_ROOT_DIRS = []
+    for entry in root_dirs_config:
+        name = entry.rstrip('/')
+        SPECS_ROOT_DIRS.append((PROJECT_ROOT / name, name))
+
+    first_specs_dir = SPECS_ROOT_DIRS[0][0] if SPECS_ROOT_DIRS else PROJECT_ROOT / 'specs'
+    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_specs_dir, PROJECT_ROOT)
+    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), first_specs_dir, PROJECT_ROOT)
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_specs_dir, PROJECT_ROOT)
     OUTPUT_CONFIG = CONFIG.get('output', {})
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
-    # target_dirs はマッピング形式: {doc_type: dir_name}
-    TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', get_default_target_dirs())
+    TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     EXCLUDE_PATTERNS = get_system_exclude_patterns('specs') + PATTERNS_CONFIG.get('exclude', [])
     return True
@@ -92,8 +96,8 @@ def write_yaml_output(docs, output_path):
     lines = []
 
     # File header comment
-    header_comment = OUTPUT_CONFIG.get('header_comment', 'Requirement & Design Document Search Index for specs-advisor Subagent')
-    metadata_name = OUTPUT_CONFIG.get('metadata_name', 'Requirement & Design Document Search Index')
+    header_comment = OUTPUT_CONFIG.get('header_comment', 'Project Specification Document Search Index for specs-advisor Subagent')
+    metadata_name = OUTPUT_CONFIG.get('metadata_name', 'Project Specification Document Search Index')
 
     lines.append("# .claude/doc-advisor/toc/specs/specs_toc.yaml")
     lines.append(f"# {header_comment}")
@@ -109,7 +113,7 @@ def write_yaml_output(docs, output_path):
     lines.append("docs:")
     for file_path, entry in sorted(docs.items()):
         lines.append(f"  {file_path}:")
-        for key in ['doc_type', 'title', 'purpose']:
+        for key in ['title', 'purpose']:
             if key in entry:
                 lines.append(f"    {key}: {yaml_escape(entry[key])}")
         if 'content_details' in entry and entry['content_details']:
@@ -210,29 +214,18 @@ def load_existing_toc(toc_path):
     return docs
 
 
-def is_target_dir(filepath):
-    """Check if file is under target directory"""
-    rel_path = normalize_path(filepath.relative_to(SPECS_DIR))
-    parts = rel_path.split('/')
-    # パスのどこかに target_dirs のディレクトリ名が含まれるかチェック
-    # e.g., main/requirements/app.md → ['main', 'requirements', 'app.md']
-    #       → 'requirements' in target_dir_names → True
-    target_dir_names = TARGET_DIRS.values()
-    return any(part in target_dir_names for part in parts)
-
-
 def get_existing_files():
-    """Get list of currently existing files with SPECS_DIR prefix (symlink-aware)"""
+    """Get list of currently existing files across all root_dirs (symlink-aware)"""
     files = set()
-    for filepath in rglob_follow_symlinks(SPECS_DIR, "**/*.md"):
-        if should_exclude(filepath, SPECS_DIR, EXCLUDE_PATTERNS):
+    for root_dir, root_dir_name in SPECS_ROOT_DIRS:
+        if not root_dir.exists():
             continue
-        if not is_target_dir(filepath):
-            continue
-        rel_path = normalize_path(filepath.relative_to(SPECS_DIR))
-        # Include SPECS_DIR prefix for project-relative path
-        prefixed_path = f"{SPECS_DIR_NAME}/{rel_path}"
-        files.add(prefixed_path)
+        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
+            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
+                continue
+            rel_path = normalize_path(filepath.relative_to(root_dir))
+            prefixed_path = f"{root_dir_name}/{rel_path}"
+            files.add(prefixed_path)
     return files
 
 
@@ -317,7 +310,6 @@ def merge_toc_files(mode='full'):
             meta, entry = load_entry_file(filepath)
             source_file = meta.get('source_file')
             status = meta.get('status')
-            doc_type = meta.get('doc_type')
 
             if not source_file:
                 errors.append(f"{filename}: Cannot get source_file")
@@ -331,9 +323,6 @@ def merge_toc_files(mode='full'):
             if source_file not in existing_files:
                 errors.append(f"{filename}: Skipped (excluded or missing: {source_file})")
                 continue
-
-            # Add doc_type to entry
-            entry['doc_type'] = doc_type
 
             # Add to docs (key is file path)
             docs[source_file] = entry

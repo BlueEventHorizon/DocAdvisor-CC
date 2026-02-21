@@ -142,34 +142,23 @@ def load_config(target=None):
 
     config = _parse_config_yaml(content)
 
+    # Backward compatibility: root_dir (string) → root_dirs (list)
+    for section in ('rules', 'specs'):
+        if section in config:
+            sec = config[section]
+            if 'root_dir' in sec and 'root_dirs' not in sec:
+                sec['root_dirs'] = [sec.pop('root_dir')]
+
     if target:
         return config.get(target, {})
     return config
-
-
-def get_default_target_dirs():
-    """
-    Return default target_dirs configuration for specs.
-
-    This is the single source of truth for default directory mappings.
-    Other scripts should use this instead of hardcoding values.
-
-    Returns:
-        dict: Mapping of doc_type to directory name
-              e.g., {'requirement': 'requirements', 'design': 'design'}
-              Note: 'plan' is excluded per DES-002 (read in full during work, no search index needed)
-    """
-    return {
-        'requirement': 'requirements',
-        'design': 'design',
-    }
 
 
 def _get_default_config():
     """Return default configuration"""
     return {
         'rules': {
-            'root_dir': 'rules/',
+            'root_dirs': ['rules/'],
             'toc_file': '.claude/doc-advisor/toc/rules/rules_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/rules/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/rules/.toc_work/',
@@ -183,17 +172,17 @@ def _get_default_config():
             }
         },
         'specs': {
-            'root_dir': 'specs/',
+            'root_dirs': ['specs/'],
             'toc_file': '.claude/doc-advisor/toc/specs/specs_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/specs/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/specs/.toc_work/',
             'patterns': {
-                'target_dirs': get_default_target_dirs(),
+                'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
-                'header_comment': 'Requirement & Design Document Search Index for specs-advisor Subagent',
-                'metadata_name': 'Requirement & Design Document Search Index'
+                'header_comment': 'Project Specification Document Search Index for specs-advisor Subagent',
+                'metadata_name': 'Project Specification Document Search Index'
             }
         },
         'common': {
@@ -211,8 +200,8 @@ def _parse_config_yaml(content):
 
     Handles up to 4 levels of nesting:
     - Level 0: Top-level sections (rules, specs, common)
-    - Level 2: Subsections (root_dir, patterns, output)
-    - Level 4: Sub-subsections (target_dirs, exclude)
+    - Level 2: Subsections (root_dirs, patterns, output)
+    - Level 4: Sub-subsections (target_glob, exclude)
     - Level 6: Items (key-value pairs or list items)
     """
     result = {}
@@ -252,10 +241,16 @@ def _parse_config_yaml(content):
                 current_subsection = key
                 if value:
                     result[current_section][key] = _parse_value(value)
+                    current_list = None
                 else:
-                    result[current_section][key] = {}
+                    # Look ahead to determine if list or dict
+                    if _lookahead_is_list(lines, i + 1, parent_indent=2):
+                        result[current_section][key] = []
+                        current_list = result[current_section][key]
+                    else:
+                        result[current_section][key] = {}
+                        current_list = None
                 current_subsubsection = None
-                current_list = None
                 current_dict = None
             elif indent == 4 and current_section and current_subsection:
                 # Sub-subsection - look ahead to determine if list or dict
@@ -288,13 +283,14 @@ def _parse_config_yaml(content):
     return result
 
 
-def _lookahead_is_list(lines, start_idx):
+def _lookahead_is_list(lines, start_idx, parent_indent=4):
     """
     Look ahead in lines to determine if the next content is a list or dict.
 
     Args:
         lines: List of all lines
         start_idx: Index to start looking from
+        parent_indent: Indent level of the parent key
 
     Returns:
         bool: True if next content is a list (starts with '- ')
@@ -310,7 +306,7 @@ def _lookahead_is_list(lines, start_idx):
         indent = len(line) - len(line.lstrip())
 
         # If we hit a line with less or equal indent, stop looking
-        if indent <= 4:
+        if indent <= parent_indent:
             break
 
         # Check if it's a list item or key-value

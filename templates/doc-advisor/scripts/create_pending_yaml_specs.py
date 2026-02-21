@@ -19,18 +19,17 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path
 
 # Global configuration (initialized in init_config())
 CONFIG = None
 PROJECT_ROOT = None
-SPECS_DIR = None
-SPECS_DIR_NAME = None
+SPECS_ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
 TOC_WORK_DIR = None
 CHECKSUMS_FILE = None
 SPECS_TOC_FILE = None
 PATTERNS_CONFIG = None
-TARGET_DIRS = None
+TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 
 
@@ -41,8 +40,8 @@ def init_config():
     Returns:
         bool: True on success, False on failure
     """
-    global CONFIG, PROJECT_ROOT, SPECS_DIR, SPECS_DIR_NAME, TOC_WORK_DIR, CHECKSUMS_FILE
-    global SPECS_TOC_FILE, PATTERNS_CONFIG, TARGET_DIRS, EXCLUDE_PATTERNS
+    global CONFIG, PROJECT_ROOT, SPECS_ROOT_DIRS, TOC_WORK_DIR, CHECKSUMS_FILE
+    global SPECS_TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS
 
     try:
         CONFIG = load_config('specs')
@@ -54,14 +53,21 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    SPECS_DIR_NAME = CONFIG.get('root_dir', 'specs').rstrip('/')
-    SPECS_DIR = PROJECT_ROOT / SPECS_DIR_NAME
-    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), SPECS_DIR, PROJECT_ROOT)
-    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), SPECS_DIR, PROJECT_ROOT)
-    SPECS_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), SPECS_DIR, PROJECT_ROOT)
+    root_dirs_config = CONFIG.get('root_dirs', ['specs/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    SPECS_ROOT_DIRS = []
+    for entry in root_dirs_config:
+        name = entry.rstrip('/')
+        SPECS_ROOT_DIRS.append((PROJECT_ROOT / name, name))
+
+    # Use the first root_dir as the base for resolving config paths
+    first_specs_dir = SPECS_ROOT_DIRS[0][0] if SPECS_ROOT_DIRS else PROJECT_ROOT / 'specs'
+    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_specs_dir, PROJECT_ROOT)
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_specs_dir, PROJECT_ROOT)
+    SPECS_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), first_specs_dir, PROJECT_ROOT)
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
-    # target_dirs はマッピング形式: {doc_type: dir_name}
-    TARGET_DIRS = PATTERNS_CONFIG.get('target_dirs', get_default_target_dirs())
+    TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     EXCLUDE_PATTERNS = get_system_exclude_patterns('specs') + PATTERNS_CONFIG.get('exclude', [])
     return True
@@ -69,7 +75,6 @@ def init_config():
 # Pending YAML template
 PENDING_TEMPLATE = """_meta:
   source_file: {source_file}
-  doc_type: {doc_type}
   status: pending
   updated_at: null
 
@@ -82,30 +87,23 @@ references: []
 """
 
 
-def is_target_dir(filepath):
-    """Check if file is under target directory"""
-    rel_path = normalize_path(filepath.relative_to(SPECS_DIR))
-    parts = rel_path.split('/')
-    # パスのどこかに target_dirs のディレクトリ名が含まれるかチェック
-    # e.g., main/requirements/app.md → ['main', 'requirements', 'app.md']
-    #       → 'requirements' in target_dir_names → True
-    target_dir_names = TARGET_DIRS.values()
-    return any(part in target_dir_names for part in parts)
-
-
 def get_all_md_files():
-    """Get list of target .md files (symlink-aware)"""
+    """Get list of target .md files across all root_dirs (symlink-aware)"""
     md_files = []
+    file_root_map = {}  # filepath → (root_dir, root_dir_name)
 
-    for filepath in rglob_follow_symlinks(SPECS_DIR, "**/*.md"):
-        if should_exclude(filepath, SPECS_DIR, EXCLUDE_PATTERNS):
+    for root_dir, root_dir_name in SPECS_ROOT_DIRS:
+        if not root_dir.exists():
+            print(f"Warning: {root_dir} does not exist, skipping")
             continue
-        if not is_target_dir(filepath):
-            continue
-        md_files.append(filepath)
+        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
+            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
+                continue
+            md_files.append(filepath)
+            file_root_map[filepath] = (root_dir, root_dir_name)
 
     md_files.sort()
-    return md_files
+    return md_files, file_root_map
 
 
 def calculate_file_hash(filepath):
@@ -150,35 +148,10 @@ def load_checksums():
     return checksums
 
 
-def get_source_file_path(md_file):
-    """Get project-relative path with SPECS_DIR prefix (e.g., 'specs/main/requirements/app.md')"""
-    rel_path = normalize_path(md_file.relative_to(SPECS_DIR))
-    return f"{SPECS_DIR_NAME}/{rel_path}"
-
-
-def get_doc_type(source_file):
-    """
-    Determine doc_type from path using TARGET_DIRS
-
-    Args:
-        source_file: Project-relative path (e.g., 'specs/main/requirements/login.md')
-
-    Returns:
-        str: doc_type ('requirement', 'design', etc.) or None
-    """
-    parts = source_file.split('/')
-    # Skip the first part (root directory like 'specs') to avoid false matches
-    # when subdirectory name equals root directory name
-    parts_without_root = parts[1:] if len(parts) > 1 else parts
-
-    # Create reverse mapping: directory name → doc_type
-    # e.g., {'requirements': 'requirement', 'design': 'design'}
-    dir_to_doctype = {v: k for k, v in TARGET_DIRS.items()}
-
-    for part in parts_without_root:
-        if part in dir_to_doctype:
-            return dir_to_doctype[part]
-    return None
+def get_source_file_path(md_file, root_dir, root_dir_name):
+    """Get project-relative path with root_dir prefix (e.g., 'specs/requirements/app.md')"""
+    rel_path = normalize_path(md_file.relative_to(root_dir))
+    return f"{root_dir_name}/{rel_path}"
 
 
 def path_to_yaml_filename(source_file):
@@ -186,7 +159,7 @@ def path_to_yaml_filename(source_file):
     return source_file.replace('/', '_').replace('.md', '.yaml')
 
 
-def create_pending_yaml(source_file, doc_type):
+def create_pending_yaml(source_file):
     """
     Create pending YAML file
 
@@ -198,14 +171,14 @@ def create_pending_yaml(source_file, doc_type):
 
     try:
         with open(yaml_path, "w", encoding="utf-8") as f:
-            f.write(PENDING_TEMPLATE.format(source_file=source_file, doc_type=doc_type))
+            f.write(PENDING_TEMPLATE.format(source_file=source_file))
         return yaml_path
     except (IOError, OSError, PermissionError) as e:
         print(f"Warning: File write error: {yaml_path} - {e}")
         return None
 
 
-def save_pending_checksums(all_files):
+def save_pending_checksums(all_files, file_root_map):
     """Save checksums snapshot at Phase 1 time to .toc_work/
 
     Used to replace .toc_checksums.yaml after merge (Phase 3).
@@ -214,7 +187,8 @@ def save_pending_checksums(all_files):
     """
     checksums = {}
     for md_file in all_files:
-        source_file = get_source_file_path(md_file)
+        root_dir, root_dir_name = file_root_map[md_file]
+        source_file = get_source_file_path(md_file, root_dir, root_dir_name)
         hash_value = calculate_file_hash(md_file)
         if hash_value is not None:
             checksums[source_file] = hash_value
@@ -257,7 +231,7 @@ def main():
         print(".toc_checksums.yaml not found, running in full mode")
 
     # Get target files
-    all_files = get_all_md_files()
+    all_files, file_root_map = get_all_md_files()
 
     if full_mode:
         # Full mode: process all files
@@ -267,7 +241,10 @@ def main():
     else:
         # Incremental mode: changed files only
         old_checksums = load_checksums()
-        current_files = {get_source_file_path(f): f for f in all_files}
+        current_files = {}
+        for f in all_files:
+            root_dir, root_dir_name = file_root_map[f]
+            current_files[get_source_file_path(f, root_dir, root_dir_name)] = f
 
         target_files = []
 
@@ -308,18 +285,15 @@ def main():
     TOC_WORK_DIR.mkdir(parents=True, exist_ok=True)
 
     # Save Phase 1 checksums snapshot (for all target files, not just changed ones)
-    save_pending_checksums(all_files)
+    save_pending_checksums(all_files, file_root_map)
 
     # Generate pending YAMLs
     created_files = []
     failed_count = 0
     for md_file in target_files:
-        source_file = get_source_file_path(md_file)
-        doc_type = get_doc_type(source_file)
-        if doc_type is None:
-            print(f"Warning: Cannot determine doc_type - {source_file}")
-            continue
-        yaml_path = create_pending_yaml(source_file, doc_type)
+        root_dir, root_dir_name = file_root_map[md_file]
+        source_file = get_source_file_path(md_file, root_dir, root_dir_name)
+        yaml_path = create_pending_yaml(source_file)
         if yaml_path is None:
             failed_count += 1
             continue

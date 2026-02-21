@@ -45,8 +45,8 @@ rm -f .last_setup
 
 # Run setup.sh with test project path
 echo "Running setup.sh for test project..."
-# Pass explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Pass explicit values: rules, specs, agent_model
+echo -e "rules\nspecs\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 echo ""
 echo -e "${GREEN}Setup completed.${NC}"

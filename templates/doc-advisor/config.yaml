@@ -4,7 +4,8 @@
 
 # === rules configuration ===
 rules:
-  root_dir: {{RULES_DIR}}
+  root_dirs:
+    - {{RULES_DIR}}
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
@@ -21,23 +22,22 @@ rules:
 
 # === specs configuration ===
 specs:
-  root_dir: {{SPECS_DIR}}
+  root_dirs:
+    - {{SPECS_DIR}}
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/
 
   patterns:
-    target_dirs:
-      requirement: {{REQUIREMENT_DIR_NAME}}
-      design: {{DESIGN_DIR_NAME}}
+    target_glob: "**/*.md"
     exclude:
-      - {{PLAN_DIR_NAME}}  # Read in full during work, no search needed
+      # - plan  # Uncomment to exclude plan directory
       # - reference
       # - /info/
 
   output:
-    header_comment: "Requirements and design document search index for specs-advisor subagent"
-    metadata_name: "Requirements and Design Document Search Index"
+    header_comment: "Project specification document search index for specs-advisor subagent"
+    metadata_name: "Project Specification Document Search Index"
 
 # === common configuration ===
 common:

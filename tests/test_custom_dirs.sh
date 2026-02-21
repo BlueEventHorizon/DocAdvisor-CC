@@ -61,8 +61,8 @@ echo "=================================================="
 rm -rf .claude .last_setup
 
 # Run setup with custom values
-# Format: rules_dir, specs_dir, requirement_dir_name, design_dir_name, plan_dir_name, agent_model
-echo -e "guidelines\ndocuments\nreqs\narch\nroadmap\nsonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Format: rules_dir, specs_dir, agent_model
+echo -e "guidelines\ndocuments\nsonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 # Verify .claude directory created
 if [[ -d ".claude" ]]; then
@@ -82,38 +82,30 @@ echo "=================================================="
 CONFIG_FILE=".claude/doc-advisor/config.yaml"
 
 if [[ -f "$CONFIG_FILE" ]]; then
-    # Check rules_dir
-    if grep -q "root_dir: guidelines" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: rules root_dir is 'guidelines'"
+    # Check rules root_dirs contains 'guidelines'
+    if grep -q "\- guidelines" "$CONFIG_FILE"; then
+        echo -e "${GREEN}PASS${NC}: rules root_dirs contains 'guidelines'"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: rules root_dir not set to 'guidelines'"
+        echo -e "${RED}FAIL${NC}: rules root_dirs does not contain 'guidelines'"
         ((FAIL_COUNT++))
     fi
 
-    # Check specs_dir
-    if grep -q "root_dir: documents" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: specs root_dir is 'documents'"
+    # Check specs root_dirs contains 'documents'
+    if grep -q "\- documents" "$CONFIG_FILE"; then
+        echo -e "${GREEN}PASS${NC}: specs root_dirs contains 'documents'"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: specs root_dir not set to 'documents'"
+        echo -e "${RED}FAIL${NC}: specs root_dirs does not contain 'documents'"
         ((FAIL_COUNT++))
     fi
 
-    # Check target_dirs
-    if grep -q "requirement: reqs" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: requirement dir is 'reqs'"
+    # Check target_glob is set (v3.8: no more target_dirs)
+    if grep -q 'target_glob:' "$CONFIG_FILE"; then
+        echo -e "${GREEN}PASS${NC}: target_glob is configured"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: requirement dir not set to 'reqs'"
-        ((FAIL_COUNT++))
-    fi
-
-    if grep -q "design: arch" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: design dir is 'arch'"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: design dir not set to 'arch'"
+        echo -e "${RED}FAIL${NC}: target_glob not found in config"
         ((FAIL_COUNT++))
     fi
 else
@@ -178,23 +170,13 @@ if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
         ((FAIL_COUNT++))
     fi
 
-    # Verify doc_type is correctly detected with custom dir names
-    # reqs/ should map to requirement
-    if grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*reqs*.yaml 2>/dev/null || \
-       grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*auth*.yaml 2>/dev/null; then
-        echo -e "${GREEN}PASS${NC}: doc_type 'requirement' detected for reqs/"
-        ((PASS_COUNT++))
+    # Verify doc_type is NOT present (removed in v3.8)
+    if grep -q "doc_type:" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null; then
+        echo -e "${RED}FAIL${NC}: doc_type should NOT be present (removed in v3.8)"
+        ((FAIL_COUNT++))
     else
-        echo -e "${YELLOW}WARN${NC}: Could not verify requirement doc_type"
-    fi
-
-    # arch/ should map to design
-    if grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*arch*.yaml 2>/dev/null || \
-       grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*api*.yaml 2>/dev/null; then
-        echo -e "${GREEN}PASS${NC}: doc_type 'design' detected for arch/"
+        echo -e "${GREEN}PASS${NC}: no doc_type field (correct for v3.8)"
         ((PASS_COUNT++))
-    else
-        echo -e "${YELLOW}WARN${NC}: Could not verify design doc_type"
     fi
 else
     echo -e "${RED}FAIL${NC}: No specs pending YAML created"
@@ -203,27 +185,31 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-5: Verify exclude with custom plan dir name"
+echo "Test 3-5: Verify exclude with config pattern"
 echo "=================================================="
 
-# Create a plan file that should be excluded
-mkdir -p documents/main/roadmap
-echo "# Test Roadmap" > documents/main/roadmap/test_plan.md
+# Create a directory that we will exclude via config
+mkdir -p documents/archive
+echo "# Archived Doc" > documents/archive/old_doc.md
+
+# Add exclude pattern to config
+sed -i '' 's|^    exclude:|    exclude:\n      - archive|' .claude/doc-advisor/config.yaml
 
 # Regenerate
+rm -rf .claude/doc-advisor/toc/specs/.toc_work
 $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || true
 
-# Check that roadmap files are NOT included
-if ls .claude/doc-advisor/toc/specs/.toc_work/*roadmap*.yaml 1>/dev/null 2>&1; then
-    echo -e "${RED}FAIL${NC}: roadmap/ files should be excluded"
+# Check that archive files are NOT included
+if ls .claude/doc-advisor/toc/specs/.toc_work/*archive*.yaml 1>/dev/null 2>&1; then
+    echo -e "${RED}FAIL${NC}: archive/ files should be excluded"
     ((FAIL_COUNT++))
 else
-    echo -e "${GREEN}PASS${NC}: roadmap/ files correctly excluded"
+    echo -e "${GREEN}PASS${NC}: archive/ files correctly excluded"
     ((PASS_COUNT++))
 fi
 
 # Cleanup
-rm -rf documents/main/roadmap
+rm -rf documents/archive
 echo ""
 
 echo "=================================================="

@@ -24,12 +24,12 @@ from toc_utils import get_project_root, load_config, should_exclude, resolve_con
 # Global configuration (initialized in init_config())
 CONFIG = None
 PROJECT_ROOT = None
-RULES_DIR = None
-RULES_DIR_NAME = None
+RULES_ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
 TOC_WORK_DIR = None
 CHECKSUMS_FILE = None
 RULES_TOC_FILE = None
 PATTERNS_CONFIG = None
+TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 
 
@@ -40,8 +40,8 @@ def init_config():
     Returns:
         bool: True on success, False on failure
     """
-    global CONFIG, PROJECT_ROOT, RULES_DIR, RULES_DIR_NAME, TOC_WORK_DIR, CHECKSUMS_FILE
-    global RULES_TOC_FILE, PATTERNS_CONFIG, EXCLUDE_PATTERNS
+    global CONFIG, PROJECT_ROOT, RULES_ROOT_DIRS, TOC_WORK_DIR, CHECKSUMS_FILE
+    global RULES_TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS
 
     try:
         CONFIG = load_config('rules')
@@ -53,12 +53,21 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    RULES_DIR_NAME = CONFIG.get('root_dir', 'rules').rstrip('/')
-    RULES_DIR = PROJECT_ROOT / RULES_DIR_NAME
-    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), RULES_DIR, PROJECT_ROOT)
-    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), RULES_DIR, PROJECT_ROOT)
-    RULES_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), RULES_DIR, PROJECT_ROOT)
+    root_dirs_config = CONFIG.get('root_dirs', ['rules/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    RULES_ROOT_DIRS = []
+    for entry in root_dirs_config:
+        name = entry.rstrip('/')
+        RULES_ROOT_DIRS.append((PROJECT_ROOT / name, name))
+
+    # Use the first root_dir as the base for resolving config paths
+    first_rules_dir = RULES_ROOT_DIRS[0][0] if RULES_ROOT_DIRS else PROJECT_ROOT / 'rules'
+    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_rules_dir, PROJECT_ROOT)
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_rules_dir, PROJECT_ROOT)
+    RULES_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), first_rules_dir, PROJECT_ROOT)
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
+    TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     EXCLUDE_PATTERNS = get_system_exclude_patterns('rules') + PATTERNS_CONFIG.get('exclude', [])
     return True
@@ -78,17 +87,22 @@ keywords: []
 
 
 def get_all_md_files():
-    """Get list of target .md files (symlink-aware)"""
+    """Get list of target .md files across all root_dirs (symlink-aware)"""
     md_files = []
-    target_glob = PATTERNS_CONFIG.get('target_glob', '**/*.md')
+    file_root_map = {}  # filepath → (root_dir, root_dir_name)
 
-    for filepath in rglob_follow_symlinks(RULES_DIR, target_glob):
-        if should_exclude(filepath, RULES_DIR, EXCLUDE_PATTERNS):
+    for root_dir, root_dir_name in RULES_ROOT_DIRS:
+        if not root_dir.exists():
+            print(f"Warning: {root_dir} does not exist, skipping")
             continue
-        md_files.append(filepath)
+        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
+            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
+                continue
+            md_files.append(filepath)
+            file_root_map[filepath] = (root_dir, root_dir_name)
 
     md_files.sort()
-    return md_files
+    return md_files, file_root_map
 
 
 def calculate_file_hash(filepath):
@@ -133,10 +147,10 @@ def load_checksums():
     return checksums
 
 
-def get_source_file_path(md_file):
-    """Get project-relative path with RULES_DIR prefix (e.g., 'rules/core/architecture_rule.md')"""
-    rel_path = normalize_path(md_file.relative_to(RULES_DIR))
-    return f"{RULES_DIR_NAME}/{rel_path}"
+def get_source_file_path(md_file, root_dir, root_dir_name):
+    """Get project-relative path with root_dir prefix (e.g., 'rules/core/architecture_rule.md')"""
+    rel_path = normalize_path(md_file.relative_to(root_dir))
+    return f"{root_dir_name}/{rel_path}"
 
 
 def get_yaml_filename(source_file):
@@ -163,7 +177,7 @@ def create_pending_yaml(source_file):
         return None
 
 
-def save_pending_checksums(all_files):
+def save_pending_checksums(all_files, file_root_map):
     """Save checksums snapshot at Phase 1 time to .toc_work/
 
     Used to replace .toc_checksums.yaml after merge (Phase 3).
@@ -172,7 +186,8 @@ def save_pending_checksums(all_files):
     """
     checksums = {}
     for md_file in all_files:
-        source_file = get_source_file_path(md_file)
+        root_dir, root_dir_name = file_root_map[md_file]
+        source_file = get_source_file_path(md_file, root_dir, root_dir_name)
         hash_value = calculate_file_hash(md_file)
         if hash_value is not None:
             checksums[source_file] = hash_value
@@ -215,7 +230,7 @@ def main():
         print(".toc_checksums.yaml not found, running in full mode")
 
     # Get target files
-    all_files = get_all_md_files()
+    all_files, file_root_map = get_all_md_files()
 
     if full_mode:
         # Full mode: process all files
@@ -225,7 +240,10 @@ def main():
     else:
         # Incremental mode: changed files only
         old_checksums = load_checksums()
-        current_files = {get_source_file_path(f): f for f in all_files}
+        current_files = {}
+        for f in all_files:
+            root_dir, root_dir_name = file_root_map[f]
+            current_files[get_source_file_path(f, root_dir, root_dir_name)] = f
 
         target_files = []
 
@@ -266,13 +284,14 @@ def main():
     TOC_WORK_DIR.mkdir(parents=True, exist_ok=True)
 
     # Save Phase 1 checksums snapshot (for all target files, not just changed ones)
-    save_pending_checksums(all_files)
+    save_pending_checksums(all_files, file_root_map)
 
     # Generate pending YAMLs
     created_files = []
     failed_count = 0
     for md_file in target_files:
-        source_file = get_source_file_path(md_file)
+        root_dir, root_dir_name = file_root_map[md_file]
+        source_file = get_source_file_path(md_file, root_dir, root_dir_name)
         yaml_path = create_pending_yaml(source_file)
         if yaml_path is None:
             failed_count += 1

@@ -35,13 +35,13 @@ from toc_utils import (
 # Global configuration (initialized in init_config())
 CONFIG = None
 PROJECT_ROOT = None
-RULES_DIR = None
-RULES_DIR_NAME = None
+RULES_ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
 TOC_WORK_DIR = None
 OUTPUT_FILE = None
 CHECKSUMS_FILE = None
 OUTPUT_CONFIG = None
 PATTERNS_CONFIG = None
+TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 
 
@@ -52,8 +52,8 @@ def init_config():
     Returns:
         bool: True on success, False on failure
     """
-    global CONFIG, PROJECT_ROOT, RULES_DIR, RULES_DIR_NAME, TOC_WORK_DIR, OUTPUT_FILE
-    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, EXCLUDE_PATTERNS
+    global CONFIG, PROJECT_ROOT, RULES_ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
+    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS
 
     try:
         CONFIG = load_config('rules')
@@ -65,13 +65,21 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    RULES_DIR_NAME = CONFIG.get('root_dir', 'rules').rstrip('/')
-    RULES_DIR = PROJECT_ROOT / RULES_DIR_NAME
-    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), RULES_DIR, PROJECT_ROOT)
-    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), RULES_DIR, PROJECT_ROOT)
-    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), RULES_DIR, PROJECT_ROOT)
+    root_dirs_config = CONFIG.get('root_dirs', ['rules/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    RULES_ROOT_DIRS = []
+    for entry in root_dirs_config:
+        name = entry.rstrip('/')
+        RULES_ROOT_DIRS.append((PROJECT_ROOT / name, name))
+
+    first_rules_dir = RULES_ROOT_DIRS[0][0] if RULES_ROOT_DIRS else PROJECT_ROOT / 'rules'
+    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_rules_dir, PROJECT_ROOT)
+    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), first_rules_dir, PROJECT_ROOT)
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_rules_dir, PROJECT_ROOT)
     OUTPUT_CONFIG = CONFIG.get('output', {})
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
+    TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     EXCLUDE_PATTERNS = get_system_exclude_patterns('rules') + PATTERNS_CONFIG.get('exclude', [])
     return True
@@ -140,16 +148,17 @@ def load_existing_toc(toc_path):
 
 
 def get_existing_files():
-    """Get list of currently existing files with RULES_DIR prefix (symlink-aware)"""
+    """Get list of currently existing files across all root_dirs (symlink-aware)"""
     files = set()
-    target_glob = PATTERNS_CONFIG.get('target_glob', '**/*.md')
-    for filepath in rglob_follow_symlinks(RULES_DIR, target_glob):
-        if should_exclude(filepath, RULES_DIR, EXCLUDE_PATTERNS):
+    for root_dir, root_dir_name in RULES_ROOT_DIRS:
+        if not root_dir.exists():
             continue
-        rel_path = normalize_path(filepath.relative_to(RULES_DIR))
-        # Include RULES_DIR prefix for project-relative path
-        prefixed_path = f"{RULES_DIR_NAME}/{rel_path}"
-        files.add(prefixed_path)
+        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
+            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
+                continue
+            rel_path = normalize_path(filepath.relative_to(root_dir))
+            prefixed_path = f"{root_dir_name}/{rel_path}"
+            files.add(prefixed_path)
     return files
 
 

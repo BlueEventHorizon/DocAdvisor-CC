@@ -44,8 +44,8 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
-# Pass explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Pass explicit values: rules, specs, agent_model
+echo -e "rules\nspecs\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
@@ -156,7 +156,7 @@ test_result "write_rules_pending insufficient keywords" "3" "$EXIT_CODE"
 echo ""
 
 echo "=================================================="
-echo "Test 2-4: write_specs_pending.py - Normal case with doc_type"
+echo "Test 2-4: write_specs_pending.py - Normal case"
 echo "=================================================="
 
 # Reset pending file
@@ -175,13 +175,13 @@ $PYTHON_CMD "$WRITE_SPECS" \
 
 test_result "write_specs_pending normal" "0" "$EXIT_CODE"
 
-# Verify doc_type is preserved
+# Verify doc_type is NOT present (removed in v3.8)
 if grep -q "doc_type:" "$SPECS_PENDING"; then
-    echo -e "${GREEN}PASS${NC}: doc_type field preserved"
-    ((PASS_COUNT++))
-else
-    echo -e "${RED}FAIL${NC}: doc_type field not found"
+    echo -e "${RED}FAIL${NC}: doc_type field should NOT be present (removed in v3.8)"
     ((FAIL_COUNT++))
+else
+    echo -e "${GREEN}PASS${NC}: no doc_type field (correct for v3.8)"
+    ((PASS_COUNT++))
 fi
 echo ""
 

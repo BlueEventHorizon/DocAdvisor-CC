@@ -4,7 +4,7 @@ description: specs_toc.yaml update workflow (individual entry file method)
 applicable_when:
   - Running as specs-toc-updater Agent
   - Executing /create-specs-toc
-  - After adding, modifying, or deleting requirement/design documents
+  - After adding, modifying, or deleting specification documents
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
@@ -12,13 +12,13 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 ## Overview
 
-Workflow for updating `.claude/doc-advisor/toc/specs/specs_toc.yaml`. Uses **individual entry file method** with interruption tolerance, processing each requirement/design document in parallel.
+Workflow for updating `.claude/doc-advisor/toc/specs/specs_toc.yaml`. Uses **individual entry file method** with interruption tolerance, processing each specification document in parallel.
 
 ## Architecture
 
 ### Design Philosophy
 
-1. **1 file = 1 subagent**: Process each requirement/design document individually
+1. **1 file = 1 subagent**: Process each specification document individually
 2. **Persistent artifacts**: Each subagent's output remains as a file
 3. **Resumable**: Completed work is preserved on interruption, resume from incomplete
 4. **Single Source of Truth**: Format definition consolidated in `specs_toc_format.md`
@@ -30,8 +30,8 @@ Workflow for updating `.claude/doc-advisor/toc/specs/specs_toc.yaml`. Uses **ind
 ├── specs_toc.yaml              # Final artifact (after merge)
 ├── .toc_checksums.yaml         # Change detection checksums
 └── .toc_work/                  # Work directory (.gitignore target)
-    ├── {{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_app_overview.yaml
-    ├── {{SPECS_DIR}}_main_{{DESIGN_DIR_NAME}}_list_screen_design.yaml
+    ├── {{SPECS_DIR}}_requirements_app_overview.yaml
+    ├── {{SPECS_DIR}}_design_list_screen_design.yaml
     └── ... (for each target file)
 ```
 
@@ -39,7 +39,7 @@ Workflow for updating `.claude/doc-advisor/toc/specs/specs_toc.yaml`. Uses **ind
 
 ## Key Principles [MANDATORY]
 
-- **Format definition**: Follow `specs_toc_format.md` (includes intermediate file schema, doc_type determination rules)
+- **Format definition**: Follow `specs_toc_format.md` (includes intermediate file schema)
 - **All fields required**: Fill all fields in format definition. **No omissions**
 - **Keyword extraction**: Actually read each file and extract keywords from content (5-10 words)
 - **YAML syntax**: Use indentation, colons, and hyphens correctly
@@ -94,8 +94,7 @@ test -d .claude/doc-advisor/toc/specs/.toc_work && echo "EXISTS" || echo "NOT_EX
 1. Create `.toc_work/` directory
 2. Get target files with Glob:
    ```
-   {{SPECS_DIR}}/{feature}/{{REQUIREMENT_DIR_NAME}}/**/*.md
-   {{SPECS_DIR}}/{feature}/{{DESIGN_DIR_NAME}}/**/*.md
+   {{SPECS_DIR}}/**/*.md
    ```
 3. Generate pending YAML template for each file
 
@@ -127,9 +126,8 @@ test -d .claude/doc-advisor/toc/specs/.toc_work && echo "EXISTS" || echo "NOT_EX
 ### Subagent Processing
 
 1. Read target YAML (get `_meta.source_file`)
-2. Read requirement/design document file
+2. Read specification document file
 3. Extract and set fields according to format definition:
-   - `doc_type`: Use `_meta.doc_type` value
    - `title`: Extract from H1
    - `purpose`: Summarize in 1-2 lines
    - `content_details`: Content details (5-10 items)
@@ -162,7 +160,7 @@ Output warning if incomplete (processing continues)
 1. Read all `.claude/doc-advisor/toc/specs/.toc_work/*.yaml`
 2. Aggregate into `docs` section (key: file path with `{{SPECS_DIR}}/` prefix)
 3. Set metadata:
-   - `name`: "Requirement & Design Document Search Index"
+   - `name`: "Project Specification Document Search Index"
    - `generated_at`: Current time (ISO 8601 format)
    - `file_count`: Total count
 4. Write to `.claude/doc-advisor/toc/specs/specs_toc.yaml`
@@ -187,8 +185,8 @@ rm -rf .claude/doc-advisor/toc/specs/.toc_work
 
 ## Pending YAML Template Generation
 
-- Input: File path (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md`)
-- Output: `.claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_app_overview.yaml`
+- Input: File path (e.g., `{{SPECS_DIR}}/requirements/app_overview.md`)
+- Output: `.claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_requirements_app_overview.yaml`
 
 Filename conversion rule: `/` → `_`, `.md` → `.yaml` (including `{{SPECS_DIR}}/` prefix)
 
@@ -204,7 +202,7 @@ Check before merge:
 
 2. **Required field check**:
    - metadata: name, generated_at, file_count
-   - docs: Each entry has doc_type, title, purpose, content_details, applicable_tasks, keywords
+   - docs: Each entry has title, purpose, content_details, applicable_tasks, keywords
 
 3. **File existence check**:
    - All files listed in docs actually exist
@@ -232,8 +230,8 @@ Check before merge:
 
 After generation/update, verify:
 
-- [ ] All {{REQUIREMENT_DIR_NAME}}/ and {{DESIGN_DIR_NAME}}/ files are listed
-- [ ] Each entry has required fields (doc_type, title, purpose, content_details, applicable_tasks, keywords, references)
+- [ ] All specification document files are listed
+- [ ] Each entry has required fields (title, purpose, content_details, applicable_tasks, keywords, references)
 - [ ] purpose contains "what it defines" (1-2 lines)
 - [ ] keywords contain task-matchable terms (5-10 words)
 - [ ] YAML syntax is correct (indentation, colons, hyphens)

@@ -50,7 +50,10 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    RULES_DIR = PROJECT_ROOT / CONFIG.get('root_dir', 'rules').rstrip('/')
+    root_dirs_config = CONFIG.get('root_dirs', ['rules/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    RULES_DIR = PROJECT_ROOT / root_dirs_config[0].rstrip('/')
     DEFAULT_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), RULES_DIR, PROJECT_ROOT)
     return True
 

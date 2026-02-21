@@ -17,7 +17,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_default_target_dirs, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path
 
 
 def calculate_file_hash(filepath):
@@ -47,18 +47,11 @@ def find_md_files_rules(root_dir, exclude_patterns):
     return sorted(md_files)
 
 
-def find_md_files_specs(root_dir, exclude_patterns, target_dir_names):
-    """specs/ 配下の対象ディレクトリの .md ファイルを検索（シンボリックリンク対応）"""
+def find_md_files_specs(root_dir, exclude_patterns, target_glob):
+    """specs/ 配下の .md ファイルを検索（シンボリックリンク対応）"""
     md_files = []
-    for filepath in rglob_follow_symlinks(root_dir, "**/*.md"):
-        if should_exclude(filepath, root_dir, exclude_patterns):
-            continue
-        # パスのどこかに target_dirs のディレクトリ名が含まれるかチェック
-        # e.g., main/requirements/app.md → ['main', 'requirements', 'app.md']
-        #       → 'requirements' in target_dir_names → True
-        rel_path = normalize_path(filepath.relative_to(root_dir))
-        parts = rel_path.split('/')
-        if any(part in target_dir_names for part in parts):
+    for filepath in rglob_follow_symlinks(root_dir, target_glob):
+        if not should_exclude(filepath, root_dir, exclude_patterns):
             md_files.append(filepath)
     return sorted(md_files)
 
@@ -120,31 +113,40 @@ def main():
         print(f"エラー: {e}")
         return 1
 
-    root_dir_name = config.get('root_dir', f'{target}').rstrip('/')
-    root_dir = project_root / root_dir_name
-    output_file = resolve_config_path(config.get('checksums_file', '.toc_checksums.yaml'), root_dir, project_root)
+    root_dirs_config = config.get('root_dirs', [f'{target}/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    output_file = resolve_config_path(config.get('checksums_file', '.toc_checksums.yaml'),
+                                       project_root / root_dirs_config[0].rstrip('/'), project_root)
     patterns_config = config.get('patterns', {})
+    target_glob = patterns_config.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     exclude_patterns = get_system_exclude_patterns(target) + patterns_config.get('exclude', [])
 
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    if not root_dir.exists():
-        print(f"エラー: {root_dir} が存在しません")
-        return 1
+    # 対象ファイル検索（複数 root_dirs 対応）
+    md_files = []
+    root_dir_map = {}  # filepath → (root_dir, root_dir_name)
+    for root_dir_entry in root_dirs_config:
+        root_dir_name = root_dir_entry.rstrip('/')
+        root_dir = project_root / root_dir_name
+        if not root_dir.exists():
+            print(f"警告: {root_dir} が存在しません、スキップします")
+            continue
+        if target == 'rules':
+            files = find_md_files_rules(root_dir, exclude_patterns)
+        else:
+            files = find_md_files_specs(root_dir, exclude_patterns, target_glob)
+        for f in files:
+            root_dir_map[f] = (root_dir, root_dir_name)
+        md_files.extend(files)
 
-    # 対象ファイル検索
-    if target == 'rules':
-        md_files = find_md_files_rules(root_dir, exclude_patterns)
-    else:
-        # target_dirs はマッピング形式: {doc_type: dir_name}
-        target_dirs_map = patterns_config.get('target_dirs', get_default_target_dirs())
-        target_dir_names = list(target_dirs_map.values())  # ['requirements', 'design']
-        md_files = find_md_files_specs(root_dir, exclude_patterns, target_dir_names)
+    md_files.sort()
 
     if not md_files:
-        print(f"エラー: {root_dir} に .md ファイルが見つかりません")
+        print(f"エラー: 対象ディレクトリに .md ファイルが見つかりません")
         return 1
 
     print(f"対象ファイル: {len(md_files)} 件")
@@ -153,8 +155,9 @@ def main():
     checksums = {}
     skipped_count = 0
     for filepath in md_files:
+        root_dir, root_dir_name = root_dir_map[filepath]
         rel_path = normalize_path(filepath.relative_to(root_dir))
-        # Include root_dir prefix for project-relative path (e.g., "rules/core/..." or "specs/main/...")
+        # Include root_dir prefix for project-relative path (e.g., "rules/core/..." or "specs/requirements/...")
         prefixed_path = f"{root_dir_name}/{rel_path}"
         hash_value = calculate_file_hash(filepath)
         if hash_value is None:

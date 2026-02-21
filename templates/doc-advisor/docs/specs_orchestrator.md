@@ -78,7 +78,7 @@ Read the following before processing:
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
-3. Select up to 5 files and launch subagents in parallel
+3. Read common.parallel.max_workers from config.yaml, then launch up to that many subagents in parallel
     Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{filename}.yaml")
     ↓
 4. Wait for completion
@@ -125,9 +125,8 @@ Use the script to generate `.claude/doc-advisor/toc/specs/.toc_work/{filename}.y
 
 The script handles:
 1. File discovery and change detection (SHA-256 hash comparison)
-2. doc_type determination from path (`{{REQUIREMENT_DIR_NAME}}/` → `requirement`, `{{DESIGN_DIR_NAME}}/` → `design`)
-3. Filename conversion (e.g., `{{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/login.md` → `{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_login.yaml`)
-4. Template generation with pending status
+2. Filename conversion (e.g., `{{SPECS_DIR}}/requirements/login.md` → `{{SPECS_DIR}}_requirements_login.yaml`)
+3. Template generation with pending status
 
 **Template format**: See "Intermediate File Schema" section in `.claude/doc-advisor/docs/specs_toc_format.md`
 
@@ -156,11 +155,11 @@ test -f .claude/doc-advisor/toc/specs/.toc_checksums.yaml && echo "EXISTS" || ec
 ### Step 2: Get Current File List and Hashes
 
 ```bash
-# Target file list ({{REQUIREMENT_DIR_NAME}}/ and {{DESIGN_DIR_NAME}}/ subdirectories only)
-find {{SPECS_DIR}} \( -path "*/{{REQUIREMENT_DIR_NAME}}/*.md" -o -path "*/{{DESIGN_DIR_NAME}}/*.md" \) | grep -v ".toc_work" | grep -v "reference" | grep -v "/info/" | sort
+# Target file list
+find {{SPECS_DIR}} -name "*.md" | grep -v ".toc_work" | sort
 
 # Calculate hash for each file
-shasum -a 256 {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/app_overview.md | cut -d' ' -f1
+shasum -a 256 {{SPECS_DIR}}/requirements/app_overview.md | cut -d' ' -f1
 ```
 
 ### Step 3: Compare Checksums
@@ -207,11 +206,11 @@ End processing (no need to create .claude/doc-advisor/toc/specs/.toc_work/)
 
 ```
 # Launch 5 in parallel
-Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_login.yaml")
-Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_main_{{REQUIREMENT_DIR_NAME}}_user_profile.yaml")
-Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_main_{{DESIGN_DIR_NAME}}_login_screen.yaml")
-Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_main_{{DESIGN_DIR_NAME}}_api_design.yaml")
-Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_auth_{{REQUIREMENT_DIR_NAME}}_oauth.yaml")
+Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_requirements_login.yaml")
+Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_requirements_user_profile.yaml")
+Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_design_login_screen.yaml")
+Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_design_api_design.yaml")
+Task(subagent_type: specs-toc-updater, prompt: "entry_file: .claude/doc-advisor/toc/specs/.toc_work/{{SPECS_DIR}}_requirements_oauth.yaml")
 ```
 
 ---
@@ -306,7 +305,7 @@ Edit: add "error_message: {error details from subagent}"
 # Example of error status YAML (after Edit)
 _meta:
   status: error
-  source_file: {{SPECS_DIR}}/main/{{REQUIREMENT_DIR_NAME}}/screens/login_screen.md
+  source_file: {{SPECS_DIR}}/requirements/screens/login_screen.md
   error_message: "Subagent processing failed: File read error"
 ```
 

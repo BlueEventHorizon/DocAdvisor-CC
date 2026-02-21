@@ -24,10 +24,6 @@ LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 # Default values (no trailing slash)
 DEFAULT_RULES_DIR="rules"
 DEFAULT_SPECS_DIR="specs"
-# Subdirectory names for specs (doc_type mapping)
-DEFAULT_REQUIREMENT_DIR_NAME="requirements"
-DEFAULT_DESIGN_DIR_NAME="design"
-DEFAULT_PLAN_DIR_NAME="plan"
 # Agent model (opus, sonnet, haiku, inherit)
 DEFAULT_AGENT_MODEL="opus"
 
@@ -38,9 +34,6 @@ if [[ -f "$LAST_SETUP_FILE" ]]; then
     DEFAULT_TARGET_DIR="${LAST_TARGET_DIR:-}"
     DEFAULT_RULES_DIR="${LAST_RULES_DIR:-$DEFAULT_RULES_DIR}"
     DEFAULT_SPECS_DIR="${LAST_SPECS_DIR:-$DEFAULT_SPECS_DIR}"
-    DEFAULT_REQUIREMENT_DIR_NAME="${LAST_REQUIREMENT_DIR_NAME:-$DEFAULT_REQUIREMENT_DIR_NAME}"
-    DEFAULT_DESIGN_DIR_NAME="${LAST_DESIGN_DIR_NAME:-$DEFAULT_DESIGN_DIR_NAME}"
-    DEFAULT_PLAN_DIR_NAME="${LAST_PLAN_DIR_NAME:-$DEFAULT_PLAN_DIR_NAME}"
     DEFAULT_AGENT_MODEL="${LAST_AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
 fi
 
@@ -101,8 +94,8 @@ if [[ -z "$TARGET_DIR" ]]; then
     fi
 fi
 
-# Expand ~ and relative paths
-TARGET_DIR="$(eval echo "$TARGET_DIR")"
+# Expand ~ to $HOME (safe alternative to eval)
+TARGET_DIR="${TARGET_DIR/#\~/$HOME}"
 TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || {
     echo "Error: Directory does not exist: $TARGET_DIR"
     exit 1
@@ -125,18 +118,6 @@ RULES_DIR="${RULES_DIR:-$DEFAULT_RULES_DIR}"
 
 read -p "Specs directory [${DEFAULT_SPECS_DIR}]: " SPECS_DIR
 SPECS_DIR="${SPECS_DIR:-$DEFAULT_SPECS_DIR}"
-
-echo ""
-echo "Configure subdirectory names for specs:"
-
-read -p "  Requirements directory name [${DEFAULT_REQUIREMENT_DIR_NAME}]: " REQUIREMENT_DIR_NAME
-REQUIREMENT_DIR_NAME="${REQUIREMENT_DIR_NAME:-$DEFAULT_REQUIREMENT_DIR_NAME}"
-
-read -p "  Design directory name [${DEFAULT_DESIGN_DIR_NAME}]: " DESIGN_DIR_NAME
-DESIGN_DIR_NAME="${DESIGN_DIR_NAME:-$DEFAULT_DESIGN_DIR_NAME}"
-
-read -p "  Plan directory name [${DEFAULT_PLAN_DIR_NAME}]: " PLAN_DIR_NAME
-PLAN_DIR_NAME="${PLAN_DIR_NAME:-$DEFAULT_PLAN_DIR_NAME}"
 
 echo ""
 echo "Configure agent model (opus, sonnet, haiku, inherit):"
@@ -175,9 +156,6 @@ echo ""
 echo "Configuration:"
 echo -e "  RULES_DIR: ${BLUE}${RULES_DIR}${NC}"
 echo -e "  SPECS_DIR: ${BLUE}${SPECS_DIR}${NC}"
-echo -e "  REQUIREMENT_DIR_NAME: ${BLUE}${REQUIREMENT_DIR_NAME}${NC}"
-echo -e "  DESIGN_DIR_NAME: ${BLUE}${DESIGN_DIR_NAME}${NC}"
-echo -e "  PLAN_DIR_NAME: ${BLUE}${PLAN_DIR_NAME}${NC}"
 echo -e "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}"
 echo -e "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}"
 if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
@@ -194,7 +172,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="3.6"
+DOC_ADVISOR_VERSION="3.8"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -315,9 +293,6 @@ copy_and_substitute() {
         # Perform variable substitution
         sed -e "s|{{RULES_DIR}}|${RULES_DIR}|g" \
             -e "s|{{SPECS_DIR}}|${SPECS_DIR}|g" \
-            -e "s|{{REQUIREMENT_DIR_NAME}}|${REQUIREMENT_DIR_NAME}|g" \
-            -e "s|{{DESIGN_DIR_NAME}}|${DESIGN_DIR_NAME}|g" \
-            -e "s|{{PLAN_DIR_NAME}}|${PLAN_DIR_NAME}|g" \
             -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
             -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
             -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
@@ -493,7 +468,7 @@ else
     else
         echo -e "  Target: ${BLUE}${TARGET_CLAUDE_MD}${NC} (create new)"
     fi
-    read -p "  Add Doc Advisor rules to CLAUDE.md? [y/N]: " CLAUDE_MD_CHOICE
+    read -p "  Add Doc Advisor rules to CLAUDE.md? [y/N]: " CLAUDE_MD_CHOICE || true
     CLAUDE_MD_CHOICE="${CLAUDE_MD_CHOICE:-n}"
 
     case "$CLAUDE_MD_CHOICE" in
@@ -526,9 +501,6 @@ cat > "$LAST_SETUP_FILE" << EOF
 LAST_TARGET_DIR="${TARGET_DIR}"
 LAST_RULES_DIR="${RULES_DIR}"
 LAST_SPECS_DIR="${SPECS_DIR}"
-LAST_REQUIREMENT_DIR_NAME="${REQUIREMENT_DIR_NAME}"
-LAST_DESIGN_DIR_NAME="${DESIGN_DIR_NAME}"
-LAST_PLAN_DIR_NAME="${PLAN_DIR_NAME}"
 LAST_AGENT_MODEL="${AGENT_MODEL}"
 EOF
 
