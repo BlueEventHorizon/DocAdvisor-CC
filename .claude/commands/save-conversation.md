@@ -1,0 +1,205 @@
+---
+description: 対話履歴の保存
+---
+
+# 対話履歴の保存
+
+検討してきた内容、対話した内容を記録する。
+
+| ファイル | 内容 |
+|----------|------|
+| `meta/history/CONVERSATION_HISTORY.md` | 詳細な対話履歴 |
+| `meta/history/CRITICAL_LESSON.md` | 重要な教訓（サマリー） |
+
+---
+
+## ファイル構成
+
+```
+meta/history/
+├── CONVERSATION_HISTORY.md
+├── CRITICAL_LESSON.md
+└── archive/
+    ├── CONVERSATION_HISTORY_YYYYMMDD.md
+    └── CRITICAL_LESSON_YYYYMMDD.md
+```
+
+---
+
+## 運用ルール
+
+| 項目 | 基準 |
+|------|------|
+| 各ファイル | 1500行目安 |
+| 1500行超過時 | 古い履歴をarchive/に移動（日付付きファイル名） |
+
+---
+
+## 重要度ランク（5段階）
+
+| ランク | 基準 | CRITICAL_LESSON |
+|--------|------|-----------------|
+| ★★★★★ | アーキテクチャルール変更、重大バグ修正、Claudeの誤りパターン | 記録する |
+| ★★★★☆ | 設計判断の重要な変更 | 記録する |
+| ★★★☆☆ | 要件変更の経緯 | - |
+| ★★☆☆☆ | 実装進捗の詳細 | - |
+| ★☆☆☆☆ | 作業ログ | - |
+
+---
+
+## 実行手順
+
+1. `meta/history/CONVERSATION_HISTORY.md` を読み込む
+2. 今回の対話内容を「CONVERSATION_HISTORY.md > ファイル構造」に従って追記
+3. 行数を確認（1500行超過ならアーカイブ処理）
+4. `meta/history/CRITICAL_LESSON.md` を読み込む
+5. ★★★★☆ 以上の教訓があれば「CRITICAL_LESSON.md > ファイル構造」に従って追記・更新
+6. 行数を確認（1500行超過ならアーカイブ処理）
+7. 両ファイルを保存
+
+---
+
+## アーカイブ手順（1500行超過時）
+
+### CONVERSATION_HISTORY.md
+
+1. 古い履歴を `archive/CONVERSATION_HISTORY_YYYYMMDD.md` に移動
+2. アーカイブファイルの先頭に概要を自動生成して追加
+3. 元ファイルの「アーカイブ」セクションにファイル名を追記
+
+#### アーカイブファイルの構造
+
+```markdown
+# CONVERSATION_HISTORY_YYYYMMDD.md
+
+## 概要
+- 期間: YYYY-MM-DD 〜 YYYY-MM-DD
+- セッション数: N
+- 主なトピック: トピック1、トピック2
+- 重要な決定: 決定事項1、決定事項2
+
+---
+
+（以下、元の詳細履歴）
+```
+
+### CRITICAL_LESSON.md
+
+1. 古い履歴を `archive/CRITICAL_LESSON_YYYYMMDD.md` に移動
+2. 元ファイルの「アーカイブ」セクションにファイル名を追記
+
+---
+
+## CONVERSATION_HISTORY.md
+
+### 記録すべき内容
+
+| 記録する | 記録しない |
+|---------|-----------|
+| 設計判断とその理由 | 単純な作業ログ |
+| バグの根本原因と修正 | タスク完了報告（{feature}_plan.mdで管理）|
+| ルール追加/変更の経緯 | コードの詳細（コード自体を見ればわかる）|
+| ユーザーからの重要な指摘 | 一時的なエラー対応 |
+| Claudeの誤りパターン | |
+
+### 書き方のルール [MANDATORY]
+
+※ このルールはCONVERSATION_HISTORY.md、CRITICAL_LESSON.md両方に適用
+
+#### 1. 対象を必ず明示する
+
+**悪い例**:
+```markdown
+- キーワードインデックス削除
+- タスク粒度を合わせる
+```
+
+**良い例**:
+```markdown
+- **rules/rules_toc.yaml内「キーワードインデックス」セクション**: 削除
+- **rules/rules_toc.yaml内「タスク別リファレンス」**: {feature}_plan.mdの粒度に合わせる
+```
+
+#### 2. 対象の種類
+
+| 対象 | 書き方 |
+|------|--------|
+| ファイル全体 | `**rules/rules_toc.yaml**:` |
+| ファイル内セクション | `**rules/rules_toc.yaml内「セクション名」**:` |
+| コード | `**Domain/Service/XxxService.swift**:` またはコードブロック内にコメント |
+| ユーザー発言 | `#### ユーザー指摘（原文）` + 引用ブロック |
+
+#### 3. ユーザー指摘は原文を引用
+
+```markdown
+#### ユーザー指摘（原文）
+> 「Serviceにget関数はいらない。バグの素」
+> 「ServiceはStreamで通知すべき」
+```
+
+#### 4. コード例にはファイルパスを記載
+
+```swift
+// Domain/Service/FooService.swift
+private let fooRepository: FooRepositoryType  // Protocol経由でDI注入
+```
+
+### ファイル構造
+
+```markdown
+# 対話履歴
+
+このファイルは、プロジェクトにおける重要な設計判断や検討内容の履歴を記録します。
+
+## 詳細履歴
+
+### YYYY-MM-DD: タイトル [★★★★★]
+
+#### 問題
+[何が問題だったか]
+
+#### ユーザー指摘（原文）
+> 「引用」
+
+#### 結論
+[最終的にどうしたか]
+
+#### 変更内容
+- **対象ファイル/セクション**: 変更内容
+
+## アーカイブ
+
+詳細な履歴は `archive/` ディレクトリを参照:
+- `CONVERSATION_HISTORY_YYYYMMDD.md`
+```
+
+---
+
+## CRITICAL_LESSON.md
+
+### 目的
+
+- 繰り返し発生しやすい重要な教訓を集約
+- 新しいセッション開始時に参照できるようにする
+- ★★★★☆ 以上の教訓を抽出して記録
+
+### ファイル構造
+
+```markdown
+# 重要な教訓（サマリー）
+
+このファイルは、プロジェクトで学んだ重要な教訓を記録します。
+新しいセッション開始時に必ず参照してください。
+
+### タイトル [★★★★★]
+
+- **教訓: 一言で表現**
+  - 対象: 影響範囲（ファイル、システム等）
+  - 理由: なぜこれが重要か
+  - 正解: 正しいアプローチ
+
+## アーカイブ
+
+詳細な履歴は `archive/` ディレクトリを参照:
+- `CRITICAL_LESSON_YYYYMMDD.md`
+```
