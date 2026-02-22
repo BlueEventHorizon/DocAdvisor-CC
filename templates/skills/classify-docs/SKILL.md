@@ -73,25 +73,18 @@ Ask the user:
 
 ### Step 4: Update config.yaml
 
-After user confirmation, update `.claude/doc-advisor/config.yaml`:
+After user confirmation, run the set_root_dirs script with the confirmed directories:
 
-For each confirmed rules directory, add to `rules.root_dirs`:
-```yaml
-rules:
-  root_dirs:
-    - rules/
-    - guidelines/
+```bash
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/set_root_dirs.py --rules "dir1,dir2" --specs "dir3,dir4"
 ```
 
-For each confirmed specs directory, add to `specs.root_dirs`:
-```yaml
-specs:
-  root_dirs:
-    - specs/
-    - design/
+Example:
+```bash
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/set_root_dirs.py --rules "rules,guidelines" --specs "specs,design"
 ```
 
-Use the Edit tool to update the `root_dirs` arrays in config.yaml.
+This updates `root_dirs` in `.claude/doc-advisor/config.yaml` for both rules and specs sections.
 
 ### Step 5: Summary
 

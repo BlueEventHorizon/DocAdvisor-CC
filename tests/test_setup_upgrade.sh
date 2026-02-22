@@ -426,6 +426,63 @@ test_result "specs root_dirs auto-classified" "1" "$SPECS_SET"
 echo ""
 
 # ==================================================
+echo "=================================================="
+echo "Test 17: setup_dirs.sh user confirmation (accept)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup with explicit 'y' for dir confirmation
+echo -e "opus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: root_dirs is set (same as auto-classify)
+RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- rules" || echo 0)
+SPECS_SET=$(grep -A2 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- specs" || echo 0)
+test_result "rules root_dirs set (confirmed)" "1" "$RULES_SET"
+test_result "specs root_dirs set (confirmed)" "1" "$SPECS_SET"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 18: setup_dirs.sh manual directory input"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup with 'n' to reject auto-detect, then manual input
+echo -e "opus\nn\ncustom_rules\ncustom_specs" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: manual directories applied
+RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "custom_rules" || echo 0)
+SPECS_SET=$(grep -A2 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "custom_specs" || echo 0)
+test_result "Manual rules dir set" "1" "$RULES_SET"
+test_result "Manual specs dir set" "1" "$SPECS_SET"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 19: set_root_dirs.py standalone (with markers)"
+echo "=================================================="
+
+setup_test_project
+
+# First install (creates config.yaml with markers replaced)
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Restore config.yaml with markers to test set_root_dirs.py independently
+cp "$PROJECT_ROOT/templates/doc-advisor/config.yaml" "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Run set_root_dirs.py standalone
+(cd "$TEST_PROJECT" && python3 .claude/doc-advisor/scripts/set_root_dirs.py --rules "my_rules,my_guidelines" --specs "my_specs") > /dev/null 2>&1
+
+# Verify: standalone set_root_dirs applied
+RULES_SET=$(grep -A3 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "my_rules" || echo 0)
+SPECS_SET=$(grep -A3 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "my_specs" || echo 0)
+test_result "set_root_dirs rules" "1" "$RULES_SET"
+test_result "set_root_dirs specs" "1" "$SPECS_SET"
+echo ""
+
+# ==================================================
 # Cleanup
 cleanup
 

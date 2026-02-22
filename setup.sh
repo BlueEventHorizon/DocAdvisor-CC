@@ -452,19 +452,10 @@ echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"
 
 # =============================================================================
-# Auto-classify document directories
+# Document directory setup
 # =============================================================================
 if [[ $SKIP_CONFIG -ne 1 ]]; then
-    echo ""
-    echo "Detecting document directories..."
-    echo ""
-    CLASSIFY_OUTPUT=$( (cd "$TARGET_DIR" && "$PYTHON_CMD" .claude/doc-advisor/scripts/classify_dirs.py --apply) 2>&1 )
-    CLASSIFY_EXIT=$?
-    if [[ $CLASSIFY_EXIT -eq 0 ]] && [[ -n "$CLASSIFY_OUTPUT" ]]; then
-        echo "$CLASSIFY_OUTPUT"
-    else
-        echo -e "${YELLOW}  Auto-detection skipped. Run /classify-docs in Claude Code to configure.${NC}"
-    fi
+    bash "$(dirname "$0")/setup_dirs.sh" "$TARGET_DIR" "$PYTHON_CMD"
 else
     echo ""
     echo -e "${BLUE}  Document directory detection skipped (config preserved).${NC}"

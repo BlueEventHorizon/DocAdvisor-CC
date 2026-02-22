@@ -10,13 +10,16 @@ rules or specs using front matter doc_type and term ranking.
 Usage:
     python3 .claude/doc-advisor/scripts/classify_dirs.py
     python3 .claude/doc-advisor/scripts/classify_dirs.py --update
-    python3 .claude/doc-advisor/scripts/classify_dirs.py --apply
+    python3 .claude/doc-advisor/scripts/classify_dirs.py --format dirs
+    python3 .claude/doc-advisor/scripts/classify_dirs.py --format summary
 
 Options:
-    --update    Only process directories not already in config.yaml root_dirs
-    --apply     Apply classification to config.yaml and print human-readable summary
+    --update          Only process directories not already in config.yaml root_dirs
+    --format yaml     YAML classification result (default, for /classify-docs skill)
+    --format dirs     Bash-parseable directory list (RULES=..., SPECS=...)
+    --format summary  Human-readable summary (for terminal display)
 
-Output: YAML classification result to stdout (default), or summary text (--apply)
+Output: Classification result to stdout in the specified format
 
 Run from: Project root
 """
@@ -69,8 +72,9 @@ def parse_args():
     )
     parser.add_argument('--update', action='store_true',
                         help='Only process directories not already in config.yaml')
-    parser.add_argument('--apply', action='store_true',
-                        help='Apply classification to config.yaml and print summary')
+    parser.add_argument('--format', choices=['yaml', 'dirs', 'summary'],
+                        default='yaml',
+                        help='Output format: yaml (default), dirs (bash-parseable), summary (human-readable)')
     return parser.parse_args()
 
 
@@ -479,40 +483,12 @@ def output_summary(classification):
         print("  No document directories detected.")
 
 
-def format_root_dirs_yaml(dirs):
-    """Format directory list as YAML root_dirs value"""
-    if not dirs:
-        return 'root_dirs: []'
-    lines = ['root_dirs:']
-    for d in dirs:
-        lines.append(f'    - {d}')
-    return '\n'.join(lines)
-
-
-def apply_to_config(classification):
-    """
-    Update config.yaml root_dirs with classification results.
-
-    Replaces 'root_dirs: []    # Auto-classified by /classify-docs' patterns
-    in order: first occurrence for rules, second for specs.
-    """
-    config_path = Path(get_project_root()) / '.claude' / 'doc-advisor' / 'config.yaml'
-
-    with open(config_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    rules_dirs = [e['dir'].rstrip('/') for e in classification.get('rules', [])]
-    specs_dirs = [e['dir'].rstrip('/') for e in classification.get('specs', [])]
-
-    marker = 'root_dirs: []    # Auto-classified by /classify-docs'
-
-    # First replacement: rules section
-    content = content.replace(marker, format_root_dirs_yaml(rules_dirs), 1)
-    # Second replacement: specs section
-    content = content.replace(marker, format_root_dirs_yaml(specs_dirs), 1)
-
-    with open(config_path, 'w', encoding='utf-8') as f:
-        f.write(content)
+def output_dirs(classification):
+    """Output bash-parseable directory list (RULES=..., SPECS=...)"""
+    rules = ','.join(e['dir'].rstrip('/') for e in classification.get('rules', []))
+    specs = ','.join(e['dir'].rstrip('/') for e in classification.get('specs', []))
+    print(f"RULES={rules}")
+    print(f"SPECS={specs}")
 
 
 def main():
@@ -531,8 +507,11 @@ def main():
     md_dirs = find_md_dirs(project_root)
 
     if not md_dirs:
-        if args.apply:
+        if args.format == 'summary':
             print("  No document directories detected.")
+        elif args.format == 'dirs':
+            print("RULES=")
+            print("SPECS=")
         else:
             print("No markdown directories found.", file=sys.stderr)
             print("classification:")
@@ -573,13 +552,10 @@ def main():
     classification['skip'] = skip_entries
 
     # Output
-    if args.apply:
+    if args.format == 'dirs':
+        output_dirs(classification)
+    elif args.format == 'summary':
         output_summary(classification)
-        apply_to_config(classification)
-        rules_count = len(classification.get('rules', []))
-        specs_count = len(classification.get('specs', []))
-        if rules_count + specs_count > 0:
-            print(f"\n  config.yaml updated: rules={rules_count} dir(s), specs={specs_count} dir(s)")
     else:
         output_yaml(classification)
 
