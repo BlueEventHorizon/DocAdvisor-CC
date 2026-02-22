@@ -16,6 +16,7 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 ## EXECUTION RULES
 - Exit plan mode if active. Do NOT ask for confirmation
 - If a step fails, report the error and exit immediately
+- Write all ToC field values in English
 
 ## Parameters
 
