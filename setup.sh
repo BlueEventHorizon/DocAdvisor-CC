@@ -482,50 +482,6 @@ echo "    agents/            # Worker agents (toc-updater)"
 echo "    skills/            # Skills (query-*, create-*-toc, classify-docs)"
 echo "    doc-advisor/       # Config, docs, scripts, ToC files"
 
-# =============================================================================
-# CLAUDE.md - Add Doc Advisor rules
-# =============================================================================
-TARGET_CLAUDE_MD="${TARGET_DIR}/CLAUDE.md"
-
-if [[ -f "$TARGET_CLAUDE_MD" ]] && grep -q "doc-advisor-section-start" "$TARGET_CLAUDE_MD" 2>/dev/null; then
-    echo ""
-    echo -e "${BLUE}  CLAUDE.md: Doc Advisor rules already configured (skipped)${NC}"
-else
-    echo ""
-    echo -e "${YELLOW}CLAUDE.md に Doc Advisor のルールを追記しますか？${NC}"
-    echo "  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。"
-    if [[ -f "$TARGET_CLAUDE_MD" ]]; then
-        echo -e "  Target: ${BLUE}${TARGET_CLAUDE_MD}${NC} (append)"
-    else
-        echo -e "  Target: ${BLUE}${TARGET_CLAUDE_MD}${NC} (create new)"
-    fi
-    read -p "  Add Doc Advisor rules to CLAUDE.md? [y/N]: " CLAUDE_MD_CHOICE || true
-    CLAUDE_MD_CHOICE="${CLAUDE_MD_CHOICE:-n}"
-
-    case "$CLAUDE_MD_CHOICE" in
-        [Yy])
-            cat >> "$TARGET_CLAUDE_MD" << 'CLAUDEMD_EOF'
-
-<!-- doc-advisor-section-start -->
-## Doc Advisor ルール [MANDATORY]
-
-### ToC ファイルの直接修正禁止
-
-`.claude/doc-advisor/toc/` 配下のファイルを直接編集・修正してはいけない。
-ToC の生成・更新には、必ず Doc Advisor の Skill/Agent を使用すること：
-
-- `/create-rules-toc` — rules の ToC を生成・更新
-- `/create-specs-toc` — specs の ToC を生成・更新
-<!-- doc-advisor-section-end -->
-CLAUDEMD_EOF
-            echo -e "${GREEN}  Doc Advisor rules added to CLAUDE.md${NC}"
-            ;;
-        *)
-            echo -e "${BLUE}  Skipped${NC}"
-            ;;
-    esac
-fi
-
 # Save settings for next run
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
