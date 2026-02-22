@@ -10,11 +10,13 @@ rules or specs using front matter doc_type and term ranking.
 Usage:
     python3 .claude/doc-advisor/scripts/classify_dirs.py
     python3 .claude/doc-advisor/scripts/classify_dirs.py --update
+    python3 .claude/doc-advisor/scripts/classify_dirs.py --apply
 
 Options:
     --update    Only process directories not already in config.yaml root_dirs
+    --apply     Apply classification to config.yaml and print human-readable summary
 
-Output: YAML classification result to stdout
+Output: YAML classification result to stdout (default), or summary text (--apply)
 
 Run from: Project root
 """
@@ -67,6 +69,8 @@ def parse_args():
     )
     parser.add_argument('--update', action='store_true',
                         help='Only process directories not already in config.yaml')
+    parser.add_argument('--apply', action='store_true',
+                        help='Apply classification to config.yaml and print summary')
     return parser.parse_args()
 
 
@@ -442,6 +446,75 @@ def output_yaml(classification):
                 print(f"      reason: \"{entry.get('reason', '')}\"")
 
 
+def output_summary(classification):
+    """Output human-readable classification summary"""
+    has_output = False
+
+    for category in ('rules', 'specs'):
+        entries = classification.get(category, [])
+        if entries:
+            print(f"  {category}:")
+            for e in entries:
+                dir_str = e['dir'].ljust(25)
+                print(f"    {dir_str} ({e['confidence']}: {e['reason']})")
+            has_output = True
+
+    skip_entries = classification.get('skip', [])
+    if skip_entries:
+        print(f"  skipped:")
+        for e in skip_entries:
+            dir_str = e['dir'].ljust(25)
+            print(f"    {dir_str} ({e['reason']})")
+        has_output = True
+
+    mixed_entries = classification.get('mixed', [])
+    if mixed_entries:
+        print(f"  unclassified:")
+        for e in mixed_entries:
+            dir_str = e['dir'].ljust(25)
+            print(f"    {dir_str} ({e.get('reason', '')})")
+        has_output = True
+
+    if not has_output:
+        print("  No document directories detected.")
+
+
+def format_root_dirs_yaml(dirs):
+    """Format directory list as YAML root_dirs value"""
+    if not dirs:
+        return 'root_dirs: []'
+    lines = ['root_dirs:']
+    for d in dirs:
+        lines.append(f'    - {d}')
+    return '\n'.join(lines)
+
+
+def apply_to_config(classification):
+    """
+    Update config.yaml root_dirs with classification results.
+
+    Replaces 'root_dirs: []    # Auto-classified by /classify-docs' patterns
+    in order: first occurrence for rules, second for specs.
+    """
+    config_path = Path(get_project_root()) / '.claude' / 'doc-advisor' / 'config.yaml'
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    rules_dirs = [e['dir'].rstrip('/') for e in classification.get('rules', [])]
+    specs_dirs = [e['dir'].rstrip('/') for e in classification.get('specs', [])]
+
+    marker = 'root_dirs: []    # Auto-classified by /classify-docs'
+
+    # First replacement: rules section
+    content = content.replace(marker, format_root_dirs_yaml(rules_dirs), 1)
+    # Second replacement: specs section
+    content = content.replace(marker, format_root_dirs_yaml(specs_dirs), 1)
+
+    with open(config_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+
 def main():
     args = parse_args()
 
@@ -458,10 +531,13 @@ def main():
     md_dirs = find_md_dirs(project_root)
 
     if not md_dirs:
-        print("No markdown directories found.", file=sys.stderr)
-        print("classification:")
-        print("  rules: []")
-        print("  specs: []")
+        if args.apply:
+            print("  No document directories detected.")
+        else:
+            print("No markdown directories found.", file=sys.stderr)
+            print("classification:")
+            print("  rules: []")
+            print("  specs: []")
         return 0
 
     # Classify each directory
@@ -497,7 +573,15 @@ def main():
     classification['skip'] = skip_entries
 
     # Output
-    output_yaml(classification)
+    if args.apply:
+        output_summary(classification)
+        apply_to_config(classification)
+        rules_count = len(classification.get('rules', []))
+        specs_count = len(classification.get('specs', []))
+        if rules_count + specs_count > 0:
+            print(f"\n  config.yaml updated: rules={rules_count} dir(s), specs={specs_count} dir(s)")
+    else:
+        output_yaml(classification)
 
     return 0
 

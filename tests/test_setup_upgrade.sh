@@ -492,7 +492,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 20: config.yaml root_dirs is empty after setup"
+echo "Test 20: config.yaml root_dirs auto-classified after setup"
 echo "=================================================="
 
 setup_test_project
@@ -500,9 +500,11 @@ setup_test_project
 # Run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: root_dirs is empty array
-RULES_EMPTY=$(grep -A1 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "root_dirs: \[\]" || echo 0)
-test_result "rules root_dirs is empty" "1" "$RULES_EMPTY"
+# Verify: root_dirs is auto-classified (not empty)
+RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- rules" || echo 0)
+SPECS_SET=$(grep -A2 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- specs" || echo 0)
+test_result "rules root_dirs auto-classified" "1" "$RULES_SET"
+test_result "specs root_dirs auto-classified" "1" "$SPECS_SET"
 echo ""
 
 # ==================================================

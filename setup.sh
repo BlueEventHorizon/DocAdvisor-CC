@@ -130,11 +130,13 @@ esac
 if [[ -d "$HOME/.claude/shell-snapshots" ]] && [[ -n "$(ls -A "$HOME/.claude/shell-snapshots" 2>/dev/null)" ]]; then
     # Shell wrapper likely present: use full path to bypass
     PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || echo "python3")
+    PYTHON_CMD="${PYTHON_PATH}"  # Save actual command before $HOME substitution
     # Replace $HOME with $HOME variable (expands at runtime)
     PYTHON_PATH="${PYTHON_PATH/#$HOME/\$HOME}"
     PYTHON_WRAPPED="yes"
 else
     # No wrapper detected: use simple command
+    PYTHON_CMD="python3"
     PYTHON_PATH="python3"
     PYTHON_WRAPPED="no"
 fi
@@ -449,6 +451,26 @@ echo ""
 echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"
 
+# =============================================================================
+# Auto-classify document directories
+# =============================================================================
+if [[ $SKIP_CONFIG -ne 1 ]]; then
+    echo ""
+    echo "Detecting document directories..."
+    echo ""
+    CLASSIFY_OUTPUT=$( (cd "$TARGET_DIR" && "$PYTHON_CMD" .claude/doc-advisor/scripts/classify_dirs.py --apply) 2>&1 )
+    CLASSIFY_EXIT=$?
+    if [[ $CLASSIFY_EXIT -eq 0 ]] && [[ -n "$CLASSIFY_OUTPUT" ]]; then
+        echo "$CLASSIFY_OUTPUT"
+    else
+        echo -e "${YELLOW}  Auto-detection skipped. Run /classify-docs in Claude Code to configure.${NC}"
+    fi
+else
+    echo ""
+    echo -e "${BLUE}  Document directory detection skipped (config preserved).${NC}"
+    echo -e "${BLUE}  Run /classify-docs in Claude Code if you need to update directories.${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}==========================================${NC}"
 echo -e "${GREEN}Setup Complete${NC}"
@@ -515,7 +537,12 @@ echo "Next steps:"
 echo "  1. Start Claude Code:"
 echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"
-echo -e "  2. Run ${YELLOW}/classify-docs${NC} to auto-detect document directories"
-echo -e "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
-echo -e "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
+if [[ $SKIP_CONFIG -ne 1 ]]; then
+    echo -e "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
+    echo -e "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
+else
+    echo -e "  2. Run ${YELLOW}/classify-docs${NC} to update document directories (if needed)"
+    echo -e "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
+    echo -e "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
+fi
 echo ""
