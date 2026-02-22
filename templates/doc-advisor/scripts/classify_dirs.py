@@ -75,6 +75,8 @@ def parse_args():
     parser.add_argument('--format', choices=['yaml', 'dirs', 'summary'],
                         default='yaml',
                         help='Output format: yaml (default), dirs (bash-parseable), summary (human-readable)')
+    parser.add_argument('--skip', type=str, default='',
+                        help='Comma-separated top-level directories to skip')
     return parser.parse_args()
 
 
@@ -269,23 +271,22 @@ def classify_by_terms(project_root, dir_path):
 
 def classify_by_dirname(dir_path):
     """
-    Classify directory by name heuristic (lowest priority).
+    Classify directory by name heuristic.
+    Checks path components from shallowest to deepest - first match wins.
 
     Returns:
         tuple: (category, confidence, reason) or None
     """
-    name = Path(dir_path).name.lower()
-    parts = set(Path(dir_path).parts)
-    parts_lower = {p.lower() for p in parts}
-
     rule_names = {'rules', 'rule', 'guidelines', 'standards', 'policies', 'conventions'}
     spec_names = {'specs', 'spec', 'specifications', 'requirements', 'design',
                   'designs', 'plans', 'features', 'proposals'}
 
-    if parts_lower & rule_names:
-        return ('rules', 'medium', f"dirname match: {parts_lower & rule_names}")
-    if parts_lower & spec_names:
-        return ('specs', 'medium', f"dirname match: {parts_lower & spec_names}")
+    for part in Path(dir_path).parts:
+        part_lower = part.lower()
+        if part_lower in rule_names:
+            return ('rules', 'medium', f"dirname match: {part_lower}")
+        if part_lower in spec_names:
+            return ('specs', 'medium', f"dirname match: {part_lower}")
 
     return None
 
@@ -295,9 +296,9 @@ def classify_directory(project_root, dir_path):
     Classify a single directory using multiple strategies.
 
     Priority:
-    1. Front matter doc_type (highest)
-    2. Term ranking
-    3. Directory name heuristic (lowest)
+    1. Front matter doc_type (highest - explicit declaration)
+    2. Directory name heuristic (path-based signal - reliable)
+    3. Term ranking (content analysis - fallback)
 
     Returns:
         tuple: (category, confidence, reason) or None
@@ -307,13 +308,13 @@ def classify_directory(project_root, dir_path):
     if result:
         return result
 
-    # Strategy 2: Term ranking
-    result = classify_by_terms(project_root, dir_path)
+    # Strategy 2: Directory name
+    result = classify_by_dirname(dir_path)
     if result:
         return result
 
-    # Strategy 3: Directory name
-    result = classify_by_dirname(dir_path)
+    # Strategy 3: Term ranking
+    result = classify_by_terms(project_root, dir_path)
     if result:
         return result
 
@@ -505,6 +506,13 @@ def main():
 
     # Find directories with .md files
     md_dirs = find_md_dirs(project_root)
+
+    # Filter by --skip
+    if args.skip:
+        skip_prefixes = [s.strip().rstrip('/') for s in args.skip.split(',') if s.strip()]
+        md_dirs = [(d, c) for d, c in md_dirs if not any(
+            d == prefix or d.startswith(prefix + '/') for prefix in skip_prefixes
+        )]
 
     if not md_dirs:
         if args.format == 'summary':

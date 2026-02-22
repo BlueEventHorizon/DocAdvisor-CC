@@ -79,12 +79,18 @@ After user confirmation, run the set_root_dirs script with the confirmed directo
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/set_root_dirs.py --rules "dir1,dir2" --specs "dir3,dir4"
 ```
 
-Example:
+To also set exclude patterns:
+
 ```bash
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/set_root_dirs.py --rules "rules,guidelines" --specs "specs,design"
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/set_root_dirs.py --rules "dir1,dir2" --specs "dir3" --exclude-rules "archive,draft" --exclude-specs "old"
 ```
 
-This updates `root_dirs` in `.claude/doc-advisor/config.yaml` for both rules and specs sections.
+Example:
+```bash
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/set_root_dirs.py --rules "rules,guidelines" --specs "specs,design" --exclude-rules "reference" --exclude-specs "plan,archive"
+```
+
+This updates `root_dirs` and `exclude` in `.claude/doc-advisor/config.yaml` for both rules and specs sections.
 
 ### Step 5: Summary
 

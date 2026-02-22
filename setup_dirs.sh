@@ -4,6 +4,7 @@
 # =============================================================================
 #
 # Auto-detects document directories and asks user for confirmation.
+# User can skip (exclude) directories before accepting.
 # If detection is wrong, user can input directories manually.
 #
 # Usage:
@@ -24,30 +25,60 @@ NC='\033[0m'
 
 SCRIPT_DIR=".claude/doc-advisor/scripts"
 
+# --- Helper functions ---
+
+apply_config() {
+    local rules="$1" specs="$2" excludes="$3"
+    local cmd="\"$PYTHON_CMD\" \"$SCRIPT_DIR/set_root_dirs.py\" --rules \"$rules\" --specs \"$specs\""
+    if [[ -n "$excludes" ]]; then
+        cmd="$cmd --exclude-rules \"$excludes\" --exclude-specs \"$excludes\""
+    fi
+    (cd "$TARGET_DIR" && eval "$cmd")
+}
+
+run_classify() {
+    local format="$1" skip="$2"
+    local cmd="\"$PYTHON_CMD\" \"$SCRIPT_DIR/classify_dirs.py\" --format $format"
+    [[ -n "$skip" ]] && cmd="$cmd --skip \"$skip\""
+    (cd "$TARGET_DIR" && eval "$cmd") 2>&1
+}
+
+# --- Main flow ---
+
 echo ""
 echo "Detecting document directories..."
 echo ""
 
-# Step 1: Detect and show summary
-SUMMARY=$( (cd "$TARGET_DIR" && "$PYTHON_CMD" "$SCRIPT_DIR/classify_dirs.py" --format summary) 2>&1 )
+# Step 1: Detect and show all candidates
+SUMMARY=$(run_classify summary "")
 DETECT_EXIT=$?
 
 if [[ $DETECT_EXIT -eq 0 ]] && [[ -n "$SUMMARY" ]] && ! echo "$SUMMARY" | grep -q "No document directories detected"; then
     echo "$SUMMARY"
 
-    # Get dirs in bash-parseable format
-    DETECTED=$( (cd "$TARGET_DIR" && "$PYTHON_CMD" "$SCRIPT_DIR/classify_dirs.py" --format dirs) 2>&1 )
+    # Step 2: Ask for directories to skip
+    echo ""
+    read -p "  Skip directories? (comma-separated, empty to continue): " SKIP_DIRS || true
+
+    # Step 3: Re-detect with skip if given
+    if [[ -n "$SKIP_DIRS" ]]; then
+        echo ""
+        SUMMARY=$(run_classify summary "$SKIP_DIRS")
+        echo "$SUMMARY"
+    fi
+
+    # Get dirs in bash-parseable format (with skip)
+    DETECTED=$(run_classify dirs "$SKIP_DIRS")
     RULES_DETECTED=$(echo "$DETECTED" | grep '^RULES=' | cut -d= -f2)
     SPECS_DETECTED=$(echo "$DETECTED" | grep '^SPECS=' | cut -d= -f2)
 
-    # Step 2: User confirmation
+    # Step 4: User confirmation
     echo ""
     read -p "  Accept? [Y/n]: " DIR_CONFIRM || true
     DIR_CONFIRM="${DIR_CONFIRM:-y}"
 
     if [[ "$DIR_CONFIRM" =~ ^[Yy] ]]; then
-        (cd "$TARGET_DIR" && "$PYTHON_CMD" "$SCRIPT_DIR/set_root_dirs.py" \
-            --rules "$RULES_DETECTED" --specs "$SPECS_DETECTED")
+        apply_config "$RULES_DETECTED" "$SPECS_DETECTED" "$SKIP_DIRS"
     else
         echo ""
         echo "  Enter directories manually (comma-separated, empty to skip):"
@@ -55,8 +86,7 @@ if [[ $DETECT_EXIT -eq 0 ]] && [[ -n "$SUMMARY" ]] && ! echo "$SUMMARY" | grep -
         read -p "    Specs directories: " SPECS_MANUAL || true
 
         if [[ -n "$RULES_MANUAL" ]] || [[ -n "$SPECS_MANUAL" ]]; then
-            (cd "$TARGET_DIR" && "$PYTHON_CMD" "$SCRIPT_DIR/set_root_dirs.py" \
-                --rules "${RULES_MANUAL:-}" --specs "${SPECS_MANUAL:-}")
+            apply_config "${RULES_MANUAL:-}" "${SPECS_MANUAL:-}" "$SKIP_DIRS"
         else
             echo -e "${YELLOW}  Skipped. Run /classify-docs in Claude Code to configure.${NC}"
         fi
@@ -70,8 +100,7 @@ else
     read -p "    Specs directories: " SPECS_MANUAL || true
 
     if [[ -n "$RULES_MANUAL" ]] || [[ -n "$SPECS_MANUAL" ]]; then
-        (cd "$TARGET_DIR" && "$PYTHON_CMD" "$SCRIPT_DIR/set_root_dirs.py" \
-            --rules "${RULES_MANUAL:-}" --specs "${SPECS_MANUAL:-}")
+        apply_config "${RULES_MANUAL:-}" "${SPECS_MANUAL:-}" ""
     else
         echo -e "${YELLOW}  Skipped. Run /classify-docs in Claude Code to configure.${NC}"
     fi

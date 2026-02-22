@@ -320,9 +320,17 @@ def _lookahead_is_list(lines, start_idx, parent_indent=4):
 
 
 def _parse_value(value):
-    """Parse value (string, number, boolean)"""
-    value = value.strip().strip('"\'')
+    """Parse value (string, number, boolean, empty list)"""
+    value = value.strip()
 
+    # Strip inline comments (not inside quotes)
+    if not value.startswith('"') and '  #' in value:
+        value = value[:value.index('  #')].strip()
+
+    value = value.strip('"\'')
+
+    if value == '[]':
+        return []
     if value.lower() == 'true':
         return True
     if value.lower() == 'false':

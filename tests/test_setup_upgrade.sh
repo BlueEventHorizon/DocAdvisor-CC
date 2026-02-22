@@ -432,8 +432,8 @@ echo "=================================================="
 
 setup_test_project
 
-# Run setup with explicit 'y' for dir confirmation
-echo -e "opus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# New flow: model(opus) → skip_dirs(empty) → accept(y)
+echo -e "opus\n\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: root_dirs is set (same as auto-classify)
 RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- rules" || echo 0)
@@ -449,8 +449,8 @@ echo "=================================================="
 
 setup_test_project
 
-# Run setup with 'n' to reject auto-detect, then manual input
-echo -e "opus\nn\ncustom_rules\ncustom_specs" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# New flow: model(opus) → skip_dirs(empty) → accept(n) → rules(custom_rules) → specs(custom_specs)
+echo -e "opus\n\nn\ncustom_rules\ncustom_specs" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: manual directories applied
 RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "custom_rules" || echo 0)
@@ -480,6 +480,73 @@ RULES_SET=$(grep -A3 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" |
 SPECS_SET=$(grep -A3 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "my_specs" || echo 0)
 test_result "set_root_dirs rules" "1" "$RULES_SET"
 test_result "set_root_dirs specs" "1" "$SPECS_SET"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 20: Skip dirs in setup flow (exclude)"
+echo "=================================================="
+
+setup_test_project
+
+# New flow: model(opus) → skip_dirs(archive) → accept(y)
+# Skip dirs are set as exclude for both rules and specs
+echo -e "opus\narchive\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+# Both rules and specs sections should have 'archive' in exclude
+RULES_EXCLUDE=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "archive" || echo 0)
+test_result "Rules exclude archive" "1" "$RULES_EXCLUDE"
+SPECS_EXCLUDE=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "archive" || echo 0)
+test_result "Specs exclude archive" "1" "$SPECS_EXCLUDE"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 21: No skip/exclude (empty input)"
+echo "=================================================="
+
+setup_test_project
+
+# New flow: model(opus) → skip_dirs(empty) → accept(EOF→y)
+echo -e "opus\n" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+# exclude: should be present but with no items (no lines starting with 6-space dash)
+EXCLUDE_ITEMS=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+EXCLUDE_ITEMS="${EXCLUDE_ITEMS:-0}"
+test_result "No rules exclude items" "0" "$EXCLUDE_ITEMS"
+EXCLUDE_ITEMS=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+EXCLUDE_ITEMS="${EXCLUDE_ITEMS:-0}"
+test_result "No specs exclude items" "0" "$EXCLUDE_ITEMS"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 22: set_root_dirs.py with exclude flags"
+echo "=================================================="
+
+setup_test_project
+
+# First install (creates config.yaml with markers replaced)
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Restore config.yaml with markers to test set_root_dirs.py independently
+cp "$PROJECT_ROOT/templates/doc-advisor/config.yaml" "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Run set_root_dirs.py with exclude flags
+(cd "$TEST_PROJECT" && python3 .claude/doc-advisor/scripts/set_root_dirs.py \
+    --rules "rules" --specs "specs" \
+    --exclude-rules "archive,draft" --exclude-specs "old") > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+# Verify excludes written
+RULES_ARCHIVE=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "archive" || echo 0)
+RULES_DRAFT=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "draft" || echo 0)
+SPECS_OLD=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "old" || echo 0)
+test_result "set_root_dirs exclude-rules archive" "1" "$RULES_ARCHIVE"
+test_result "set_root_dirs exclude-rules draft" "1" "$RULES_DRAFT"
+test_result "set_root_dirs exclude-specs old" "1" "$SPECS_OLD"
 echo ""
 
 # ==================================================

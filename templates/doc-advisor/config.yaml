@@ -11,9 +11,7 @@ rules:
 
   patterns:
     target_glob: "**/*.md"
-    exclude:
-      # - reference
-      # - archive
+    exclude: []    # Set during setup
 
   output:
     header_comment: "Development documentation search index for rules-advisor subagent"
@@ -28,10 +26,7 @@ specs:
 
   patterns:
     target_glob: "**/*.md"
-    exclude:
-      # - plan  # Uncomment to exclude plan directory
-      # - reference
-      # - /info/
+    exclude: []    # Set during setup
 
   output:
     header_comment: "Project specification document search index for specs-advisor subagent"
