@@ -27,12 +27,12 @@ if [[ -z "$1" ]]; then
 fi
 
 TARGET_DIR="$(cd "$1" 2>/dev/null && pwd)" || {
-    echo -e "${RED}Error: Directory not found: $1${NC}"
+    printf "${RED}Error: Directory not found: $1${NC}\n"
     exit 1
 }
 
 echo ""
-echo -e "${GREEN}Doc Advisor Minimal Setup${NC}"
+printf "${GREEN}Doc Advisor Minimal Setup${NC}\n"
 echo "Target: $TARGET_DIR"
 echo ""
 echo "This script sets up Doc Advisor without .doc_structure.yaml."
@@ -40,13 +40,13 @@ echo "Enter directory paths for each document type (empty to skip)."
 echo ""
 
 # Collect directory inputs (all 4 prompts displayed, empty allowed)
-echo -e "${YELLOW}rule${NC} directory (e.g., rules):"
+printf "${YELLOW}rule${NC} directory (e.g., rules):\n"
 read -r RULE_DIR
-echo -e "${YELLOW}requirement${NC} directory (e.g., specs/requirements):"
+printf "${YELLOW}requirement${NC} directory (e.g., specs/requirements):\n"
 read -r REQUIREMENT_DIR
-echo -e "${YELLOW}design${NC} directory (e.g., specs/design):"
+printf "${YELLOW}design${NC} directory (e.g., specs/design):\n"
 read -r DESIGN_DIR
-echo -e "${YELLOW}plan${NC} directory (e.g., specs/plan):"
+printf "${YELLOW}plan${NC} directory (e.g., specs/plan):\n"
 read -r PLAN_DIR
 
 # Validate non-empty directories exist
@@ -54,7 +54,7 @@ for dir_entry in "rule:$RULE_DIR" "requirement:$REQUIREMENT_DIR" "design:$DESIGN
     type_name="${dir_entry%%:*}"
     dir_path="${dir_entry#*:}"
     if [[ -n "$dir_path" ]] && [[ ! -d "$TARGET_DIR/$dir_path" ]]; then
-        echo -e "${YELLOW}Warning: $type_name directory not found: $TARGET_DIR/$dir_path${NC}"
+        printf "${YELLOW}Warning: $type_name directory not found: $TARGET_DIR/$dir_path${NC}\n"
     fi
 done
 
@@ -71,7 +71,7 @@ echo "Configuring root_dirs..."
 CONFIG_FILE="$TARGET_DIR/.claude/doc-advisor/config.yaml"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo -e "${RED}Error: config.yaml not found after setup${NC}"
+    printf "${RED}Error: config.yaml not found after setup${NC}\n"
     exit 1
 fi
 
@@ -141,9 +141,9 @@ else:
 PYEOF
 
 echo ""
-echo -e "${GREEN}Minimal setup complete.${NC}"
+printf "${GREEN}Minimal setup complete.${NC}\n"
 echo ""
 echo "To use full .doc_structure.yaml integration later:"
-echo -e "  1. Run ${YELLOW}/doc-structure:init-doc-structure${NC} in Claude Code"
-echo -e "  2. Re-run ${YELLOW}${SCRIPT_DIR}/setup.sh ${TARGET_DIR}${NC}"
+printf "  1. Run ${YELLOW}/doc-structure:init-doc-structure${NC} in Claude Code\n"
+printf "  2. Re-run ${YELLOW}${SCRIPT_DIR}/setup.sh ${TARGET_DIR}${NC}\n"
 echo ""
