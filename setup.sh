@@ -33,9 +33,14 @@ fi
 
 # Parse arguments
 TARGET_DIR=""
+SKIP_DOC_STRUCTURE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --skip-doc-structure)
+            SKIP_DOC_STRUCTURE=true
+            shift
+            ;;
         -h|--help)
             echo "Doc Advisor Setup Script"
             echo ""
@@ -148,6 +153,34 @@ echo -e "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}"
 echo -e "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}"
 if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
     echo -e "    ${RED}(python3 may be wrapped: using explicit path for reliability)${NC}"
+fi
+echo ""
+
+# =============================================================================
+# Document structure check (required unless --skip-doc-structure)
+# =============================================================================
+DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
+if [[ "$SKIP_DOC_STRUCTURE" == "true" ]]; then
+    echo -e "${YELLOW}  --skip-doc-structure: Skipping .doc_structure.yaml check${NC}"
+elif [[ ! -f "$DOC_STRUCTURE_FILE" ]]; then
+    echo ""
+    echo -e "${RED}ERROR: .doc_structure.yaml not found at project root.${NC}"
+    echo ""
+    echo "Doc Advisor requires .doc_structure.yaml to configure document scanning paths."
+    echo ""
+    echo "To create it:"
+    echo -e "  1. cd ${BLUE}${TARGET_DIR}${NC}"
+    echo "  2. claude"
+    echo -e "  3. Run ${YELLOW}/doc-structure:init-doc-structure${NC}"
+    echo "  4. Re-run setup.sh"
+    echo ""
+    echo "(doc-structure plugin required: https://github.com/BlueEventHorizon/bw-cc-plugins)"
+    echo ""
+    echo "Alternative (minimal setup without doc-structure plugin):"
+    echo -e "  ${YELLOW}${SCRIPT_DIR}/setup_dirs.sh ${TARGET_DIR}${NC}"
+    exit 1
+else
+    echo -e "${GREEN}  .doc_structure.yaml found${NC}"
 fi
 echo ""
 
@@ -463,18 +496,6 @@ echo ""
 echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"
 
-# =============================================================================
-# Document structure check
-# =============================================================================
-echo ""
-DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
-if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
-    echo -e "${GREEN}  .doc_structure.yaml found - root_dirs will be derived automatically.${NC}"
-else
-    echo -e "${YELLOW}  .doc_structure.yaml not found.${NC}"
-    echo -e "${YELLOW}  Run /doc-structure:init-doc-structure in Claude Code to create it.${NC}"
-    echo -e "${YELLOW}  (Requires doc-structure plugin from bw-cc-plugins)${NC}"
-fi
 
 echo ""
 echo -e "${GREEN}==========================================${NC}"
@@ -498,12 +519,6 @@ echo "Next steps:"
 echo "  1. Start Claude Code:"
 echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"
-if [[ ! -f "$DOC_STRUCTURE_FILE" ]]; then
-    echo -e "  2. Run ${YELLOW}/doc-structure:init-doc-structure${NC} to create .doc_structure.yaml"
-    echo -e "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
-    echo -e "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
-else
-    echo -e "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
-    echo -e "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
-fi
+echo -e "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
+echo -e "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
 echo ""

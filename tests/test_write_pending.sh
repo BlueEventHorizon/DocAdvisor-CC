@@ -55,13 +55,6 @@ PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_or
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 
-# Set root_dirs in config.yaml (setup.sh now leaves them empty)
-$PYTHON_CMD -c "
-content = open('.claude/doc-advisor/config.yaml').read()
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
-open('.claude/doc-advisor/config.yaml', 'w').write(content)
-"
 echo ""
 
 # Ensure pending YAML exists
@@ -183,13 +176,13 @@ $PYTHON_CMD "$WRITE_SPECS" --target specs \
 
 test_result "write_pending specs normal" "0" "$EXIT_CODE"
 
-# Verify doc_type is NOT present (removed in v3.8)
+# Verify doc_type is present in completed entry
 if grep -q "doc_type:" "$SPECS_PENDING"; then
-    echo -e "${RED}FAIL${NC}: doc_type field should NOT be present (removed in v3.8)"
-    ((FAIL_COUNT++))
-else
-    echo -e "${GREEN}PASS${NC}: no doc_type field (correct for v3.8)"
+    echo -e "${GREEN}PASS${NC}: doc_type field present in completed entry"
     ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: doc_type field missing in completed entry"
+    ((FAIL_COUNT++))
 fi
 echo ""
 

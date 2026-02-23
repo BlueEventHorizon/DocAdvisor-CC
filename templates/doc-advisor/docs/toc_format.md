@@ -66,6 +66,7 @@ Conversion rule: `/` → `_`, `.md` → `.yaml`
 ```yaml
 _meta:
   source_file: {target}/path/to/document.md    # Path from project root
+  doc_type: requirement                        # Document type from .doc_structure.yaml
   status: pending                               # pending | completed
   updated_at: null                              # Completion time (ISO 8601 format)
 
@@ -83,6 +84,7 @@ references: []            # specs only (omitted for rules)
 | Field | Type | Description |
 |-------|------|-------------|
 | `source_file` | string | Target document path (from project root) |
+| `doc_type` | string | Document type derived from `.doc_structure.yaml` (e.g., rule, requirement, design, plan, api, reference, spec) |
 | `status` | enum | `pending` (unprocessed) or `completed` (done) |
 | `updated_at` | datetime/null | Completion time (ISO 8601 format), `null` if incomplete |
 
@@ -108,6 +110,7 @@ docs: object                # Document entries (key: file path)
 ```yaml
 docs:
   <file_path>:                     # Path from project root
+    doc_type: string               # Document type (e.g., rule, requirement, design)
     title: string                  # Title (extracted from H1)
     purpose: string                # Purpose (1-2 lines, what it defines)
     content_details: array[string] # Content details (5+ items)
@@ -122,6 +125,7 @@ docs:
 ```yaml
 docs:
   rules/core/architecture_rule.md:
+    doc_type: rule
     title: Architecture Rules
     purpose: Defines overall architecture structure, layer design, and inter-layer communication
     content_details:
@@ -146,6 +150,7 @@ docs:
 ```yaml
 docs:
   specs/requirements/app_overview.md:
+    doc_type: requirement
     title: Application Overview Specification
     purpose: Defines overall requirements, feature scope, and use cases for the application
     content_details:
@@ -220,6 +225,7 @@ metadata:
 
 docs:
   rules/core/architecture_rule.md:
+    doc_type: rule
     title: Architecture Rules
     purpose: Defines overall architecture structure, layer design, and inter-layer communication
     content_details:
@@ -239,6 +245,7 @@ docs:
       - Factory
 
   rules/layer/infrastructure/repository_rule.md:
+    doc_type: rule
     title: Repository Implementation Rules
     purpose: Defines Repository implementation's immediate response + eventual sync pattern
     content_details:
@@ -270,6 +277,7 @@ metadata:
 
 docs:
   specs/requirements/app_overview.md:
+    doc_type: requirement
     title: Application Overview Specification
     purpose: Defines overall requirements and feature scope for the application
     content_details:
@@ -287,6 +295,7 @@ docs:
     references: []
 
   specs/design/login_screen_design.md:
+    doc_type: design
     title: Login Screen Design
     purpose: Defines UI design, ViewModel, and state management for the login screen
     content_details:

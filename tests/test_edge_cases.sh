@@ -69,14 +69,6 @@ PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 echo ""
 
-# Set root_dirs in config.yaml (setup.sh now leaves them empty)
-$PYTHON_CMD -c "
-content = open('.claude/doc-advisor/config.yaml').read()
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
-open('.claude/doc-advisor/config.yaml', 'w').write(content)
-"
-
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
 echo "=================================================="

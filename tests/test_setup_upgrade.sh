@@ -40,6 +40,14 @@ setup_test_project() {
     mkdir -p "$TEST_PROJECT/specs/main/requirements"
     echo "# Test Rule" > "$TEST_PROJECT/rules/test.md"
     echo "# Test Spec" > "$TEST_PROJECT/specs/main/requirements/test.md"
+    cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+rules:
+  rule:
+    paths: [rules/]
+specs:
+  spec:
+    paths: [specs/]
+DOCEOF
 }
 
 CURRENT_VERSION=$(grep 'DOC_ADVISOR_VERSION=' "$PROJECT_ROOT/setup.sh" | cut -d'"' -f2)

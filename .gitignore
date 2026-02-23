@@ -16,3 +16,4 @@ __pycache__/
 # Claude Code
 
 .claude/settings.local.json
+reference_projects

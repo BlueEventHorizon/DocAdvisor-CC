@@ -33,10 +33,12 @@ PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 TARGET = None  # 'rules' or 'specs'
+DOC_TYPES_MAP = None  # path → doc_type name (from .doc_structure.yaml)
 
 # Pending YAML templates
 PENDING_TEMPLATE_RULES = """_meta:
   source_file: {source_file}
+  doc_type: {doc_type}
   status: pending
   updated_at: null
 
@@ -49,6 +51,7 @@ keywords: []
 
 PENDING_TEMPLATE_SPECS = """_meta:
   source_file: {source_file}
+  doc_type: {doc_type}
   status: pending
   updated_at: null
 
@@ -84,7 +87,7 @@ def init_config(target):
         bool: True on success, False on failure
     """
     global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, CHECKSUMS_FILE
-    global TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET
+    global TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET, DOC_TYPES_MAP
 
     TARGET = target
 
@@ -117,7 +120,19 @@ def init_config(target):
     TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     EXCLUDE_PATTERNS = get_system_exclude_patterns(target) + PATTERNS_CONFIG.get('exclude', [])
+    DOC_TYPES_MAP = CONFIG.get('doc_types_map', {})
     return True
+
+
+def determine_doc_type(root_dir_name):
+    """Determine doc_type from root_dir path using .doc_structure.yaml mapping"""
+    if DOC_TYPES_MAP:
+        normalized = root_dir_name.rstrip('/')
+        for path, doc_type in DOC_TYPES_MAP.items():
+            if path.rstrip('/') == normalized:
+                return doc_type
+    # Fallback: target name without trailing 's'
+    return TARGET.rstrip('s') if TARGET else 'unknown'
 
 
 def get_pending_template():
@@ -199,9 +214,13 @@ def get_yaml_filename(source_file):
     return source_file.replace("/", "--").replace(".md", ".yaml")
 
 
-def create_pending_yaml(source_file):
+def create_pending_yaml(source_file, doc_type):
     """
     Create pending YAML file
+
+    Args:
+        source_file: Project-relative source file path
+        doc_type: Document type (e.g., 'rule', 'requirement', 'design')
 
     Returns:
         Path: Created file path, None on error
@@ -212,7 +231,7 @@ def create_pending_yaml(source_file):
 
     try:
         with open(yaml_path, "w", encoding="utf-8") as f:
-            f.write(template.format(source_file=source_file))
+            f.write(template.format(source_file=source_file, doc_type=doc_type))
         return yaml_path
     except (IOError, OSError, PermissionError) as e:
         print(f"Warning: File write error: {yaml_path} - {e}")
@@ -336,7 +355,8 @@ def main():
     for md_file in target_files:
         root_dir, root_dir_name = file_root_map[md_file]
         source_file = get_source_file_path(md_file, root_dir, root_dir_name)
-        yaml_path = create_pending_yaml(source_file)
+        doc_type = determine_doc_type(root_dir_name)
+        yaml_path = create_pending_yaml(source_file, doc_type)
         if yaml_path is None:
             failed_count += 1
             continue

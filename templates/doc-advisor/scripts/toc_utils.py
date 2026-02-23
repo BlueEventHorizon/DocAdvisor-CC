@@ -165,6 +165,8 @@ def load_config(target=None):
                     derived = load_doc_structure(section)
                     if derived['root_dirs']:
                         sec['root_dirs'] = derived['root_dirs']
+                    if derived.get('doc_types_map'):
+                        sec['doc_types_map'] = derived['doc_types_map']
                     if derived['exclude']:
                         patterns = sec.get('patterns', {})
                         existing_exclude = patterns.get('exclude', [])
@@ -517,14 +519,19 @@ def load_doc_structure(target):
 
     root_dirs = []
     exclude = []
+    doc_types_map = {}  # path → doc_type name
 
-    for doc_type_info in category_data.values():
+    for doc_type_name, doc_type_info in category_data.items():
         if isinstance(doc_type_info, dict):
             # Collect paths
             paths = doc_type_info.get('paths', [])
             if isinstance(paths, str):
                 paths = [paths]
             root_dirs.extend(paths)
+
+            # Map each path to its doc_type
+            for p in paths:
+                doc_types_map[p] = doc_type_name
 
             # Collect exclude patterns
             excl = doc_type_info.get('exclude', [])
@@ -536,6 +543,7 @@ def load_doc_structure(target):
     return {
         'root_dirs': list(dict.fromkeys(root_dirs)),
         'exclude': list(dict.fromkeys(exclude)),
+        'doc_types_map': doc_types_map,
     }
 
 

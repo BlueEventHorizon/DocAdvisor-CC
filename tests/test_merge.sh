@@ -55,13 +55,6 @@ PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_or
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 
-# Set root_dirs in config.yaml (setup.sh now leaves them empty)
-$PYTHON_CMD -c "
-content = open('.claude/doc-advisor/config.yaml').read()
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - rules', 1)
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - specs', 1)
-open('.claude/doc-advisor/config.yaml', 'w').write(content)
-"
 echo ""
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
@@ -198,13 +191,13 @@ if [[ -f ".claude/doc-advisor/toc/specs/specs_toc.yaml" ]]; then
     echo -e "${GREEN}PASS${NC}: specs_toc.yaml created"
     ((PASS_COUNT++))
 
-    # Verify doc_type is NOT present (removed in v3.8)
+    # Verify doc_type is present in final ToC
     if grep -q "doc_type:" .claude/doc-advisor/toc/specs/specs_toc.yaml; then
-        echo -e "${RED}FAIL${NC}: specs_toc.yaml should NOT have doc_type fields (removed in v3.8)"
-        ((FAIL_COUNT++))
-    else
-        echo -e "${GREEN}PASS${NC}: specs_toc.yaml correctly has no doc_type fields"
+        echo -e "${GREEN}PASS${NC}: specs_toc.yaml has doc_type fields"
         ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: specs_toc.yaml missing doc_type fields"
+        ((FAIL_COUNT++))
     fi
 else
     echo -e "${RED}FAIL${NC}: specs_toc.yaml not created"

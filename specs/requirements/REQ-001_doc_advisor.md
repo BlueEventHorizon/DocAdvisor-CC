@@ -4,6 +4,14 @@
 
 Doc Advisor は、プロジェクトのドキュメントを自動的にインデックス化し、AI エージェントが必要な文書を素早く特定できるようにするツールである。
 
+## 前提条件
+
+| ID | 要件 |
+|----|------|
+| PRE-01 | `.doc_structure.yaml` がプロジェクトルートに存在すること |
+| PRE-02 | `.doc_structure.yaml` は doc-structure プラグイン（`/doc-structure:init-doc-structure`）で作成する。Doc Advisor は読み取り専用 |
+| PRE-03 | `.doc_structure.yaml` がない場合、`setup_dirs.sh` で `config.yaml` を手動構成できる |
+
 ## 機能要件
 
 ### FR-01: ドキュメント管理
@@ -14,6 +22,9 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | FR-01-2 | 各カテゴリは1つ以上のルートディレクトリを設定できる |
 | FR-01-3 | ルートディレクトリ配下のサブディレクトリ構造は自由とする |
 | FR-01-4 | 除外パターンにより、スキャン対象から特定のディレクトリを除外できる |
+| FR-01-5 | システムは `doc_type` でドキュメントを分類する。固定7種: rule, requirement, design, plan, api, reference, spec |
+| FR-01-6 | `doc_type` とスキャンパスの対応は `.doc_structure.yaml` から導出する |
+| FR-01-7 | ToC の各エントリにはファイルパスから判定した `doc_type` フィールドを自動付与する |
 
 ### FR-02: ToC 自動生成
 
@@ -48,6 +59,14 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | FR-05-3 | ドキュメント検索は `context: fork` で隔離実行し、メイン会話のコンテキストを汚さない |
 | FR-05-4 | ドキュメント検索はユーザーが `/query-*` で直接呼び出せるほか、Claude が description マッチで自動トリガーできる |
 
+### FR-06: セットアップ
+
+| ID | 要件 |
+|----|------|
+| FR-06-1 | `setup.sh` は `.doc_structure.yaml` が存在しない場合、エラー終了し作成方法を案内する |
+| FR-06-2 | `setup_dirs.sh` は `.doc_structure.yaml` なしで最低限の `config.yaml` を構成する代替手段を提供する |
+| FR-06-3 | `setup_dirs.sh` は rule, requirement, design, plan の4つの doc_type ディレクトリを対話入力で受け付ける（空入力でスキップ可） |
+
 ## 非機能要件
 
 ### NFR-01: 依存関係
@@ -71,6 +90,8 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 |------|------|
 | カテゴリ | ドキュメントの大分類。`rule`（開発ルール）と `spec`（プロジェクト仕様）の2種類 |
 | ルートディレクトリ | 各カテゴリのスキャン起点となるディレクトリ。複数設定可能 |
+| doc_type | ドキュメントの分類タイプ。固定7種: rule, requirement, design, plan, api, reference, spec |
+| .doc_structure.yaml | doc-structure プラグインが生成するプロジェクトのディレクトリ分類定義ファイル。Doc Advisor はこれを読み取って `config.yaml` を構成する |
 | ToC | Table of Contents - ドキュメントの検索インデックスファイル |
 | Skill | Claude Code のスラッシュコマンドとして登録される機能単位 |
 | Agent | Claude Code のサブエージェントとして内部的に起動されるワーカー |

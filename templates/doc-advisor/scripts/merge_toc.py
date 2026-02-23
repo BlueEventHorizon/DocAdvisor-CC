@@ -229,6 +229,10 @@ def write_yaml_output(docs, output_path):
     for source_file, entry in sorted(docs.items()):
         lines.append(f"  {yaml_escape(source_file)}:")
 
+        # doc_type first (if available)
+        if 'doc_type' in entry:
+            lines.append(f"    doc_type: {entry['doc_type']}")
+
         for key in ['title', 'purpose']:
             if key in entry:
                 lines.append(f"    {key}: {yaml_escape(entry[key])}")
@@ -352,6 +356,11 @@ def merge_toc_files(mode='full'):
             if source_file not in existing_files:
                 errors.append(f"{filename}: Skipped (excluded or missing: {source_file})")
                 continue
+
+            # Carry doc_type from _meta into entry
+            doc_type = meta.get('doc_type', '')
+            if doc_type:
+                entry['doc_type'] = doc_type
 
             docs[source_file] = entry
             print(f"  {source_file}")

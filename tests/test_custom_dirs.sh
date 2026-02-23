@@ -64,16 +64,6 @@ rm -rf .claude .last_setup
 # Format: agent_model (setup.sh now only asks for model name)
 echo "sonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
-# Set custom root_dirs in config.yaml (override .doc_structure.yaml derivation)
-PYTHON_CMD_TEMP=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
-PYTHON_CMD_TEMP=$(eval echo "$PYTHON_CMD_TEMP")
-$PYTHON_CMD_TEMP -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - guidelines', 1)
-content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - documents', 1)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
-"
-
 # Verify .claude directory created
 if [[ -d ".claude" ]]; then
     echo -e "${GREEN}PASS${NC}: .claude directory created"
@@ -86,31 +76,36 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-2: Verify config.yaml has custom values"
+echo "Test 3-2: Verify .doc_structure.yaml and config.yaml"
 echo "=================================================="
 
 CONFIG_FILE=".claude/doc-advisor/config.yaml"
+DOC_STRUCTURE=".doc_structure.yaml"
+
+if [[ -f "$DOC_STRUCTURE" ]]; then
+    # Check .doc_structure.yaml has custom paths
+    if grep -q "guidelines" "$DOC_STRUCTURE"; then
+        echo -e "${GREEN}PASS${NC}: .doc_structure.yaml has 'guidelines' path"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: .doc_structure.yaml missing 'guidelines' path"
+        ((FAIL_COUNT++))
+    fi
+
+    if grep -q "documents" "$DOC_STRUCTURE"; then
+        echo -e "${GREEN}PASS${NC}: .doc_structure.yaml has 'documents' path"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: .doc_structure.yaml missing 'documents' path"
+        ((FAIL_COUNT++))
+    fi
+else
+    echo -e "${RED}FAIL${NC}: .doc_structure.yaml not found"
+    ((FAIL_COUNT++))
+fi
 
 if [[ -f "$CONFIG_FILE" ]]; then
-    # Check rules root_dirs contains 'guidelines'
-    if grep -q "\- guidelines" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: rules root_dirs contains 'guidelines'"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: rules root_dirs does not contain 'guidelines'"
-        ((FAIL_COUNT++))
-    fi
-
-    # Check specs root_dirs contains 'documents'
-    if grep -q "\- documents" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: specs root_dirs contains 'documents'"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: specs root_dirs does not contain 'documents'"
-        ((FAIL_COUNT++))
-    fi
-
-    # Check target_glob is set (v3.8: no more target_dirs)
+    # Check target_glob is set
     if grep -q 'target_glob:' "$CONFIG_FILE"; then
         echo -e "${GREEN}PASS${NC}: target_glob is configured"
         ((PASS_COUNT++))
@@ -180,13 +175,13 @@ if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
         ((FAIL_COUNT++))
     fi
 
-    # Verify doc_type is NOT present (removed in v3.8)
+    # Verify doc_type is present in _meta section
     if grep -q "doc_type:" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null; then
-        echo -e "${RED}FAIL${NC}: doc_type should NOT be present (removed in v3.8)"
-        ((FAIL_COUNT++))
-    else
-        echo -e "${GREEN}PASS${NC}: no doc_type field (correct for v3.8)"
+        echo -e "${GREEN}PASS${NC}: doc_type field present in pending YAML"
         ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: doc_type field missing in pending YAML"
+        ((FAIL_COUNT++))
     fi
 else
     echo -e "${RED}FAIL${NC}: No specs pending YAML created"

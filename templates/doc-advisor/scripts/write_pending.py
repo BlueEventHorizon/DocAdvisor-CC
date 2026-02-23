@@ -105,6 +105,9 @@ def write_entry_yaml(filepath, meta, entry, target):
     # _meta section
     lines.append("_meta:")
     lines.append(f"  source_file: {meta.get('source_file', '')}")
+    doc_type = meta.get('doc_type', '')
+    if doc_type:
+        lines.append(f"  doc_type: {doc_type}")
     lines.append(f"  status: {meta.get('status', 'completed')}")
     lines.append(f"  updated_at: {meta.get('updated_at', '')}")
     lines.append("")
@@ -193,9 +196,10 @@ def main():
     if not valid:
         return 3
 
-    # Update _meta
+    # Update _meta (preserve doc_type from pending YAML)
     updated_meta = {
         'source_file': meta['source_file'],
+        'doc_type': meta.get('doc_type', ''),
         'status': 'completed',
         'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     }
