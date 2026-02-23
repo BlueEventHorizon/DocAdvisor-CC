@@ -196,7 +196,7 @@ def get_source_file_path(md_file, root_dir, root_dir_name):
 
 def get_yaml_filename(source_file):
     """Generate YAML filename from source_file"""
-    return source_file.replace("/", "_").replace(".md", ".yaml")
+    return source_file.replace("/", "--").replace(".md", ".yaml")
 
 
 def create_pending_yaml(source_file):

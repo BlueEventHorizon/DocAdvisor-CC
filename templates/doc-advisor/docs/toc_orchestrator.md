@@ -218,11 +218,11 @@ End processing (no need to create .toc_work/)
 
 ```
 # Launch 5 in parallel
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_core_architecture_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_core_coding_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_layer_ui_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_workflow_dev_task.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_format_spec.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--core--architecture_rule.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--core--coding_rule.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--layer--ui_rule.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--workflow--dev_task.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--format_spec.yaml")
 ```
 
 ---

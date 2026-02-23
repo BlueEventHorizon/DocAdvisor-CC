@@ -746,9 +746,11 @@ def load_checksums(checksums_file):
             if stripped == 'checksums:':
                 in_checksums = True
                 continue
-            if in_checksums and ':' in stripped:
-                filepath = stripped.split(':')[0].strip()
-                files.add(filepath)
+            if in_checksums and ': ' in stripped:
+                parts = stripped.rsplit(': ', 1)
+                if len(parts) == 2:
+                    filepath = parts[0].strip()
+                    files.add(filepath)
 
         return files
     except Exception as e:

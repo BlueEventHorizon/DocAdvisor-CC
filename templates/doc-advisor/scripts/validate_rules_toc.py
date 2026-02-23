@@ -94,6 +94,9 @@ def load_existing_toc(toc_path):
             if current_file and current_entry:
                 docs[current_file] = current_entry
             current_file = stripped.rstrip(':')
+            # Handle quoted YAML keys: "path/to/file.md"
+            if current_file.startswith('"') and current_file.endswith('"'):
+                current_file = current_file[1:-1]
             current_entry = {}
             current_list = None
         elif line.startswith('    ') and ':' in stripped and not stripped.startswith('-'):

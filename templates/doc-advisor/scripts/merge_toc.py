@@ -148,13 +148,18 @@ def load_existing_toc(toc_path):
         if current_section != 'docs':
             continue
 
-        # Detect file path as key (2-space indent, .md: suffix)
-        if line.startswith('  ') and not line.startswith('    ') and stripped.endswith('.md:'):
-            if current_path and current_entry:
-                docs[current_path] = current_entry
-            current_path = stripped.rstrip(':')
-            current_entry = {}
-            current_list = None
+        # Detect file path as key (2-space indent)
+        if line.startswith('  ') and not line.startswith('    '):
+            key_candidate = stripped.rstrip(':')
+            # Handle quoted YAML keys: "path/to/file.md"
+            if key_candidate.startswith('"') and key_candidate.endswith('"'):
+                key_candidate = key_candidate[1:-1]
+            if key_candidate.endswith('.md'):
+                if current_path and current_entry:
+                    docs[current_path] = current_entry
+                current_path = key_candidate
+                current_entry = {}
+                current_list = None
         elif line.startswith('    ') and ':' in stripped and not stripped.startswith('-'):
             if current_path:
                 key, _, val = stripped.partition(':')
@@ -215,14 +220,14 @@ def write_yaml_output(docs, output_path):
     lines.append("")
 
     lines.append("metadata:")
-    lines.append(f"  name: {metadata_name}")
+    lines.append(f"  name: {yaml_escape(metadata_name)}")
     lines.append(f"  generated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
     lines.append(f"  file_count: {len(docs)}")
     lines.append("")
 
     lines.append("docs:")
     for source_file, entry in sorted(docs.items()):
-        lines.append(f"  {source_file}:")
+        lines.append(f"  {yaml_escape(source_file)}:")
 
         for key in ['title', 'purpose']:
             if key in entry:

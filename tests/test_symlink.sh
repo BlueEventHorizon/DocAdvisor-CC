@@ -154,7 +154,7 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>&1 || 
 test_result "create_pending_yaml rules exit code" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created for external file
-PENDING_FILE=".claude/doc-advisor/toc/rules/.toc_work/rules_linked_rules_external_rule.yaml"
+PENDING_FILE=".claude/doc-advisor/toc/rules/.toc_work/rules--linked_rules--external_rule.yaml"
 if [[ -f "$PENDING_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Pending YAML created for external rule"
     ((PASS_COUNT++))
@@ -179,7 +179,7 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>&1 || 
 test_result "create_pending_yaml specs exit code" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created for external file
-PENDING_FILE=".claude/doc-advisor/toc/specs/.toc_work/specs_linked_specs_requirements_external_req.yaml"
+PENDING_FILE=".claude/doc-advisor/toc/specs/.toc_work/specs--linked_specs--requirements--external_req.yaml"
 if [[ -f "$PENDING_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Pending YAML created for external spec"
     ((PASS_COUNT++))
