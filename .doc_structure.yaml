@@ -1,0 +1,12 @@
+version: "1.0"
+
+specs:
+  requirement:
+    paths: [specs/requirements/]
+    description: "Functional and non-functional requirements"
+  design:
+    paths: [specs/design/]
+
+rules:
+  rule:
+    paths: [rules/]

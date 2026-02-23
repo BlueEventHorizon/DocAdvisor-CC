@@ -28,11 +28,19 @@ Generate/update specs ToC (Table of Contents) for AI-searchable document index.
 | (none) | Incremental update (hash-based) or resume processing |
 | `--full` | Full file scan (for initial creation or regeneration) |
 
+## Prerequisite
+
+One of the following must be available:
+- `.doc_structure.yaml` at project root (recommended)
+- `root_dirs` explicitly set in `.claude/doc-advisor/config.yaml`
+
+If neither exists, follow the Pre-check procedure in `toc_orchestrator.md`.
+
 ## Execution Flow
 
 1. Read `.claude/doc-advisor/docs/toc_orchestrator.md` for orchestrator workflow
 2. Read `.claude/doc-advisor/docs/toc_format.md` for format definition
-3. Execute Phase 1-3 as described in the orchestrator document, with **target = specs**
+3. Execute Pre-check and Phase 1-3 as described in the orchestrator document, with **target = specs**
    - If `$0` = `--full`: Execute in **full mode** (rebuild entire ToC)
    - Otherwise: Execute in **incremental mode** (process changes only)
 

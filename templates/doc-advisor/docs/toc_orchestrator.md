@@ -37,6 +37,27 @@ Read the following before processing:
 
 ## Orchestrator Processing Flow
 
+### Pre-check: Document Structure Verification
+
+Before Phase 1, verify that document directories are available:
+
+1. Read `.claude/doc-advisor/config.yaml` — check if `root_dirs` is explicitly set for `{target}`
+2. If `root_dirs` is empty or missing:
+   a. Check if `.doc_structure.yaml` exists at project root
+   b. If exists → proceed (scripts will derive root_dirs at runtime)
+   c. If not exists:
+      - Try running `/doc-structure:init-doc-structure` to create it
+      - If skill not available → report error:
+        ```
+        Error: Document directories not configured.
+        .doc_structure.yaml not found and root_dirs not set in config.yaml.
+
+        To fix:
+        1. Install the doc-structure plugin from bw-cc-plugins
+        2. Run /doc-structure:init-doc-structure to create .doc_structure.yaml
+        ```
+      - After creation → proceed
+
 ### Phase 1: Initialization
 
 ```

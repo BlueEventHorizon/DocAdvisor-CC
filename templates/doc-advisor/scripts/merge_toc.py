@@ -35,6 +35,7 @@ from toc_utils import (
     get_system_exclude_patterns,
     rglob_follow_symlinks,
     normalize_path,
+    expand_root_dir_globs,
 )
 
 # Global configuration (initialized in init_config())
@@ -94,6 +95,8 @@ def init_config(target):
     root_dirs_config = CONFIG.get('root_dirs', [default_dir])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
+    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
+    root_dirs_config = expand_root_dir_globs(root_dirs_config, PROJECT_ROOT)
     ROOT_DIRS = []
     for entry in root_dirs_config:
         name = entry.rstrip('/')

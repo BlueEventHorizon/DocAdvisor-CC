@@ -46,10 +46,11 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "This script creates:"
             echo "  TARGET_DIR/.claude/agents/         # Worker agents (toc-updater)"
-            echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc, classify-docs)"
+            echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
-            echo "After setup, run /classify-docs to auto-detect document directories."
+            echo "Requires .doc_structure.yaml at project root."
+            echo "Run /doc-structure:init-doc-structure to create it (doc-structure plugin required)."
             exit 0
             ;;
         -*)
@@ -284,6 +285,21 @@ for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
     fi
 done
 
+# v3.9 removed classify-docs skill and classification scripts
+# (replaced by .doc_structure.yaml + doc-structure plugin)
+if [[ -d "${SKILLS_DIR}/classify-docs" ]]; then
+    rm -rf "${SKILLS_DIR}/classify-docs"
+    echo -e "${GREEN}Removed legacy: skills/classify-docs/ (replaced by doc-structure plugin)${NC}"
+    LEGACY_CLEANED=1
+fi
+for old_script in "classify_dirs.py" "set_root_dirs.py"; do
+    if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
+        rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
+        echo -e "${GREEN}Removed legacy: scripts/${old_script} (replaced by doc-structure plugin)${NC}"
+        LEGACY_CLEANED=1
+    fi
+done
+
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
 fi
@@ -351,7 +367,7 @@ SKIP_CONFIG=0
 
 if [[ -f "$EXISTING_CONFIG" ]]; then
     echo -e "${YELLOW}Existing config.yaml found: ${EXISTING_CONFIG}${NC}"
-    echo "  This file may contain your custom settings (root_dirs, exclude patterns, etc.)."
+    echo "  This file may contain your custom settings (exclude patterns, output config, etc.)."
     echo ""
     echo "  Options:"
     echo "    [o] Overwrite (backup to config.yaml.bak)"
@@ -396,10 +412,6 @@ fi
 copy_dir_with_substitution "${SCRIPT_DIR}/templates/agents" "${AGENTS_DIR}"
 
 # Copy skills
-echo "  skills/classify-docs/ ..."
-mkdir -p "${SKILLS_DIR}/classify-docs"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/classify-docs/SKILL.md" "${SKILLS_DIR}/classify-docs/SKILL.md"
-
 echo "  skills/create-rules-toc/ ..."
 mkdir -p "${SKILLS_DIR}/create-rules-toc"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-rules-toc/SKILL.md" "${SKILLS_DIR}/create-rules-toc/SKILL.md"
@@ -452,14 +464,16 @@ echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"
 
 # =============================================================================
-# Document directory setup
+# Document structure check
 # =============================================================================
-if [[ $SKIP_CONFIG -ne 1 ]]; then
-    bash "$(dirname "$0")/setup_dirs.sh" "$TARGET_DIR" "$PYTHON_CMD"
+echo ""
+DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
+if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
+    echo -e "${GREEN}  .doc_structure.yaml found - root_dirs will be derived automatically.${NC}"
 else
-    echo ""
-    echo -e "${BLUE}  Document directory detection skipped (config preserved).${NC}"
-    echo -e "${BLUE}  Run /classify-docs in Claude Code if you need to update directories.${NC}"
+    echo -e "${YELLOW}  .doc_structure.yaml not found.${NC}"
+    echo -e "${YELLOW}  Run /doc-structure:init-doc-structure in Claude Code to create it.${NC}"
+    echo -e "${YELLOW}  (Requires doc-structure plugin from bw-cc-plugins)${NC}"
 fi
 
 echo ""
@@ -470,7 +484,7 @@ echo ""
 echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
 echo "    agents/            # Worker agents (toc-updater)"
-echo "    skills/            # Skills (query-*, create-*-toc, classify-docs)"
+echo "    skills/            # Skills (query-*, create-*-toc)"
 echo "    doc-advisor/       # Config, docs, scripts, ToC files"
 
 # Save settings for next run
@@ -484,12 +498,12 @@ echo "Next steps:"
 echo "  1. Start Claude Code:"
 echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
 echo "     claude"
-if [[ $SKIP_CONFIG -ne 1 ]]; then
-    echo -e "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
-    echo -e "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
-else
-    echo -e "  2. Run ${YELLOW}/classify-docs${NC} to update document directories (if needed)"
+if [[ ! -f "$DOC_STRUCTURE_FILE" ]]; then
+    echo -e "  2. Run ${YELLOW}/doc-structure:init-doc-structure${NC} to create .doc_structure.yaml"
     echo -e "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
     echo -e "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
+else
+    echo -e "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
+    echo -e "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
 fi
 echo ""

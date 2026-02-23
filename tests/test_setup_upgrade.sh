@@ -346,16 +346,24 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 13: classify-docs skill installed"
+echo "Test 13: v3.9 classify-docs skill removed (legacy cleanup)"
 echo "=================================================="
 
 setup_test_project
 
-# Run setup
+# First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: classify-docs skill installed
-test_result "classify-docs/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md" ]] && echo 0 || echo 1)"
+# Create legacy classify-docs skill (simulate pre-3.9 installation)
+mkdir -p "$TEST_PROJECT/.claude/skills/classify-docs"
+echo "# Legacy classify-docs" > "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: classify-docs skill removed (v3.9 legacy cleanup)
+test_result "classify-docs/SKILL.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md" ]] && echo 0 || echo 1)"
+test_result "classify-docs/ dir removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
@@ -410,7 +418,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 16: config.yaml root_dirs auto-classified after setup"
+echo "Test 16: config.yaml has no root_dirs (runtime derived from .doc_structure.yaml)"
 echo "=================================================="
 
 setup_test_project
@@ -418,87 +426,98 @@ setup_test_project
 # Run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: root_dirs is auto-classified (not empty)
-RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- rules" || echo 0)
-SPECS_SET=$(grep -A2 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- specs" || echo 0)
-test_result "rules root_dirs auto-classified" "1" "$RULES_SET"
-test_result "specs root_dirs auto-classified" "1" "$SPECS_SET"
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Verify: root_dirs is NOT set (commented out) - derived from .doc_structure.yaml at runtime
+ACTIVE_ROOTDIRS=$(grep -c "^  root_dirs:" "$CONFIG" || true)
+test_result "No active root_dirs in config (runtime derived)" "0" "$ACTIVE_ROOTDIRS"
+
+# Verify: commented root_dirs override lines exist
+COMMENTED_ROOTDIRS=$(grep -c "# root_dirs:" "$CONFIG" || echo 0)
+test_result "Commented root_dirs override available" "2" "$COMMENTED_ROOTDIRS"
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 17: setup_dirs.sh user confirmation (accept)"
+echo "Test 17: v3.9 classify_dirs.py legacy cleanup"
 echo "=================================================="
 
 setup_test_project
 
-# New flow: model(opus) → skip_dirs(empty) → accept(y)
-echo -e "opus\n\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: root_dirs is set (same as auto-classify)
-RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- rules" || echo 0)
-SPECS_SET=$(grep -A2 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "\- specs" || echo 0)
-test_result "rules root_dirs set (confirmed)" "1" "$RULES_SET"
-test_result "specs root_dirs set (confirmed)" "1" "$SPECS_SET"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 18: setup_dirs.sh manual directory input"
-echo "=================================================="
-
-setup_test_project
-
-# New flow: model(opus) → skip_dirs(empty) → accept(n) → rules(custom_rules) → specs(custom_specs)
-echo -e "opus\n\nn\ncustom_rules\ncustom_specs" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: manual directories applied
-RULES_SET=$(grep -A2 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "custom_rules" || echo 0)
-SPECS_SET=$(grep -A2 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "custom_specs" || echo 0)
-test_result "Manual rules dir set" "1" "$RULES_SET"
-test_result "Manual specs dir set" "1" "$SPECS_SET"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 19: set_root_dirs.py standalone (with markers)"
-echo "=================================================="
-
-setup_test_project
-
-# First install (creates config.yaml with markers replaced)
+# First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Restore config.yaml with markers to test set_root_dirs.py independently
-cp "$PROJECT_ROOT/templates/doc-advisor/config.yaml" "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+# Create legacy classify_dirs.py (simulate pre-3.9 installation)
+echo "# Legacy classify_dirs" > "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py"
 
-# Run set_root_dirs.py standalone
-(cd "$TEST_PROJECT" && python3 .claude/doc-advisor/scripts/set_root_dirs.py --rules "my_rules,my_guidelines" --specs "my_specs") > /dev/null 2>&1
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: standalone set_root_dirs applied
-RULES_SET=$(grep -A3 "^rules:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "my_rules" || echo 0)
-SPECS_SET=$(grep -A3 "^specs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | grep -c "my_specs" || echo 0)
-test_result "set_root_dirs rules" "1" "$RULES_SET"
-test_result "set_root_dirs specs" "1" "$SPECS_SET"
+# Verify: classify_dirs.py removed
+test_result "classify_dirs.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 20: Skip dirs in setup flow (exclude)"
+echo "Test 18: v3.9 set_root_dirs.py legacy cleanup"
 echo "=================================================="
 
 setup_test_project
 
-# New flow: model(opus) → skip_dirs(archive) → accept(y)
-# Skip dirs are set as exclude for both rules and specs
-echo -e "opus\narchive\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create legacy set_root_dirs.py (simulate pre-3.9 installation)
+echo "# Legacy set_root_dirs" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: set_root_dirs.py removed
+test_result "set_root_dirs.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 19: config.yaml root_dirs override (manual uncomment)"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Manually uncomment and set root_dirs (override .doc_structure.yaml)
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - custom_rules', 1)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+
+# Verify: root_dirs override is set
+RULES_CUSTOM=$(grep -c "custom_rules" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" || echo 0)
+test_result "Manual root_dirs override in config" "1" "$RULES_CUSTOM"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 20: config.yaml exclude patterns (empty defaults)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-# Both rules and specs sections should have 'archive' in exclude
-RULES_EXCLUDE=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "archive" || echo 0)
-test_result "Rules exclude archive" "1" "$RULES_EXCLUDE"
-SPECS_EXCLUDE=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "archive" || echo 0)
-test_result "Specs exclude archive" "1" "$SPECS_EXCLUDE"
+
+# Verify: exclude section exists with empty array (no items)
+RULES_EXCLUDE_ITEMS=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+RULES_EXCLUDE_ITEMS="${RULES_EXCLUDE_ITEMS:-0}"
+test_result "Rules exclude empty by default" "0" "$RULES_EXCLUDE_ITEMS"
+SPECS_EXCLUDE_ITEMS=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+SPECS_EXCLUDE_ITEMS="${SPECS_EXCLUDE_ITEMS:-0}"
+test_result "Specs exclude empty by default" "0" "$SPECS_EXCLUDE_ITEMS"
 echo ""
 
 # ==================================================
@@ -508,8 +527,8 @@ echo "=================================================="
 
 setup_test_project
 
-# New flow: model(opus) → skip_dirs(empty) → accept(EOF→y)
-echo -e "opus\n" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Setup only asks for model name now
+echo -e "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 # exclude: should be present but with no items (no lines starting with 6-space dash)
@@ -523,30 +542,27 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 22: set_root_dirs.py with exclude flags"
+echo "Test 22: v3.9 full legacy cleanup (all removed files)"
 echo "=================================================="
 
 setup_test_project
 
-# First install (creates config.yaml with markers replaced)
+# First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Restore config.yaml with markers to test set_root_dirs.py independently
-cp "$PROJECT_ROOT/templates/doc-advisor/config.yaml" "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+# Create all legacy files (simulate pre-3.9 installation)
+mkdir -p "$TEST_PROJECT/.claude/skills/classify-docs"
+echo "# Legacy" > "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md"
+echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py"
+echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
 
-# Run set_root_dirs.py with exclude flags
-(cd "$TEST_PROJECT" && python3 .claude/doc-advisor/scripts/set_root_dirs.py \
-    --rules "rules" --specs "specs" \
-    --exclude-rules "archive,draft" --exclude-specs "old") > /dev/null 2>&1
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-# Verify excludes written
-RULES_ARCHIVE=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "archive" || echo 0)
-RULES_DRAFT=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "draft" || echo 0)
-SPECS_OLD=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "old" || echo 0)
-test_result "set_root_dirs exclude-rules archive" "1" "$RULES_ARCHIVE"
-test_result "set_root_dirs exclude-rules draft" "1" "$RULES_DRAFT"
-test_result "set_root_dirs exclude-specs old" "1" "$SPECS_OLD"
+# Verify all legacy files cleaned up
+test_result "classify-docs/ removed in upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 0 || echo 1)"
+test_result "classify_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 0 || echo 1)"
+test_result "set_root_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================

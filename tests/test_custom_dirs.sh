@@ -64,13 +64,13 @@ rm -rf .claude .last_setup
 # Format: agent_model (setup.sh now only asks for model name)
 echo "sonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
-# Set custom root_dirs in config.yaml (setup.sh now leaves them empty)
+# Set custom root_dirs in config.yaml (override .doc_structure.yaml derivation)
 PYTHON_CMD_TEMP=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD_TEMP=$(eval echo "$PYTHON_CMD_TEMP")
 $PYTHON_CMD_TEMP -c "
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - guidelines', 1)
-content = content.replace('root_dirs: []    # Auto-classified by /classify-docs', 'root_dirs:\n    - documents', 1)
+content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - guidelines', 1)
+content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - documents', 1)
 open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
 "
 
@@ -202,8 +202,12 @@ echo "=================================================="
 mkdir -p documents/archive
 echo "# Archived Doc" > documents/archive/old_doc.md
 
-# Add exclude pattern to config
-sed -i '' 's|^    exclude:|    exclude:\n      - archive|' .claude/doc-advisor/config.yaml
+# Add exclude pattern to config (replace inline empty array with multi-line format)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('    exclude: []    # Additional excludes (merged with .doc_structure.yaml)', '    exclude:\n      - archive')
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 
 # Regenerate
 rm -rf .claude/doc-advisor/toc/specs/.toc_work

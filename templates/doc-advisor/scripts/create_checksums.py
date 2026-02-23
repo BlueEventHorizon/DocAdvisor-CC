@@ -17,7 +17,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path, expand_root_dir_globs
 
 
 def calculate_file_hash(filepath):
@@ -116,6 +116,8 @@ def main():
     root_dirs_config = config.get('root_dirs', [f'{target}/'])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
+    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
+    root_dirs_config = expand_root_dir_globs(root_dirs_config, project_root)
     output_file = resolve_config_path(config.get('checksums_file', '.toc_checksums.yaml'),
                                        project_root / root_dirs_config[0].rstrip('/'), project_root)
     patterns_config = config.get('patterns', {})
