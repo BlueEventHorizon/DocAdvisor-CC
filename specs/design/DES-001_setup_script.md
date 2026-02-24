@@ -64,8 +64,7 @@ flowchart TD
     H --> I[ディレクトリ作成]
     I --> J[config.yaml 確認]
     J --> K[テンプレートコピー<br>変数置換付き]
-    K --> L[SessionStart hook<br>settings.json にマージ]
-    L --> M[完了メッセージ]
+    K --> M[完了メッセージ]
     M --> Z
 ```
 
@@ -130,7 +129,6 @@ copy_dir_with_substitution "$src_dir" "$dst_dir"
 ```
 TARGET_DIR/
 ├── .claude/
-│   ├── settings.json                # SessionStart hook 登録済み
 │   ├── agents/                      # Agent 定義（上書きのみ、1ファイル）
 │   │   └── toc-updater.md           # ワーカー: rules/specs の個別エントリ処理
 │   ├── skills/
@@ -154,7 +152,7 @@ TARGET_DIR/
 │       ├── scripts/                 # Python/Shell スクリプト
 │       │   ├── toc_utils.py
 │       │   ├── classify_dirs.py         # ディレクトリスキャナー
-│       │   ├── check_config.sh          # SessionStart hook スクリプト
+│       │   ├── check_config.sh          # スキル Pre-check スクリプト
 │       │   ├── create_checksums.py
 │       │   ├── create_pending_yaml.py   # --target rules|specs
 │       │   ├── write_pending.py         # --target rules|specs
@@ -277,8 +275,7 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 | `setup_dirs.sh` 廃止 | `/classify-docs` スキルで完全に代替 |
 | `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要 |
 | `classify-docs` スキル復活 | テンプレートとして `templates/skills/classify-docs/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
-| SessionStart hook 導入 | `check_config.sh` が未設定状態を検出し Claude に警告を注入 |
-| `settings.json` hook マージ | setup.sh が Python で既存 hooks を壊さずに SessionStart hook を追加 |
+| スキル Pre-check 導入 | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/classify-docs` を先に実行させる |
 
 ---
 
@@ -344,51 +341,28 @@ common:
 
 > **Note**: `root_dirs` はテンプレート上はコメントアウト（`# root_dirs: []`）。setup.sh はテンプレートコピーに徹し、ディレクトリ分類は行わない。ターゲットプロジェクトで `/classify-docs` スキルを実行し、AI 駆動で `root_dirs` を設定する。`.doc_structure.yaml` がある場合はランタイムで `root_dirs` を導出するため手動設定は不要。
 
-## SessionStart hook インストール（v4.0）
+## スキル Pre-check（v4.0）
 
 ### 概要
 
-setup.sh はテンプレートコピー後に `.claude/settings.json` へ SessionStart hook を登録する。
+各スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の先頭で `check_config.sh` を実行し、ドキュメントディレクトリが未設定の場合は `/classify-docs` を先に実行させる。
 
-### hook スクリプト
+### check_config.sh のチェック順序
 
-`check_config.sh` は以下の順序でチェックする:
-
-0. `cd "$CLAUDE_PROJECT_DIR"` でプロジェクトルートに移動（hook の cwd は不定のため）
-1. `.doc_structure.yaml` が存在 → 即 exit 0（出力なし）
-2. `config.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし）
+1. `.doc_structure.yaml` が存在 → 即 exit 0（出力なし = OK）
+2. `config.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし = OK）
 3. `config.yaml` が存在しない → 即 exit 0（Doc Advisor 未インストール）
-4. いずれにも該当しない → 警告メッセージを出力
+4. いずれにも該当しない → `[ACTION REQUIRED]` 警告メッセージを出力
 
-### マージロジック
+### スキル側の処理
 
-既存の `settings.json` を壊さずに hook を追加する:
+```markdown
+## Pre-check (MANDATORY - Run first)
 
-```python
-# 1. 既存 settings.json を読み込み（存在しなければ空 dict）
-# 2. hooks.SessionStart 配列に check_config.sh エントリを追加
-# 3. 同一コマンドの重複チェック（既に存在すればスキップ）
-# 4. JSON として書き戻し
-```
+bash .claude/doc-advisor/scripts/check_config.sh
 
-### settings.json 出力例
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/doc-advisor/scripts/check_config.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
+- No output → Proceed
+- Output present → STOP. Run /classify-docs first, then restart this skill
 ```
 
 ---
@@ -424,11 +398,11 @@ setup.sh はテンプレートコピー後に `.claude/settings.json` へ Sessio
 
 ### .doc_structure.yaml がない場合
 
-SessionStart hook が未設定を警告するので、`/classify-docs` でディレクトリを分類する:
+スキルの Pre-check が未設定を検出し、`/classify-docs` を先に実行させる:
 
-1. Claude Code を起動（SessionStart hook が警告を表示）
-2. `/classify-docs` を実行し、AI がディレクトリを分類
-3. `/create-rules-toc --full` / `/create-specs-toc --full`
+1. Claude Code を起動
+2. `/create-rules-toc --full` を実行 → Pre-check が `/classify-docs` を先に実行させる
+3. `/create-specs-toc --full`
 
 ## 注意事項
 
@@ -439,11 +413,9 @@ SessionStart hook が未設定を警告するので、`/classify-docs` でディ
 - advisor agent（rules-advisor.md, specs-advisor.md）は自動削除される（v3.7 移行）
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
 - `config.yaml` が既存の場合はユーザーに確認を求める
-- setup.sh はテンプレートコピーと hook 登録に徹し、ディレクトリ分類は行わない
+- setup.sh はテンプレートコピーに徹し、ディレクトリ分類は行わない
 - `config.yaml` の `root_dirs` はコメントアウト状態で生成（`/classify-docs` で設定）
-- SessionStart hook は `settings.json` に Python でマージ（既存 hooks を壊さない）
-- hook コマンドパスは `"$CLAUDE_PROJECT_DIR"` 環境変数を使用（hook の cwd はプロジェクトルートとは限らないため）
-- 旧形式（相対パス）の hook は自動で `$CLAUDE_PROJECT_DIR` 形式にアップグレードされる
+- 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/classify-docs` を先に実行させる
 
 ## 関連ドキュメント
 

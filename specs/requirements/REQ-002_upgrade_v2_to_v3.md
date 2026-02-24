@@ -187,8 +187,8 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 | T-008 | advisor agent 削除（v3.7） | rules-advisor.md, specs-advisor.md が削除される |
 | T-009 | query-\* skill インストール | query-rules/SKILL.md, query-specs/SKILL.md が存在する |
 | T-010 | classify-docs skill インストール（v4.0） | classify-docs/SKILL.md が存在する |
-| T-011 | SessionStart hook 登録（v4.0） | settings.json に check_config.sh hook が登録される |
-| T-012 | check_config.sh コピー（v4.0） | scripts/check_config.sh が存在し実行権限がある |
+| T-011 | check_config.sh コピー（v4.0） | scripts/check_config.sh が存在し実行権限がある |
+| T-012 | スキル Pre-check（v4.0） | create-*-toc, query-* の SKILL.md に Pre-check セクションが含まれる |
 
 **テストスクリプト**: `tests/test_setup_upgrade.sh`
 
@@ -209,21 +209,21 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 - [ ] `classify_dirs.py` と `classification_rules.md` が `doc-advisor/scripts/` と `doc-advisor/docs/` にコピーされる
 - [ ] `/classify-docs` 実行で AI がディレクトリを分類し `config.yaml` の `root_dirs` を更新する
 
-### REQ-002-08: SessionStart hook の導入（v4.0）
+### REQ-002-08: スキル Pre-check の導入（v4.0）
 
-**説明**: ドキュメントディレクトリ未設定時に自動警告する SessionStart hook を導入する
+**説明**: ドキュメントディレクトリ未設定時に `/classify-docs` を先に実行させるスキル Pre-check を導入する
 
 **変更内容**:
 - `check_config.sh` を `templates/doc-advisor/scripts/` に追加
-- setup.sh が `.claude/settings.json` に SessionStart hook を自動登録
-- hook は既存の settings.json を壊さずにマージする
+- 各スキル（create-*-toc, query-*）の SKILL.md 先頭に Pre-check ステップを追加
+- Pre-check は `check_config.sh` を実行し、出力があれば `/classify-docs` を先に実行させる
 
 **受入条件**:
-- [ ] setup.sh 実行後に `settings.json` に SessionStart hook が登録される
-- [ ] `.doc_structure.yaml` が存在する場合、hook は何も出力しない
-- [ ] `root_dirs` が設定済みの場合、hook は何も出力しない
-- [ ] 未設定時のみ `/classify-docs` を案内する警告メッセージが出力される
-- [ ] 既存の hooks がある `settings.json` に対して、既存エントリを壊さずマージできる
+- [ ] setup.sh 実行後に `scripts/check_config.sh` が存在し実行権限がある
+- [ ] `.doc_structure.yaml` が存在する場合、`check_config.sh` は何も出力しない
+- [ ] `root_dirs` が設定済みの場合、`check_config.sh` は何も出力しない
+- [ ] 未設定時のみ `/classify-docs` を案内する `[ACTION REQUIRED]` メッセージが出力される
+- [ ] 4 スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の SKILL.md に Pre-check セクションがある
 
 ---
 

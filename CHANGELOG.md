@@ -10,8 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - **`/classify-docs` skill**: AI-driven directory classification using `classify_dirs.py` scanner and `classification_rules.md`; replaces `setup_dirs.sh`
-- **SessionStart hook**: `check_config.sh` detects unconfigured document directories and injects warning into Claude's context (zero cost when configured)
-- **Hook auto-install**: `setup.sh` merges SessionStart hook into `.claude/settings.json` without overwriting existing hooks
+- **Skill Pre-check**: `check_config.sh` called at the start of each skill (create-*-toc, query-*) to detect unconfigured directories and trigger `/classify-docs` first
 - **`classify_dirs.py`**: Python stdlib directory scanner that outputs JSON metadata for AI classification
 - **`classification_rules.md`**: Classification rules for AI to categorize directories as rules/specs with doc_type
 - **`doc_type` in ToC**: Each ToC entry includes `doc_type` field auto-derived from file path via `.doc_structure.yaml`
@@ -28,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Files modified (templates/)
 - `skills/classify-docs/SKILL.md` - New: AI-driven directory classification skill
-- `doc-advisor/scripts/check_config.sh` - New: SessionStart hook script
+- `doc-advisor/scripts/check_config.sh` - New: Skill pre-check script
 - `doc-advisor/scripts/classify_dirs.py` - New: Directory scanner
 - `doc-advisor/docs/classification_rules.md` - New: AI classification rules
 

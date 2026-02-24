@@ -28,13 +28,15 @@ Generate/update specs ToC (Table of Contents) for AI-searchable document index.
 | (none) | Incremental update (hash-based) or resume processing |
 | `--full` | Full file scan (for initial creation or regeneration) |
 
-## Prerequisite
+## Pre-check (MANDATORY - Run first)
 
-One of the following must be available:
-- `.doc_structure.yaml` at project root (recommended)
-- `root_dirs` explicitly set in `.claude/doc-advisor/config.yaml`
+Run the configuration check:
+```bash
+bash .claude/doc-advisor/scripts/check_config.sh
+```
 
-If neither exists, follow the Pre-check procedure in `toc_orchestrator.md`.
+- **No output** → Proceed to Execution Flow
+- **Output present** → STOP. Run `/classify-docs` skill first to configure document directories, then restart this skill
 
 ## Execution Flow
 

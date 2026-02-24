@@ -490,57 +490,6 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
     printf "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}\n"
 fi
 
-# =============================================================================
-# Install SessionStart hook for config check
-# =============================================================================
-SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
-HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/doc-advisor/scripts/check_config.sh'
-OLD_HOOK_CMD=".claude/doc-advisor/scripts/check_config.sh"
-
-echo ""
-echo "  Configuring SessionStart hook..."
-$PYTHON_CMD << PYEOF
-import json, os
-
-settings_file = "$SETTINGS_FILE"
-hook_cmd = '$HOOK_CMD'
-old_hook_cmd = "$OLD_HOOK_CMD"
-
-# Load existing settings or create new
-settings = {}
-if os.path.exists(settings_file):
-    with open(settings_file, 'r', encoding='utf-8') as f:
-        try:
-            settings = json.load(f)
-        except json.JSONDecodeError:
-            settings = {}
-
-hooks = settings.setdefault('hooks', {})
-session_hooks = hooks.setdefault('SessionStart', [])
-
-# Check if our hook already exists (new or old format)
-already_exists = False
-for entry in session_hooks:
-    for h in entry.get('hooks', []):
-        cmd = h.get('command', '')
-        if cmd == hook_cmd:
-            already_exists = True
-        elif cmd == old_hook_cmd:
-            # Upgrade old relative path to $CLAUDE_PROJECT_DIR format
-            h['command'] = hook_cmd
-            already_exists = True
-
-if not already_exists:
-    session_hooks.append({
-        "matcher": "",
-        "hooks": [{"type": "command", "command": hook_cmd}]
-    })
-
-with open(settings_file, 'w', encoding='utf-8') as f:
-    json.dump(settings, f, indent=2, ensure_ascii=False)
-    f.write('\n')
-PYEOF
-
 echo ""
 echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"

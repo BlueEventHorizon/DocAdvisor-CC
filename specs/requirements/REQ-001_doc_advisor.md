@@ -65,7 +65,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 |----|------|
 | FR-06-1 | `setup.sh` は `.doc_structure.yaml` が存在しない場合、警告を表示し `/classify-docs` の実行を案内する（エラー終了しない） |
 | FR-06-2 | `setup.sh` はテンプレートコピーとプレースホルダー置換に徹し、ディレクトリ分類は行わない |
-| FR-06-3 | `setup.sh` は SessionStart hook を `.claude/settings.json` に自動登録する（既存 hooks を壊さずマージ） |
+| FR-06-3 | `setup.sh` は `check_config.sh` をテンプレートとしてコピーする（スキル Pre-check で使用） |
 
 ### FR-07: ディレクトリ分類（ターゲットプロジェクト側）
 
@@ -73,8 +73,8 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 |----|------|
 | FR-07-1 | `/classify-docs` スキルは `classify_dirs.py` でプロジェクトをスキャンし、AI が `classification_rules.md` に基づいてディレクトリを分類する |
 | FR-07-2 | `/classify-docs` スキルはユーザー確認後に `config.yaml` の `root_dirs` を更新する |
-| FR-07-3 | SessionStart hook (`check_config.sh`) は `.doc_structure.yaml` と `root_dirs` の設定状態を検査する |
-| FR-07-4 | SessionStart hook は未設定時のみ警告メッセージを Claude のコンテキストに注入する（設定済みなら出力なし、コスト0） |
+| FR-07-3 | 各スキル（create-*-toc, query-*）の先頭で `check_config.sh` を実行し、`.doc_structure.yaml` と `root_dirs` の設定状態を検査する |
+| FR-07-4 | `check_config.sh` は未設定時のみ警告メッセージを出力し、`/classify-docs` を先に実行させる（設定済みなら出力なし） |
 
 ## 非機能要件
 
@@ -104,5 +104,4 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | ToC | Table of Contents - ドキュメントの検索インデックスファイル |
 | Skill | Claude Code のスラッシュコマンドとして登録される機能単位 |
 | Agent | Claude Code のサブエージェントとして内部的に起動されるワーカー |
-| Hook | Claude Code のライフサイクルイベント（SessionStart 等）に応じて実行されるシェルコマンド |
-| SessionStart hook | セッション開始時に自動実行される hook。stdout は Claude のコンテキストに注入される |
+| Pre-check | スキル実行前に `check_config.sh` を呼び出し、設定状態を検証する仕組み |
