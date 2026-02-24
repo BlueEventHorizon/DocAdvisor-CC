@@ -354,7 +354,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 13: v3.9 classify-docs skill removed (legacy cleanup)"
+echo "Test 13: classify-docs skill installed from template"
 echo "=================================================="
 
 setup_test_project
@@ -362,16 +362,9 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Create legacy classify-docs skill (simulate pre-3.9 installation)
-mkdir -p "$TEST_PROJECT/.claude/skills/classify-docs"
-echo "# Legacy classify-docs" > "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md"
-
-# Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: classify-docs skill removed (v3.9 legacy cleanup)
-test_result "classify-docs/SKILL.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md" ]] && echo 0 || echo 1)"
-test_result "classify-docs/ dir removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 0 || echo 1)"
+# Verify: classify-docs skill installed
+test_result "classify-docs/SKILL.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md" ]] && echo 1 || echo 0)"
+test_result "classify-docs/ dir exists" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 1 || echo 0)"
 echo ""
 
 # ==================================================
@@ -447,7 +440,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 17: v3.9 classify_dirs.py legacy cleanup"
+echo "Test 17: classify_dirs.py installed from template"
 echo "=================================================="
 
 setup_test_project
@@ -455,14 +448,8 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Create legacy classify_dirs.py (simulate pre-3.9 installation)
-echo "# Legacy classify_dirs" > "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py"
-
-# Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: classify_dirs.py removed
-test_result "classify_dirs.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 0 || echo 1)"
+# Verify: classify_dirs.py exists (copied from templates)
+test_result "classify_dirs.py installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
 echo ""
 
 # ==================================================
@@ -568,8 +555,8 @@ echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
 echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify all legacy files cleaned up
-test_result "classify-docs/ removed in upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 0 || echo 1)"
-test_result "classify_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 0 || echo 1)"
+test_result "classify-docs/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 1 || echo 0)"
+test_result "classify_dirs.py exists after upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
 test_result "set_root_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
 echo ""
 

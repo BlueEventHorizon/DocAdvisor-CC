@@ -17,6 +17,9 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Format path for display: replace $HOME with ~
+display_path() { printf '%s' "${1/#$HOME/\~}"; }
+
 # Get script directory (plugin root)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
@@ -33,14 +36,9 @@ fi
 
 # Parse arguments
 TARGET_DIR=""
-SKIP_DOC_STRUCTURE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --skip-doc-structure)
-            SKIP_DOC_STRUCTURE=true
-            shift
-            ;;
         -h|--help)
             echo "Doc Advisor Setup Script"
             echo ""
@@ -54,8 +52,8 @@ while [[ $# -gt 0 ]]; do
             echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
-            echo "Requires .doc_structure.yaml at project root."
-            echo "Run /doc-structure:init-doc-structure to create it (doc-structure plugin required)."
+            echo "If .doc_structure.yaml exists, directories are derived at runtime."
+            echo "Otherwise, run /classify-docs after setup to configure directories."
             exit 0
             ;;
         -*)
@@ -110,7 +108,7 @@ printf "${GREEN}==========================================${NC}\n"
 printf "${GREEN}Doc Advisor Setup${NC}\n"
 printf "${GREEN}==========================================${NC}\n"
 echo ""
-echo "Target project: ${TARGET_DIR}"
+echo "Target project: $(display_path "${TARGET_DIR}")"
 echo ""
 
 # =============================================================================
@@ -157,30 +155,18 @@ fi
 echo ""
 
 # =============================================================================
-# Document structure check (required unless --skip-doc-structure)
+# Document structure check
 # =============================================================================
 DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
-if [[ "$SKIP_DOC_STRUCTURE" == "true" ]]; then
-    printf "${YELLOW}  --skip-doc-structure: Skipping .doc_structure.yaml check${NC}\n"
-elif [[ ! -f "$DOC_STRUCTURE_FILE" ]]; then
-    echo ""
-    printf "${RED}ERROR: .doc_structure.yaml not found at project root.${NC}\n"
-    echo ""
-    echo "Doc Advisor requires .doc_structure.yaml to configure document scanning paths."
-    echo ""
-    echo "To create it:"
-    printf "  1. cd ${BLUE}${TARGET_DIR}${NC}\n"
-    echo "  2. claude"
-    printf "  3. Run ${YELLOW}/doc-structure:init-doc-structure${NC}\n"
-    echo "  4. Re-run setup.sh"
-    echo ""
-    echo "(doc-structure plugin required: https://github.com/BlueEventHorizon/bw-cc-plugins)"
-    echo ""
-    echo "Alternative (minimal setup without doc-structure plugin):"
-    printf "  ${YELLOW}${SCRIPT_DIR}/setup_dirs.sh ${TARGET_DIR}${NC}\n"
-    exit 1
-else
+HAS_DOC_STRUCTURE=false
+
+if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
     printf "${GREEN}  .doc_structure.yaml found${NC}\n"
+    HAS_DOC_STRUCTURE=true
+else
+    printf "${YELLOW}  .doc_structure.yaml not found${NC}\n"
+    echo "  Document directories will need to be configured after setup."
+    printf "  Run ${YELLOW}/classify-docs${NC} in Claude Code to auto-detect and configure.\n"
 fi
 echo ""
 
@@ -318,14 +304,9 @@ for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
     fi
 done
 
-# v3.9 removed classify-docs skill and classification scripts
-# (replaced by .doc_structure.yaml + doc-structure plugin)
-if [[ -d "${SKILLS_DIR}/classify-docs" ]]; then
-    rm -rf "${SKILLS_DIR}/classify-docs"
-    printf "${GREEN}Removed legacy: skills/classify-docs/ (replaced by doc-structure plugin)${NC}\n"
-    LEGACY_CLEANED=1
-fi
-for old_script in "classify_dirs.py" "set_root_dirs.py"; do
+# v3.9 had removed classify-docs skill, but v4.0 restores it
+# Old classify-docs (pre-4.0) will be overwritten by template copy
+for old_script in "set_root_dirs.py"; do
     if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
         rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
         printf "${GREEN}Removed legacy: scripts/${old_script} (replaced by doc-structure plugin)${NC}\n"
@@ -461,6 +442,10 @@ echo "  skills/query-specs/ ..."
 mkdir -p "${SKILLS_DIR}/query-specs"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
 
+echo "  skills/classify-docs/ ..."
+mkdir -p "${SKILLS_DIR}/classify-docs"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/classify-docs/SKILL.md" "${SKILLS_DIR}/classify-docs/SKILL.md"
+
 # Copy doc-advisor resources (config, docs, scripts)
 echo "  doc-advisor/ ..."
 
@@ -492,10 +477,52 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
     printf "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}\n"
 fi
 
+# =============================================================================
+# Install SessionStart hook for config check
+# =============================================================================
+SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
+HOOK_CMD=".claude/doc-advisor/scripts/check_config.sh"
+
+echo ""
+echo "  Configuring SessionStart hook..."
+$PYTHON_CMD << PYEOF
+import json, os
+
+settings_file = "$SETTINGS_FILE"
+hook_cmd = "$HOOK_CMD"
+
+# Load existing settings or create new
+settings = {}
+if os.path.exists(settings_file):
+    with open(settings_file, 'r', encoding='utf-8') as f:
+        try:
+            settings = json.load(f)
+        except json.JSONDecodeError:
+            settings = {}
+
+hooks = settings.setdefault('hooks', {})
+session_hooks = hooks.setdefault('SessionStart', [])
+
+# Check if our hook already exists
+already_exists = any(
+    any(h.get('command', '') == hook_cmd for h in entry.get('hooks', []))
+    for entry in session_hooks
+)
+
+if not already_exists:
+    session_hooks.append({
+        "matcher": "",
+        "hooks": [{"type": "command", "command": hook_cmd}]
+    })
+
+with open(settings_file, 'w', encoding='utf-8') as f:
+    json.dump(settings, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+PYEOF
+
 echo ""
 echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"
-
 
 echo ""
 printf "${GREEN}==========================================${NC}\n"
@@ -517,8 +544,14 @@ EOF
 echo ""
 echo "Next steps:"
 echo "  1. Start Claude Code:"
-printf "     cd ${BLUE}${TARGET_DIR}${NC}\n"
+printf "     cd ${BLUE}$(display_path "${TARGET_DIR}")${NC}\n"
 echo "     claude"
-printf "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
-printf "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
+if [[ "$HAS_DOC_STRUCTURE" != "true" ]]; then
+    printf "  2. Run ${YELLOW}/classify-docs${NC} to configure document directories\n"
+    printf "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
+    printf "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
+else
+    printf "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
+    printf "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
+fi
 echo ""
