@@ -5,6 +5,9 @@
 #
 # Created by k_terada
 
+# Hook cwd is not guaranteed to be project root; use $CLAUDE_PROJECT_DIR
+cd "$CLAUDE_PROJECT_DIR" || exit 0
+
 CONFIG=".claude/doc-advisor/config.yaml"
 
 # Case 1: .doc_structure.yaml exists → runtime derives root_dirs

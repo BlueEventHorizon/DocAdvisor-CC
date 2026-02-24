@@ -112,6 +112,35 @@ echo "Target project: $(display_path "${TARGET_DIR}")"
 echo ""
 
 # =============================================================================
+# Document structure check (early exit opportunity)
+# =============================================================================
+DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
+HAS_DOC_STRUCTURE=false
+
+if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
+    printf "${GREEN}  .doc_structure.yaml found${NC}\n"
+    HAS_DOC_STRUCTURE=true
+else
+    printf "${YELLOW}  .doc_structure.yaml not found${NC}\n"
+    echo "  Document directories will need to be configured after setup."
+    printf "  Run ${YELLOW}/classify-docs${NC} in Claude Code to auto-detect and configure.\n"
+    echo ""
+    echo "  Options:"
+    echo "    [c] Continue setup (configure directories later with /classify-docs)"
+    echo "    [e] Exit (install doc-structure plugin first)"
+    read -p "  Choice [c]: " DOC_STRUCTURE_CHOICE
+    DOC_STRUCTURE_CHOICE="${DOC_STRUCTURE_CHOICE:-c}"
+    if [[ "$DOC_STRUCTURE_CHOICE" == [Ee] ]]; then
+        echo ""
+        echo "Setup cancelled."
+        echo "To create .doc_structure.yaml, run /doc-structure:init-doc-structure in Claude Code."
+        echo "Then re-run this setup script."
+        exit 0
+    fi
+fi
+echo ""
+
+# =============================================================================
 # Agent model selection
 # =============================================================================
 
@@ -151,22 +180,6 @@ printf "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}\n"
 printf "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}\n"
 if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
     printf "    ${RED}(python3 may be wrapped: using explicit path for reliability)${NC}\n"
-fi
-echo ""
-
-# =============================================================================
-# Document structure check
-# =============================================================================
-DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
-HAS_DOC_STRUCTURE=false
-
-if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
-    printf "${GREEN}  .doc_structure.yaml found${NC}\n"
-    HAS_DOC_STRUCTURE=true
-else
-    printf "${YELLOW}  .doc_structure.yaml not found${NC}\n"
-    echo "  Document directories will need to be configured after setup."
-    printf "  Run ${YELLOW}/classify-docs${NC} in Claude Code to auto-detect and configure.\n"
 fi
 echo ""
 
@@ -481,7 +494,8 @@ fi
 # Install SessionStart hook for config check
 # =============================================================================
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
-HOOK_CMD=".claude/doc-advisor/scripts/check_config.sh"
+HOOK_CMD='"$CLAUDE_PROJECT_DIR"/.claude/doc-advisor/scripts/check_config.sh'
+OLD_HOOK_CMD=".claude/doc-advisor/scripts/check_config.sh"
 
 echo ""
 echo "  Configuring SessionStart hook..."
@@ -489,7 +503,8 @@ $PYTHON_CMD << PYEOF
 import json, os
 
 settings_file = "$SETTINGS_FILE"
-hook_cmd = "$HOOK_CMD"
+hook_cmd = '$HOOK_CMD'
+old_hook_cmd = "$OLD_HOOK_CMD"
 
 # Load existing settings or create new
 settings = {}
@@ -503,11 +518,17 @@ if os.path.exists(settings_file):
 hooks = settings.setdefault('hooks', {})
 session_hooks = hooks.setdefault('SessionStart', [])
 
-# Check if our hook already exists
-already_exists = any(
-    any(h.get('command', '') == hook_cmd for h in entry.get('hooks', []))
-    for entry in session_hooks
-)
+# Check if our hook already exists (new or old format)
+already_exists = False
+for entry in session_hooks:
+    for h in entry.get('hooks', []):
+        cmd = h.get('command', '')
+        if cmd == hook_cmd:
+            already_exists = True
+        elif cmd == old_hook_cmd:
+            # Upgrade old relative path to $CLAUDE_PROJECT_DIR format
+            h['command'] = hook_cmd
+            already_exists = True
 
 if not already_exists:
     session_hooks.append({

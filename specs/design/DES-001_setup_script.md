@@ -53,9 +53,13 @@ flowchart TD
     D --> F[パス正規化]
     E --> F
 
-    F --> G[Agent モデル選択]
-    G --> G2[.doc_structure.yaml チェック]
-    G2 --> H[レガシーファイル削除]
+    F --> F2{.doc_structure.yaml<br>チェック}
+    F2 -->|あり| G[Agent モデル選択]
+    F2 -->|なし| F3{ユーザー選択}
+    F3 -->|Continue| G
+    F3 -->|Exit| Z
+
+    G --> H[レガシーファイル削除]
 
     H --> I[ディレクトリ作成]
     I --> J[config.yaml 確認]
@@ -65,7 +69,7 @@ flowchart TD
     M --> Z
 ```
 
-> **Note**: v4.0 で setup.sh はテンプレートコピーと hook 登録に徹する。ディレクトリ分類はターゲットプロジェクト側の `/classify-docs` スキルで AI 駆動で実行する。
+> **Note**: v4.0 で `.doc_structure.yaml` チェックはセットアップの最初に行われる。未検出時はユーザーに Continue/Exit を選択させ、doc-structure プラグインを先にインストールする機会を与える。ディレクトリ分類はターゲットプロジェクト側の `/classify-docs` スキルで AI 駆動で実行する。
 
 ---
 
@@ -350,6 +354,7 @@ setup.sh はテンプレートコピー後に `.claude/settings.json` へ Sessio
 
 `check_config.sh` は以下の順序でチェックする:
 
+0. `cd "$CLAUDE_PROJECT_DIR"` でプロジェクトルートに移動（hook の cwd は不定のため）
 1. `.doc_structure.yaml` が存在 → 即 exit 0（出力なし）
 2. `config.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし）
 3. `config.yaml` が存在しない → 即 exit 0（Doc Advisor 未インストール）
@@ -377,7 +382,7 @@ setup.sh はテンプレートコピー後に `.claude/settings.json` へ Sessio
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/doc-advisor/scripts/check_config.sh"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/doc-advisor/scripts/check_config.sh"
           }
         ]
       }
@@ -437,6 +442,8 @@ SessionStart hook が未設定を警告するので、`/classify-docs` でディ
 - setup.sh はテンプレートコピーと hook 登録に徹し、ディレクトリ分類は行わない
 - `config.yaml` の `root_dirs` はコメントアウト状態で生成（`/classify-docs` で設定）
 - SessionStart hook は `settings.json` に Python でマージ（既存 hooks を壊さない）
+- hook コマンドパスは `"$CLAUDE_PROJECT_DIR"` 環境変数を使用（hook の cwd はプロジェクトルートとは限らないため）
+- 旧形式（相対パス）の hook は自動で `$CLAUDE_PROJECT_DIR` 形式にアップグレードされる
 
 ## 関連ドキュメント
 
