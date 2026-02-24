@@ -9,7 +9,7 @@
 | 項目 | 値 |
 |------|-----|
 | ファイル名 | `setup.sh` |
-| バージョン | v3.8 |
+| バージョン | v4.0 |
 | 実行要件 | Bash |
 | 依存コマンド | `sed`, `find`, `mkdir`, `cp`, `chmod`, `rm` |
 
@@ -54,20 +54,18 @@ flowchart TD
     E --> F
 
     F --> G[Agent モデル選択]
-    G --> H[レガシーファイル削除]
+    G --> G2[.doc_structure.yaml チェック]
+    G2 --> H[レガシーファイル削除]
 
     H --> I[ディレクトリ作成]
     I --> J[config.yaml 確認]
     J --> K[テンプレートコピー<br>変数置換付き]
-    K --> M{config skip?}
-    M -->|No| N[自動分類<br>classify_dirs.py --apply]
-    M -->|Yes| O[分類スキップ]
-    N --> L[完了メッセージ]
-    O --> L
-    L --> Z
+    K --> L[SessionStart hook<br>settings.json にマージ]
+    L --> M[完了メッセージ]
+    M --> Z
 ```
 
-> **Note**: v3.8 でディレクトリ選択ループは廃止。テンプレートコピー後に `classify_dirs.py --apply` を自動実行し、`config.yaml` の `root_dirs` を設定する。config を保持（skip）した場合は自動分類をスキップする。
+> **Note**: v4.0 で setup.sh はテンプレートコピーと hook 登録に徹する。ディレクトリ分類はターゲットプロジェクト側の `/classify-docs` スキルで AI 駆動で実行する。
 
 ---
 
@@ -123,48 +121,51 @@ copy_dir_with_substitution "$src_dir" "$dst_dir"
 
 ---
 
-## v3.8 生成構造
+## v4.0 生成構造
 
 ```
 TARGET_DIR/
-└── .claude/
-    ├── agents/                      # Agent 定義（上書きのみ、1ファイル）
-    │   └── toc-updater.md           # ワーカー: rules/specs の個別エントリ処理
-    ├── skills/
-    │   ├── classify-docs/           # ドキュメントディレクトリ自動分類スキル
-    │   │   └── SKILL.md
-    │   ├── query-rules/             # ドキュメント検索スキル (context: fork)
-    │   │   └── SKILL.md
-    │   ├── query-specs/             # ドキュメント検索スキル (context: fork)
-    │   │   └── SKILL.md
-    │   ├── create-rules-toc/        # rules ToC 生成スキル
-    │   │   └── SKILL.md
-    │   └── create-specs-toc/        # specs ToC 生成スキル
-    │       └── SKILL.md
-    └── doc-advisor/                 # 共有リソース + ランタイム出力
-        ├── config.yaml              # 設定ファイル（root_dirs は空、/classify-docs で設定）
-        ├── docs/                    # ドキュメント
-        │   ├── toc_orchestrator.md
-        │   ├── toc_format.md
-        │   └── toc_update_workflow.md
-        ├── scripts/                 # Python スクリプト
-        │   ├── toc_utils.py
-        │   ├── classify_dirs.py
-        │   ├── create_checksums.py
-        │   ├── create_pending_yaml.py   # --target rules|specs
-        │   ├── write_pending.py         # --target rules|specs
-        │   ├── merge_toc.py             # --target rules|specs
-        │   ├── validate_rules_toc.py
-        │   └── validate_specs_toc.py
-        └── toc/                     # ランタイム出力
-            ├── rules/
-            │   ├── rules_toc.yaml       # 生成される ToC
-            │   ├── .toc_checksums.yaml  # チェックサム
-            │   └── .toc_work/           # 作業ディレクトリ
-            └── specs/
-                ├── specs_toc.yaml
-                ├── .toc_checksums.yaml
-                └── .toc_work/
+├── .claude/
+│   ├── settings.json                # SessionStart hook 登録済み
+│   ├── agents/                      # Agent 定義（上書きのみ、1ファイル）
+│   │   └── toc-updater.md           # ワーカー: rules/specs の個別エントリ処理
+│   ├── skills/
+│   │   ├── classify-docs/           # ドキュメントディレクトリ自動分類スキル
+│   │   │   └── SKILL.md
+│   │   ├── query-rules/             # ドキュメント検索スキル (context: fork)
+│   │   │   └── SKILL.md
+│   │   ├── query-specs/             # ドキュメント検索スキル (context: fork)
+│   │   │   └── SKILL.md
+│   │   ├── create-rules-toc/        # rules ToC 生成スキル
+│   │   │   └── SKILL.md
+│   │   └── create-specs-toc/        # specs ToC 生成スキル
+│   │       └── SKILL.md
+│   └── doc-advisor/                 # 共有リソース + ランタイム出力
+│       ├── config.yaml              # 設定ファイル（root_dirs は空、/classify-docs で設定）
+│       ├── docs/                    # ドキュメント
+│       │   ├── toc_orchestrator.md
+│       │   ├── toc_format.md
+│       │   ├── toc_update_workflow.md
+│       │   └── classification_rules.md  # /classify-docs 用分類ルール
+│       ├── scripts/                 # Python/Shell スクリプト
+│       │   ├── toc_utils.py
+│       │   ├── classify_dirs.py         # ディレクトリスキャナー
+│       │   ├── check_config.sh          # SessionStart hook スクリプト
+│       │   ├── create_checksums.py
+│       │   ├── create_pending_yaml.py   # --target rules|specs
+│       │   ├── write_pending.py         # --target rules|specs
+│       │   ├── merge_toc.py             # --target rules|specs
+│       │   ├── validate_rules_toc.py
+│       │   └── validate_specs_toc.py
+│       └── toc/                     # ランタイム出力
+│           ├── rules/
+│           │   ├── rules_toc.yaml       # 生成される ToC
+│           │   ├── .toc_checksums.yaml  # チェックサム
+│           │   └── .toc_work/           # 作業ディレクトリ
+│           └── specs/
+│               ├── specs_toc.yaml
+│               ├── .toc_checksums.yaml
+│               └── .toc_work/
 ```
 
 ---
@@ -265,6 +266,16 @@ v3.8 でカテゴリ別に分かれていたスクリプト・Agent・ドキュ�
 
 v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` は空配列 `[]` で生成され、`/classify-docs` スキルで自動分類・設定する。
 
+### v4.0: classify-docs 復活と SessionStart hook（v3.8 → v4.0）
+
+| 変更 | 内容 |
+|------|------|
+| `setup_dirs.sh` 廃止 | `/classify-docs` スキルで完全に代替 |
+| `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要 |
+| `classify-docs` スキル復活 | テンプレートとして `templates/skills/classify-docs/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
+| SessionStart hook 導入 | `check_config.sh` が未設定状態を検出し Claude に警告を注入 |
+| `settings.json` hook マージ | setup.sh が Python で既存 hooks を壊さずに SessionStart hook を追加 |
+
 ---
 
 ### 削除判断の原則
@@ -327,7 +338,55 @@ common:
     fallback_to_serial: true     # 並列失敗時は直列実行
 ```
 
-> **Note**: `root_dirs` はテンプレート上は空配列 `[]`。setup.sh のテンプレートコピー後に `classify_dirs.py --apply` が自動実行され、プロジェクト内のドキュメントディレクトリを分類して `root_dirs` を設定する。config を保持（skip）した場合は自動分類をスキップする。
+> **Note**: `root_dirs` はテンプレート上はコメントアウト（`# root_dirs: []`）。setup.sh はテンプレートコピーに徹し、ディレクトリ分類は行わない。ターゲットプロジェクトで `/classify-docs` スキルを実行し、AI 駆動で `root_dirs` を設定する。`.doc_structure.yaml` がある場合はランタイムで `root_dirs` を導出するため手動設定は不要。
+
+## SessionStart hook インストール（v4.0）
+
+### 概要
+
+setup.sh はテンプレートコピー後に `.claude/settings.json` へ SessionStart hook を登録する。
+
+### hook スクリプト
+
+`check_config.sh` は以下の順序でチェックする:
+
+1. `.doc_structure.yaml` が存在 → 即 exit 0（出力なし）
+2. `config.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし）
+3. `config.yaml` が存在しない → 即 exit 0（Doc Advisor 未インストール）
+4. いずれにも該当しない → 警告メッセージを出力
+
+### マージロジック
+
+既存の `settings.json` を壊さずに hook を追加する:
+
+```python
+# 1. 既存 settings.json を読み込み（存在しなければ空 dict）
+# 2. hooks.SessionStart 配列に check_config.sh エントリを追加
+# 3. 同一コマンドの重複チェック（既に存在すればスキップ）
+# 4. JSON として書き戻し
+```
+
+### settings.json 出力例
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/doc-advisor/scripts/check_config.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
 
 ## エラーハンドリング
 
@@ -343,9 +402,9 @@ common:
 
 ## セットアップ後の次のステップ
 
-### 通常（config 新規作成/上書き時）
+### .doc_structure.yaml がある場合
 
-auto-classify によりドキュメントディレクトリが自動設定されるため、すぐに ToC 生成が可能:
+ランタイムで `root_dirs` が導出されるため、すぐに ToC 生成が可能:
 
 1. Claude Code を起動:
    ```bash
@@ -358,25 +417,26 @@ auto-classify によりドキュメントディレクトリが自動設定され
    /create-specs-toc --full
    ```
 
-### config 保持（skip）時
+### .doc_structure.yaml がない場合
 
-既存の config.yaml を保持した場合、自動分類はスキップされる:
+SessionStart hook が未設定を警告するので、`/classify-docs` でディレクトリを分類する:
 
-1. Claude Code を起動
-2. 必要に応じて `/classify-docs` でディレクトリを更新
+1. Claude Code を起動（SessionStart hook が警告を表示）
+2. `/classify-docs` を実行し、AI がディレクトリを分類
 3. `/create-rules-toc --full` / `/create-specs-toc --full`
 
 ## 注意事項
 
 - templates/ ディレクトリがスクリプトと同じディレクトリに存在する必要がある
-- Python スクリプトと Shell スクリプトは変数置換なしでコピーされる
+- Python スクリプトと Shell スクリプトは変数置換なしでコピーされる（`.py`, `.sh` はそのままコピー）
 - `agents/` はディレクトリ削除せず上書きのみ（ユーザーの独自 agent を保護、管理対象は `toc-updater.md` 1 ファイルのみ）
 - `skills/doc-advisor/` はクリーンインストール（全削除→再作成）（v3.0 レガシー）
 - advisor agent（rules-advisor.md, specs-advisor.md）は自動削除される（v3.7 移行）
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
 - `config.yaml` が既存の場合はユーザーに確認を求める
-- 自動分類は `classify_dirs.py --apply` で実行（frontmatter doc_type → 用語ランキング → ディレクトリ名ヒューリスティック）
-- `config.yaml` の `root_dirs` は空配列で生成（`/classify-docs` で設定）
+- setup.sh はテンプレートコピーと hook 登録に徹し、ディレクトリ分類は行わない
+- `config.yaml` の `root_dirs` はコメントアウト状態で生成（`/classify-docs` で設定）
+- SessionStart hook は `settings.json` に Python でマージ（既存 hooks を壊さない）
 
 ## 関連ドキュメント
 

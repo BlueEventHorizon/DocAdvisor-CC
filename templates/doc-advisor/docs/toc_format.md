@@ -26,6 +26,11 @@ The quality of this file determines task execution success. **Missing informatio
 - When in doubt, include it (never miss documents)
 - **Key format**: Project-relative path (e.g., `rules/core/architecture_rule.md`, `specs/requirements/app_overview.md`)
 
+### Language Rule
+
+- **All field values must be written in English**, regardless of the source document's language
+- ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
+
 ### YAML Formatting Rules
 
 - **Indentation**: 2 spaces (no tabs)

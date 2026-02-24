@@ -41,6 +41,10 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 
 各カテゴリは**1つ以上のルートディレクトリ**を持つ。ルートディレクトリ配下のサブディレクトリ構造は自由。
 
+`root_dirs` の設定方法:
+- `.doc_structure.yaml` がある場合: ランタイムで自動導出（config.yaml の設定不要）
+- `.doc_structure.yaml` がない場合: `/classify-docs` スキルで AI が分類・設定
+
 ```yaml
 rules:
   root_dirs:
@@ -180,7 +184,7 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目 | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
-| `root_dirs` | array | `[rules/]` | ルートディレクトリ群 |
+| `root_dirs` | array | `[]`（`/classify-docs` で設定） | ルートディレクトリ群 |
 | `toc_file` | string | `.claude/doc-advisor/toc/rules/rules_toc.yaml` | 出力 ToC ファイルパス |
 | `checksums_file` | string | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | チェックサムファイルパス |
 | `work_dir` | string | `.claude/doc-advisor/toc/rules/.toc_work/` | 作業ディレクトリパス |
@@ -193,7 +197,7 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目 | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
-| `root_dirs` | array | `[specs/]` | ルートディレクトリ群 |
+| `root_dirs` | array | `[]`（`/classify-docs` で設定） | ルートディレクトリ群 |
 | `toc_file` | string | `.claude/doc-advisor/toc/specs/specs_toc.yaml` | 出力 ToC ファイルパス |
 | `checksums_file` | string | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | チェックサムファイルパス |
 | `work_dir` | string | `.claude/doc-advisor/toc/specs/.toc_work/` | 作業ディレクトリパス |

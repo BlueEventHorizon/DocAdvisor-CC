@@ -19,10 +19,14 @@
 | コンポーネント | 役割 | 実装 |
 |---------------|------|------|
 | Orchestrator | 全体フロー制御 | `skills/create-*-toc/SKILL.md` |
-| Subagent | 個別ファイル処理 | `agents/*-toc-updater.md` |
+| Subagent | 個別ファイル処理 | `agents/toc-updater.md`（`--target rules\|specs` で切替） |
 | Checksum Generator | ハッシュ計算 | `create_checksums.py` |
-| Merger | エントリ統合 | `merge_*_toc.py` |
-| Validator | 出力検証 | `validate_*_toc.py` |
+| Pending Generator | pending YAML 生成 | `create_pending_yaml.py --target rules\|specs` |
+| Writer | pending YAML 書き込み | `write_pending.py --target rules\|specs` |
+| Merger | エントリ統合 | `merge_toc.py --target rules\|specs` |
+| Validator | 出力検証 | `validate_rules_toc.py` / `validate_specs_toc.py` |
+
+> **前提条件**: ToC 生成の前に `config.yaml` の `root_dirs` が設定されている必要がある。`.doc_structure.yaml` がある場合はランタイムで導出される。ない場合は `/classify-docs` スキルで事前に設定する。
 
 ### データフロー
 

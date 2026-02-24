@@ -1,8 +1,8 @@
-# REQ-002: アップグレード要件（v2.0 → v3.x）
+# REQ-002: アップグレード要件（v2.0 → v4.x）
 
 ## 概要
 
-Doc Advisor v2.0 から v3.x へのアップグレード時に必要な要件を定義する。
+Doc Advisor v2.0 から v4.x へのアップグレード時に必要な要件を定義する。
 
 ## 背景
 
@@ -186,8 +186,44 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 | T-007 | agents/ カスタム保持 | ユーザーの独自 agent が保持される |
 | T-008 | advisor agent 削除（v3.7） | rules-advisor.md, specs-advisor.md が削除される |
 | T-009 | query-\* skill インストール | query-rules/SKILL.md, query-specs/SKILL.md が存在する |
+| T-010 | classify-docs skill インストール（v4.0） | classify-docs/SKILL.md が存在する |
+| T-011 | SessionStart hook 登録（v4.0） | settings.json に check_config.sh hook が登録される |
+| T-012 | check_config.sh コピー（v4.0） | scripts/check_config.sh が存在し実行権限がある |
 
 **テストスクリプト**: `tests/test_setup_upgrade.sh`
+
+---
+
+### REQ-002-07: classify-docs スキルの復活（v4.0）
+
+**説明**: v3.9 で削除された classify-docs スキルを復活し、AI 駆動のディレクトリ分類に変更する
+
+**変更内容**:
+- `setup_dirs.sh` を廃止（対話的な手動ディレクトリ入力は不要に）
+- `--skip-doc-structure` フラグを廃止
+- `/classify-docs` スキルをテンプレートとして `templates/skills/classify-docs/SKILL.md` に配置
+- `classify_dirs.py` と `classification_rules.md` をテンプレートに追加
+
+**受入条件**:
+- [ ] setup.sh 実行後に `skills/classify-docs/SKILL.md` が存在する
+- [ ] `classify_dirs.py` と `classification_rules.md` が `doc-advisor/scripts/` と `doc-advisor/docs/` にコピーされる
+- [ ] `/classify-docs` 実行で AI がディレクトリを分類し `config.yaml` の `root_dirs` を更新する
+
+### REQ-002-08: SessionStart hook の導入（v4.0）
+
+**説明**: ドキュメントディレクトリ未設定時に自動警告する SessionStart hook を導入する
+
+**変更内容**:
+- `check_config.sh` を `templates/doc-advisor/scripts/` に追加
+- setup.sh が `.claude/settings.json` に SessionStart hook を自動登録
+- hook は既存の settings.json を壊さずにマージする
+
+**受入条件**:
+- [ ] setup.sh 実行後に `settings.json` に SessionStart hook が登録される
+- [ ] `.doc_structure.yaml` が存在する場合、hook は何も出力しない
+- [ ] `root_dirs` が設定済みの場合、hook は何も出力しない
+- [ ] 未設定時のみ `/classify-docs` を案内する警告メッセージが出力される
+- [ ] 既存の hooks がある `settings.json` に対して、既存エントリを壊さずマージできる
 
 ---
 
