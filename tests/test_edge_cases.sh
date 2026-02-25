@@ -219,8 +219,8 @@ echo "=================================================="
 
 # Create actual source files so merge won't skip them as missing
 mkdir -p "specs/main/requirements"
-echo "# 日本語ドキュメント" > "specs/main/requirements/日本語ドキュメント.md"
-echo "# New File" > "specs/main/requirements/new_file.md"
+printf "# 日本語ドキュメント\n\nこのファイルはテスト用の日本語ドキュメントです。\n" > "specs/main/requirements/日本語ドキュメント.md"
+printf "# New File\n\nThis is a new test file with substantive content.\n" > "specs/main/requirements/new_file.md"
 
 # Create initial specs_toc.yaml with Japanese filename
 mkdir -p .claude/doc-advisor/toc/specs

@@ -77,7 +77,8 @@ Hash-based naming avoids filename length limits, case-insensitive collisions, an
 _meta:
   source_file: {target}/path/to/document.md    # Path from project root
   doc_type: requirement                        # Document type from .doc_structure.yaml
-  status: pending                               # pending | completed
+  status: pending                               # pending | completed | error
+  error_message: null                            # Error details (only when status: error)
   updated_at: null                              # Completion time (ISO 8601 format)
 
 # Below: {target}_toc.yaml entry format (key uses source_file value)
@@ -95,7 +96,8 @@ references: []            # specs only (omitted for rules)
 |-------|------|-------------|
 | `source_file` | string | Target document path (from project root) |
 | `doc_type` | string | Document type derived from `.doc_structure.yaml` (e.g., rule, requirement, design, plan, api, reference, spec) |
-| `status` | enum | `pending` (unprocessed) or `completed` (done) |
+| `status` | enum | `pending` (unprocessed), `completed` (done), or `error` (failed) |
+| `error_message` | string/null | Error details (only when `status: error`), `null` otherwise |
 | `updated_at` | datetime/null | Completion time (ISO 8601 format), `null` if incomplete |
 
 ---

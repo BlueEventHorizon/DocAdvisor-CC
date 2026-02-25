@@ -142,6 +142,49 @@ def get_pending_template():
     return PENDING_TEMPLATE_RULES
 
 
+def has_substantive_content(filepath, min_content_lines=1):
+    """
+    Check if file has content beyond headers, blank lines, and frontmatter.
+
+    Args:
+        filepath: Path to the file
+        min_content_lines: Minimum number of substantive lines required
+
+    Returns:
+        bool: True if file has enough substantive content
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except (IOError, OSError, PermissionError):
+        return False
+
+    if not content.strip():
+        return False  # Empty file
+
+    content_lines = 0
+    in_frontmatter = False
+    for line in content.splitlines():
+        stripped = line.strip()
+
+        # YAML frontmatter delimiter
+        if stripped == '---':
+            in_frontmatter = not in_frontmatter
+            continue
+        if in_frontmatter:
+            continue
+
+        # Skip empty lines and header-only lines
+        if not stripped or stripped.startswith('#'):
+            continue
+
+        content_lines += 1
+        if content_lines >= min_content_lines:
+            return True
+
+    return False
+
+
 def get_all_md_files():
     """Get list of target .md files across all root_dirs (symlink-aware)"""
     md_files = []
@@ -359,16 +402,27 @@ def main():
 
     # Generate pending YAMLs
     created_files = []
+    skipped_files = []
     failed_count = 0
     for md_file in target_files:
         root_dir, root_dir_name = file_root_map[md_file]
         source_file = get_source_file_path(md_file, root_dir, root_dir_name)
+
+        # Skip empty/stub files (no substantive content)
+        if not has_substantive_content(md_file):
+            print(f"  [Skipped] {source_file} (empty or headers only)")
+            skipped_files.append(source_file)
+            continue
+
         doc_type = determine_doc_type(root_dir_name)
         yaml_path = create_pending_yaml(source_file, doc_type)
         if yaml_path is None:
             failed_count += 1
             continue
         created_files.append(source_file)
+
+    if skipped_files:
+        print(f"\nSkipped {len(skipped_files)} empty/stub files")
 
     if failed_count > 0:
         print(f"\nWarning: {failed_count} files failed to create")

@@ -21,6 +21,11 @@ Usage:
       ... \
       --references "ref1 ||| ref2"
 
+Error mode:
+    python3 write_pending.py --target rules \
+      --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
+      --error --error-message "Source file not found"
+
 Exit codes:
     0: Success
     1: File not found
@@ -52,15 +57,23 @@ def parse_args():
                         help='Target category: rules or specs')
     parser.add_argument('--entry-file', required=True,
                         help='Target entry YAML file path')
-    parser.add_argument('--title', required=True,
+
+    # Error mode
+    parser.add_argument('--error', action='store_true',
+                        help='Write error status (skip field validation)')
+    parser.add_argument('--error-message', default='',
+                        help='Error message (used with --error)')
+
+    # Content fields (required in normal mode, ignored in error mode)
+    parser.add_argument('--title', default=None,
                         help='Document title')
-    parser.add_argument('--purpose', required=True,
+    parser.add_argument('--purpose', default=None,
                         help='Document purpose (1-2 sentences)')
-    parser.add_argument('--content-details', required=True,
+    parser.add_argument('--content-details', default=None,
                         help='Content details (||| separated, 5-10 items)')
-    parser.add_argument('--applicable-tasks', required=True,
+    parser.add_argument('--applicable-tasks', default=None,
                         help='Applicable tasks (||| separated, 1+ items)')
-    parser.add_argument('--keywords', required=True,
+    parser.add_argument('--keywords', default=None,
                         help='Keywords (||| separated, 5-10)')
     parser.add_argument('--references', default='',
                         help='Reference documents (||| separated, specs only)')
@@ -85,6 +98,53 @@ def validate_array(name, items, min_count):
         print(f"  Provided: {', '.join(items)}")
         return False
     return True
+
+
+def write_error_yaml(filepath, meta, error_message, target):
+    """
+    Write error status to entry YAML file
+
+    Args:
+        filepath: Output file path
+        meta: _meta section dict (source_file, doc_type preserved)
+        error_message: Error description
+        target: 'rules' or 'specs'
+
+    Returns:
+        bool: True on success
+    """
+    lines = []
+
+    # _meta section
+    lines.append("_meta:")
+    lines.append(f"  source_file: {meta.get('source_file', '')}")
+    doc_type = meta.get('doc_type', '')
+    if doc_type:
+        lines.append(f"  doc_type: {doc_type}")
+    lines.append("  status: error")
+    lines.append(f"  error_message: {yaml_escape(error_message)}")
+    lines.append(f"  updated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    lines.append("")
+
+    # Null fields (preserve template structure)
+    lines.append("title: null")
+    lines.append("purpose: null")
+    lines.append("content_details: []")
+    lines.append("applicable_tasks: []")
+    lines.append("keywords: []")
+
+    if target == 'specs':
+        lines.append("references: []")
+
+    lines.append("")  # Trailing newline
+
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines))
+        return True
+    except (IOError, OSError, PermissionError) as e:
+        print(f"Error: Failed to write file: {filepath} - {e}")
+        return False
 
 
 def write_entry_yaml(filepath, meta, entry, target):
@@ -172,11 +232,33 @@ def main():
         print(f"Error: Entry file missing _meta.source_file: {entry_file}")
         return 1
 
+    # Error mode: write error status and exit
+    if args.error:
+        if not args.error_message:
+            print("Error: --error-message is required with --error")
+            return 2
+        if not write_error_yaml(entry_file, meta, args.error_message, target):
+            return 4
+        print(f"Entry error: {entry_file}")
+        print(f"  source_file: {meta['source_file']}")
+        print(f"  status: error")
+        print(f"  error_message: {args.error_message}")
+        return 0
+
     # completed status check
     if meta.get('status') == 'completed' and not args.force:
         print(f"Error: Entry file already completed: {entry_file}")
         print("  Use --force to overwrite")
         return 1
+
+    # Required fields check (normal mode)
+    missing = []
+    for field in ['title', 'purpose', 'content_details', 'applicable_tasks', 'keywords']:
+        if getattr(args, field.replace('-', '_')) is None:
+            missing.append(f'--{field.replace("_", "-")}')
+    if missing:
+        print(f"Error: Required arguments in normal mode: {', '.join(missing)}")
+        return 2
 
     # Parse arrays
     content_details = parse_separated(args.content_details)
