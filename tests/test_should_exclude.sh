@@ -35,7 +35,14 @@ test_result() {
     fi
 }
 
-# Setup test project
+# Ensure test project is set up (self-contained: works without prior test phases)
+if [[ ! -d "$TEST_PROJECT/.claude" ]]; then
+    echo "Setting up test project..."
+    cd "$TEST_PROJECT"
+    rm -rf .claude .last_setup
+    echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+fi
+
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs

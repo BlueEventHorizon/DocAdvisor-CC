@@ -110,18 +110,20 @@ echo "=================================================="
 echo "Test 2-6: merge_toc.py --target rules - Incremental mode"
 echo "=================================================="
 
-# Add another pending entry (simulate new file)
-# Create the actual source file so merge won't skip it as missing
-echo "# New Rule" > "rules/new_rule.md"
+# Add another pending entry (simulate new file added after full mode)
+# Clean old .toc_work/ first to avoid stale files
+rm -rf ".claude/doc-advisor/toc/rules/.toc_work"
+# Create a NEW source file that wasn't in the full mode
+echo "# Incremental Test Rule" > "rules/incremental_test.md"
 WORK_DIR=".claude/doc-advisor/toc/rules/.toc_work"
 mkdir -p "$WORK_DIR"
-cat > "$WORK_DIR/rules_new_rule.yaml" << 'EOF'
+cat > "$WORK_DIR/incremental_entry.yaml" << 'EOF'
 _meta:
-  source_file: rules/new_rule.md
+  source_file: rules/incremental_test.md
   status: completed
   updated_at: "2026-01-31T00:00:00Z"
 
-title: New Rule
+title: Incremental Test Rule
 purpose: A new rule for testing incremental merge
 content_details:
   - Detail 1
@@ -261,11 +263,19 @@ fi
 $PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
 
-# Count entries before deletion
-BEFORE_COUNT=$(grep -c "^  " .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null || echo 0)
+# Count entries before deletion (entry keys start with 2 spaces + path)
+BEFORE_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null)
+[[ -z "$BEFORE_COUNT" ]] && BEFORE_COUNT=0
 
-# Delete a source .md file (save content for restore)
-DELETED_FILE=$(ls rules/*.md 2>/dev/null | head -1 || echo "")
+# Delete the source .md file that has an entry in the ToC (not just any file)
+# Find a file that actually has an entry in the ToC
+DELETED_FILE=""
+for f in rules/*.md; do
+    if grep -q "^  ${f}:" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null; then
+        DELETED_FILE="$f"
+        break
+    fi
+done
 if [[ -n "$DELETED_FILE" ]]; then
     DELETED_CONTENT=$(cat "$DELETED_FILE")
     rm -f "$DELETED_FILE"
@@ -279,7 +289,8 @@ if [[ -n "$DELETED_FILE" ]]; then
 
     test_result "merge_toc rules --delete-only exit code" "0" "$EXIT_CODE"
 
-    AFTER_COUNT=$(grep -c "^  " .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null || echo 0)
+    AFTER_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null)
+    [[ -z "$AFTER_COUNT" ]] && AFTER_COUNT=0
     if [[ $AFTER_COUNT -lt $BEFORE_COUNT ]]; then
         echo -e "${GREEN}PASS${NC}: Entry count decreased ($BEFORE_COUNT -> $AFTER_COUNT)"
         ((PASS_COUNT++))
@@ -294,6 +305,9 @@ else
     echo -e "${YELLOW}SKIP${NC}: No rules .md file to delete"
 fi
 echo ""
+
+# Cleanup test-created files (keep shared fixtures clean)
+rm -f "rules/incremental_test.md"
 
 echo "=================================================="
 echo "Summary"

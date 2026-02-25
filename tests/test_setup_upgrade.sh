@@ -98,12 +98,21 @@ echo "# Legacy command" > "$TEST_PROJECT/.claude/commands/create-specs_toc.md"
 echo "# User custom command" > "$TEST_PROJECT/.claude/commands/my-custom-command.md"
 
 # Run setup - legacy files are auto-deleted (no user confirmation)
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+SETUP_OUTPUT=$(echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
 
 # Verify: doc-advisor commands deleted, user custom preserved
 test_result "Legacy create-rules_toc.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/commands/create-rules_toc.md" ]] && echo 0 || echo 1)"
 test_result "Legacy create-specs_toc.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/commands/create-specs_toc.md" ]] && echo 0 || echo 1)"
 test_result "User custom command preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/commands/my-custom-command.md" ]] && echo 0 || echo 1)"
+
+# Verify: console output shows deletion messages (REQ-002-01 AC)
+if echo "$SETUP_OUTPUT" | grep -q "Removed legacy"; then
+    echo -e "${GREEN}PASS${NC}: Deletion messages displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No 'Removed legacy' message in output"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================
@@ -209,12 +218,21 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 # Add custom agent
 echo "# My custom agent" > "$TEST_PROJECT/.claude/agents/my-custom-agent.md"
 
-# Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Run setup again (capture output for message verification)
+SETUP_OUTPUT=$(echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
 
 # Verify: custom agent preserved, managed agents still exist
 test_result "Custom agent preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/my-custom-agent.md" ]] && echo 0 || echo 1)"
 test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
+
+# Verify: console output shows preserving message (REQ-002-02 AC)
+if echo "$SETUP_OUTPUT" | grep -q "Preserving:"; then
+    echo -e "${GREEN}PASS${NC}: Preserving message displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No 'Preserving:' message in output"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================
@@ -448,8 +466,9 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: classify_dirs.py exists (copied from templates)
+# Verify: classify_dirs.py and classification_rules.md exist (REQ-002-07 AC)
 test_result "classify_dirs.py installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
+test_result "classification_rules.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/docs/classification_rules.md" ]] && echo 1 || echo 0)"
 echo ""
 
 # ==================================================
@@ -558,6 +577,126 @@ echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 test_result "classify-docs/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 1 || echo 0)"
 test_result "classify_dirs.py exists after upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
 test_result "set_root_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 23: check_config.sh installed with exec permission (T-011)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: check_config.sh exists and is executable
+test_result "check_config.sh exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh" ]] && echo 0 || echo 1)"
+test_result "check_config.sh is executable" "0" "$([[ -x "$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 24: Skill Pre-check sections (T-012)"
+echo "=================================================="
+
+# Verify: all 4 skills have Pre-check section referencing check_config.sh
+ALL_PRECHECK_OK=true
+for SKILL_NAME in create-rules-toc create-specs-toc query-rules query-specs; do
+    SKILL_FILE="$TEST_PROJECT/.claude/skills/$SKILL_NAME/SKILL.md"
+    if grep -q "Pre-check" "$SKILL_FILE" 2>/dev/null && grep -q "check_config.sh" "$SKILL_FILE" 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}: $SKILL_NAME has Pre-check"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: $SKILL_NAME missing Pre-check"
+        ((FAIL_COUNT++))
+        ALL_PRECHECK_OK=false
+    fi
+done
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 25: check_config.sh behavior (REQ-002-08)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh"
+
+# Case 1: .doc_structure.yaml exists → no output
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+test_result "No output when .doc_structure.yaml exists" "" "$OUTPUT"
+
+# Case 2: No .doc_structure.yaml but root_dirs set → no output
+mv "$TEST_PROJECT/.doc_structure.yaml" "$TEST_PROJECT/.doc_structure.yaml.bak"
+# Set root_dirs explicitly in config
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - rules/', 1)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+test_result "No output when root_dirs set" "" "$OUTPUT"
+
+# Case 3: No .doc_structure.yaml AND no root_dirs → ACTION REQUIRED
+# Remove root_dirs from config (revert to commented form)
+python3 -c "
+import re
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = re.sub(r'  root_dirs:\n    - rules/', '  # root_dirs: []    # Uncomment to override .doc_structure.yaml', content)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
+    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED message when unconfigured"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED message, got: $OUTPUT"
+    ((FAIL_COUNT++))
+fi
+
+# Restore .doc_structure.yaml
+mv "$TEST_PROJECT/.doc_structure.yaml.bak" "$TEST_PROJECT/.doc_structure.yaml"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 26: config.yaml merge option (REQ-002-03 [m])"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Add custom setting to config
+echo "      - merge_test_custom_setting" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Run setup again with 'm' to merge
+SETUP_OUTPUT=$(echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
+
+# Verify: config.yaml.old exists (old config saved)
+test_result "config.yaml.old created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml.old" ]] && echo 0 || echo 1)"
+
+# Verify: old config preserved in .old
+CUSTOM_IN_OLD=$(grep -c "merge_test_custom_setting" "$TEST_PROJECT/.claude/doc-advisor/config.yaml.old" 2>/dev/null | tr -d '[:space:]' || echo 0)
+test_result "Custom setting in .old" "1" "$CUSTOM_IN_OLD"
+
+# Verify: new config does NOT have the custom setting (overwritten with template)
+CUSTOM_IN_NEW=$(grep -c "merge_test_custom_setting" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
+test_result "Custom NOT in new config" "0" "$CUSTOM_IN_NEW"
+
+# Verify: diff output was shown
+if echo "$SETUP_OUTPUT" | grep -q "Config diff"; then
+    echo -e "${GREEN}PASS${NC}: Diff output displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No diff output in merge mode"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================

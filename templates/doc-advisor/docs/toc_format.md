@@ -51,20 +51,25 @@ Structure definition for work files used in individual entry file method.
 
 ```
 .claude/doc-advisor/toc/{target}/.toc_work/   # Work directory (.gitignore target)
-├── {target}_subdir_filename.yaml
+├── {sha256_hash_16chars}.yaml
 └── ... (for each target file)
 ```
 
 ### Filename Generation Rule
 
-Generate YAML filename from document path:
+Generate YAML filename using SHA256 hash of the source file path:
+
+```python
+hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16] + ".yaml"
+```
 
 ```
-rules/core/architecture_rule.md   → rules_core_architecture_rule.yaml
-specs/requirements/app_overview.md → specs_requirements_app_overview.yaml
+rules/core/architecture_rule.md   → a1b2c3d4e5f67890.yaml
+specs/requirements/app_overview.md → 1234567890abcdef.yaml
 ```
 
-Conversion rule: `/` → `_`, `.md` → `.yaml`
+The original path is preserved in `_meta.source_file` inside each YAML file.
+Hash-based naming avoids filename length limits, case-insensitive collisions, and special character issues.
 
 ### Entry YAML Structure
 

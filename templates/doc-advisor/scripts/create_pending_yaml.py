@@ -210,8 +210,16 @@ def get_source_file_path(md_file, root_dir, root_dir_name):
 
 
 def get_yaml_filename(source_file):
-    """Generate YAML filename from source_file"""
-    return source_file.replace("/", "--").replace(".md", ".yaml")
+    """Generate YAML filename from source_file using path hash.
+
+    Uses SHA256 hash to avoid:
+    - Filename length limits (macOS 255 bytes)
+    - Case-insensitive filesystem collisions
+    - Special characters in directory/file names
+    The original path is preserved in _meta.source_file inside the YAML.
+    """
+    hash_val = hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16]
+    return f"{hash_val}.yaml"
 
 
 def create_pending_yaml(source_file, doc_type):

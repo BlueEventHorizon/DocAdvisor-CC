@@ -217,12 +217,12 @@ End processing (no need to create .toc_work/)
 ## Subagent Launch Examples
 
 ```
-# Launch 5 in parallel
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--core--architecture_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--core--coding_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--layer--ui_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--workflow--dev_task.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules--format_spec.yaml")
+# Launch 5 in parallel (filenames are SHA256 hashes of source paths)
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/a1b2c3d4e5f67890.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/1234567890abcdef.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/fedcba0987654321.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/0123456789abcdef.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/abcdef0123456789.yaml")
 ```
 
 ---

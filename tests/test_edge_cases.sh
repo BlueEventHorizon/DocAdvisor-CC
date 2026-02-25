@@ -80,19 +80,15 @@ $PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/n
 
 test_result "create_pending_yaml rules (deep)" "0" "$EXIT_CODE"
 
-# Check if deep file was found
-if ls .claude/doc-advisor/toc/rules/.toc_work/*deep*.yaml 1>/dev/null 2>&1; then
+# Check if deep file was found (hash-based filenames, search by source_file content)
+DEEP_FILE=$(grep -rl "source_file: rules/a/b/c/d/e/deep_rule.md" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$DEEP_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Deep nested file found"
     ((PASS_COUNT++))
 
     # Verify path is correct
-    if grep -q "source_file: rules/a/b/c/d/e/deep_rule.md" .claude/doc-advisor/toc/rules/.toc_work/*deep*.yaml; then
-        echo -e "${GREEN}PASS${NC}: Deep path correctly captured"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: Deep path not correctly captured"
-        ((FAIL_COUNT++))
-    fi
+    echo -e "${GREEN}PASS${NC}: Deep path correctly captured"
+    ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Deep nested file not found"
     ((FAIL_COUNT++))
@@ -103,19 +99,14 @@ echo "=================================================="
 echo "Test 4-2: Japanese filename"
 echo "=================================================="
 
-# Check if Japanese filename was found
-if ls .claude/doc-advisor/toc/rules/.toc_work/*日本語*.yaml 1>/dev/null 2>&1; then
+# Check if Japanese filename was found (hash-based filenames, search by content)
+JP_FILE=$(grep -rl "日本語" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$JP_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Japanese filename found"
     ((PASS_COUNT++))
 
-    # Verify path is correct
-    if grep -q "日本語" .claude/doc-advisor/toc/rules/.toc_work/*日本語*.yaml; then
-        echo -e "${GREEN}PASS${NC}: Japanese characters in YAML"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: Japanese characters not in YAML"
-        ((FAIL_COUNT++))
-    fi
+    echo -e "${GREEN}PASS${NC}: Japanese characters in YAML"
+    ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Japanese filename not found"
     ((FAIL_COUNT++))
@@ -145,17 +136,15 @@ echo "=================================================="
 echo "Test 4-4: Special characters in content"
 echo "=================================================="
 
-# Check if special_chars file was processed
-if ls .claude/doc-advisor/toc/specs/.toc_work/*special*.yaml 1>/dev/null 2>&1; then
+# Check if special_chars file was processed (hash-based filenames, search by content)
+SPECS_PENDING=$(grep -rl "source_file:.*special_chars" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$SPECS_PENDING" ]]; then
     echo -e "${GREEN}PASS${NC}: Special chars file processed"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Special chars file not processed"
     ((FAIL_COUNT++))
 fi
-
-# Test write_pending specs with special characters
-SPECS_PENDING=$(ls .claude/doc-advisor/toc/specs/.toc_work/*special*.yaml 2>/dev/null | head -1 || echo "")
 
 if [[ -n "$SPECS_PENDING" ]]; then
     EXIT_CODE=0

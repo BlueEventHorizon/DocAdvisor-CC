@@ -119,9 +119,12 @@ echo -e "  ${RED}FAIL${NC}: $FAIL_COUNT"
 echo -e "  ${YELLOW}SKIP${NC}: $SKIP_COUNT"
 echo ""
 
-if [[ $FAIL_COUNT -eq 0 ]]; then
+if [[ $FAIL_COUNT -eq 0 && $SKIP_COUNT -eq 0 ]]; then
     echo -e "${GREEN}All tests passed!${NC}"
     exit 0
+elif [[ $FAIL_COUNT -eq 0 && $SKIP_COUNT -gt 0 ]]; then
+    echo -e "${YELLOW}WARNING: $SKIP_COUNT test(s) were skipped!${NC}"
+    exit 1
 else
     echo -e "${RED}Some tests failed.${NC}"
     exit 1
