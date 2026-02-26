@@ -55,8 +55,8 @@ echo "=================================================="
 # Clean previous setup
 rm -rf .claude .last_setup
 
-# Run setup with explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Run setup with explicit values: rules, specs, agent_model
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 if [[ ! -d ".claude" ]]; then
     echo -e "${RED}ERROR: Setup failed${NC}"
@@ -64,7 +64,7 @@ if [[ ! -d ".claude" ]]; then
 fi
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 echo ""
@@ -76,23 +76,19 @@ echo "Test 4-1: Deep nested files (5 levels)"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_rules (deep)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml rules (deep)" "0" "$EXIT_CODE"
 
-# Check if deep file was found
-if ls .claude/doc-advisor/toc/rules/.toc_work/*deep*.yaml 1>/dev/null 2>&1; then
+# Check if deep file was found (hash-based filenames, search by source_file content)
+DEEP_FILE=$(grep -rl "source_file: rules/a/b/c/d/e/deep_rule.md" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$DEEP_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Deep nested file found"
     ((PASS_COUNT++))
 
     # Verify path is correct
-    if grep -q "source_file: rules/a/b/c/d/e/deep_rule.md" .claude/doc-advisor/toc/rules/.toc_work/*deep*.yaml; then
-        echo -e "${GREEN}PASS${NC}: Deep path correctly captured"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: Deep path not correctly captured"
-        ((FAIL_COUNT++))
-    fi
+    echo -e "${GREEN}PASS${NC}: Deep path correctly captured"
+    ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Deep nested file not found"
     ((FAIL_COUNT++))
@@ -103,19 +99,14 @@ echo "=================================================="
 echo "Test 4-2: Japanese filename"
 echo "=================================================="
 
-# Check if Japanese filename was found
-if ls .claude/doc-advisor/toc/rules/.toc_work/*日本語*.yaml 1>/dev/null 2>&1; then
+# Check if Japanese filename was found (hash-based filenames, search by content)
+JP_FILE=$(grep -rl "日本語" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$JP_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Japanese filename found"
     ((PASS_COUNT++))
 
-    # Verify path is correct
-    if grep -q "日本語" .claude/doc-advisor/toc/rules/.toc_work/*日本語*.yaml; then
-        echo -e "${GREEN}PASS${NC}: Japanese characters in YAML"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: Japanese characters not in YAML"
-        ((FAIL_COUNT++))
-    fi
+    echo -e "${GREEN}PASS${NC}: Japanese characters in YAML"
+    ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Japanese filename not found"
     ((FAIL_COUNT++))
@@ -127,9 +118,9 @@ echo "Test 4-3: Empty directory handling"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_specs (empty dir)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml specs (empty dir)" "0" "$EXIT_CODE"
 
 # design/ is empty (only .gitkeep), should not create YAML for .gitkeep
 if ls .claude/doc-advisor/toc/specs/.toc_work/*gitkeep*.yaml 1>/dev/null 2>&1; then
@@ -145,8 +136,9 @@ echo "=================================================="
 echo "Test 4-4: Special characters in content"
 echo "=================================================="
 
-# Check if special_chars file was processed
-if ls .claude/doc-advisor/toc/specs/.toc_work/*special*.yaml 1>/dev/null 2>&1; then
+# Check if special_chars file was processed (hash-based filenames, search by content)
+SPECS_PENDING=$(grep -rl "source_file:.*special_chars" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$SPECS_PENDING" ]]; then
     echo -e "${GREEN}PASS${NC}: Special chars file processed"
     ((PASS_COUNT++))
 else
@@ -154,12 +146,9 @@ else
     ((FAIL_COUNT++))
 fi
 
-# Test write_specs_pending with special characters
-SPECS_PENDING=$(ls .claude/doc-advisor/toc/specs/.toc_work/*special*.yaml 2>/dev/null | head -1 || echo "")
-
 if [[ -n "$SPECS_PENDING" ]]; then
     EXIT_CODE=0
-    $PYTHON_CMD "$SCRIPTS_DIR/write_specs_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target specs \
         --entry-file "$SPECS_PENDING" \
         --title "Special: \"quotes\" & ampersand" \
         --purpose "Test YAML escaping for special characters" \
@@ -169,7 +158,7 @@ if [[ -n "$SPECS_PENDING" ]]; then
         --force \
         2>/dev/null || EXIT_CODE=$?
 
-    test_result "write_specs_pending (special chars)" "0" "$EXIT_CODE"
+    test_result "write_pending specs (special chars)" "0" "$EXIT_CODE"
 
     # Verify YAML is valid (can be parsed)
     if $PYTHON_CMD -c "
@@ -206,19 +195,21 @@ if [[ "$RULES_COUNT" -eq 2 ]]; then
     echo -e "${GREEN}PASS${NC}: Correct number of rules files ($RULES_COUNT)"
     ((PASS_COUNT++))
 else
-    echo -e "${YELLOW}WARN${NC}: Expected 2 rules files, got $RULES_COUNT"
+    echo -e "${RED}FAIL${NC}: Expected 2 rules files, got $RULES_COUNT"
+    ((FAIL_COUNT++))
 fi
 
 # Count specs pending files
 SPECS_COUNT=$(ls -1 .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | wc -l | tr -d ' ')
 echo "Specs pending files: $SPECS_COUNT"
 
-# Should have 1 file: special_chars.md (design/ is empty)
-if [[ "$SPECS_COUNT" -eq 1 ]]; then
+# Should have 3 files: special_chars.md, 日本語ドキュメント.md, new_file.md
+if [[ "$SPECS_COUNT" -eq 3 ]]; then
     echo -e "${GREEN}PASS${NC}: Correct number of specs files ($SPECS_COUNT)"
     ((PASS_COUNT++))
 else
-    echo -e "${YELLOW}WARN${NC}: Expected 1 specs file, got $SPECS_COUNT"
+    echo -e "${RED}FAIL${NC}: Expected 3 specs files, got $SPECS_COUNT"
+    ((FAIL_COUNT++))
 fi
 echo ""
 
@@ -228,8 +219,8 @@ echo "=================================================="
 
 # Create actual source files so merge won't skip them as missing
 mkdir -p "specs/main/requirements"
-echo "# 日本語ドキュメント" > "specs/main/requirements/日本語ドキュメント.md"
-echo "# New File" > "specs/main/requirements/new_file.md"
+printf "# 日本語ドキュメント\n\nこのファイルはテスト用の日本語ドキュメントです。\n" > "specs/main/requirements/日本語ドキュメント.md"
+printf "# New File\n\nThis is a new test file with substantive content.\n" > "specs/main/requirements/new_file.md"
 
 # Create initial specs_toc.yaml with Japanese filename
 mkdir -p .claude/doc-advisor/toc/specs
@@ -239,7 +230,6 @@ docs:
   specs/main/requirements/日本語ドキュメント.md:
     title: "日本語タイトル"
     purpose: "日本語の要約文"
-    doc_type: requirement
     content_details:
       - "キーワード1"
       - "キーワード2"
@@ -258,7 +248,6 @@ docs:
   specs/main/requirements/special_chars.md:
     title: "Special Characters Test"
     purpose: "Test document"
-    doc_type: requirement
     content_details:
       - "test1"
       - "test2"
@@ -281,7 +270,6 @@ mkdir -p .claude/doc-advisor/toc/specs/.toc_work
 cat > .claude/doc-advisor/toc/specs/.toc_work/specs_new_file.yaml << 'PENDINGEOF'
 _meta:
   source_file: specs/main/requirements/new_file.md
-  doc_type: requirement
   status: completed
   updated_at: "2026-01-31T12:00:00Z"
 
@@ -305,7 +293,7 @@ references: []
 PENDINGEOF
 
 # Run incremental merge (--mode incremental)
-$PYTHON_CMD .claude/doc-advisor/scripts/merge_specs_toc.py --mode incremental 2>/dev/null
+$PYTHON_CMD .claude/doc-advisor/scripts/merge_toc.py --target specs --mode incremental 2>/dev/null
 EXIT_CODE=$?
 
 if [[ $EXIT_CODE -eq 0 ]]; then
@@ -327,7 +315,7 @@ if [[ $EXIT_CODE -eq 0 ]]; then
         ((FAIL_COUNT++))
     fi
 else
-    echo -e "${RED}FAIL${NC}: merge_specs_toc.py failed (exit=$EXIT_CODE)"
+    echo -e "${RED}FAIL${NC}: merge_toc.py --target specs failed (exit=$EXIT_CODE)"
     ((FAIL_COUNT++))
 fi
 echo ""

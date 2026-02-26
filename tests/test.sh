@@ -45,8 +45,8 @@ rm -f .last_setup
 
 # Run setup.sh with test project path
 echo "Running setup.sh for test project..."
-# Pass explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Pass values: rules_dir, done, specs_dir, done, agent_model
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 echo ""
 echo -e "${GREEN}Setup completed.${NC}"
@@ -58,7 +58,7 @@ echo "=================================================="
 echo ""
 
 # Check PYTHON_PATH substitution (now in orchestrator docs)
-PYTHON_PATH_IN_FILE=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "NOT_FOUND")
+PYTHON_PATH_IN_FILE=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "NOT_FOUND")
 
 if [[ "$PYTHON_PATH_IN_FILE" == "NOT_FOUND" ]] || [[ "$PYTHON_PATH_IN_FILE" == *"{{"* ]]; then
     echo -e "${RED}FAIL: PYTHON_PATH not substituted${NC}"
@@ -69,35 +69,35 @@ else
     echo "  Value: $PYTHON_PATH_IN_FILE"
 fi
 
-# Check RULES_DIR substitution (in orchestrator docs)
-if grep -q "{{RULES_DIR}}" .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null; then
-    echo -e "${RED}FAIL: RULES_DIR not substituted${NC}"
+# Check AGENT_MODEL substitution (in toc_orchestrator docs)
+if grep -q "{{AGENT_MODEL}}" .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null; then
+    echo -e "${RED}FAIL: AGENT_MODEL not substituted${NC}"
     exit 1
 else
-    echo -e "${GREEN}PASS: RULES_DIR substituted${NC}"
+    echo -e "${GREEN}PASS: AGENT_MODEL substituted${NC}"
 fi
 
 echo ""
 
 echo "=================================================="
-echo "Test 3: Run create_pending_yaml_rules.py"
+echo "Test 3: Run create_pending_yaml.py --target rules"
 echo "=================================================="
 echo ""
 
 # Get Python path from the orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 
 echo "Using Python: $PYTHON_CMD"
 echo ""
 
 # Run the script
-if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full; then
+if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full; then
     echo ""
-    echo -e "${GREEN}PASS: create_pending_yaml_rules.py executed successfully${NC}"
+    echo -e "${GREEN}PASS: create_pending_yaml.py --target rules executed successfully${NC}"
 else
     echo ""
-    echo -e "${RED}FAIL: create_pending_yaml_rules.py failed${NC}"
+    echo -e "${RED}FAIL: create_pending_yaml.py --target rules failed${NC}"
     exit 1
 fi
 
@@ -114,16 +114,16 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 4: Run create_pending_yaml_specs.py"
+echo "Test 4: Run create_pending_yaml.py --target specs"
 echo "=================================================="
 echo ""
 
-if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full; then
+if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full; then
     echo ""
-    echo -e "${GREEN}PASS: create_pending_yaml_specs.py executed successfully${NC}"
+    echo -e "${GREEN}PASS: create_pending_yaml.py --target specs executed successfully${NC}"
 else
     echo ""
-    echo -e "${RED}FAIL: create_pending_yaml_specs.py failed${NC}"
+    echo -e "${RED}FAIL: create_pending_yaml.py --target specs failed${NC}"
     exit 1
 fi
 

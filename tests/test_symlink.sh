@@ -44,16 +44,17 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 echo ""
+
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
@@ -135,50 +136,50 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3: create_pending_yaml_rules.py with symlinks"
+echo "Test 3: create_pending_yaml.py --target rules with symlinks"
 echo "=================================================="
 
 rm -rf ".claude/doc-advisor/toc/rules/.toc_work"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>&1 || EXIT_CODE=$?
 
-test_result "create_pending_yaml_rules exit code" "0" "$EXIT_CODE"
+test_result "create_pending_yaml rules exit code" "0" "$EXIT_CODE"
 
-# Check if pending YAML was created for external file
-PENDING_FILE=".claude/doc-advisor/toc/rules/.toc_work/rules_linked_rules_external_rule.yaml"
-if [[ -f "$PENDING_FILE" ]]; then
+# Check if pending YAML was created for external file (hash-based filenames)
+PENDING_FILE=$(grep -rl "source_file: rules/linked_rules/external_rule.md" .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$PENDING_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Pending YAML created for external rule"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Pending YAML NOT created for external rule"
     ((FAIL_COUNT++))
-    echo "  Looking for: $PENDING_FILE"
+    echo "  No .toc_work/ YAML contains source_file for external_rule.md"
     echo "  Files in .toc_work:"
     ls -la ".claude/doc-advisor/toc/rules/.toc_work/" 2>/dev/null | head -10
 fi
 echo ""
 
 echo "=================================================="
-echo "Test 4: create_pending_yaml_specs.py with symlinks"
+echo "Test 4: create_pending_yaml.py --target specs with symlinks"
 echo "=================================================="
 
 rm -rf ".claude/doc-advisor/toc/specs/.toc_work"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>&1 || EXIT_CODE=$?
 
-test_result "create_pending_yaml_specs exit code" "0" "$EXIT_CODE"
+test_result "create_pending_yaml specs exit code" "0" "$EXIT_CODE"
 
-# Check if pending YAML was created for external file
-PENDING_FILE=".claude/doc-advisor/toc/specs/.toc_work/specs_linked_specs_requirements_external_req.yaml"
-if [[ -f "$PENDING_FILE" ]]; then
+# Check if pending YAML was created for external file (hash-based filenames)
+PENDING_FILE=$(grep -rl "source_file: specs/linked_specs/requirements/external_req.md" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null | head -1)
+if [[ -n "$PENDING_FILE" ]]; then
     echo -e "${GREEN}PASS${NC}: Pending YAML created for external spec"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Pending YAML NOT created for external spec"
     ((FAIL_COUNT++))
-    echo "  Looking for: $PENDING_FILE"
+    echo "  No .toc_work/ YAML contains source_file for external_req.md"
     echo "  Files in .toc_work:"
     ls -la ".claude/doc-advisor/toc/specs/.toc_work/" 2>/dev/null | head -10
 fi

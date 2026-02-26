@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test script for merge_rules_toc.py and merge_specs_toc.py
+# Test script for merge_toc.py --target rules and merge_toc.py --target specs
 # Usage: ./test_merge.sh
 
 # Note: Do not use 'set -e' as some tests expect failures
@@ -44,33 +44,34 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
-# Pass explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Pass explicit values: rules, specs, agent_model
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
+
 echo ""
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
 echo "=================================================="
-echo "Test 2-5: merge_rules_toc.py - Full mode"
+echo "Test 2-5: merge_toc.py --target rules - Full mode"
 echo "=================================================="
 
 # Clean and regenerate
 rm -f .claude/doc-advisor/toc/rules/rules_toc.yaml
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || true
 
 # Get pending file and write completed entry
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
 if [[ -n "$RULES_PENDING" ]]; then
-    $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target rules \
         --entry-file "$RULES_PENDING" \
         --title "Coding Standards" \
         --purpose "Define coding practices" \
@@ -82,9 +83,9 @@ fi
 
 # Run merge
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || EXIT_CODE=$?
 
-test_result "merge_rules_toc full mode" "0" "$EXIT_CODE"
+test_result "merge_toc rules full mode" "0" "$EXIT_CODE"
 
 # Verify output file exists
 if [[ -f ".claude/doc-advisor/toc/rules/rules_toc.yaml" ]]; then
@@ -106,21 +107,23 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-6: merge_rules_toc.py - Incremental mode"
+echo "Test 2-6: merge_toc.py --target rules - Incremental mode"
 echo "=================================================="
 
-# Add another pending entry (simulate new file)
-# Create the actual source file so merge won't skip it as missing
-echo "# New Rule" > "rules/new_rule.md"
+# Add another pending entry (simulate new file added after full mode)
+# Clean old .toc_work/ first to avoid stale files
+rm -rf ".claude/doc-advisor/toc/rules/.toc_work"
+# Create a NEW source file that wasn't in the full mode
+echo "# Incremental Test Rule" > "rules/incremental_test.md"
 WORK_DIR=".claude/doc-advisor/toc/rules/.toc_work"
 mkdir -p "$WORK_DIR"
-cat > "$WORK_DIR/rules_new_rule.yaml" << 'EOF'
+cat > "$WORK_DIR/incremental_entry.yaml" << 'EOF'
 _meta:
-  source_file: rules/new_rule.md
+  source_file: rules/incremental_test.md
   status: completed
   updated_at: "2026-01-31T00:00:00Z"
 
-title: New Rule
+title: Incremental Test Rule
 purpose: A new rule for testing incremental merge
 content_details:
   - Detail 1
@@ -140,9 +143,9 @@ EOF
 
 # Run incremental merge
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode incremental 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode incremental 2>/dev/null || EXIT_CODE=$?
 
-test_result "merge_rules_toc incremental mode" "0" "$EXIT_CODE"
+test_result "merge_toc rules incremental mode" "0" "$EXIT_CODE"
 
 # Verify both entries exist (count lines starting with 2 spaces followed by path)
 ENTRY_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null | tr -d '[:space:]' || echo "0")
@@ -157,18 +160,18 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 2-7: merge_specs_toc.py - Full mode with doc_type"
+echo "Test 2-7: merge_toc.py --target specs - Full mode"
 echo "=================================================="
 
 # Clean and regenerate
 rm -f .claude/doc-advisor/toc/specs/specs_toc.yaml
 rm -rf .claude/doc-advisor/toc/specs/.toc_work
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || true
 
 # Get pending files and write completed entries
 for SPECS_PENDING in .claude/doc-advisor/toc/specs/.toc_work/*.yaml; do
     if [[ -f "$SPECS_PENDING" ]]; then
-        $PYTHON_CMD "$SCRIPTS_DIR/write_specs_pending.py" \
+        $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target specs \
             --entry-file "$SPECS_PENDING" \
             --title "Test Spec Document" \
             --purpose "Testing specs merge" \
@@ -181,16 +184,16 @@ done
 
 # Run merge
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/merge_specs_toc.py" --mode full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target specs --mode full 2>/dev/null || EXIT_CODE=$?
 
-test_result "merge_specs_toc full mode" "0" "$EXIT_CODE"
+test_result "merge_toc specs full mode" "0" "$EXIT_CODE"
 
-# Verify output file exists and has doc_type
+# Verify output file exists and has no doc_type (removed in v3.8)
 if [[ -f ".claude/doc-advisor/toc/specs/specs_toc.yaml" ]]; then
     echo -e "${GREEN}PASS${NC}: specs_toc.yaml created"
     ((PASS_COUNT++))
 
-    # Verify doc_type is preserved
+    # Verify doc_type is present in final ToC
     if grep -q "doc_type:" .claude/doc-advisor/toc/specs/specs_toc.yaml; then
         echo -e "${GREEN}PASS${NC}: specs_toc.yaml has doc_type fields"
         ((PASS_COUNT++))
@@ -209,12 +212,12 @@ echo "Test: merge then manual cleanup"
 echo "=================================================="
 
 # Regenerate pending files
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || true
 
 # Write and merge (without --cleanup)
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
 if [[ -n "$RULES_PENDING" ]]; then
-    $PYTHON_CMD "$SCRIPTS_DIR/write_rules_pending.py" \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target rules \
         --entry-file "$RULES_PENDING" \
         --title "Cleanup Test" \
         --purpose "Test cleanup option" \
@@ -224,7 +227,7 @@ if [[ -n "$RULES_PENDING" ]]; then
         --force 2>/dev/null || true
 fi
 
-$PYTHON_CMD "$SCRIPTS_DIR/merge_rules_toc.py" --mode full 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
 
 # Manual cleanup (as orchestrator does after checksums update)
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
@@ -237,6 +240,74 @@ else
     echo -e "${YELLOW}WARN${NC}: .toc_work not fully cleaned up (may have pending entries)"
 fi
 echo ""
+
+echo "=================================================="
+echo "Test: --delete-only mode (rules)"
+echo "=================================================="
+
+# Setup: create a ToC with an entry, then delete the source file
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || true
+
+RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")
+if [[ -n "$RULES_PENDING" ]]; then
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target rules \
+        --entry-file "$RULES_PENDING" \
+        --title "Delete Test" \
+        --purpose "Test delete-only mode" \
+        --content-details "a ||| b ||| c ||| d ||| e" \
+        --applicable-tasks "test" \
+        --keywords "a ||| b ||| c ||| d ||| e" \
+        --force 2>/dev/null || true
+fi
+
+$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
+rm -rf .claude/doc-advisor/toc/rules/.toc_work
+
+# Count entries before deletion (entry keys start with 2 spaces + path)
+BEFORE_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null)
+[[ -z "$BEFORE_COUNT" ]] && BEFORE_COUNT=0
+
+# Delete the source .md file that has an entry in the ToC (not just any file)
+# Find a file that actually has an entry in the ToC
+DELETED_FILE=""
+for f in rules/*.md; do
+    if grep -q "^  ${f}:" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null; then
+        DELETED_FILE="$f"
+        break
+    fi
+done
+if [[ -n "$DELETED_FILE" ]]; then
+    DELETED_CONTENT=$(cat "$DELETED_FILE")
+    rm -f "$DELETED_FILE"
+
+    # Update checksums (so delete-only can detect the deletion)
+    $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || true
+
+    # Run --delete-only
+    EXIT_CODE=0
+    $PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --delete-only 2>/dev/null || EXIT_CODE=$?
+
+    test_result "merge_toc rules --delete-only exit code" "0" "$EXIT_CODE"
+
+    AFTER_COUNT=$(grep -cE "^  (rules|specs)/" .claude/doc-advisor/toc/rules/rules_toc.yaml 2>/dev/null)
+    [[ -z "$AFTER_COUNT" ]] && AFTER_COUNT=0
+    if [[ $AFTER_COUNT -lt $BEFORE_COUNT ]]; then
+        echo -e "${GREEN}PASS${NC}: Entry count decreased ($BEFORE_COUNT -> $AFTER_COUNT)"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: Entry count not decreased ($BEFORE_COUNT -> $AFTER_COUNT)"
+        ((FAIL_COUNT++))
+    fi
+
+    # Restore deleted file (preserve test fixtures for subsequent tests)
+    echo "$DELETED_CONTENT" > "$DELETED_FILE"
+else
+    echo -e "${YELLOW}SKIP${NC}: No rules .md file to delete"
+fi
+echo ""
+
+# Cleanup test-created files (keep shared fixtures clean)
+rm -f "rules/incremental_test.md"
 
 echo "=================================================="
 echo "Summary"

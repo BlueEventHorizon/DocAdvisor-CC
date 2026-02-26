@@ -19,11 +19,21 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 Analyze task content and return a list of required development document paths.
 
+## Pre-check (MANDATORY - Run first)
+
+Run the configuration check:
+```bash
+bash .claude/doc-advisor/scripts/check_config.sh
+```
+
+- **No output** → Proceed to Procedure
+- **Output present** → STOP. Run `/classify-docs` skill first to configure document directories, then restart this skill
+
 ## Procedure
 
 1. Read `.claude/doc-advisor/toc/rules/rules_toc.yaml` **completely**
    - **MANDATORY**: Read the entire file with the Read tool. Do NOT use Grep or search tools on ToC
-   - **If not found**: Search with Glob `{{RULES_DIR}}/**/*.md` and read each file directly
+   - **If not found**: Read `.claude/doc-advisor/config.yaml` to get `rules.root_dirs`, then search with Glob `<dir>/**/*.md` for each configured directory
 2. Deeply understand all entries, then match task content against each entry's `applicable_tasks` and `keywords`
 3. If there's any chance of relevance, read the actual file to confirm (no false negatives allowed)
 4. Return the confirmed path list
@@ -41,14 +51,14 @@ Analyze task content and return a list of required development document paths.
 
 ```
 Required documents:
-- {{RULES_DIR}}/core/xxx.md
-- {{RULES_DIR}}/layer/domain/xxx.md
-- {{RULES_DIR}}/workflow/xxx/xxx.md
-- {{RULES_DIR}}/format/xxx.md
+- rules/core/xxx.md
+- rules/layer/domain/xxx.md
+- rules/workflow/xxx/xxx.md
+- rules/format/xxx.md
 ```
 
 ## Notes
 
 - False negatives are strictly prohibited. When in doubt, include it
-- Requirements, design documents, and plans are out of scope (under {{SPECS_DIR}})
-- Target is {{RULES_DIR}} only
+- Requirements, design documents, and plans are out of scope (use /query-specs instead)
+- Target is rules documents only (directories configured in config.yaml `rules.root_dirs`)

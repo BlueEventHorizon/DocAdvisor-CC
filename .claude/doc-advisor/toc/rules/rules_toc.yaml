@@ -1,0 +1,335 @@
+# .claude/doc-advisor/toc/rules/rules_toc.yaml
+# Development documentation search index for rules-advisor subagent
+
+metadata:
+  name: Development Documentation Search Index
+  generated_at: 2026-02-21T02:29:00Z
+  file_count: 11
+
+docs:
+  rules/cli_output_formatting.md:
+    title: CLI 出力フォーマット指針
+    purpose: シェルスクリプトやCLIツール内での色分けと表示形式の統一的な指針を定義
+    content_details:
+      - 色コード定義（赤、緑、青、黄）
+      - 色の用途別の使い分け（成功、設定値、コマンド、警告、テキスト）
+      - ヘッダー/フッターバナーパターン
+      - 設定値表示パターン
+      - 警告メッセージフォーマット
+      - コマンド/次のステップの表示方法
+      - 成功メッセージと失敗メッセージのフォーマット
+      - echo -e 使用の必須条件とリセット
+      - 色に依存しないアクセシビリティ設計
+      - スクリプト全体での統一的な適用例
+    applicable_tasks:
+      - Setup スクリプト実装
+      - CLI ツール出力実装
+      - エラーメッセージ設計
+      - ユーザーフィードバック表示
+      - シェルスクリプト開発
+    keywords:
+      - CLI
+      - シェルスクリプト
+      - 色分け
+      - 出力フォーマット
+      - echo
+      - ANSI色コード
+      - ユーザーインターフェース
+      - メッセージ表示
+  rules/document_writing_rules.md:
+    title: 文書記述ルール
+    purpose: 全文書（rules/、.claude/、specs/、meta/）の一貫性を確保するためのメタルール。見出しタグ、用語統一、文書構成、強調フォーマット、参照記法、プレースホルダー命名等を定義
+    content_details:
+      - 見出し・タグ規約
+      - 用語統一規約（長音ルール含む）
+      - 文書構成規約（ワークフロー・Agent・ルール・コマンド文書タイプ別）
+      - 強調・フォーマット規約（太字・コード・リスト・表・文書参照）
+      - ドキュメントの性質分離（rules/汎用 vs specs/プロジェクト固有）
+      - rules/内例文・コード例規則（Foo型命名規則・プレースホルダー）
+      - specs/内メタデータ関連要件記載ルール
+      - 検証方法（Grepコマンド・チェックリスト）
+    applicable_tasks:
+      - 文書執筆
+      - ルール文書レビュー
+      - ドキュメント統一性チェック
+      - Agent定義文書作成
+      - ワークフロー文書作成
+      - コマンド文書作成
+      - 要件定義書執筆
+      - 設計書執筆
+    keywords:
+      - 文書記述
+      - タグ規約
+      - 用語統一
+      - メタルール
+      - フォーマット
+      - Foo命名
+      - MANDATORY
+      - NEVER skip
+      - プレースホルダー
+  rules/format/design_format.md:
+    title: 設計書フォーマットルール
+    purpose: 設計書作成における統一的なフォーマットを定義し、一貫性のある構造、AIエージェントの理解促進、要件とタスクのトレーサビリティ実現を実現する
+    content_details:
+      - 設計書は『How』を記述、『What』は要件定義書に記載
+      - 必須構成要素：モジュールリスト、クラス図、ユースケース一覧、シーケンス図
+      - 記載すべき内容：実装方法、技術的詳細、処理フロー、データフロー、状態管理、アーキテクチャ設計
+      - 階層構造：トップレベル設計書とサービス単位の子設計書に分割
+      - トップレベル設計書は001を使用、子設計書は連番付与
+      - "ファイル命名規則：DES-XXX_{設計対象名}_design.md"
+      - テンプレートの柔軟性：セクション名・順序は内容に応じて調整可能
+      - メタデータ：設計ID、関連要件、実装層、主要モジュールを記載
+      - "改定履歴：最終セクションに『## 改定履歴』として記載"
+      - Mermaid図：フローチャート、クラス図、シーケンス図を使用推奨
+    applicable_tasks:
+      - 設計書テンプレート作成
+      - 新規設計書作成
+      - 既存設計書の品質確認
+      - 設計書フォーマット統一化
+      - アーキテクチャ設計レビュー
+    keywords:
+      - 設計書
+      - フォーマット
+      - トップレベル設計
+      - 子設計書
+      - モジュール設計
+      - クラス図
+      - シーケンス図
+      - 改定履歴
+  rules/format/plan_format.md:
+    title: 計画書フォーマットルール
+    purpose: 要件定義から設計、実装までの全工程で要件を追跡可能にし、要件と実装の紐付け、影響範囲の明確化、タスクベース開発を実現する
+    content_details:
+      - ID体系（要件ID、設計ID）と命名規則
+      - ワークフロー間でのID活用（5段階のフェーズ）
+      - 計画書の構成（4つのセクション）
+      - 要件トレーサビリティマトリクス
+      - 設計トレーサビリティマトリクス
+      - タスク分割表と優先度
+      - TDD対応タスク順序（新規/既存パターン）
+      - タスク粒度基準
+      - タスクグループ化と回避策
+      - タスク管理形式とタスク表の構成
+    applicable_tasks:
+      - 計画書作成
+      - タスク分割
+      - トレーサビリティ管理
+      - TDD計画
+      - リファクタリング計画
+    keywords:
+      - 計画書
+      - トレーサビリティ
+      - タスク分割
+      - タスクグループ
+      - ID体系
+      - TDD
+      - 優先度
+      - タスク管理
+  rules/format/spec_design_boundary_guide.md:
+    title: 要件定義書と設計書の境界ガイド
+    purpose: 要件定義書（What）と設計書（How）の記載内容の判断基準と具体例を定義する
+    content_details:
+      - 基本原則（要件定義書 vs 設計書）
+      - 主要判断基準（ユーザーマニュアルテスト）
+      - 判断フローチャート（技術用語・実装依存性の確認）
+      - カテゴリ別ガイド（データ・状態・処理・ビジネスルール・テスト）
+      - 良い例と悪い例（データフロー・状態管理・機能フロー・ビジネスルール）
+      - グレーゾーンの扱い（データモデルの型・mermaid図）
+      - 迷った時の確認フロー
+    applicable_tasks:
+      - 要件定義書の記述（What）
+      - 設計書の記述（How）
+      - ドキュメント構造の見直し
+      - グレーゾーン判定の確認
+      - 要件・設計の分離
+    keywords:
+      - 要件定義書
+      - 設計書
+      - What vs How
+      - ユーザーマニュアル
+      - データフロー
+      - 状態管理
+      - ビジネスルール
+      - グレーゾーン
+      - ドキュメント分類
+  rules/format/spec_format.md:
+    title: 要件定義書フォーマットルール
+    purpose: 要件定義書の統一フォーマットを定め、一貫性、AIエージェント理解促進、要件追跡可能性、保守性を実現する
+    content_details:
+      - What/How境界の原則
+      - 記載すべき内容と禁止事項
+      - "specs/{feature}/requirements/ディレクトリ構造"
+      - "各ディレクトリの詳細仕様（screens, ui_components, functions等）"
+      - 要件ID体系と命名規則
+      - ファイル命名規則（スネークケース、_spec.md）
+      - 要件定義書テンプレート
+      - 図表使用ルール（ASCII、Mermaid）
+      - 相互参照の記載方法
+    applicable_tasks:
+      - 要件定義書作成
+      - 既存要件定義書レビュー
+      - フォーマット統一化
+      - テンプレート選択と適用
+      - 要件ID体系の確認
+    keywords:
+      - 要件定義
+      - フォーマット
+      - 統一性
+      - What/How境界
+      - 要件ID
+      - テンプレート
+      - 命名規則
+      - 非機能要件
+  rules/project_rule.md:
+    title: AI対話・開発ルール
+    purpose: プロジェクト全体の開発に関わる言語ルール、ドキュメント作成ルール、開発の前提条件、役割分担、基本原則、Doc Advisor開発ルールを定義
+    content_details:
+      - 言語ルール（対話言語は日本語、コメントは日本語）
+      - ドキュメント作成スタイルガイド
+      - ファイルヘッダーの「Created by」はgit定義の作者を記述
+      - "要件定義書(specs/{feature}/requirements/**/*.md)がすべてのドキュメントに優先"
+      - 仕様は公式ドキュメントで最初に確認する
+      - 小さく試してから大きく展開する
+      - 品質を最優先する（複雑な正規表現での一括置換禁止）
+      - Doc Advisor開発ルール（クロスプラットフォーム対応、テンプレート開発、Pythonスクリプト開発、エラーハンドリング）
+    applicable_tasks:
+      - プロジェクト開発全般
+      - AI対話の実施
+      - ドキュメント作成・修正
+      - 仕様確認・実装
+      - Doc Advisor機能開発・拡張
+    keywords:
+      - 言語ルール
+      - 開発ルール
+      - 日本語
+      - 要件定義書
+      - クロスプラットフォーム対応
+      - Doc Advisor
+      - エラーハンドリング
+  rules/workflow/design_workflow.md:
+    title: 設計書作成ワークフロー
+    purpose: 要件定義書から設計書作成への移行フェーズにおけるワークフロー定義。要件分析から設計書完成まで、段階的かつ確実なプロセスを提供する。
+    content_details:
+      - "Phase 1: 要件定義書の分析（機能要件確認、非機能要件確認、既存資産確認）"
+      - "Phase 2: 設計書の作成（design_format.mdに基づくフォーマット準拠、設計IDの付与）"
+      - "Phase 3: 品質保証（完全性確認、AIレビュー、人間レビュー、specs_toc.yaml更新）"
+      - 既存コンポーネント活用の義務化（Tools/、Library/、既存実装の検索と再利用）
+      - 禁止事項：ソースコード大量記載、技術選択理由未記載、レビュー未完了での着手
+      - 重要な原則：要件定義書と設計書だけで実装可能、コードは基本的に書かない、既存資産を先に確認
+      - よくある失敗パターン：既存コンポーネント検索不足、設計書へのソースコード記載、色・フォントのハードコード
+      - チェックリスト：設計ID正確性、関連要件ID記載、要件反映確認、責務分離、ユースケースシーケンス図、人間レビュー承認
+    applicable_tasks:
+      - 設計書作成
+      - 技術設計実施
+      - 要件分析フェーズ
+      - UI設計（画面、コンポーネント）
+      - データモデル設計
+    keywords:
+      - 設計書
+      - ワークフロー
+      - 要件分析
+      - Phase
+      - デザイントークン
+      - スペック
+      - レビュー
+      - tools/library
+      - チェックリスト
+      - 設計ID
+  rules/workflow/planning_workflow.md:
+    title: 計画書作成ワークフロー
+    purpose: "設計書が完成した後、実装計画（{feature}_plan.md）を作成し、タスクの優先順位と依存関係を整理するワークフロー"
+    content_details:
+      - 要件定義書・設計書の取得方法（rules-advisor、specs-advisorの活用）
+      - バグ修正・新機能追加・リファクタリング時のタスク化プロセス
+      - 設計書作成とタスク追加のループ（段階的アプローチ）
+      - 計画書の詳細構成（要件トレーサビリティマトリクス、設計トレーサビリティマトリクス、タスク一覧）
+      - タスク抽出方法（Entity定義→Protocol定義→Service実装→View/ViewModel→Infrastructure実装）
+      - "タスクID採番ルール（D-xxx, UI-xxx, I-xxx, DI-xxx, FIX-xxx）"
+      - "優先度設定基準（90-99: 緊急、50-59: Domain層、30-39: UI層、40-49: Infrastructure層、25-29: DI層）"
+      - task-executorを前提とした計画作成（1タスク1Agent、ビルド・テスト成功必須）
+      - タスクグループ化の判定基準
+      - 計画書のフォーマット検証とAIレビュー実施
+    applicable_tasks:
+      - 実装計画の作成
+      - タスクの優先順位付け
+      - タスク依存関係の設定
+      - 新機能追加時の計画書更新
+      - バグ修正タスクの追加
+      - 設計書の承認後のタスク反映
+      - 計画書のレビューと検証
+    keywords:
+      - 計画書作成
+      - ワークフロー
+      - タスク抽出
+      - タスクID採番
+      - 優先度設定
+      - 依存関係
+      - トレーサビリティマトリクス
+      - タスクグループ化
+  rules/workflow/task_execution_workflow.md:
+    title: タスク実行ワークフロー（Agent用）
+    purpose: "Defines the standard workflow for task-executor Agent to implement tasks, from task information reception through execution, verification, and completion reporting"
+    content_details:
+      - "Step 1: Task information reception from orchestrator"
+      - "Step 2: Pre-preparation (required documents reading, existing code confirmation)"
+      - "Step 3: Implementation (Domain layer TDD cycle, other layers standard procedure)"
+      - "Step 4: Verification (build confirmation, test execution, functionality check)"
+      - "Step 5: Completion processing and reporting"
+      - "Domain layer TDD workflow (Red, Green, Refactor phases)"
+      - "Critical principles: single task per execution, follow orchestrator instructions, read all required documents"
+      - "Forbidden actions: multiple task implementation, skipping required documents, subagent invocation"
+      - "Implementation order (protocol definition, test creation, mock preparation, service implementation)"
+    applicable_tasks:
+      - Task execution by task-executor Agent
+      - Domain layer service implementation
+      - Infrastructure layer implementation
+      - UI layer implementation
+      - Test-driven development workflow
+      - Task verification and build confirmation
+    keywords:
+      - Task execution workflow
+      - TDD
+      - task-executor Agent
+      - Orchestrator
+      - Domain layer
+      - Implementation workflow
+      - Task verification
+      - Red-Green-Refactor
+      - workflow pattern
+  rules/workflow/task_orchestration_workflow.md:
+    title: Task Orchestration Workflow
+    purpose: "Defines the complete workflow for orchestrating task execution, from task selection through completion, including document identification, agent coordination, and completion processing"
+    content_details:
+      - 6-phase workflow structure
+      - "Phase 1: Prior confirmation of requirements and design updates"
+      - "Phase 2: Task selection with dependency and feasibility checking"
+      - "Phase 3: Document identification using advisor subagents (rules-advisor, specs-advisor, MCP)"
+      - "Phase 4: Agent execution with parameter template and validation requirements"
+      - "Phase 5: AI code review and feedback loop"
+      - "Phase 6: Completion processing and plan.md updates"
+      - Mandatory document reading principles
+      - Task executor responsibility separation
+      - Verification requirement determination logic based on build confirmation column
+    applicable_tasks:
+      - Orchestrator task execution
+      - Feature implementation planning
+      - Task dependency management
+      - Document identification and coordination
+      - Code review and quality assurance
+      - Completion status tracking
+      - Multi-phase workflow execution
+      - Agent parameter preparation
+      - Error handling and reexecution
+    keywords:
+      - orchestration
+      - workflow
+      - task execution
+      - phase
+      - executor
+      - advisor
+      - document identification
+      - agent coordination
+      - parameter template
+      - verification
+      - review
+      - completion

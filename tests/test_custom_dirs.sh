@@ -61,8 +61,8 @@ echo "=================================================="
 rm -rf .claude .last_setup
 
 # Run setup with custom values
-# Format: rules_dir, specs_dir, requirement_dir_name, design_dir_name, plan_dir_name, agent_model
-echo -e "guidelines\ndocuments\nreqs\narch\nroadmap\nsonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Format: agent_model (setup.sh now only asks for model name)
+echo "sonnet" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 
 # Verify .claude directory created
 if [[ -d ".claude" ]]; then
@@ -76,44 +76,41 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-2: Verify config.yaml has custom values"
+echo "Test 3-2: Verify .doc_structure.yaml and config.yaml"
 echo "=================================================="
 
 CONFIG_FILE=".claude/doc-advisor/config.yaml"
+DOC_STRUCTURE=".doc_structure.yaml"
+
+if [[ -f "$DOC_STRUCTURE" ]]; then
+    # Check .doc_structure.yaml has custom paths
+    if grep -q "guidelines" "$DOC_STRUCTURE"; then
+        echo -e "${GREEN}PASS${NC}: .doc_structure.yaml has 'guidelines' path"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: .doc_structure.yaml missing 'guidelines' path"
+        ((FAIL_COUNT++))
+    fi
+
+    if grep -q "documents" "$DOC_STRUCTURE"; then
+        echo -e "${GREEN}PASS${NC}: .doc_structure.yaml has 'documents' path"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: .doc_structure.yaml missing 'documents' path"
+        ((FAIL_COUNT++))
+    fi
+else
+    echo -e "${RED}FAIL${NC}: .doc_structure.yaml not found"
+    ((FAIL_COUNT++))
+fi
 
 if [[ -f "$CONFIG_FILE" ]]; then
-    # Check rules_dir
-    if grep -q "root_dir: guidelines" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: rules root_dir is 'guidelines'"
+    # Check target_glob is set
+    if grep -q 'target_glob:' "$CONFIG_FILE"; then
+        echo -e "${GREEN}PASS${NC}: target_glob is configured"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: rules root_dir not set to 'guidelines'"
-        ((FAIL_COUNT++))
-    fi
-
-    # Check specs_dir
-    if grep -q "root_dir: documents" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: specs root_dir is 'documents'"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: specs root_dir not set to 'documents'"
-        ((FAIL_COUNT++))
-    fi
-
-    # Check target_dirs
-    if grep -q "requirement: reqs" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: requirement dir is 'reqs'"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: requirement dir not set to 'reqs'"
-        ((FAIL_COUNT++))
-    fi
-
-    if grep -q "design: arch" "$CONFIG_FILE"; then
-        echo -e "${GREEN}PASS${NC}: design dir is 'arch'"
-        ((PASS_COUNT++))
-    else
-        echo -e "${RED}FAIL${NC}: design dir not set to 'arch'"
+        echo -e "${RED}FAIL${NC}: target_glob not found in config"
         ((FAIL_COUNT++))
     fi
 else
@@ -123,18 +120,18 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-3: Run create_pending_yaml_rules.py with custom dir"
+echo "Test 3-3: Run create_pending_yaml rules with custom dir"
 echo "=================================================="
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 
 EXIT_CODE=0
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_rules.py --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_rules (custom)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml rules (custom)" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created
 if ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 1>/dev/null 2>&1; then
@@ -156,13 +153,13 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-4: Run create_pending_yaml_specs.py with custom dirs"
+echo "Test 3-4: Run create_pending_yaml specs with custom dirs"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || EXIT_CODE=$?
 
-test_result "create_pending_yaml_specs (custom)" "0" "$EXIT_CODE"
+test_result "create_pending_yaml specs (custom)" "0" "$EXIT_CODE"
 
 # Check if pending YAML was created
 if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
@@ -178,23 +175,13 @@ if ls .claude/doc-advisor/toc/specs/.toc_work/*.yaml 1>/dev/null 2>&1; then
         ((FAIL_COUNT++))
     fi
 
-    # Verify doc_type is correctly detected with custom dir names
-    # reqs/ should map to requirement
-    if grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*reqs*.yaml 2>/dev/null || \
-       grep -q "doc_type: requirement" .claude/doc-advisor/toc/specs/.toc_work/*auth*.yaml 2>/dev/null; then
-        echo -e "${GREEN}PASS${NC}: doc_type 'requirement' detected for reqs/"
+    # Verify doc_type is present in _meta section
+    if grep -q "doc_type:" .claude/doc-advisor/toc/specs/.toc_work/*.yaml 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}: doc_type field present in pending YAML"
         ((PASS_COUNT++))
     else
-        echo -e "${YELLOW}WARN${NC}: Could not verify requirement doc_type"
-    fi
-
-    # arch/ should map to design
-    if grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*arch*.yaml 2>/dev/null || \
-       grep -q "doc_type: design" .claude/doc-advisor/toc/specs/.toc_work/*api*.yaml 2>/dev/null; then
-        echo -e "${GREEN}PASS${NC}: doc_type 'design' detected for arch/"
-        ((PASS_COUNT++))
-    else
-        echo -e "${YELLOW}WARN${NC}: Could not verify design doc_type"
+        echo -e "${RED}FAIL${NC}: doc_type field missing in pending YAML"
+        ((FAIL_COUNT++))
     fi
 else
     echo -e "${RED}FAIL${NC}: No specs pending YAML created"
@@ -203,27 +190,35 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-5: Verify exclude with custom plan dir name"
+echo "Test 3-5: Verify exclude with config pattern"
 echo "=================================================="
 
-# Create a plan file that should be excluded
-mkdir -p documents/main/roadmap
-echo "# Test Roadmap" > documents/main/roadmap/test_plan.md
+# Create a directory that we will exclude via config
+mkdir -p documents/archive
+echo "# Archived Doc" > documents/archive/old_doc.md
+
+# Add exclude pattern to config (replace inline empty array with multi-line format)
+$PYTHON_CMD -c "
+content = open('.claude/doc-advisor/config.yaml').read()
+content = content.replace('    exclude: []    # Additional excludes (merged with .doc_structure.yaml)', '    exclude:\n      - archive')
+open('.claude/doc-advisor/config.yaml', 'w').write(content)
+"
 
 # Regenerate
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml_specs.py --full 2>/dev/null || true
+rm -rf .claude/doc-advisor/toc/specs/.toc_work
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || true
 
-# Check that roadmap files are NOT included
-if ls .claude/doc-advisor/toc/specs/.toc_work/*roadmap*.yaml 1>/dev/null 2>&1; then
-    echo -e "${RED}FAIL${NC}: roadmap/ files should be excluded"
+# Check that archive files are NOT included
+if ls .claude/doc-advisor/toc/specs/.toc_work/*archive*.yaml 1>/dev/null 2>&1; then
+    echo -e "${RED}FAIL${NC}: archive/ files should be excluded"
     ((FAIL_COUNT++))
 else
-    echo -e "${GREEN}PASS${NC}: roadmap/ files correctly excluded"
+    echo -e "${GREEN}PASS${NC}: archive/ files correctly excluded"
     ((PASS_COUNT++))
 fi
 
 # Cleanup
-rm -rf documents/main/roadmap
+rm -rf documents/archive
 echo ""
 
 echo "=================================================="

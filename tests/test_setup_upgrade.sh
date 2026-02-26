@@ -40,6 +40,14 @@ setup_test_project() {
     mkdir -p "$TEST_PROJECT/specs/main/requirements"
     echo "# Test Rule" > "$TEST_PROJECT/rules/test.md"
     echo "# Test Spec" > "$TEST_PROJECT/specs/main/requirements/test.md"
+    cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+rules:
+  rule:
+    paths: [rules/]
+specs:
+  spec:
+    paths: [specs/]
+DOCEOF
 }
 
 CURRENT_VERSION=$(grep 'DOC_ADVISOR_VERSION=' "$PROJECT_ROOT/setup.sh" | cut -d'"' -f2)
@@ -61,7 +69,7 @@ echo "=================================================="
 setup_test_project
 
 # Run setup with defaults
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify structure
 test_result "agents/ created" "0" "$([[ -d "$TEST_PROJECT/.claude/agents" ]] && echo 0 || echo 1)"
@@ -90,12 +98,21 @@ echo "# Legacy command" > "$TEST_PROJECT/.claude/commands/create-specs_toc.md"
 echo "# User custom command" > "$TEST_PROJECT/.claude/commands/my-custom-command.md"
 
 # Run setup - legacy files are auto-deleted (no user confirmation)
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+SETUP_OUTPUT=$(echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
 
 # Verify: doc-advisor commands deleted, user custom preserved
 test_result "Legacy create-rules_toc.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/commands/create-rules_toc.md" ]] && echo 0 || echo 1)"
 test_result "Legacy create-specs_toc.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/commands/create-specs_toc.md" ]] && echo 0 || echo 1)"
 test_result "User custom command preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/commands/my-custom-command.md" ]] && echo 0 || echo 1)"
+
+# Verify: console output shows deletion messages (REQ-002-01 AC)
+if echo "$SETUP_OUTPUT" | grep -q "Removed legacy"; then
+    echo -e "${GREEN}PASS${NC}: Deletion messages displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No 'Removed legacy' message in output"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================
@@ -106,7 +123,7 @@ echo "=================================================="
 setup_test_project
 
 # Run setup
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify new structure
 test_result "config.yaml in doc-advisor/" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
@@ -127,14 +144,14 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add custom exclude to config
 echo "      - my_custom_exclude" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 CUSTOM_LINE=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | tr -d '[:space:]')
 
 # Run setup again with 's' to skip config
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify custom line is preserved
 CUSTOM_LINE_AFTER=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
@@ -149,13 +166,13 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add custom exclude to config
 echo "      - my_custom_exclude" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 
 # Run setup again with 'o' to overwrite
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify backup exists and custom line is gone from main config
 test_result "Backup created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml.bak" ]] && echo 0 || echo 1)"
@@ -173,14 +190,14 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create fake v3.0 structure (unified skill)
 mkdir -p "$TEST_PROJECT/.claude/skills/doc-advisor"
 echo "# Old v3.0 skill" > "$TEST_PROJECT/.claude/skills/doc-advisor/SKILL.md"
 
 # Run setup again with 'o' to overwrite config
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: v3.0 unified skill removed, v3.1 split skills installed
 test_result "Legacy skills/doc-advisor/ removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -196,17 +213,26 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add custom agent
 echo "# My custom agent" > "$TEST_PROJECT/.claude/agents/my-custom-agent.md"
 
-# Run setup again
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Run setup again (capture output for message verification)
+SETUP_OUTPUT=$(echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
 
 # Verify: custom agent preserved, managed agents still exist
 test_result "Custom agent preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/my-custom-agent.md" ]] && echo 0 || echo 1)"
-test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "Managed agent exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
+
+# Verify: console output shows preserving message (REQ-002-02 AC)
+if echo "$SETUP_OUTPUT" | grep -q "Preserving:"; then
+    echo -e "${GREEN}PASS${NC}: Preserving message displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No 'Preserving:' message in output"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================
@@ -217,14 +243,14 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create fake ToC files (simulating generated output)
 echo "# Generated ToC" > "$TEST_PROJECT/.claude/doc-advisor/toc/rules/rules_toc.yaml"
 echo "# Generated ToC" > "$TEST_PROJECT/.claude/doc-advisor/toc/specs/specs_toc.yaml"
 
 # Run setup again with 's' to skip config
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: toc files are preserved
 test_result "rules_toc.yaml preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/toc/rules/rules_toc.yaml" ]] && echo 0 || echo 1)"
@@ -239,7 +265,7 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create legacy file WITH CURRENT version (should be protected)
 mkdir -p "$TEST_PROJECT/.claude/commands"
@@ -255,7 +281,7 @@ EOF
 echo "# No identifier - legacy file" > "$TEST_PROJECT/.claude/commands/create-specs_toc.md"
 
 # Run setup again
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: file with current version is protected, file without is deleted
 test_result "File with current version protected" "0" "$([[ -f "$TEST_PROJECT/.claude/commands/create-rules_toc.md" ]] && echo 0 || echo 1)"
@@ -270,7 +296,7 @@ echo "=================================================="
 setup_test_project
 
 # First install
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create skills/doc-advisor/ with OLD version (should be deleted)
 mkdir -p "$TEST_PROJECT/.claude/skills/doc-advisor"
@@ -283,7 +309,7 @@ name: doc-advisor
 EOF
 
 # Run setup again
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: skills/doc-advisor/ with old version is deleted
 test_result "skills/doc-advisor/ with old version deleted" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -299,7 +325,7 @@ name: doc-advisor
 EOF
 
 # Run setup again
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: skills/doc-advisor/ with current version is protected
 test_result "skills/doc-advisor/ with current version protected" "0" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -307,84 +333,370 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 11: CLAUDE.md に Doc Advisor ルールを追記 (y)"
+echo "Test 11: advisor agent 削除 (T-008)"
 echo "=================================================="
 
 setup_test_project
 
-# Create existing CLAUDE.md with some content
-echo "# My Project" > "$TEST_PROJECT/CLAUDE.md"
-echo "" >> "$TEST_PROJECT/CLAUDE.md"
-echo "Existing content here." >> "$TEST_PROJECT/CLAUDE.md"
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Run setup with 'y' for CLAUDE.md prompt
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Create legacy advisor agent files (should be deleted on next setup)
+echo "# Legacy rules advisor" > "$TEST_PROJECT/.claude/agents/rules-advisor.md"
+echo "# Legacy specs advisor" > "$TEST_PROJECT/.claude/agents/specs-advisor.md"
 
-# Verify: marker exists and existing content preserved
-MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null || echo 0)
-test_result "CLAUDE.md marker added" "1" "$MARKER_COUNT"
-EXISTING_PRESERVED=$(grep -c "Existing content here" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null || echo 0)
-test_result "Existing CLAUDE.md content preserved" "1" "$EXISTING_PRESERVED"
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: advisor agents deleted
+test_result "rules-advisor.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-advisor.md" ]] && echo 0 || echo 1)"
+test_result "specs-advisor.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/specs-advisor.md" ]] && echo 0 || echo 1)"
+# Verify: managed agents still exist
+test_result "toc-updater.md exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 12: CLAUDE.md 新規作成 (y)"
+echo "Test 12: query-* skill インストール (T-009)"
 echo "=================================================="
 
 setup_test_project
 
-# No CLAUDE.md exists
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Run setup with 'y' for CLAUDE.md prompt
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\ny" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: CLAUDE.md created with marker
-test_result "CLAUDE.md created" "0" "$([[ -f "$TEST_PROJECT/CLAUDE.md" ]] && echo 0 || echo 1)"
-MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null || echo 0)
-test_result "CLAUDE.md marker exists" "1" "$MARKER_COUNT"
+# Verify: query-rules and query-specs skills installed
+test_result "query-rules/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/query-rules/SKILL.md" ]] && echo 0 || echo 1)"
+test_result "query-specs/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/query-specs/SKILL.md" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 13: CLAUDE.md マーカー既存でスキップ"
+echo "Test 13: classify-docs skill installed from template"
 echo "=================================================="
 
 setup_test_project
 
-# Create CLAUDE.md with existing marker
-cat > "$TEST_PROJECT/CLAUDE.md" << 'EOF'
-# My Project
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-<!-- doc-advisor-section-start -->
-## Doc Advisor ルール [MANDATORY]
-<!-- doc-advisor-section-end -->
-EOF
-
-# Run setup (no extra input needed - marker detected, prompt skipped)
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: marker still only appears once (not duplicated)
-MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null || echo 0)
-test_result "CLAUDE.md marker not duplicated" "1" "$MARKER_COUNT"
+# Verify: classify-docs skill installed
+test_result "classify-docs/SKILL.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md" ]] && echo 1 || echo 0)"
+test_result "classify-docs/ dir exists" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 1 || echo 0)"
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 14: CLAUDE.md スキップ (n)"
+echo "Test 14: v3.8 unified scripts (old scripts removed)"
 echo "=================================================="
 
 setup_test_project
 
-# Create CLAUDE.md without marker
-echo "# My Project" > "$TEST_PROJECT/CLAUDE.md"
+# First install (old scripts don't exist in fresh install, simulate upgrade)
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Run setup with 'n' for CLAUDE.md prompt
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus\nn" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Create old per-category scripts (simulate pre-3.8 installation)
+echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml_rules.py"
+echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_rules_toc.py"
+echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/write_rules_pending.py"
 
-# Verify: no marker added
-MARKER_COUNT=$(grep -c "doc-advisor-section-start" "$TEST_PROJECT/CLAUDE.md" 2>/dev/null; true)
-test_result "CLAUDE.md marker not added (skipped)" "0" "$MARKER_COUNT"
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: old scripts removed, new unified scripts exist
+test_result "Old create_pending_yaml_rules.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml_rules.py" ]] && echo 0 || echo 1)"
+test_result "Old merge_rules_toc.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_rules_toc.py" ]] && echo 0 || echo 1)"
+test_result "Old write_rules_pending.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/write_rules_pending.py" ]] && echo 0 || echo 1)"
+test_result "New create_pending_yaml.py exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml.py" ]] && echo 0 || echo 1)"
+test_result "New merge_toc.py exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_toc.py" ]] && echo 0 || echo 1)"
+test_result "New write_pending.py exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/write_pending.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 15: v3.8 unified agents (old agents removed)"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create old per-category agents (simulate pre-3.8 installation)
+echo "# Old agent" > "$TEST_PROJECT/.claude/agents/rules-toc-updater.md"
+echo "# Old agent" > "$TEST_PROJECT/.claude/agents/specs-toc-updater.md"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: old agents removed, new unified agent exists
+test_result "Old rules-toc-updater.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "Old specs-toc-updater.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/specs-toc-updater.md" ]] && echo 0 || echo 1)"
+test_result "New toc-updater.md exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 16: config.yaml has no root_dirs (runtime derived from .doc_structure.yaml)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Verify: root_dirs is NOT set (commented out) - derived from .doc_structure.yaml at runtime
+ACTIVE_ROOTDIRS=$(grep -c "^  root_dirs:" "$CONFIG" || true)
+test_result "No active root_dirs in config (runtime derived)" "0" "$ACTIVE_ROOTDIRS"
+
+# Verify: commented root_dirs override lines exist
+COMMENTED_ROOTDIRS=$(grep -c "# root_dirs:" "$CONFIG" || echo 0)
+test_result "Commented root_dirs override available" "2" "$COMMENTED_ROOTDIRS"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 17: classify_dirs.py installed from template"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: classify_dirs.py and classification_rules.md exist (REQ-002-07 AC)
+test_result "classify_dirs.py installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
+test_result "classification_rules.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/docs/classification_rules.md" ]] && echo 1 || echo 0)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 18: v3.9 set_root_dirs.py legacy cleanup"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create legacy set_root_dirs.py (simulate pre-3.9 installation)
+echo "# Legacy set_root_dirs" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: set_root_dirs.py removed
+test_result "set_root_dirs.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 19: config.yaml root_dirs override (manual uncomment)"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Manually uncomment and set root_dirs (override .doc_structure.yaml)
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - custom_rules', 1)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+
+# Verify: root_dirs override is set
+RULES_CUSTOM=$(grep -c "custom_rules" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" || echo 0)
+test_result "Manual root_dirs override in config" "1" "$RULES_CUSTOM"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 20: config.yaml exclude patterns (empty defaults)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Verify: exclude section exists with empty array (no items)
+RULES_EXCLUDE_ITEMS=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+RULES_EXCLUDE_ITEMS="${RULES_EXCLUDE_ITEMS:-0}"
+test_result "Rules exclude empty by default" "0" "$RULES_EXCLUDE_ITEMS"
+SPECS_EXCLUDE_ITEMS=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+SPECS_EXCLUDE_ITEMS="${SPECS_EXCLUDE_ITEMS:-0}"
+test_result "Specs exclude empty by default" "0" "$SPECS_EXCLUDE_ITEMS"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 21: No skip/exclude (empty input)"
+echo "=================================================="
+
+setup_test_project
+
+# Setup only asks for model name now
+echo -e "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+# exclude: should be present but with no items (no lines starting with 6-space dash)
+EXCLUDE_ITEMS=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+EXCLUDE_ITEMS="${EXCLUDE_ITEMS:-0}"
+test_result "No rules exclude items" "0" "$EXCLUDE_ITEMS"
+EXCLUDE_ITEMS=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
+EXCLUDE_ITEMS="${EXCLUDE_ITEMS:-0}"
+test_result "No specs exclude items" "0" "$EXCLUDE_ITEMS"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 22: v3.9 full legacy cleanup (all removed files)"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create all legacy files (simulate pre-3.9 installation)
+mkdir -p "$TEST_PROJECT/.claude/skills/classify-docs"
+echo "# Legacy" > "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md"
+echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py"
+echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify all legacy files cleaned up
+test_result "classify-docs/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 1 || echo 0)"
+test_result "classify_dirs.py exists after upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
+test_result "set_root_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 23: check_config.sh installed with exec permission (T-011)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: check_config.sh exists and is executable
+test_result "check_config.sh exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh" ]] && echo 0 || echo 1)"
+test_result "check_config.sh is executable" "0" "$([[ -x "$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 24: Skill Pre-check sections (T-012)"
+echo "=================================================="
+
+# Verify: all 4 skills have Pre-check section referencing check_config.sh
+ALL_PRECHECK_OK=true
+for SKILL_NAME in create-rules-toc create-specs-toc query-rules query-specs; do
+    SKILL_FILE="$TEST_PROJECT/.claude/skills/$SKILL_NAME/SKILL.md"
+    if grep -q "Pre-check" "$SKILL_FILE" 2>/dev/null && grep -q "check_config.sh" "$SKILL_FILE" 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}: $SKILL_NAME has Pre-check"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: $SKILL_NAME missing Pre-check"
+        ((FAIL_COUNT++))
+        ALL_PRECHECK_OK=false
+    fi
+done
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 25: check_config.sh behavior (REQ-002-08)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh"
+
+# Case 1: .doc_structure.yaml exists → no output
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+test_result "No output when .doc_structure.yaml exists" "" "$OUTPUT"
+
+# Case 2: No .doc_structure.yaml but root_dirs set → no output
+mv "$TEST_PROJECT/.doc_structure.yaml" "$TEST_PROJECT/.doc_structure.yaml.bak"
+# Set root_dirs explicitly in config
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - rules/', 1)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+test_result "No output when root_dirs set" "" "$OUTPUT"
+
+# Case 3: No .doc_structure.yaml AND no root_dirs → ACTION REQUIRED
+# Remove root_dirs from config (revert to commented form)
+python3 -c "
+import re
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+content = re.sub(r'  root_dirs:\n    - rules/', '  # root_dirs: []    # Uncomment to override .doc_structure.yaml', content)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
+    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED message when unconfigured"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED message, got: $OUTPUT"
+    ((FAIL_COUNT++))
+fi
+
+# Restore .doc_structure.yaml
+mv "$TEST_PROJECT/.doc_structure.yaml.bak" "$TEST_PROJECT/.doc_structure.yaml"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 26: config.yaml merge option (REQ-002-03 [m])"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Add custom setting to config
+echo "      - merge_test_custom_setting" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Run setup again with 'm' to merge
+SETUP_OUTPUT=$(echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
+
+# Verify: config.yaml.old exists (old config saved)
+test_result "config.yaml.old created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml.old" ]] && echo 0 || echo 1)"
+
+# Verify: old config preserved in .old
+CUSTOM_IN_OLD=$(grep -c "merge_test_custom_setting" "$TEST_PROJECT/.claude/doc-advisor/config.yaml.old" 2>/dev/null | tr -d '[:space:]' || echo 0)
+test_result "Custom setting in .old" "1" "$CUSTOM_IN_OLD"
+
+# Verify: new config does NOT have the custom setting (overwritten with template)
+CUSTOM_IN_NEW=$(grep -c "merge_test_custom_setting" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
+test_result "Custom NOT in new config" "0" "$CUSTOM_IN_NEW"
+
+# Verify: diff output was shown
+if echo "$SETUP_OUTPUT" | grep -q "Config diff"; then
+    echo -e "${GREEN}PASS${NC}: Diff output displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No diff output in merge mode"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================

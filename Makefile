@@ -1,42 +1,29 @@
-# Doc Advisor Makefile
-#
-# Usage:
-#   make help               # Show help
-#   make setup              # Setup (interactive mode)
-#   make setup TARGET=/path # Setup target project
-#
-# Note: This tool copies templates to target project.
-# Config is stored at: TARGET/.claude/doc-advisor/config.yaml
+.PHONY: help connect_gemini disconnect_gemini connect_serena disconnect_serena 
 
-.PHONY: help setup add-exclude
-
-# Default target
-.DEFAULT_GOAL := help
+default: help
 
 help:
-	@VERSION=$$(grep 'DOC_ADVISOR_VERSION=' setup.sh | cut -d'"' -f2); echo "Doc Advisor (v$$VERSION)"
-	@echo ""
-	@echo "Usage:"
-	@echo "  make help                    Show this help message"
-	@echo "  make setup                   Setup (interactive mode)"
-	@echo "  make setup TARGET=/path      Setup target project"
-	@echo "  make add-exclude TARGET=/path  Add exclude patterns to config"
-	@echo ""
-	@echo "Examples:"
-	@echo "  make setup"
-	@echo "  make setup TARGET=~/projects/my-app"
-	@echo ""
-	@echo "After setup, start Claude Code with:"
-	@echo "  cd TARGET && claude"
-	@echo ""
-	@echo "Files created at:"
-	@echo "  TARGET/.claude/commands/        Command files"
-	@echo "  TARGET/.claude/agents/          Agent definitions"
-	@echo "  TARGET/.claude/skills/          Skill modules"
-	@echo "  TARGET/.claude/doc-advisor/     Configuration"
+	@echo "  make connect_gemini    - Connect gemini-cli MCP tool to Claude Code"
+	@echo "  make disconnect_gemini - Disconnect gemini-cli MCP tool from Claude Code"
+	@echo "  make connect_serena	- Connect serena MCP server to Claude Code"
+	@echo "  make disconnect_serena	- Disconnect serena MCP server from Claude Code"
 
-setup:
-	@./setup.sh $(TARGET)
+connect_gemini:
+	@echo "Connecting gemini-cli MCP tool to Claude Code..."
+	claude mcp add gemini-cli -s user -- npx -y gemini-mcp-tool
 
-add-exclude:
-	@./add-exclude.sh $(TARGET)
+disconnect_gemini:
+	@echo "Disconnecting gemini-cli MCP tool from Claude Code..."
+	claude mcp remove gemini-cli
+
+connect_serena:
+	@if [ -n "$$SERENA_PATH" ]; then \
+		echo "Connecting local serena from $$SERENA_PATH to Claude Code..."; \
+		claude mcp add serena -- uv run --directory $$SERENA_PATH serena-mcp-server --project $$PWD; \
+	else \
+		echo "❌ No local serena"; \
+	fi
+
+disconnect_serena:
+	@echo "Disconnecting serena MCP server from Claude Code..."
+	claude mcp remove serena

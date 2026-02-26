@@ -17,17 +17,13 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Format path for display: replace $HOME with ~
+display_path() { printf '%s' "${1/#$HOME/\~}"; }
+
 # Get script directory (plugin root)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 
-# Default values (no trailing slash)
-DEFAULT_RULES_DIR="rules"
-DEFAULT_SPECS_DIR="specs"
-# Subdirectory names for specs (doc_type mapping)
-DEFAULT_REQUIREMENT_DIR_NAME="requirements"
-DEFAULT_DESIGN_DIR_NAME="design"
-DEFAULT_PLAN_DIR_NAME="plan"
 # Agent model (opus, sonnet, haiku, inherit)
 DEFAULT_AGENT_MODEL="opus"
 
@@ -35,12 +31,6 @@ DEFAULT_AGENT_MODEL="opus"
 if [[ -f "$LAST_SETUP_FILE" ]]; then
     source "$LAST_SETUP_FILE"
     # Use saved values as defaults
-    DEFAULT_TARGET_DIR="${LAST_TARGET_DIR:-}"
-    DEFAULT_RULES_DIR="${LAST_RULES_DIR:-$DEFAULT_RULES_DIR}"
-    DEFAULT_SPECS_DIR="${LAST_SPECS_DIR:-$DEFAULT_SPECS_DIR}"
-    DEFAULT_REQUIREMENT_DIR_NAME="${LAST_REQUIREMENT_DIR_NAME:-$DEFAULT_REQUIREMENT_DIR_NAME}"
-    DEFAULT_DESIGN_DIR_NAME="${LAST_DESIGN_DIR_NAME:-$DEFAULT_DESIGN_DIR_NAME}"
-    DEFAULT_PLAN_DIR_NAME="${LAST_PLAN_DIR_NAME:-$DEFAULT_PLAN_DIR_NAME}"
     DEFAULT_AGENT_MODEL="${LAST_AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
 fi
 
@@ -59,12 +49,11 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "This script creates:"
             echo "  TARGET_DIR/.claude/agents/         # Worker agents (toc-updater)"
-            echo "  TARGET_DIR/.claude/skills/         # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)"
-            echo "  TARGET_DIR/.claude/doc-advisor/    # Runtime output (ToC files)"
+            echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
+            echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
-            echo "Default directories:"
-            echo "  Rules: ${DEFAULT_RULES_DIR}"
-            echo "  Specs: ${DEFAULT_SPECS_DIR}"
+            echo "If .doc_structure.yaml exists, directories are derived at runtime."
+            echo "Otherwise, run /classify-docs after setup to configure directories."
             exit 0
             ;;
         -*)
@@ -89,6 +78,13 @@ done
 if [[ -z "$TARGET_DIR" ]]; then
     echo "Doc Advisor Setup Script"
     echo ""
+    # Default: pwd (except when pwd is DocAdvisor itself)
+    if [[ -z "$DEFAULT_TARGET_DIR" ]]; then
+        CURRENT_DIR="$(pwd)"
+        if [[ "$CURRENT_DIR" != "$SCRIPT_DIR" ]]; then
+            DEFAULT_TARGET_DIR="$CURRENT_DIR"
+        fi
+    fi
     if [[ -n "$DEFAULT_TARGET_DIR" ]]; then
         read -p "Enter target project directory [${DEFAULT_TARGET_DIR}]: " TARGET_DIR
         TARGET_DIR="${TARGET_DIR:-$DEFAULT_TARGET_DIR}"
@@ -101,44 +97,53 @@ if [[ -z "$TARGET_DIR" ]]; then
     fi
 fi
 
-# Expand ~ and relative paths
-TARGET_DIR="$(eval echo "$TARGET_DIR")"
+# Expand ~ to $HOME (safe alternative to eval)
+TARGET_DIR="${TARGET_DIR/#\~/$HOME}"
 TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || {
     echo "Error: Directory does not exist: $TARGET_DIR"
     exit 1
 }
 
-echo -e "${GREEN}==========================================${NC}"
-echo -e "${GREEN}Doc Advisor Setup${NC}"
-echo -e "${GREEN}==========================================${NC}"
+printf "${GREEN}==========================================${NC}\n"
+printf "${GREEN}Doc Advisor Setup${NC}\n"
+printf "${GREEN}==========================================${NC}\n"
 echo ""
-echo "Target project: ${TARGET_DIR}"
-echo ""
-
-# Interactive prompts for directories
-echo "Configure document directories for your project."
-echo "(Press Enter to use default value)"
+echo "Target project: $(display_path "${TARGET_DIR}")"
 echo ""
 
-read -p "Rules directory [${DEFAULT_RULES_DIR}]: " RULES_DIR
-RULES_DIR="${RULES_DIR:-$DEFAULT_RULES_DIR}"
+# =============================================================================
+# Document structure check (early exit opportunity)
+# =============================================================================
+DOC_STRUCTURE_FILE="${TARGET_DIR}/.doc_structure.yaml"
+HAS_DOC_STRUCTURE=false
 
-read -p "Specs directory [${DEFAULT_SPECS_DIR}]: " SPECS_DIR
-SPECS_DIR="${SPECS_DIR:-$DEFAULT_SPECS_DIR}"
-
+if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
+    printf "${GREEN}  .doc_structure.yaml found${NC}\n"
+    HAS_DOC_STRUCTURE=true
+else
+    printf "${YELLOW}  .doc_structure.yaml not found${NC}\n"
+    echo "  Document directories will need to be configured after setup."
+    printf "  Run ${YELLOW}/classify-docs${NC} in Claude Code to auto-detect and configure.\n"
+    echo ""
+    echo "  Options:"
+    echo "    [c] Continue setup (configure directories later with /classify-docs)"
+    echo "    [e] Exit (install doc-structure plugin first)"
+    read -p "  Choice [c]: " DOC_STRUCTURE_CHOICE
+    DOC_STRUCTURE_CHOICE="${DOC_STRUCTURE_CHOICE:-c}"
+    if [[ "$DOC_STRUCTURE_CHOICE" == [Ee] ]]; then
+        echo ""
+        echo "Setup cancelled."
+        echo "To create .doc_structure.yaml, run /doc-structure:init-doc-structure in Claude Code."
+        echo "Then re-run this setup script."
+        exit 0
+    fi
+fi
 echo ""
-echo "Configure subdirectory names for specs:"
 
-read -p "  Requirements directory name [${DEFAULT_REQUIREMENT_DIR_NAME}]: " REQUIREMENT_DIR_NAME
-REQUIREMENT_DIR_NAME="${REQUIREMENT_DIR_NAME:-$DEFAULT_REQUIREMENT_DIR_NAME}"
+# =============================================================================
+# Agent model selection
+# =============================================================================
 
-read -p "  Design directory name [${DEFAULT_DESIGN_DIR_NAME}]: " DESIGN_DIR_NAME
-DESIGN_DIR_NAME="${DESIGN_DIR_NAME:-$DEFAULT_DESIGN_DIR_NAME}"
-
-read -p "  Plan directory name [${DEFAULT_PLAN_DIR_NAME}]: " PLAN_DIR_NAME
-PLAN_DIR_NAME="${PLAN_DIR_NAME:-$DEFAULT_PLAN_DIR_NAME}"
-
-echo ""
 echo "Configure agent model (opus, sonnet, haiku, inherit):"
 read -p "  Agent model [${DEFAULT_AGENT_MODEL}]: " AGENT_MODEL
 AGENT_MODEL="${AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
@@ -148,40 +153,33 @@ case "$AGENT_MODEL" in
     opus|sonnet|haiku|inherit)
         ;;
     *)
-        echo -e "${RED}Warning: Unknown model '$AGENT_MODEL'. Using 'opus' as default.${NC}"
+        printf "${RED}Warning: Unknown model '$AGENT_MODEL'. Using 'opus' as default.${NC}\n"
         AGENT_MODEL="opus"
         ;;
 esac
-
-# Remove trailing slash if present (placeholders should not include trailing slash)
-RULES_DIR="${RULES_DIR%/}"
-SPECS_DIR="${SPECS_DIR%/}"
 
 # Detect Python path
 # Check if shell wrapper exists (e.g., Claude Code shell-snapshots directory)
 if [[ -d "$HOME/.claude/shell-snapshots" ]] && [[ -n "$(ls -A "$HOME/.claude/shell-snapshots" 2>/dev/null)" ]]; then
     # Shell wrapper likely present: use full path to bypass
     PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || echo "python3")
+    PYTHON_CMD="${PYTHON_PATH}"  # Save actual command before $HOME substitution
     # Replace $HOME with $HOME variable (expands at runtime)
     PYTHON_PATH="${PYTHON_PATH/#$HOME/\$HOME}"
     PYTHON_WRAPPED="yes"
 else
     # No wrapper detected: use simple command
+    PYTHON_CMD="python3"
     PYTHON_PATH="python3"
     PYTHON_WRAPPED="no"
 fi
 
 echo ""
 echo "Configuration:"
-echo -e "  RULES_DIR: ${BLUE}${RULES_DIR}${NC}"
-echo -e "  SPECS_DIR: ${BLUE}${SPECS_DIR}${NC}"
-echo -e "  REQUIREMENT_DIR_NAME: ${BLUE}${REQUIREMENT_DIR_NAME}${NC}"
-echo -e "  DESIGN_DIR_NAME: ${BLUE}${DESIGN_DIR_NAME}${NC}"
-echo -e "  PLAN_DIR_NAME: ${BLUE}${PLAN_DIR_NAME}${NC}"
-echo -e "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}"
-echo -e "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}"
+printf "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}\n"
+printf "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}\n"
 if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
-    echo -e "    ${RED}(python3 may be wrapped: using explicit path for reliability)${NC}"
+    printf "    ${RED}(python3 may be wrapped: using explicit path for reliability)${NC}\n"
 fi
 echo ""
 
@@ -194,7 +192,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="3.6"
+DOC_ADVISOR_VERSION="4.0"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -234,14 +232,14 @@ LEGACY_CLEANED=0
 if [[ -f "${CLAUDE_DIR}/commands/create-rules_toc.md" ]]; then
     if ! has_current_doc_advisor_version "${CLAUDE_DIR}/commands/create-rules_toc.md"; then
         rm -f "${CLAUDE_DIR}/commands/create-rules_toc.md"
-        echo -e "${GREEN}Removed legacy: commands/create-rules_toc.md${NC}"
+        printf "${GREEN}Removed legacy: commands/create-rules_toc.md${NC}\n"
         LEGACY_CLEANED=1
     fi
 fi
 if [[ -f "${CLAUDE_DIR}/commands/create-specs_toc.md" ]]; then
     if ! has_current_doc_advisor_version "${CLAUDE_DIR}/commands/create-specs_toc.md"; then
         rm -f "${CLAUDE_DIR}/commands/create-specs_toc.md"
-        echo -e "${GREEN}Removed legacy: commands/create-specs_toc.md${NC}"
+        printf "${GREEN}Removed legacy: commands/create-specs_toc.md${NC}\n"
         LEGACY_CLEANED=1
     fi
 fi
@@ -253,17 +251,17 @@ if [[ -f "$LEGACY_SKILL_CONFIG" ]]; then
     cp "$LEGACY_SKILL_CONFIG" "${SKILLS_DIR}/config.yaml.legacy.tmp"
     MIGRATE_LEGACY_CONFIG=1
     rm -f "$LEGACY_SKILL_CONFIG"
-    echo -e "${GREEN}Removed legacy: skills/doc-advisor/config.yaml (will migrate)${NC}"
+    printf "${GREEN}Removed legacy: skills/doc-advisor/config.yaml (will migrate)${NC}\n"
     LEGACY_CLEANED=1
 fi
 if [[ -d "${SKILLS_DIR}/doc-advisor/docs" ]]; then
     rm -rf "${SKILLS_DIR}/doc-advisor/docs"
-    echo -e "${GREEN}Removed legacy: skills/doc-advisor/docs/${NC}"
+    printf "${GREEN}Removed legacy: skills/doc-advisor/docs/${NC}\n"
     LEGACY_CLEANED=1
 fi
 if [[ -d "${SKILLS_DIR}/doc-advisor/scripts" ]]; then
     rm -rf "${SKILLS_DIR}/doc-advisor/scripts"
-    echo -e "${GREEN}Removed legacy: skills/doc-advisor/scripts/${NC}"
+    printf "${GREEN}Removed legacy: skills/doc-advisor/scripts/${NC}\n"
     LEGACY_CLEANED=1
 fi
 
@@ -279,7 +277,7 @@ fi
 if [[ -d "${SKILLS_DIR}/doc-advisor" ]]; then
     if ! has_current_doc_advisor_version "${SKILLS_DIR}/doc-advisor/SKILL.md"; then
         rm -rf "${SKILLS_DIR}/doc-advisor"
-        echo -e "${GREEN}Removed legacy: skills/doc-advisor/${NC}"
+        printf "${GREEN}Removed legacy: skills/doc-advisor/${NC}\n"
         LEGACY_CLEANED=1
     fi
 fi
@@ -290,9 +288,42 @@ for advisor_agent in "rules-advisor.md" "specs-advisor.md"; do
     if [[ -f "${AGENTS_DIR}/${advisor_agent}" ]]; then
         if ! has_current_doc_advisor_version "${AGENTS_DIR}/${advisor_agent}"; then
             rm -f "${AGENTS_DIR}/${advisor_agent}"
-            echo -e "${GREEN}Removed legacy: agents/${advisor_agent} (replaced by skill)${NC}"
+            printf "${GREEN}Removed legacy: agents/${advisor_agent} (replaced by skill)${NC}\n"
             LEGACY_CLEANED=1
         fi
+    fi
+done
+
+# v3.8 unified scripts (6 per-category scripts → 3 unified --target scripts)
+# No version check: these files are replaced by unified scripts regardless of version
+for old_script in \
+    "create_pending_yaml_rules.py" "create_pending_yaml_specs.py" \
+    "write_rules_pending.py" "write_specs_pending.py" \
+    "merge_rules_toc.py" "merge_specs_toc.py"; do
+    if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
+        rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
+        printf "${GREEN}Removed legacy: scripts/${old_script} (unified)${NC}\n"
+        LEGACY_CLEANED=1
+    fi
+done
+
+# v3.8 unified agents (per-category agents → single toc-updater.md)
+# No version check: these files are replaced by toc-updater.md regardless of version
+for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
+    if [[ -f "${AGENTS_DIR}/${old_agent}" ]]; then
+        rm -f "${AGENTS_DIR}/${old_agent}"
+        printf "${GREEN}Removed legacy: agents/${old_agent} (unified into toc-updater.md)${NC}\n"
+        LEGACY_CLEANED=1
+    fi
+done
+
+# v3.9 had removed classify-docs skill, but v4.0 restores it
+# Old classify-docs (pre-4.0) will be overwritten by template copy
+for old_script in "set_root_dirs.py"; do
+    if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
+        rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
+        printf "${GREEN}Removed legacy: scripts/${old_script} (replaced by doc-structure plugin)${NC}\n"
+        LEGACY_CLEANED=1
     fi
 done
 
@@ -312,13 +343,7 @@ copy_and_substitute() {
     local dst="$2"
 
     if [[ -f "$src" ]]; then
-        # Perform variable substitution
-        sed -e "s|{{RULES_DIR}}|${RULES_DIR}|g" \
-            -e "s|{{SPECS_DIR}}|${SPECS_DIR}|g" \
-            -e "s|{{REQUIREMENT_DIR_NAME}}|${REQUIREMENT_DIR_NAME}|g" \
-            -e "s|{{DESIGN_DIR_NAME}}|${DESIGN_DIR_NAME}|g" \
-            -e "s|{{PLAN_DIR_NAME}}|${PLAN_DIR_NAME}|g" \
-            -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
+        sed -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
             -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
             -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
             "$src" > "$dst"
@@ -331,7 +356,7 @@ copy_dir_with_substitution() {
     local dst_dir="$2"
 
     if [[ ! -d "$src_dir" ]]; then
-        echo -e "${RED}Warning: Source directory not found: ${src_dir}${NC}"
+        printf "${RED}Warning: Source directory not found: ${src_dir}${NC}\n"
         return
     fi
 
@@ -368,8 +393,8 @@ EXISTING_CONFIG="${DOC_ADVISOR_DIR}/config.yaml"
 SKIP_CONFIG=0
 
 if [[ -f "$EXISTING_CONFIG" ]]; then
-    echo -e "${YELLOW}Existing config.yaml found: ${EXISTING_CONFIG}${NC}"
-    echo "  This file may contain your custom settings (exclude patterns, etc.)."
+    printf "${YELLOW}Existing config.yaml found: ${EXISTING_CONFIG}${NC}\n"
+    echo "  This file may contain your custom settings (exclude patterns, output config, etc.)."
     echo ""
     echo "  Options:"
     echo "    [o] Overwrite (backup to config.yaml.bak)"
@@ -383,7 +408,7 @@ if [[ -f "$EXISTING_CONFIG" ]]; then
             # Backup to skills/ dir (outside doc-advisor/ which will be deleted)
             cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.bak.tmp"
             RESTORE_BAK=1
-            echo -e "${GREEN}  Backup will be created: config.yaml.bak${NC}"
+            printf "${GREEN}  Backup will be created: config.yaml.bak${NC}\n"
             ;;
         [Mm])
             cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.old.tmp"
@@ -391,7 +416,7 @@ if [[ -f "$EXISTING_CONFIG" ]]; then
             ;;
         *)
             SKIP_CONFIG=1
-            echo -e "${BLUE}  Keeping existing config.yaml${NC}"
+            printf "${BLUE}  Keeping existing config.yaml${NC}\n"
             ;;
     esac
     echo ""
@@ -401,19 +426,19 @@ fi
 echo "  agents/ ..."
 if [[ -d "${AGENTS_DIR}" ]]; then
     # doc-advisor managed agents (will be overwritten)
-    MANAGED_AGENTS="rules-toc-updater.md specs-toc-updater.md"
+    MANAGED_AGENTS="toc-updater.md"
     # Check for non-managed agents and notify user
     for agent in "${AGENTS_DIR}"/*.md; do
         [[ -e "$agent" ]] || continue
         name=$(basename "$agent")
         if ! echo "$MANAGED_AGENTS" | grep -qw "$name"; then
-            echo -e "${BLUE}    Preserving: $name${NC}"
+            printf "${BLUE}    Preserving: $name${NC}\n"
         fi
     done
 fi
 copy_dir_with_substitution "${SCRIPT_DIR}/templates/agents" "${AGENTS_DIR}"
 
-# Copy skills/create-rules-toc/ and skills/create-specs-toc/
+# Copy skills
 echo "  skills/create-rules-toc/ ..."
 mkdir -p "${SKILLS_DIR}/create-rules-toc"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-rules-toc/SKILL.md" "${SKILLS_DIR}/create-rules-toc/SKILL.md"
@@ -430,12 +455,16 @@ echo "  skills/query-specs/ ..."
 mkdir -p "${SKILLS_DIR}/query-specs"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
 
+echo "  skills/classify-docs/ ..."
+mkdir -p "${SKILLS_DIR}/classify-docs"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/classify-docs/SKILL.md" "${SKILLS_DIR}/classify-docs/SKILL.md"
+
 # Copy doc-advisor resources (config, docs, scripts)
 echo "  doc-advisor/ ..."
 
 # Backup config to temp location if skipping
 if [[ $SKIP_CONFIG -eq 1 ]]; then
-    cp "$EXISTING_CONFIG" "${DOC_ADVISOR_DIR}/config.yaml.tmp"
+    cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.skip_bak"
 fi
 
 # Copy templates/doc-advisor/ to .claude/doc-advisor/
@@ -443,7 +472,7 @@ copy_dir_with_substitution "${SCRIPT_DIR}/templates/doc-advisor" "${DOC_ADVISOR_
 
 # Restore config if skipped
 if [[ $SKIP_CONFIG -eq 1 ]]; then
-    mv "${DOC_ADVISOR_DIR}/config.yaml.tmp" "$EXISTING_CONFIG"
+    mv "${SKILLS_DIR}/config.yaml.skip_bak" "$EXISTING_CONFIG"
 fi
 
 # Move backup to final location (overwrite mode)
@@ -455,10 +484,10 @@ fi
 if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old.tmp" ]]; then
     mv "${SKILLS_DIR}/config.yaml.old.tmp" "${EXISTING_CONFIG}.old"
     echo ""
-    echo -e "${YELLOW}Config diff (old vs new):${NC}"
+    printf "${YELLOW}Config diff (old vs new):${NC}\n"
     diff "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG" || true
     echo ""
-    echo -e "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}"
+    printf "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}\n"
 fi
 
 echo ""
@@ -466,78 +495,33 @@ echo "Generated configuration:"
 echo "  ${DOC_ADVISOR_DIR}/config.yaml"
 
 echo ""
-echo -e "${GREEN}==========================================${NC}"
-echo -e "${GREEN}Setup Complete${NC}"
-echo -e "${GREEN}==========================================${NC}"
+printf "${GREEN}==========================================${NC}\n"
+printf "${GREEN}Setup Complete${NC}\n"
+printf "${GREEN}==========================================${NC}\n"
 echo ""
 echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
 echo "    agents/            # Worker agents (toc-updater)"
-echo "    skills/            # Skills (query-rules, query-specs, create-rules-toc, create-specs-toc)"
-echo "    doc-advisor/       # Runtime output (ToC files)"
-
-# =============================================================================
-# CLAUDE.md - Add Doc Advisor rules
-# =============================================================================
-TARGET_CLAUDE_MD="${TARGET_DIR}/CLAUDE.md"
-
-if [[ -f "$TARGET_CLAUDE_MD" ]] && grep -q "doc-advisor-section-start" "$TARGET_CLAUDE_MD" 2>/dev/null; then
-    echo ""
-    echo -e "${BLUE}  CLAUDE.md: Doc Advisor rules already configured (skipped)${NC}"
-else
-    echo ""
-    echo -e "${YELLOW}CLAUDE.md に Doc Advisor のルールを追記しますか？${NC}"
-    echo "  ToC ファイルの直接修正禁止、Doc Advisor Skill/Agent の使用を必須にします。"
-    if [[ -f "$TARGET_CLAUDE_MD" ]]; then
-        echo -e "  Target: ${BLUE}${TARGET_CLAUDE_MD}${NC} (append)"
-    else
-        echo -e "  Target: ${BLUE}${TARGET_CLAUDE_MD}${NC} (create new)"
-    fi
-    read -p "  Add Doc Advisor rules to CLAUDE.md? [y/N]: " CLAUDE_MD_CHOICE
-    CLAUDE_MD_CHOICE="${CLAUDE_MD_CHOICE:-n}"
-
-    case "$CLAUDE_MD_CHOICE" in
-        [Yy])
-            cat >> "$TARGET_CLAUDE_MD" << 'CLAUDEMD_EOF'
-
-<!-- doc-advisor-section-start -->
-## Doc Advisor ルール [MANDATORY]
-
-### ToC ファイルの直接修正禁止
-
-`.claude/doc-advisor/toc/` 配下のファイルを直接編集・修正してはいけない。
-ToC の生成・更新には、必ず Doc Advisor の Skill/Agent を使用すること：
-
-- `/create-rules-toc` — rules の ToC を生成・更新
-- `/create-specs-toc` — specs の ToC を生成・更新
-<!-- doc-advisor-section-end -->
-CLAUDEMD_EOF
-            echo -e "${GREEN}  Doc Advisor rules added to CLAUDE.md${NC}"
-            ;;
-        *)
-            echo -e "${BLUE}  Skipped${NC}"
-            ;;
-    esac
-fi
+echo "    skills/            # Skills (query-*, create-*-toc)"
+echo "    doc-advisor/       # Config, docs, scripts, ToC files"
 
 # Save settings for next run
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
-LAST_TARGET_DIR="${TARGET_DIR}"
-LAST_RULES_DIR="${RULES_DIR}"
-LAST_SPECS_DIR="${SPECS_DIR}"
-LAST_REQUIREMENT_DIR_NAME="${REQUIREMENT_DIR_NAME}"
-LAST_DESIGN_DIR_NAME="${DESIGN_DIR_NAME}"
-LAST_PLAN_DIR_NAME="${PLAN_DIR_NAME}"
 LAST_AGENT_MODEL="${AGENT_MODEL}"
 EOF
 
 echo ""
 echo "Next steps:"
-echo -e "  1. Verify ${BLUE}${RULES_DIR}${NC} and ${BLUE}${SPECS_DIR}${NC} directories exist in your project"
-echo "  2. Start Claude Code:"
-echo -e "     cd ${BLUE}${TARGET_DIR}${NC}"
+echo "  1. Start Claude Code:"
+printf "     cd ${BLUE}$(display_path "${TARGET_DIR}")${NC}\n"
 echo "     claude"
-echo -e "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
-echo -e "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
+if [[ "$HAS_DOC_STRUCTURE" != "true" ]]; then
+    printf "  2. Run ${YELLOW}/classify-docs${NC} to configure document directories\n"
+    printf "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
+    printf "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
+else
+    printf "  2. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
+    printf "  3. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
+fi
 echo ""

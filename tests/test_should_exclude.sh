@@ -35,11 +35,18 @@ test_result() {
     fi
 }
 
-# Setup test project
+# Ensure test project is set up (self-contained: works without prior test phases)
+if [[ ! -d "$TEST_PROJECT/.claude" ]]; then
+    echo "Setting up test project..."
+    cd "$TEST_PROJECT"
+    rm -rf .claude .last_setup
+    echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+fi
+
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
 echo ""

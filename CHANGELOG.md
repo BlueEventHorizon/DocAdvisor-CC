@@ -6,7 +6,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.0] - 2026-02-25
 
+### Added
+- **`/classify-docs` skill**: AI-driven directory classification using `classify_dirs.py` scanner and `classification_rules.md`; replaces `setup_dirs.sh`
+- **Skill Pre-check**: `check_config.sh` called at the start of each skill (create-*-toc, query-*) to detect unconfigured directories and trigger `/classify-docs` first
+- **`classify_dirs.py`**: Python stdlib directory scanner that outputs JSON metadata for AI classification
+- **`classification_rules.md`**: Classification rules for AI to categorize directories as rules/specs with doc_type
+- **`doc_type` in ToC**: Each ToC entry includes `doc_type` field auto-derived from file path via `.doc_structure.yaml`
+- **Path display**: `display_path()` function replaces `$HOME` with `~` for readable terminal output
+
+### Changed
+- **setup.sh scope**: Now focuses solely on template copy and placeholder substitution; directory classification delegated to target project
+- **`.doc_structure.yaml` check**: Changed from error-exit to warning + `/classify-docs` guidance
+- **Version identifier**: Updated from `3.8` to `4.0` across all managed files
+
+### Removed
+- **`setup_dirs.sh`**: Replaced by `/classify-docs` skill (AI-driven classification)
+- **`--skip-doc-structure` flag**: No longer needed since setup.sh doesn't perform directory classification
+
+### Files modified (templates/)
+- `skills/classify-docs/SKILL.md` - New: AI-driven directory classification skill
+- `doc-advisor/scripts/check_config.sh` - New: Skill pre-check script
+- `doc-advisor/scripts/classify_dirs.py` - New: Directory scanner
+- `doc-advisor/docs/classification_rules.md` - New: AI classification rules
+
+---
+
+## [3.8.0] - 2026-02-21
+
+### Changed
+- **`doc_type` removed**: AI determines document type from content; `doc_type` field removed from all YAML schemas, pending templates, merge/validate/write scripts, and format docs
+- **`Feature` removed**: Flattened directory structure (`specs/main/requirements/` → `specs/`); `target_dirs` config replaced with `target_glob: "**/*.md"`
+- **`root_dirs` array support**: `root_dir` (string) → `root_dirs` (array) in config.yaml; backward compatibility: `load_config()` auto-converts old `root_dir` format
+- **setup.sh simplified**: Removed 3 subdirectory prompts (requirements, design, plan); input sequence reduced from 6 to 3 values
+- **Version identifier**: Updated from `3.6` to `3.8` across all managed files
+
+### Fixed
+- **`set -e` + `read` EOF crash**: Added `|| true` to CLAUDE.md `read` prompt in setup.sh to prevent exit on piped input EOF
+- **Unsafe `eval` in setup.sh**: Replaced `eval echo "$TARGET_DIR"` with safe parameter expansion `${TARGET_DIR/#\~/$HOME}`
+
+### Files modified (templates/)
+- `scripts/toc_utils.py` - `root_dir` → `root_dirs`, `target_dirs` → `target_glob`, `get_default_target_dirs()` removed
+- `scripts/create_checksums.py` - Multi `root_dirs` loop, `find_md_files_specs()` simplified
+- `scripts/create_pending_yaml_specs.py` - `doc_type` removed, `TARGET_DIRS`/`is_target_dir()`/`get_doc_type()` removed, multi `root_dirs`
+- `scripts/create_pending_yaml_rules.py` - Multi `root_dirs` loop
+- `scripts/merge_specs_toc.py` - `doc_type` removed, `TARGET_DIRS`/`is_target_dir()` removed, multi `root_dirs`
+- `scripts/merge_rules_toc.py` - Multi `root_dirs` loop
+- `scripts/validate_specs_toc.py` - `requirements`/`designs` → unified `docs`, `doc_type` removed, multi `root_dirs`
+- `scripts/validate_rules_toc.py` - Multi `root_dirs` loop
+- `scripts/write_specs_pending.py` - `doc_type` output removed
+- `docs/specs_toc_format.md` - `doc_type` schema/examples removed, path examples simplified
+- `docs/specs_toc_update_workflow.md` - `doc_type` removed, target_dirs → glob
+- `docs/specs_orchestrator.md` - `doc_type` removed, path examples simplified
+- `agents/specs-toc-updater.md` - `doc_type` references removed
+- `skills/query-specs/SKILL.md` - `doc_type` classification removed
+- `doc-advisor/config.yaml` - `root_dir` → `root_dirs`, `target_dirs` → `target_glob`
+
+### Files modified (project root)
+- `setup.sh` - Subdirectory prompts removed, `eval` removed, `read` EOF fix
+
+---
 ## [3.6.0] - 2026-02-19
 
 ### Fixed

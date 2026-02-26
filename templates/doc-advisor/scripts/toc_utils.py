@@ -120,7 +120,13 @@ def find_config_file():
 
 def load_config(target=None):
     """
-    Load config.yaml and return configuration dictionary
+    Load config.yaml and return configuration dictionary.
+
+    root_dirs and exclude are derived from .doc_structure.yaml at runtime
+    when not explicitly set in config.yaml. Priority:
+      1. config.yaml root_dirs (non-empty) → use as-is
+      2. .doc_structure.yaml → derive root_dirs and merge exclude
+      3. defaults (rules/, specs/)
 
     Args:
         target: 'rules' or 'specs'. If specified, returns only that section
@@ -142,34 +148,46 @@ def load_config(target=None):
 
     config = _parse_config_yaml(content)
 
+    # Backward compatibility: root_dir (string) → root_dirs (list)
+    for section in ('rules', 'specs'):
+        if section in config:
+            sec = config[section]
+            if 'root_dir' in sec and 'root_dirs' not in sec:
+                sec['root_dirs'] = [sec.pop('root_dir')]
+
+    # Derive root_dirs and exclude from .doc_structure.yaml when not set
+    for section in ('rules', 'specs'):
+        if section in config:
+            sec = config[section]
+            root_dirs = sec.get('root_dirs', [])
+            if not root_dirs:
+                try:
+                    derived = load_doc_structure(section)
+                    if derived['root_dirs']:
+                        sec['root_dirs'] = derived['root_dirs']
+                    if derived.get('doc_types_map'):
+                        sec['doc_types_map'] = derived['doc_types_map']
+                    if derived['exclude']:
+                        patterns = sec.get('patterns', {})
+                        existing_exclude = patterns.get('exclude', [])
+                        merged = list(dict.fromkeys(
+                            existing_exclude + derived['exclude']
+                        ))
+                        patterns['exclude'] = merged
+                        sec['patterns'] = patterns
+                except FileNotFoundError:
+                    pass  # Fall back to defaults
+
     if target:
         return config.get(target, {})
     return config
-
-
-def get_default_target_dirs():
-    """
-    Return default target_dirs configuration for specs.
-
-    This is the single source of truth for default directory mappings.
-    Other scripts should use this instead of hardcoding values.
-
-    Returns:
-        dict: Mapping of doc_type to directory name
-              e.g., {'requirement': 'requirements', 'design': 'design'}
-              Note: 'plan' is excluded per DES-002 (read in full during work, no search index needed)
-    """
-    return {
-        'requirement': 'requirements',
-        'design': 'design',
-    }
 
 
 def _get_default_config():
     """Return default configuration"""
     return {
         'rules': {
-            'root_dir': 'rules/',
+            'root_dirs': ['rules/'],
             'toc_file': '.claude/doc-advisor/toc/rules/rules_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/rules/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/rules/.toc_work/',
@@ -183,17 +201,17 @@ def _get_default_config():
             }
         },
         'specs': {
-            'root_dir': 'specs/',
+            'root_dirs': ['specs/'],
             'toc_file': '.claude/doc-advisor/toc/specs/specs_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/specs/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/specs/.toc_work/',
             'patterns': {
-                'target_dirs': get_default_target_dirs(),
+                'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
-                'header_comment': 'Requirement & Design Document Search Index for specs-advisor Subagent',
-                'metadata_name': 'Requirement & Design Document Search Index'
+                'header_comment': 'Project Specification Document Search Index for specs-advisor Subagent',
+                'metadata_name': 'Project Specification Document Search Index'
             }
         },
         'common': {
@@ -211,8 +229,8 @@ def _parse_config_yaml(content):
 
     Handles up to 4 levels of nesting:
     - Level 0: Top-level sections (rules, specs, common)
-    - Level 2: Subsections (root_dir, patterns, output)
-    - Level 4: Sub-subsections (target_dirs, exclude)
+    - Level 2: Subsections (root_dirs, patterns, output)
+    - Level 4: Sub-subsections (target_glob, exclude)
     - Level 6: Items (key-value pairs or list items)
     """
     result = {}
@@ -252,10 +270,16 @@ def _parse_config_yaml(content):
                 current_subsection = key
                 if value:
                     result[current_section][key] = _parse_value(value)
+                    current_list = None
                 else:
-                    result[current_section][key] = {}
+                    # Look ahead to determine if list or dict
+                    if _lookahead_is_list(lines, i + 1, parent_indent=2):
+                        result[current_section][key] = []
+                        current_list = result[current_section][key]
+                    else:
+                        result[current_section][key] = {}
+                        current_list = None
                 current_subsubsection = None
-                current_list = None
                 current_dict = None
             elif indent == 4 and current_section and current_subsection:
                 # Sub-subsection - look ahead to determine if list or dict
@@ -288,13 +312,14 @@ def _parse_config_yaml(content):
     return result
 
 
-def _lookahead_is_list(lines, start_idx):
+def _lookahead_is_list(lines, start_idx, parent_indent=4):
     """
     Look ahead in lines to determine if the next content is a list or dict.
 
     Args:
         lines: List of all lines
         start_idx: Index to start looking from
+        parent_indent: Indent level of the parent key
 
     Returns:
         bool: True if next content is a list (starts with '- ')
@@ -310,7 +335,7 @@ def _lookahead_is_list(lines, start_idx):
         indent = len(line) - len(line.lstrip())
 
         # If we hit a line with less or equal indent, stop looking
-        if indent <= 4:
+        if indent <= parent_indent:
             break
 
         # Check if it's a list item or key-value
@@ -324,9 +349,17 @@ def _lookahead_is_list(lines, start_idx):
 
 
 def _parse_value(value):
-    """Parse value (string, number, boolean)"""
-    value = value.strip().strip('"\'')
+    """Parse value (string, number, boolean, empty list)"""
+    value = value.strip()
 
+    # Strip inline comments (not inside quotes)
+    if not value.startswith('"') and '  #' in value:
+        value = value[:value.index('  #')].strip()
+
+    value = value.strip('"\'')
+
+    if value == '[]':
+        return []
     if value.lower() == 'true':
         return True
     if value.lower() == 'false':
@@ -338,6 +371,208 @@ def _parse_value(value):
         pass
 
     return value
+
+
+def _parse_inline_yaml_array(value):
+    """
+    Parse inline YAML array notation.
+
+    Args:
+        value: String value (e.g., '[item1, item2]', '[]')
+
+    Returns:
+        list or None: Parsed list if inline array, None otherwise
+    """
+    value = value.strip()
+
+    # Strip inline comments (not inside quotes)
+    if not value.startswith('"') and '  #' in value:
+        value = value[:value.index('  #')].strip()
+
+    if value == '[]':
+        return []
+    if value.startswith('[') and value.endswith(']'):
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        items = []
+        for item in inner.split(','):
+            item = item.strip().strip('"\'')
+            if item:
+                items.append(item)
+        return items
+    return None  # Not an inline array
+
+
+def _parse_doc_structure_yaml(content):
+    """
+    Parse .doc_structure.yaml (dedicated parser for document structure files).
+
+    Handles the specific 3-level structure:
+      version: "1.0"
+      specs:
+        <doc_type>:
+          paths: [path1, path2]       # inline array
+          paths:                       # or multi-line array
+            - path1
+            - path2
+          exclude: ["pattern1"]        # optional
+          description: "text"          # optional
+      rules:
+        <doc_type>:
+          paths: [path1]
+
+    Args:
+        content: File content string
+
+    Returns:
+        dict: Parsed structure
+    """
+    result = {}
+    current_section = None
+    current_doc_type = None
+    current_list = None
+
+    for line in content.split('\n'):
+        stripped = line.strip()
+
+        # Skip comments and empty lines
+        if not stripped or stripped.startswith('#'):
+            continue
+
+        indent = len(line) - len(line.lstrip())
+
+        if ':' in stripped and not stripped.startswith('- '):
+            key, _, value = stripped.partition(':')
+            key = key.strip()
+            value = value.strip()
+
+            if indent == 0:
+                if value:
+                    # Top-level scalar (e.g., version: "1.0")
+                    result[key] = value.strip('"\'')
+                else:
+                    # Top-level section (specs, rules)
+                    current_section = key
+                    result[key] = {}
+                    current_doc_type = None
+                    current_list = None
+            elif indent == 2 and current_section:
+                # doc_type name (e.g., requirement:, design:)
+                current_doc_type = key
+                result[current_section][key] = {}
+                current_list = None
+            elif indent == 4 and current_section and current_doc_type:
+                # Field (paths, exclude, description)
+                if value:
+                    parsed = _parse_inline_yaml_array(value)
+                    if parsed is not None:
+                        result[current_section][current_doc_type][key] = parsed
+                        current_list = result[current_section][current_doc_type][key]
+                    else:
+                        result[current_section][current_doc_type][key] = value.strip('"\'')
+                        current_list = None
+                else:
+                    # Multi-line list follows
+                    result[current_section][current_doc_type][key] = []
+                    current_list = result[current_section][current_doc_type][key]
+        elif stripped.startswith('- ') and current_list is not None:
+            item = stripped[2:].strip().strip('"\'')
+            # Strip inline comments
+            if '  #' in item and not item.startswith('"'):
+                item = item[:item.index('  #')].strip()
+            current_list.append(item)
+
+    return result
+
+
+def load_doc_structure(target):
+    """
+    Load .doc_structure.yaml and extract root_dirs and exclude for target category.
+
+    Collects all paths and exclude patterns from all doc_types under the target
+    category (rules or specs).
+
+    Args:
+        target: 'rules' or 'specs'
+
+    Returns:
+        dict: {'root_dirs': [str, ...], 'exclude': [str, ...]}
+
+    Raises:
+        FileNotFoundError: When .doc_structure.yaml is not found
+    """
+    doc_structure_path = Path.cwd() / ".doc_structure.yaml"
+    if not doc_structure_path.exists():
+        raise FileNotFoundError(
+            ".doc_structure.yaml not found at project root.\n"
+            "Run /doc-structure:init-doc-structure to create it.\n"
+            "If the doc-structure plugin is not installed, install it from bw-cc-plugins:\n"
+            "  https://github.com/BlueEventHorizon/bw-cc-plugins"
+        )
+
+    with open(doc_structure_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    structure = _parse_doc_structure_yaml(content)
+    category_data = structure.get(target, {})
+
+    root_dirs = []
+    exclude = []
+    doc_types_map = {}  # path → doc_type name
+
+    for doc_type_name, doc_type_info in category_data.items():
+        if isinstance(doc_type_info, dict):
+            # Collect paths
+            paths = doc_type_info.get('paths', [])
+            if isinstance(paths, str):
+                paths = [paths]
+            root_dirs.extend(paths)
+
+            # Map each path to its doc_type
+            for p in paths:
+                doc_types_map[p] = doc_type_name
+
+            # Collect exclude patterns
+            excl = doc_type_info.get('exclude', [])
+            if isinstance(excl, str):
+                excl = [excl]
+            exclude.extend(excl)
+
+    # Deduplicate while preserving order
+    return {
+        'root_dirs': list(dict.fromkeys(root_dirs)),
+        'exclude': list(dict.fromkeys(exclude)),
+        'doc_types_map': doc_types_map,
+    }
+
+
+def expand_root_dir_globs(dirs, project_root):
+    """
+    Expand glob patterns in root_dirs paths.
+
+    .doc_structure.yaml supports patterns like "specs/*/requirements/"
+    which need to be expanded to actual directories before file scanning.
+
+    Args:
+        dirs: List of directory path strings (may contain globs)
+        project_root: Path to project root
+
+    Returns:
+        list: Expanded directory path strings
+    """
+    expanded = []
+    for dir_path in dirs:
+        if '*' in dir_path or '?' in dir_path:
+            pattern = dir_path.rstrip('/')
+            matches = sorted(project_root.glob(pattern))
+            for match in matches:
+                if match.is_dir():
+                    rel = str(match.relative_to(project_root))
+                    expanded.append(rel + '/')
+        else:
+            expanded.append(dir_path)
+    return expanded if expanded else dirs
 
 
 def parse_simple_yaml(content):
@@ -519,9 +754,11 @@ def load_checksums(checksums_file):
             if stripped == 'checksums:':
                 in_checksums = True
                 continue
-            if in_checksums and ':' in stripped:
-                filepath = stripped.split(':')[0].strip()
-                files.add(filepath)
+            if in_checksums and ': ' in stripped:
+                parts = stripped.rsplit(': ', 1)
+                if len(parts) == 2:
+                    filepath = parts[0].strip()
+                    files.add(filepath)
 
         return files
     except Exception as e:

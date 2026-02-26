@@ -44,16 +44,17 @@ echo ""
 echo "Setting up test project..."
 cd "$TEST_PROJECT"
 rm -rf .claude .last_setup
-# Pass explicit values: rules, specs, requirements, design, plan, agent_model
-echo -e "rules\nspecs\nrequirements\ndesign\nplan\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
+# Pass explicit values: rules, specs, agent_model
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT"
 echo ""
 
 cd "$TEST_PROJECT"
 
 # Get Python path from orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/rules_orchestrator.md 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 echo "Using Python: $PYTHON_CMD"
+
 echo ""
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
@@ -123,7 +124,8 @@ if [[ -f "$SPECS_CHECKSUMS" ]]; then
         echo -e "${GREEN}PASS${NC}: Multiple spec files hashed ($ENTRY_COUNT entries)"
         ((PASS_COUNT++))
     else
-        echo -e "${YELLOW}WARN${NC}: Expected 2+ entries, got $ENTRY_COUNT"
+        echo -e "${RED}FAIL${NC}: Expected 2+ entries, got $ENTRY_COUNT"
+        ((FAIL_COUNT++))
     fi
 else
     echo -e "${RED}FAIL${NC}: Specs checksums file not created"
@@ -156,11 +158,12 @@ if [[ -n "$ORIGINAL_HASH" ]]; then
         ((FAIL_COUNT++))
     fi
 
-    # Restore file (remove added newline)
-    head -n -1 rules/coding_standards.md > rules/coding_standards.md.tmp
+    # Restore file (remove added newline) - use sed '$d' for macOS/Linux compatibility
+    sed '$d' rules/coding_standards.md > rules/coding_standards.md.tmp
     mv rules/coding_standards.md.tmp rules/coding_standards.md
 else
-    echo -e "${YELLOW}WARN${NC}: Could not extract original hash for comparison"
+    echo -e "${RED}FAIL${NC}: Could not extract original hash for comparison"
+    ((FAIL_COUNT++))
 fi
 echo ""
 
@@ -191,9 +194,9 @@ rm -f "$RULES_CHECKSUMS"
 # First create checksums (needed for incremental detection base)
 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || true
 
-# Run create_pending_yaml_rules.py in full mode
+# Run create_pending_yaml.py --target rules in full mode
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_rules.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || EXIT_CODE=$?
 
 PENDING_CHECKSUMS=".claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml"
 
@@ -234,9 +237,9 @@ rm -f "$SPECS_CHECKSUMS"
 # First create checksums (needed for incremental detection base)
 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target specs 2>/dev/null || true
 
-# Run create_pending_yaml_specs.py in full mode
+# Run create_pending_yaml.py --target specs in full mode
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml_specs.py" --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || EXIT_CODE=$?
 
 PENDING_CHECKSUMS_SPECS=".claude/doc-advisor/toc/specs/.toc_work/.toc_checksums_pending.yaml"
 

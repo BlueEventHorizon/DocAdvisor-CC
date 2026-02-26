@@ -50,7 +50,10 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    RULES_DIR = PROJECT_ROOT / CONFIG.get('root_dir', 'rules').rstrip('/')
+    root_dirs_config = CONFIG.get('root_dirs', ['rules/'])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    RULES_DIR = PROJECT_ROOT / root_dirs_config[0].rstrip('/')
     DEFAULT_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'rules_toc.yaml'), RULES_DIR, PROJECT_ROOT)
     return True
 
@@ -91,6 +94,9 @@ def load_existing_toc(toc_path):
             if current_file and current_entry:
                 docs[current_file] = current_entry
             current_file = stripped.rstrip(':')
+            # Handle quoted YAML keys: "path/to/file.md"
+            if current_file.startswith('"') and current_file.endswith('"'):
+                current_file = current_file[1:-1]
             current_entry = {}
             current_list = None
         elif line.startswith('    ') and ':' in stripped and not stripped.startswith('-'):
