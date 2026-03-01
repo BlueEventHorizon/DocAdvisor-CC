@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# doc-advisor-version-xK9XmQ: 3.8
+# doc-advisor-version-xK9XmQ: 4.1
 """
 specs_toc.yaml 検査スクリプト
 
@@ -100,6 +100,9 @@ def load_existing_toc(toc_path):
                     docs[current_path] = current_entry
 
                 current_path = stripped.rstrip(':')
+                # Handle quoted YAML keys: "path/to/file.md"
+                if current_path.startswith('"') and current_path.endswith('"'):
+                    current_path = current_path[1:-1]
                 current_entry = {}
                 current_list = None
 

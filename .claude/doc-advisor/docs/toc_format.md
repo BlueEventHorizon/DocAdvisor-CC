@@ -4,7 +4,7 @@ description: Format definition for {target}_toc.yaml (Single Source of Truth)
 applicable_when:
   - Creating or updating ToC entries
   - Validating rules_toc.yaml or specs_toc.yaml structure
-doc-advisor-version-xK9XmQ: 3.8
+doc-advisor-version-xK9XmQ: 4.1
 ---
 
 # ToC YAML Format Definition
@@ -26,6 +26,11 @@ The quality of this file determines task execution success. **Missing informatio
 - When in doubt, include it (never miss documents)
 - **Key format**: Project-relative path (e.g., `rules/core/architecture_rule.md`, `specs/requirements/app_overview.md`)
 
+### Language Rule
+
+- **All field values must be written in English**, regardless of the source document's language
+- ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
+
 ### YAML Formatting Rules
 
 - **Indentation**: 2 spaces (no tabs)
@@ -46,27 +51,34 @@ Structure definition for work files used in individual entry file method.
 
 ```
 .claude/doc-advisor/toc/{target}/.toc_work/   # Work directory (.gitignore target)
-├── {target}_subdir_filename.yaml
+├── {sha256_hash_16chars}.yaml
 └── ... (for each target file)
 ```
 
 ### Filename Generation Rule
 
-Generate YAML filename from document path:
+Generate YAML filename using SHA256 hash of the source file path:
+
+```python
+hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16] + ".yaml"
+```
 
 ```
-rules/core/architecture_rule.md   → rules_core_architecture_rule.yaml
-specs/requirements/app_overview.md → specs_requirements_app_overview.yaml
+rules/core/architecture_rule.md   → a1b2c3d4e5f67890.yaml
+specs/requirements/app_overview.md → 1234567890abcdef.yaml
 ```
 
-Conversion rule: `/` → `_`, `.md` → `.yaml`
+The original path is preserved in `_meta.source_file` inside each YAML file.
+Hash-based naming avoids filename length limits, case-insensitive collisions, and special character issues.
 
 ### Entry YAML Structure
 
 ```yaml
 _meta:
   source_file: {target}/path/to/document.md    # Path from project root
-  status: pending                               # pending | completed
+  doc_type: requirement                        # Document type from .doc_structure.yaml
+  status: pending                               # pending | completed | error
+  error_message: null                            # Error details (only when status: error)
   updated_at: null                              # Completion time (ISO 8601 format)
 
 # Below: {target}_toc.yaml entry format (key uses source_file value)
@@ -83,7 +95,9 @@ references: []            # specs only (omitted for rules)
 | Field | Type | Description |
 |-------|------|-------------|
 | `source_file` | string | Target document path (from project root) |
-| `status` | enum | `pending` (unprocessed) or `completed` (done) |
+| `doc_type` | string | Document type derived from `.doc_structure.yaml` (e.g., rule, requirement, design, plan, api, reference, spec) |
+| `status` | enum | `pending` (unprocessed), `completed` (done), or `error` (failed) |
+| `error_message` | string/null | Error details (only when `status: error`), `null` otherwise |
 | `updated_at` | datetime/null | Completion time (ISO 8601 format), `null` if incomplete |
 
 ---
@@ -108,6 +122,7 @@ docs: object                # Document entries (key: file path)
 ```yaml
 docs:
   <file_path>:                     # Path from project root
+    doc_type: string               # Document type (e.g., rule, requirement, design)
     title: string                  # Title (extracted from H1)
     purpose: string                # Purpose (1-2 lines, what it defines)
     content_details: array[string] # Content details (5+ items)
@@ -122,6 +137,7 @@ docs:
 ```yaml
 docs:
   rules/core/architecture_rule.md:
+    doc_type: rule
     title: Architecture Rules
     purpose: Defines overall architecture structure, layer design, and inter-layer communication
     content_details:
@@ -146,6 +162,7 @@ docs:
 ```yaml
 docs:
   specs/requirements/app_overview.md:
+    doc_type: requirement
     title: Application Overview Specification
     purpose: Defines overall requirements, feature scope, and use cases for the application
     content_details:
@@ -220,6 +237,7 @@ metadata:
 
 docs:
   rules/core/architecture_rule.md:
+    doc_type: rule
     title: Architecture Rules
     purpose: Defines overall architecture structure, layer design, and inter-layer communication
     content_details:
@@ -239,6 +257,7 @@ docs:
       - Factory
 
   rules/layer/infrastructure/repository_rule.md:
+    doc_type: rule
     title: Repository Implementation Rules
     purpose: Defines Repository implementation's immediate response + eventual sync pattern
     content_details:
@@ -270,6 +289,7 @@ metadata:
 
 docs:
   specs/requirements/app_overview.md:
+    doc_type: requirement
     title: Application Overview Specification
     purpose: Defines overall requirements and feature scope for the application
     content_details:
@@ -287,6 +307,7 @@ docs:
     references: []
 
   specs/design/login_screen_design.md:
+    doc_type: design
     title: Login Screen Design
     purpose: Defines UI design, ViewModel, and state management for the login screen
     content_details:

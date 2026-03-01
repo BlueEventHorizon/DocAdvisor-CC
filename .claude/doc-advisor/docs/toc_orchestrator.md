@@ -4,7 +4,7 @@ description: Orchestrator workflow for {target}_toc.yaml generation
 applicable_when:
   - Executing /create-rules-toc or /create-specs-toc skill
   - Coordinating ToC generation process
-doc-advisor-version-xK9XmQ: 3.8
+doc-advisor-version-xK9XmQ: 4.1
 ---
 
 # ToC Orchestrator Workflow
@@ -36,6 +36,19 @@ Read the following before processing:
 ---
 
 ## Orchestrator Processing Flow
+
+### Pre-check: Document Structure Verification
+
+Before Phase 1, verify that document directories are configured:
+
+1. The skill's Pre-check step runs `check_config.sh {target}` which verifies
+   that `root_dirs` is set for the target category in `config.yaml`
+2. If `check_config.sh` outputs a warning, stop and direct the user to run
+   `/classify-docs` first
+3. Once `check_config.sh` passes (no output), proceed to Phase 1
+
+Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
+`root_dirs` must be pre-configured by `setup.sh` or `/classify-docs`.
 
 ### Phase 1: Initialization
 
@@ -74,16 +87,29 @@ Read the following before processing:
 > - Subagents return minimal responses (defined in agent's "Completion Response" section)
 > - After each batch completes, output a brief progress summary (e.g., "Batch 2/10 complete, 40 remaining")
 > - Keep orchestrator messages minimal between batches
+> - **Do NOT use `run_in_background: true`** — it breaks the Phase 2 loop
+>   (pending check races with task completion, causing duplicate processing)
+>
+> **For large projects (100+ files):**
+> - Reduce `max_workers` to 3 in config.yaml to lower API load and context growth
+> - If context overflows mid-session, start a new session and re-run the same command.
+>   `.toc_work/` with completed entries is preserved; Continue Mode automatically
+>   resumes from pending files only (Phase 1 detects existing `.toc_work/`)
+
+**Note**: Do not use `xargs` for file listing — it fails with long Japanese filenames.
+Use `ls .toc_work/*.yaml` or `while read` loops instead.
 
 ```
 1. Identify pending status files from .claude/doc-advisor/toc/{target}/.toc_work/*.yaml
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
-3. Read common.parallel.max_workers from config.yaml, then launch up to that many subagents in parallel
+3. Read common.parallel.max_workers (N) from config.yaml
+    CRITICAL: Launch up to N Task tool calls in a SINGLE assistant message.
+    Do NOT launch them one at a time in separate messages — this defeats parallelism.
     Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/{filename}.yaml")
     ↓
-4. Wait for completion
+4. Wait for all N tasks to complete
     ↓
 5. If pending files remain → Return to step 1
 ```
@@ -108,7 +134,11 @@ Read the following before processing:
     ↓
 5. Cleanup (delete .claude/doc-advisor/toc/{target}/.toc_work/)
     ↓
-6. Report completion (list error files if any)
+6. Report completion
+    - List error files with their error_message (from YAML _meta)
+    - If errors exist, inform the user:
+      "N files failed processing. Review the error messages above.
+       To retry, fix the source files and run incremental mode."
 ```
 
 ---
@@ -196,12 +226,12 @@ End processing (no need to create .toc_work/)
 ## Subagent Launch Examples
 
 ```
-# Launch 5 in parallel
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_core_architecture_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_core_coding_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_layer_ui_rule.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_workflow_dev_task.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/rules_format_spec.yaml")
+# Launch 5 in parallel (filenames are SHA256 hashes of source paths)
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/a1b2c3d4e5f67890.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/1234567890abcdef.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/fedcba0987654321.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/0123456789abcdef.yaml")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/abcdef0123456789.yaml")
 ```
 
 ---
@@ -272,33 +302,21 @@ $HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/create_checksums.py --tar
 
 ### On Subagent Error (No Retry)
 
-When subagent fails, **immediately change to error status without retry**:
+The toc-updater subagent writes error status to the YAML file before returning `❌ Error`.
+The orchestrator does NOT need to edit the YAML — just log the error and continue.
 
-1. Read the entry YAML file to get its current content
-2. Edit `_meta.status` from `pending` to `error` in the YAML
-3. Add `_meta.error_message` with the error details from the subagent response
-4. Exclude from processing (skip at merge)
-5. List error files in completion report
-
-**Concrete steps** (orchestrator uses Edit tool):
-```
-# 1. Read the failed entry file
-Read(".claude/doc-advisor/toc/{target}/.toc_work/{filename}.yaml")
-
-# 2. Edit _meta.status and add error_message
-Edit: change "status: pending" → "status: error"
-Edit: add "error_message: {error details from subagent}"
-```
+1. Log the error file in the completion report
+2. Continue processing remaining files (do not retry)
 
 ```yaml
-# Example of error status YAML (after Edit)
+# Example of error status YAML (written by toc-updater via write_pending.py --error)
 _meta:
   status: error
   source_file: rules/core/architecture_rule.md
-  error_message: "Subagent processing failed: File read error"
+  error_message: "Source file not found"
 ```
 
-**Important**: To prevent infinite loops, don't leave as pending. Error files require manual review.
+**Important**: Error files require manual review. If many errors occur, report the pattern to the user.
 
 ### On Merge Error
 
@@ -326,6 +344,12 @@ When encountering unexpected errors (e.g., sandbox restrictions, permission erro
 [Summary]
 - Mode: {full | incremental | continue}
 - Files processed: {N}
+- Errors: {E} (if any)
+
+[Errors] (only if E > 0)
+- {source_file}: {error_message}
+- {source_file}: {error_message}
+→ To retry: fix the source files and run incremental mode.
 
 [Cleanup]
 - Deleted .claude/doc-advisor/toc/{target}/.toc_work/

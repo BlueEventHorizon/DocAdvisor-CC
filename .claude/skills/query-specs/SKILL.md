@@ -13,12 +13,22 @@ agent: general-purpose
 model: haiku
 user-invocable: true
 argument-hint: "[task description]"
-doc-advisor-version-xK9XmQ: 3.8
+doc-advisor-version-xK9XmQ: 4.1
 ---
 
 ## Role
 
 Analyze task content and return a list of required specification document paths.
+
+## Pre-check (MANDATORY - Run first)
+
+Run the configuration check:
+```bash
+bash .claude/doc-advisor/scripts/check_config.sh specs
+```
+
+- **No output** → Proceed to Procedure
+- **Output present** → STOP. Run `/classify-docs` skill first to configure document directories, then restart this skill
 
 ## Procedure
 

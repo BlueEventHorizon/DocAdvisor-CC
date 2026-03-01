@@ -10,7 +10,7 @@ description: |
 allowed-tools: Bash, Read, Edit
 user-invocable: true
 argument-hint: "[--update]"
-doc-advisor-version-xK9XmQ: 3.8
+doc-advisor-version-xK9XmQ: 4.1
 ---
 
 # classify-docs
@@ -30,73 +30,114 @@ Auto-detect and classify project document directories for Doc Advisor.
 
 ## Prerequisite
 
-config.yaml must exist. If not, run `setup.sh` first.
+config.yaml must exist at `.claude/doc-advisor/config.yaml`.
+If not, run `setup.sh` first.
+
+## Reference Documents
+
+Before classifying, read the classification rules:
+- `.claude/doc-advisor/docs/classification_rules.md`
+
+This document defines:
+- **category**: rules / specs
+- **doc_type**: rule, requirement, design, plan, api, reference, spec
+- Judgment procedure (path components → frontmatter → file content)
 
 ## Execution Flow
 
-### Step 1: Run classification script
+### Step 1: Run directory scan script
 
 ```bash
-$HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/classify_dirs.py [--update]
+$HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/classify_dirs.py
 ```
 
-Capture the YAML output.
+Capture the JSON output. The script discovers markdown directories but does NOT classify them.
 
-### Step 2: Present results to user
+### Step 2: Classify using rules
 
-Display the classification results in a clear format:
+For each discovered directory in the JSON output:
+
+1. Read `classification_rules.md` rules
+2. Apply path_components scan (top-down, first match wins)
+3. Check frontmatter doc_types if path is ambiguous
+4. If still unclear, read 1-2 .md files from the directory
+
+Assign each directory a **category** (rules/specs) and note confidence:
+- **high**: path component directly matches (e.g., `rules/`, `specs/requirements/`)
+- **medium**: semantic match or frontmatter match
+- **low**: inferred from file content
+
+### Step 3: Present results to user
+
+Display the classification results clearly:
 
 ```
-📁 Document Directory Classification
+Document Directory Classification
 
 Rules (development rules, guidelines, standards):
-  ✅ rules/           [high confidence] frontmatter doc_type=rule
-  ✅ guidelines/      [medium confidence] term_ranking: rule_score=15, spec_score=2
+  [high] rules/           (3 files)
+  [medium] guidelines/    (2 files)
 
 Specs (requirements, designs, plans):
-  ✅ specs/            [high confidence] frontmatter doc_type=requirement
-  ✅ design/          [medium confidence] dirname match
+  [high] specs/           (5 files)
+  [medium] design/        (2 files)
 
 Skipped:
-  ⏭️  docs/            README/CHANGELOG only
+  docs/                   README/CHANGELOG only
 
-No classification:
-  ❓ shared/          unclassifiable (3 md files)
+Unclassified:
+  shared/                 (3 files) - need user input
 ```
 
-### Step 3: Ask user for confirmation
+### Step 4: Ask user for confirmation
 
 Ask the user:
 - Are the classifications correct?
 - For unclassified directories: should they be rules, specs, or skipped?
 - Any overrides needed?
 
-### Step 4: Update config.yaml
+### Step 5: Update config.yaml
 
-After user confirmation, update `.claude/doc-advisor/config.yaml`:
+After user confirmation, update `.claude/doc-advisor/config.yaml` using the Edit tool.
 
-For each confirmed rules directory, add to `rules.root_dirs`:
+Replace the commented `root_dirs` and `doc_types_map` lines with actual values:
+
 ```yaml
+# Before:
+rules:
+  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
+
+# After:
 rules:
   root_dirs:
     - rules/
     - guidelines/
+  doc_types_map:
+    rules/: rule
+    guidelines/: rule
 ```
 
-For each confirmed specs directory, add to `specs.root_dirs`:
+For specs, map each directory to its specific doc_type:
+
 ```yaml
 specs:
   root_dirs:
-    - specs/
-    - design/
+    - specs/requirements/
+    - specs/design/
+  doc_types_map:
+    specs/requirements/: requirement
+    specs/design/: design
 ```
 
-Use the Edit tool to update the `root_dirs` arrays in config.yaml.
+Valid doc_types: `rule`, `requirement`, `design`, `plan`, `api`, `reference`, `spec`
 
-### Step 5: Summary
+**Important**: If root_dirs is already uncommented (from a previous run), replace the existing list and doc_types_map.
+
+### Step 6: Summary
 
 ```
-✅ config.yaml updated
+config.yaml updated
 
 Rules directories:
   - rules/
@@ -115,4 +156,4 @@ Next steps:
 
 - If config.yaml doesn't exist, tell user to run setup.sh first
 - If no markdown directories found, report that the project has no documents to classify
-- If classification script fails, report the error and ask user to proceed manually
+- If classification script fails, report the error and suggest manual configuration

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# doc-advisor-version-xK9XmQ: 3.8
+# doc-advisor-version-xK9XmQ: 4.1
 """
 Generate pending YAML templates in .claude/doc-advisor/toc/{target}/.toc_work/
 
@@ -20,7 +20,7 @@ import hashlib
 import re
 from datetime import datetime, timezone
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path
+from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path, expand_root_dir_globs
 
 # Global configuration (initialized in init_config())
 CONFIG = None
@@ -33,10 +33,12 @@ PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 TARGET = None  # 'rules' or 'specs'
+DOC_TYPES_MAP = None  # path → doc_type name (from config.yaml)
 
 # Pending YAML templates
 PENDING_TEMPLATE_RULES = """_meta:
   source_file: {source_file}
+  doc_type: {doc_type}
   status: pending
   updated_at: null
 
@@ -49,6 +51,7 @@ keywords: []
 
 PENDING_TEMPLATE_SPECS = """_meta:
   source_file: {source_file}
+  doc_type: {doc_type}
   status: pending
   updated_at: null
 
@@ -59,6 +62,17 @@ applicable_tasks: []
 keywords: []
 references: []
 """
+
+# Directory name → doc_type mapping for fallback inference
+DOC_TYPE_KEYWORDS = {
+    'requirement': 'requirement', 'requirements': 'requirement',
+    'design': 'design', 'designs': 'design',
+    'plan': 'plan', 'plans': 'plan', 'planning': 'plan',
+    'api': 'api', 'apis': 'api',
+    'reference': 'reference', 'references': 'reference', 'ref': 'reference',
+    'rule': 'rule', 'rules': 'rule',
+    'spec': 'spec', 'specs': 'spec',
+}
 
 
 def parse_args():
@@ -84,7 +98,7 @@ def init_config(target):
         bool: True on success, False on failure
     """
     global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, CHECKSUMS_FILE
-    global TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET
+    global TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET, DOC_TYPES_MAP
 
     TARGET = target
 
@@ -102,6 +116,8 @@ def init_config(target):
     root_dirs_config = CONFIG.get('root_dirs', [default_dir])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
+    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
+    root_dirs_config = expand_root_dir_globs(root_dirs_config, PROJECT_ROOT)
     ROOT_DIRS = []
     for entry in root_dirs_config:
         name = entry.rstrip('/')
@@ -115,7 +131,23 @@ def init_config(target):
     TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
     EXCLUDE_PATTERNS = get_system_exclude_patterns(target) + PATTERNS_CONFIG.get('exclude', [])
+    DOC_TYPES_MAP = CONFIG.get('doc_types_map', {})
     return True
+
+
+def determine_doc_type(root_dir_name):
+    """Determine doc_type from root_dir path using config.yaml doc_types_map"""
+    if DOC_TYPES_MAP:
+        normalized = root_dir_name.rstrip('/')
+        for path, doc_type in DOC_TYPES_MAP.items():
+            if path.rstrip('/') == normalized:
+                return doc_type
+    # Fallback: infer from directory name
+    dir_lower = root_dir_name.rstrip('/').split('/')[-1].lower()
+    if dir_lower in DOC_TYPE_KEYWORDS:
+        return DOC_TYPE_KEYWORDS[dir_lower]
+    # Default by category
+    return TARGET.rstrip('s') if TARGET else 'unknown'
 
 
 def get_pending_template():
@@ -123,6 +155,49 @@ def get_pending_template():
     if TARGET == 'specs':
         return PENDING_TEMPLATE_SPECS
     return PENDING_TEMPLATE_RULES
+
+
+def has_substantive_content(filepath, min_content_lines=1):
+    """
+    Check if file has content beyond headers, blank lines, and frontmatter.
+
+    Args:
+        filepath: Path to the file
+        min_content_lines: Minimum number of substantive lines required
+
+    Returns:
+        bool: True if file has enough substantive content
+    """
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except (IOError, OSError, PermissionError):
+        return False
+
+    if not content.strip():
+        return False  # Empty file
+
+    content_lines = 0
+    in_frontmatter = False
+    for line in content.splitlines():
+        stripped = line.strip()
+
+        # YAML frontmatter delimiter
+        if stripped == '---':
+            in_frontmatter = not in_frontmatter
+            continue
+        if in_frontmatter:
+            continue
+
+        # Skip empty lines and header-only lines
+        if not stripped or stripped.startswith('#'):
+            continue
+
+        content_lines += 1
+        if content_lines >= min_content_lines:
+            return True
+
+    return False
 
 
 def get_all_md_files():
@@ -193,13 +268,25 @@ def get_source_file_path(md_file, root_dir, root_dir_name):
 
 
 def get_yaml_filename(source_file):
-    """Generate YAML filename from source_file"""
-    return source_file.replace("/", "_").replace(".md", ".yaml")
+    """Generate YAML filename from source_file using path hash.
+
+    Uses SHA256 hash to avoid:
+    - Filename length limits (macOS 255 bytes)
+    - Case-insensitive filesystem collisions
+    - Special characters in directory/file names
+    The original path is preserved in _meta.source_file inside the YAML.
+    """
+    hash_val = hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16]
+    return f"{hash_val}.yaml"
 
 
-def create_pending_yaml(source_file):
+def create_pending_yaml(source_file, doc_type):
     """
     Create pending YAML file
+
+    Args:
+        source_file: Project-relative source file path
+        doc_type: Document type (e.g., 'rule', 'requirement', 'design')
 
     Returns:
         Path: Created file path, None on error
@@ -210,7 +297,7 @@ def create_pending_yaml(source_file):
 
     try:
         with open(yaml_path, "w", encoding="utf-8") as f:
-            f.write(template.format(source_file=source_file))
+            f.write(template.format(source_file=source_file, doc_type=doc_type))
         return yaml_path
     except (IOError, OSError, PermissionError) as e:
         print(f"Warning: File write error: {yaml_path} - {e}")
@@ -330,15 +417,27 @@ def main():
 
     # Generate pending YAMLs
     created_files = []
+    skipped_files = []
     failed_count = 0
     for md_file in target_files:
         root_dir, root_dir_name = file_root_map[md_file]
         source_file = get_source_file_path(md_file, root_dir, root_dir_name)
-        yaml_path = create_pending_yaml(source_file)
+
+        # Skip empty/stub files (no substantive content)
+        if not has_substantive_content(md_file):
+            print(f"  [Skipped] {source_file} (empty or headers only)")
+            skipped_files.append(source_file)
+            continue
+
+        doc_type = determine_doc_type(root_dir_name)
+        yaml_path = create_pending_yaml(source_file, doc_type)
         if yaml_path is None:
             failed_count += 1
             continue
         created_files.append(source_file)
+
+    if skipped_files:
+        print(f"\nSkipped {len(skipped_files)} empty/stub files")
 
     if failed_count > 0:
         print(f"\nWarning: {failed_count} files failed to create")

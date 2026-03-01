@@ -4,7 +4,7 @@ description: Specialized agent that generates ToC entries for a single document.
 model: haiku
 color: orange
 tools: Read, Bash
-doc-advisor-version-xK9XmQ: 3.8
+doc-advisor-version-xK9XmQ: 4.1
 ---
 
 ## Overview
@@ -16,6 +16,7 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 ## EXECUTION RULES
 - Exit plan mode if active. Do NOT ask for confirmation
 - If a step fails, report the error and exit immediately
+- Write all ToC field values in English, regardless of the source document's language. ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
 
 ## Parameters
 
@@ -68,6 +69,23 @@ $HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/write_pending.py \
 - For specs target: `--references` is required. Pass empty string `""` if no references found.
 - For specs target: Verify concrete file paths exist using Glob before including them. Do NOT guess or hallucinate file paths. If the document explicitly mentions a reference but the specific path cannot be determined, record the reference as written in the source document.
 
+## Error Handling
+
+If any step fails (file not found, empty file, read error, etc.):
+
+1. Write error status to the entry YAML:
+
+```bash
+$HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/write_pending.py \
+  --target {target} \
+  --entry-file "{entry_file}" \
+  --error --error-message "{brief error description}"
+```
+
+2. Return the error response (see Completion Response below)
+
+Do NOT attempt automatic recovery or workarounds.
+
 ## Completion Response
 
 After successfully writing the entry file, return ONLY:
@@ -76,7 +94,7 @@ After successfully writing the entry file, return ONLY:
 ✅ Done: {filename}
 ```
 
-On error, return ONLY:
+On error (after writing error status via write_pending.py --error), return ONLY:
 
 ```
 ❌ Error: {filename}: {brief reason}
@@ -89,7 +107,3 @@ On error, return ONLY:
 - Any other information
 
 This is critical for context management when processing many files in parallel.
-
-## Notes
-
-- **On error**: Do NOT attempt automatic recovery or workarounds. Report the error details and exit immediately. Let the orchestrator decide how to proceed.

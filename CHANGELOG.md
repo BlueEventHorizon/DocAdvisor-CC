@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+
+## [4.1.0] - 2026-03-01
+
+### Added
+- **`import_doc_structure.py`**: New script that imports `.doc_structure.yaml` into `config.yaml` at setup time (Route A in DES-005)
+- **Setup-time config import**: `setup.sh` now calls `import_doc_structure.py` to populate `root_dirs` and `doc_types_map` during installation
+- **Test coverage**: Expanded `test_setup_upgrade.sh` with comprehensive import and upgrade scenario tests
+
+### Changed
+- **Document directory configuration**: Moved from runtime `.doc_structure.yaml` derivation to setup-time import into `config.yaml`
+- **`toc_utils.py`**: Removed runtime `.doc_structure.yaml` parsing; now reads only from `config.yaml`
+- **`check_config.sh`**: Updated validation for new setup-time configuration approach
+- **Header comments**: Renamed "subagent" terminology to "query-rules/query-specs skill" in `config.yaml` template
+- **Design docs**: Updated DES-001, DES-005 to reflect setup-time import architecture
+- **Version identifier**: Updated from `4.0` to `4.1` across all managed files
+
+### Fixed
+- **Code quality**: Various improvements from `/simplify` review (classify_dirs.py, check_config.sh, toc_utils.py)
+- **Silent failure patterns**: Replaced in `test_write_pending.sh` and `test_merge.sh` with explicit failure handling
+
+---
 ## [4.0.0] - 2026-02-25
 
 ### Added
