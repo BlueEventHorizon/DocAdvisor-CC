@@ -122,11 +122,10 @@ def load_config(target=None):
     """
     Load config.yaml and return configuration dictionary.
 
-    root_dirs and exclude are derived from .doc_structure.yaml at runtime
-    when not explicitly set in config.yaml. Priority:
-      1. config.yaml root_dirs (non-empty) → use as-is
-      2. .doc_structure.yaml → derive root_dirs and merge exclude
-      3. defaults (rules/, specs/)
+    config.yaml is the sole runtime configuration (FR-08-1).
+    root_dirs and doc_types_map must be pre-configured by setup.sh
+    (from .doc_structure.yaml) or /classify-docs skill.
+    This function does NOT fall back to .doc_structure.yaml at runtime.
 
     Args:
         target: 'rules' or 'specs'. If specified, returns only that section
@@ -154,29 +153,6 @@ def load_config(target=None):
             sec = config[section]
             if 'root_dir' in sec and 'root_dirs' not in sec:
                 sec['root_dirs'] = [sec.pop('root_dir')]
-
-    # Derive root_dirs and exclude from .doc_structure.yaml when not set
-    for section in ('rules', 'specs'):
-        if section in config:
-            sec = config[section]
-            root_dirs = sec.get('root_dirs', [])
-            if not root_dirs:
-                try:
-                    derived = load_doc_structure(section)
-                    if derived['root_dirs']:
-                        sec['root_dirs'] = derived['root_dirs']
-                    if derived.get('doc_types_map'):
-                        sec['doc_types_map'] = derived['doc_types_map']
-                    if derived['exclude']:
-                        patterns = sec.get('patterns', {})
-                        existing_exclude = patterns.get('exclude', [])
-                        merged = list(dict.fromkeys(
-                            existing_exclude + derived['exclude']
-                        ))
-                        patterns['exclude'] = merged
-                        sec['patterns'] = patterns
-                except FileNotFoundError:
-                    pass  # Fall back to defaults
 
     if target:
         return config.get(target, {})
@@ -371,180 +347,6 @@ def _parse_value(value):
         pass
 
     return value
-
-
-def _parse_inline_yaml_array(value):
-    """
-    Parse inline YAML array notation.
-
-    Args:
-        value: String value (e.g., '[item1, item2]', '[]')
-
-    Returns:
-        list or None: Parsed list if inline array, None otherwise
-    """
-    value = value.strip()
-
-    # Strip inline comments (not inside quotes)
-    if not value.startswith('"') and '  #' in value:
-        value = value[:value.index('  #')].strip()
-
-    if value == '[]':
-        return []
-    if value.startswith('[') and value.endswith(']'):
-        inner = value[1:-1].strip()
-        if not inner:
-            return []
-        items = []
-        for item in inner.split(','):
-            item = item.strip().strip('"\'')
-            if item:
-                items.append(item)
-        return items
-    return None  # Not an inline array
-
-
-def _parse_doc_structure_yaml(content):
-    """
-    Parse .doc_structure.yaml (dedicated parser for document structure files).
-
-    Handles the specific 3-level structure:
-      version: "1.0"
-      specs:
-        <doc_type>:
-          paths: [path1, path2]       # inline array
-          paths:                       # or multi-line array
-            - path1
-            - path2
-          exclude: ["pattern1"]        # optional
-          description: "text"          # optional
-      rules:
-        <doc_type>:
-          paths: [path1]
-
-    Args:
-        content: File content string
-
-    Returns:
-        dict: Parsed structure
-    """
-    result = {}
-    current_section = None
-    current_doc_type = None
-    current_list = None
-
-    for line in content.split('\n'):
-        stripped = line.strip()
-
-        # Skip comments and empty lines
-        if not stripped or stripped.startswith('#'):
-            continue
-
-        indent = len(line) - len(line.lstrip())
-
-        if ':' in stripped and not stripped.startswith('- '):
-            key, _, value = stripped.partition(':')
-            key = key.strip()
-            value = value.strip()
-
-            if indent == 0:
-                if value:
-                    # Top-level scalar (e.g., version: "1.0")
-                    result[key] = value.strip('"\'')
-                else:
-                    # Top-level section (specs, rules)
-                    current_section = key
-                    result[key] = {}
-                    current_doc_type = None
-                    current_list = None
-            elif indent == 2 and current_section:
-                # doc_type name (e.g., requirement:, design:)
-                current_doc_type = key
-                result[current_section][key] = {}
-                current_list = None
-            elif indent == 4 and current_section and current_doc_type:
-                # Field (paths, exclude, description)
-                if value:
-                    parsed = _parse_inline_yaml_array(value)
-                    if parsed is not None:
-                        result[current_section][current_doc_type][key] = parsed
-                        current_list = result[current_section][current_doc_type][key]
-                    else:
-                        result[current_section][current_doc_type][key] = value.strip('"\'')
-                        current_list = None
-                else:
-                    # Multi-line list follows
-                    result[current_section][current_doc_type][key] = []
-                    current_list = result[current_section][current_doc_type][key]
-        elif stripped.startswith('- ') and current_list is not None:
-            item = stripped[2:].strip().strip('"\'')
-            # Strip inline comments
-            if '  #' in item and not item.startswith('"'):
-                item = item[:item.index('  #')].strip()
-            current_list.append(item)
-
-    return result
-
-
-def load_doc_structure(target):
-    """
-    Load .doc_structure.yaml and extract root_dirs and exclude for target category.
-
-    Collects all paths and exclude patterns from all doc_types under the target
-    category (rules or specs).
-
-    Args:
-        target: 'rules' or 'specs'
-
-    Returns:
-        dict: {'root_dirs': [str, ...], 'exclude': [str, ...]}
-
-    Raises:
-        FileNotFoundError: When .doc_structure.yaml is not found
-    """
-    doc_structure_path = Path.cwd() / ".doc_structure.yaml"
-    if not doc_structure_path.exists():
-        raise FileNotFoundError(
-            ".doc_structure.yaml not found at project root.\n"
-            "Run /doc-structure:init-doc-structure to create it.\n"
-            "If the doc-structure plugin is not installed, install it from bw-cc-plugins:\n"
-            "  https://github.com/BlueEventHorizon/bw-cc-plugins"
-        )
-
-    with open(doc_structure_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    structure = _parse_doc_structure_yaml(content)
-    category_data = structure.get(target, {})
-
-    root_dirs = []
-    exclude = []
-    doc_types_map = {}  # path → doc_type name
-
-    for doc_type_name, doc_type_info in category_data.items():
-        if isinstance(doc_type_info, dict):
-            # Collect paths
-            paths = doc_type_info.get('paths', [])
-            if isinstance(paths, str):
-                paths = [paths]
-            root_dirs.extend(paths)
-
-            # Map each path to its doc_type
-            for p in paths:
-                doc_types_map[p] = doc_type_name
-
-            # Collect exclude patterns
-            excl = doc_type_info.get('exclude', [])
-            if isinstance(excl, str):
-                excl = [excl]
-            exclude.extend(excl)
-
-    # Deduplicate while preserving order
-    return {
-        'root_dirs': list(dict.fromkeys(root_dirs)),
-        'exclude': list(dict.fromkeys(exclude)),
-        'doc_types_map': doc_types_map,
-    }
 
 
 def expand_root_dir_globs(dirs, project_root):

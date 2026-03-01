@@ -41,9 +41,9 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 
 各カテゴリは**1つ以上のルートディレクトリ**を持つ。ルートディレクトリ配下のサブディレクトリ構造は自由。
 
-`root_dirs` の設定方法:
-- `.doc_structure.yaml` がある場合: ランタイムで自動導出（config.yaml の設定不要）
-- `.doc_structure.yaml` がない場合: `/classify-docs` スキルで AI が分類・設定
+`root_dirs` の設定方法（いずれもセットアップ時に config.yaml へ書き込まれる。ランタイムは config.yaml のみ参照: FR-08）:
+- `.doc_structure.yaml` がある場合: setup.sh が `import_doc_structure.py` で config.yaml へ取り込み
+- `.doc_structure.yaml` がない場合: `/classify-docs` スキルで AI が分類し config.yaml を更新
 
 ```yaml
 rules:

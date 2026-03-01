@@ -227,7 +227,10 @@ if [[ -n "$RULES_PENDING" ]]; then
         --force 2>/dev/null || true
 fi
 
-$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
+if ! $PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null; then
+    echo -e "${RED}ERROR: merge_toc.py failed (prep for cleanup test)${NC}"
+    ((FAIL_COUNT++))
+fi
 
 # Manual cleanup (as orchestrator does after checksums update)
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
@@ -260,7 +263,10 @@ if [[ -n "$RULES_PENDING" ]]; then
         --force 2>/dev/null || true
 fi
 
-$PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null || true
+if ! $PYTHON_CMD "$SCRIPTS_DIR/merge_toc.py" --target rules --mode full 2>/dev/null; then
+    echo -e "${RED}ERROR: merge_toc.py failed (prep for delete-only test)${NC}"
+    ((FAIL_COUNT++))
+fi
 rm -rf .claude/doc-advisor/toc/rules/.toc_work
 
 # Count entries before deletion (entry keys start with 2 spaces + path)

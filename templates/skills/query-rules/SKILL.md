@@ -23,7 +23,7 @@ Analyze task content and return a list of required development document paths.
 
 Run the configuration check:
 ```bash
-bash .claude/doc-advisor/scripts/check_config.sh
+bash .claude/doc-advisor/scripts/check_config.sh rules
 ```
 
 - **No output** → Proceed to Procedure

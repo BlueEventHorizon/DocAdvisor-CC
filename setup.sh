@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
             echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
-            echo "If .doc_structure.yaml exists, directories are derived at runtime."
+            echo "If .doc_structure.yaml exists, directories are imported into config.yaml at setup time."
             echo "Otherwise, run /classify-docs after setup to configure directories."
             exit 0
             ;;
@@ -488,6 +488,17 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
     diff "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG" || true
     echo ""
     printf "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}\n"
+fi
+
+# Import .doc_structure.yaml into config.yaml (Route A: DES-005)
+if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]]; then
+    echo "Importing .doc_structure.yaml into config.yaml..."
+    if "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
+        "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"; then
+        printf "${GREEN}  root_dirs and doc_types_map imported from .doc_structure.yaml${NC}\n"
+    else
+        printf "${YELLOW}  Warning: Failed to import .doc_structure.yaml. Run /classify-docs later.${NC}\n"
+    fi
 fi
 
 echo ""

@@ -63,6 +63,17 @@ keywords: []
 references: []
 """
 
+# Directory name → doc_type mapping for fallback inference
+DOC_TYPE_KEYWORDS = {
+    'requirement': 'requirement', 'requirements': 'requirement',
+    'design': 'design', 'designs': 'design',
+    'plan': 'plan', 'plans': 'plan', 'planning': 'plan',
+    'api': 'api', 'apis': 'api',
+    'reference': 'reference', 'references': 'reference', 'ref': 'reference',
+    'rule': 'rule', 'rules': 'rule',
+    'spec': 'spec', 'specs': 'spec',
+}
+
 
 def parse_args():
     """Parse command-line arguments"""
@@ -131,7 +142,11 @@ def determine_doc_type(root_dir_name):
         for path, doc_type in DOC_TYPES_MAP.items():
             if path.rstrip('/') == normalized:
                 return doc_type
-    # Fallback: target name without trailing 's'
+    # Fallback: infer from directory name
+    dir_lower = root_dir_name.rstrip('/').split('/')[-1].lower()
+    if dir_lower in DOC_TYPE_KEYWORDS:
+        return DOC_TYPE_KEYWORDS[dir_lower]
+    # Default by category
     return TARGET.rstrip('s') if TARGET else 'unknown'
 
 
