@@ -437,7 +437,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 16: config.yaml has no root_dirs (runtime derived from .doc_structure.yaml)"
+echo "Test 16: config.yaml has root_dirs imported from .doc_structure.yaml"
 echo "=================================================="
 
 setup_test_project
@@ -447,13 +447,115 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 
-# Verify: root_dirs is NOT set (commented out) - derived from .doc_structure.yaml at runtime
+# Verify: root_dirs IS set (imported from .doc_structure.yaml by setup.sh)
 ACTIVE_ROOTDIRS=$(grep -c "^  root_dirs:" "$CONFIG" || true)
-test_result "No active root_dirs in config (runtime derived)" "0" "$ACTIVE_ROOTDIRS"
+test_result "root_dirs imported from .doc_structure.yaml" "2" "$ACTIVE_ROOTDIRS"
 
-# Verify: commented root_dirs override lines exist
-COMMENTED_ROOTDIRS=$(grep -c "# root_dirs:" "$CONFIG" || echo 0)
-test_result "Commented root_dirs override available" "2" "$COMMENTED_ROOTDIRS"
+# Verify: doc_types_map is also set
+DOCTYPES_MAP=$(grep -c "^  doc_types_map:" "$CONFIG" || true)
+test_result "doc_types_map imported from .doc_structure.yaml" "2" "$DOCTYPES_MAP"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 16b: import_doc_structure.py - multiple doc_types and paths"
+echo "=================================================="
+
+cleanup
+mkdir -p "$TEST_PROJECT/rules" "$TEST_PROJECT/references"
+mkdir -p "$TEST_PROJECT/specs/requirements" "$TEST_PROJECT/specs/design" "$TEST_PROJECT/specs/plans"
+echo "# Rule" > "$TEST_PROJECT/rules/test.md"
+echo "# Ref" > "$TEST_PROJECT/references/test.md"
+echo "# Req" > "$TEST_PROJECT/specs/requirements/test.md"
+echo "# Des" > "$TEST_PROJECT/specs/design/test.md"
+echo "# Plan" > "$TEST_PROJECT/specs/plans/test.md"
+
+cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+rules:
+  rule:
+    paths: [rules/]
+  reference:
+    paths:
+      - references/
+specs:
+  requirement:
+    paths: [specs/requirements/]
+  design:
+    paths: [specs/design/]
+  plan:
+    paths: [specs/plans/]
+DOCEOF
+
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Verify: rules has 2 root_dirs (rules/, references/)
+RULES_DIRS=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="rules" && /^    - /{c++} END{print c+0}' "$CONFIG")
+test_result "rules has 2 root_dirs" "2" "$RULES_DIRS"
+
+# Verify: specs has 3 root_dirs
+SPECS_DIRS=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="specs" && /^    - /{c++} END{print c+0}' "$CONFIG")
+test_result "specs has 3 root_dirs" "3" "$SPECS_DIRS"
+
+# Verify: doc_types_map has correct mappings
+test_result "doc_types_map: rules/ -> rule" "1" "$(grep -c 'rules/: rule' "$CONFIG" || echo 0)"
+test_result "doc_types_map: references/ -> reference" "1" "$(grep -c 'references/: reference' "$CONFIG" || echo 0)"
+test_result "doc_types_map: specs/requirements/ -> requirement" "1" "$(grep -c 'specs/requirements/: requirement' "$CONFIG" || echo 0)"
+test_result "doc_types_map: specs/design/ -> design" "1" "$(grep -c 'specs/design/: design' "$CONFIG" || echo 0)"
+test_result "doc_types_map: specs/plans/ -> plan" "1" "$(grep -c 'specs/plans/: plan' "$CONFIG" || echo 0)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 16c: import_doc_structure.py - no .doc_structure.yaml"
+echo "=================================================="
+
+cleanup
+mkdir -p "$TEST_PROJECT/rules" "$TEST_PROJECT/specs"
+echo "# Rule" > "$TEST_PROJECT/rules/test.md"
+echo "# Spec" > "$TEST_PROJECT/specs/test.md"
+# No .doc_structure.yaml created
+
+echo -e "c\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Verify: root_dirs remains commented out
+ACTIVE_ROOTDIRS=$(grep -c "^  root_dirs:" "$CONFIG" || true)
+test_result "No root_dirs when no .doc_structure.yaml" "0" "$ACTIVE_ROOTDIRS"
+
+# Verify: doc_types_map remains commented out
+ACTIVE_DOCTYPES=$(grep -c "^  doc_types_map:" "$CONFIG" || true)
+test_result "No doc_types_map when no .doc_structure.yaml" "0" "$ACTIVE_DOCTYPES"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 16d: import_doc_structure.py - rules only (no specs in .doc_structure.yaml)"
+echo "=================================================="
+
+cleanup
+mkdir -p "$TEST_PROJECT/rules"
+echo "# Rule" > "$TEST_PROJECT/rules/test.md"
+
+cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+rules:
+  rule:
+    paths: [rules/]
+DOCEOF
+
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
+
+# Verify: rules root_dirs is set (uncommented root_dirs: exists in rules section)
+RULES_SET=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="rules" && /^  root_dirs:/{print}' "$CONFIG" | grep -c "root_dirs:" || true)
+test_result "rules root_dirs set (rules-only .doc_structure)" "1" "$RULES_SET"
+
+# Verify: specs root_dirs remains commented
+SPECS_SET=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="specs" && /^  root_dirs:/{print}' "$CONFIG" | grep -c "root_dirs:" || true)
+test_result "specs root_dirs NOT set (rules-only .doc_structure)" "0" "$SPECS_SET"
 echo ""
 
 # ==================================================
@@ -493,7 +595,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 19: config.yaml root_dirs override (manual uncomment)"
+echo "Test 19: config.yaml root_dirs manual override"
 echo "=================================================="
 
 setup_test_project
@@ -501,10 +603,11 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Manually uncomment and set root_dirs (override .doc_structure.yaml)
+# Manually change root_dirs to custom value (override auto-imported value)
 python3 -c "
+import re
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - custom_rules', 1)
+content = re.sub(r'(rules:\n)  root_dirs:\n    - rules/', r'\1  root_dirs:\n    - custom_rules/', content)
 open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
 "
 
@@ -616,50 +719,103 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 25: check_config.sh behavior (REQ-002-08)"
+echo "Test 25: check_config.sh behavior (FR-08)"
 echo "=================================================="
 
 setup_test_project
 
-# Run setup
+# Run setup (root_dirs imported from .doc_structure.yaml)
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh"
 
-# Case 1: .doc_structure.yaml exists → no output
+# Case 1: root_dirs set (after setup import) → no output
 OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
-test_result "No output when .doc_structure.yaml exists" "" "$OUTPUT"
+test_result "No output when root_dirs set (no category arg)" "" "$OUTPUT"
 
-# Case 2: No .doc_structure.yaml but root_dirs set → no output
-mv "$TEST_PROJECT/.doc_structure.yaml" "$TEST_PROJECT/.doc_structure.yaml.bak"
-# Set root_dirs explicitly in config
-python3 -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = content.replace('  # root_dirs: []    # Uncomment to override .doc_structure.yaml', '  root_dirs:\n    - rules/', 1)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
-"
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
-test_result "No output when root_dirs set" "" "$OUTPUT"
+# Case 2: Category-specific check → no output for configured category
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
+test_result "No output for 'rules' when configured" "" "$OUTPUT"
 
-# Case 3: No .doc_structure.yaml AND no root_dirs → ACTION REQUIRED
-# Remove root_dirs from config (revert to commented form)
+# Case 2b: specs category check → no output when configured
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" specs 2>/dev/null)
+test_result "No output for 'specs' when configured" "" "$OUTPUT"
+
+# Case 3: Remove root_dirs → ACTION REQUIRED
 python3 -c "
 import re
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = re.sub(r'  root_dirs:\n    - rules/', '  # root_dirs: []    # Uncomment to override .doc_structure.yaml', content)
+content = re.sub(r'  root_dirs:\n(    - [^\n]+\n)+', '  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs\n', content)
 open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
 "
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
 if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
-    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED message when unconfigured"
+    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED when root_dirs not set"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED message, got: $OUTPUT"
     ((FAIL_COUNT++))
 fi
 
-# Restore .doc_structure.yaml
-mv "$TEST_PROJECT/.doc_structure.yaml.bak" "$TEST_PROJECT/.doc_structure.yaml"
+# Case 4: .doc_structure.yaml exists but root_dirs NOT set → still ACTION REQUIRED (FR-08)
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
+if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
+    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED even with .doc_structure.yaml present (FR-08)"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED (FR-08: no runtime .doc_structure.yaml), got: $OUTPUT"
+    ((FAIL_COUNT++))
+fi
+
+# Case 5: Cross-category — restore rules root_dirs only, specs stays removed
+# Re-run setup to get fresh config, then selectively remove only specs root_dirs
+setup_test_project
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+python3 -c "
+import re
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+# Remove only specs root_dirs (between 'specs:' section and next section or EOF)
+# Find specs section and remove its root_dirs block
+lines = content.split('\n')
+result = []
+in_specs = False
+skip_root_items = False
+for line in lines:
+    stripped = line.strip()
+    # Track section
+    if stripped and not stripped.startswith('#') and ':' in stripped:
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            key = stripped.partition(':')[0].strip()
+            if key in ('rules', 'specs', 'common'):
+                in_specs = (key == 'specs')
+    # In specs section: replace root_dirs with commented version
+    if in_specs and stripped == 'root_dirs:' and line.startswith('  '):
+        result.append('  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs')
+        skip_root_items = True
+        continue
+    if skip_root_items:
+        if stripped.startswith('- '):
+            continue  # skip list items
+        else:
+            skip_root_items = False
+    result.append(line)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
+"
+
+# rules should still pass
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
+test_result "Cross-category: 'rules' OK when only rules configured" "" "$OUTPUT"
+
+# specs should fail
+OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" specs 2>/dev/null)
+if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]] && [[ "$OUTPUT" == *"specs"* ]]; then
+    echo -e "${GREEN}PASS${NC}: Cross-category: 'specs' ACTION REQUIRED when only rules configured"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED for specs, got: $OUTPUT"
+    ((FAIL_COUNT++))
+fi
 echo ""
 
 # ==================================================
@@ -695,6 +851,95 @@ if echo "$SETUP_OUTPUT" | grep -q "Config diff"; then
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: No diff output in merge mode"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 27: validate_rules_toc.py abnormal input handling"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup to install scripts
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
+TOC_DIR="$TEST_PROJECT/.claude/doc-advisor/toc/rules"
+mkdir -p "$TOC_DIR"
+
+# Detect Python command (same as other test suites)
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+
+# Case 1: Missing required fields (no title, no keywords)
+cat > "$TOC_DIR/rules_toc.yaml" << 'TOCEOF'
+docs:
+  rules/test.md:
+    purpose: "test purpose"
+    content_details:
+      - "detail 1"
+    applicable_tasks:
+      - "task 1"
+TOCEOF
+
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" --file "$TOC_DIR/rules_toc.yaml" 2>&1)
+VALIDATE_EXIT=$?
+if [[ $VALIDATE_EXIT -ne 0 ]]; then
+    echo -e "${GREEN}PASS${NC}: Validator exits non-zero for missing required fields (title, keywords)"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Validator should fail for missing required fields, got exit 0. Output: $VALIDATE_OUTPUT"
+    ((FAIL_COUNT++))
+fi
+
+# Case 2: Non-existent file reference
+cat > "$TOC_DIR/rules_toc.yaml" << 'TOCEOF'
+docs:
+  rules/nonexistent_file.md:
+    title: "Ghost Document"
+    purpose: "References a file that does not exist"
+    content_details:
+      - "detail 1"
+    applicable_tasks:
+      - "task 1"
+    keywords:
+      - "test"
+TOCEOF
+
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" --file "$TOC_DIR/rules_toc.yaml" 2>&1)
+VALIDATE_EXIT=$?
+if [[ $VALIDATE_EXIT -ne 0 ]]; then
+    echo -e "${GREEN}PASS${NC}: Validator exits non-zero for non-existent file reference"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Validator should fail for non-existent file, got exit 0. Output: $VALIDATE_OUTPUT"
+    ((FAIL_COUNT++))
+fi
+
+# Case 3: Valid ToC file (sanity check — should pass)
+cat > "$TOC_DIR/rules_toc.yaml" << 'TOCEOF'
+docs:
+  rules/test.md:
+    title: "Test Rule"
+    purpose: "A test rule document"
+    content_details:
+      - "contains test rules"
+    applicable_tasks:
+      - "testing"
+    keywords:
+      - "test"
+      - "rule"
+TOCEOF
+
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" --file "$TOC_DIR/rules_toc.yaml" 2>&1)
+VALIDATE_EXIT=$?
+if [[ $VALIDATE_EXIT -eq 0 ]]; then
+    echo -e "${GREEN}PASS${NC}: Validator passes for valid ToC file"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Validator should pass for valid ToC, got exit $VALIDATE_EXIT. Output: $VALIDATE_OUTPUT"
     ((FAIL_COUNT++))
 fi
 echo ""

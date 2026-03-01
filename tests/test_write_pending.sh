@@ -59,8 +59,14 @@ echo ""
 
 # Ensure pending YAML exists
 echo "Generating pending YAML files..."
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || true
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || true
+if ! $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null; then
+    echo -e "${RED}ERROR: create_pending_yaml.py --target rules failed${NC}"
+    exit 1
+fi
+if ! $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null; then
+    echo -e "${RED}ERROR: create_pending_yaml.py --target specs failed${NC}"
+    exit 1
+fi
 echo ""
 
 RULES_PENDING=$(ls .claude/doc-advisor/toc/rules/.toc_work/*.yaml 2>/dev/null | head -1 || echo "")

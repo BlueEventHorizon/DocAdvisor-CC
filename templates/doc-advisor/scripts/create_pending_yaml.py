@@ -33,7 +33,7 @@ PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 TARGET = None  # 'rules' or 'specs'
-DOC_TYPES_MAP = None  # path → doc_type name (from .doc_structure.yaml)
+DOC_TYPES_MAP = None  # path → doc_type name (from config.yaml)
 
 # Pending YAML templates
 PENDING_TEMPLATE_RULES = """_meta:
@@ -62,6 +62,17 @@ applicable_tasks: []
 keywords: []
 references: []
 """
+
+# Directory name → doc_type mapping for fallback inference
+DOC_TYPE_KEYWORDS = {
+    'requirement': 'requirement', 'requirements': 'requirement',
+    'design': 'design', 'designs': 'design',
+    'plan': 'plan', 'plans': 'plan', 'planning': 'plan',
+    'api': 'api', 'apis': 'api',
+    'reference': 'reference', 'references': 'reference', 'ref': 'reference',
+    'rule': 'rule', 'rules': 'rule',
+    'spec': 'spec', 'specs': 'spec',
+}
 
 
 def parse_args():
@@ -125,13 +136,17 @@ def init_config(target):
 
 
 def determine_doc_type(root_dir_name):
-    """Determine doc_type from root_dir path using .doc_structure.yaml mapping"""
+    """Determine doc_type from root_dir path using config.yaml doc_types_map"""
     if DOC_TYPES_MAP:
         normalized = root_dir_name.rstrip('/')
         for path, doc_type in DOC_TYPES_MAP.items():
             if path.rstrip('/') == normalized:
                 return doc_type
-    # Fallback: target name without trailing 's'
+    # Fallback: infer from directory name
+    dir_lower = root_dir_name.rstrip('/').split('/')[-1].lower()
+    if dir_lower in DOC_TYPE_KEYWORDS:
+        return DOC_TYPE_KEYWORDS[dir_lower]
+    # Default by category
     return TARGET.rstrip('s') if TARGET else 'unknown'
 
 

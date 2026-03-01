@@ -100,23 +100,39 @@ Ask the user:
 
 After user confirmation, update `.claude/doc-advisor/config.yaml` using the Edit tool.
 
-Replace the commented `root_dirs` lines:
+Replace the commented `root_dirs` and `doc_types_map` lines with actual values:
 
 ```yaml
 # Before:
 rules:
-  # root_dirs: []    # Uncomment to override .doc_structure.yaml
+  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
 
 # After:
 rules:
   root_dirs:
     - rules/
     - guidelines/
+  doc_types_map:
+    rules/: rule
+    guidelines/: rule
 ```
 
-Same for specs section.
+For specs, map each directory to its specific doc_type:
 
-**Important**: If root_dirs is already uncommented (from a previous run), replace the existing list.
+```yaml
+specs:
+  root_dirs:
+    - specs/requirements/
+    - specs/design/
+  doc_types_map:
+    specs/requirements/: requirement
+    specs/design/: design
+```
+
+Valid doc_types: `rule`, `requirement`, `design`, `plan`, `api`, `reference`, `spec`
+
+**Important**: If root_dirs is already uncommented (from a previous run), replace the existing list and doc_types_map.
 
 ### Step 6: Summary
 

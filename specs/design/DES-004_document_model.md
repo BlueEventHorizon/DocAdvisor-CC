@@ -41,9 +41,9 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 
 各カテゴリは**1つ以上のルートディレクトリ**を持つ。ルートディレクトリ配下のサブディレクトリ構造は自由。
 
-`root_dirs` の設定方法:
-- `.doc_structure.yaml` がある場合: ランタイムで自動導出（config.yaml の設定不要）
-- `.doc_structure.yaml` がない場合: `/classify-docs` スキルで AI が分類・設定
+`root_dirs` の設定方法（いずれもセットアップ時に config.yaml へ書き込まれる。ランタイムは config.yaml のみ参照: FR-08）:
+- `.doc_structure.yaml` がある場合: setup.sh が `import_doc_structure.py` で config.yaml へ取り込み
+- `.doc_structure.yaml` がない場合: `/classify-docs` スキルで AI が分類し config.yaml を更新
 
 ```yaml
 rules:
@@ -184,7 +184,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目 | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
-| `root_dirs` | array | `[]`（`/classify-docs` で設定） | ルートディレクトリ群 |
+| `root_dirs` | array | `[]`（setup.sh または `/classify-docs` で設定） | ルートディレクトリ群 |
+| `doc_types_map` | object | `{}`（setup.sh または `/classify-docs` で設定） | パス → doc_type の対応。FR-01-6 参照 |
 | `toc_file` | string | `.claude/doc-advisor/toc/rules/rules_toc.yaml` | 出力 ToC ファイルパス |
 | `checksums_file` | string | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | チェックサムファイルパス |
 | `work_dir` | string | `.claude/doc-advisor/toc/rules/.toc_work/` | 作業ディレクトリパス |
@@ -197,7 +198,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目 | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
-| `root_dirs` | array | `[]`（`/classify-docs` で設定） | ルートディレクトリ群 |
+| `root_dirs` | array | `[]`（setup.sh または `/classify-docs` で設定） | ルートディレクトリ群 |
+| `doc_types_map` | object | `{}`（setup.sh または `/classify-docs` で設定） | パス → doc_type の対応。FR-01-6 参照 |
 | `toc_file` | string | `.claude/doc-advisor/toc/specs/specs_toc.yaml` | 出力 ToC ファイルパス |
 | `checksums_file` | string | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | チェックサムファイルパス |
 | `work_dir` | string | `.claude/doc-advisor/toc/specs/.toc_work/` | 作業ディレクトリパス |

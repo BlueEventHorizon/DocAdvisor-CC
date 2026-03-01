@@ -8,9 +8,11 @@ This directory contains tests for DocAdvisor-CC setup and scripts.
 tests/
 ├── run_all_tests.sh           # Run all test suites
 ├── test.sh                    # Phase 1: Basic setup test
-├── test_write_pending.sh      # Phase 2: write_*_pending.py tests
-├── test_merge.sh              # Phase 2: merge_*_toc.py tests
-├── test_checksums.sh          # Phase 2: create_checksums.py tests
+├── test_write_pending.sh      # Phase 2a: write_pending.py tests
+├── test_merge.sh              # Phase 2b: merge_toc.py tests
+├── test_checksums.sh          # Phase 2c: create_checksums.py tests
+├── test_should_exclude.sh     # Phase 2d: should_exclude() tests
+├── test_symlink.sh            # Phase 2e: Symlink support tests
 ├── test_custom_dirs.sh        # Phase 3: Custom directory names
 ├── test_edge_cases.sh         # Phase 4: Edge cases
 ├── test_setup_upgrade.sh      # Phase 5: Setup upgrade scenarios
@@ -76,6 +78,8 @@ chmod +x *.sh
 ./test_write_pending.sh
 ./test_merge.sh
 ./test_checksums.sh
+./test_should_exclude.sh
+./test_symlink.sh
 
 # Phase 3: Custom directory names
 ./test_custom_dirs.sh
@@ -105,17 +109,47 @@ chmod +x *.sh
 | 1-4 | create_pending_yaml_rules.py --full |
 | 1-5 | create_pending_yaml_specs.py --full |
 
-### Phase 2: Script Unit Tests
+### Phase 2a: write_pending.py
 
-| Test | Script | Description |
-|------|--------|-------------|
-| 2-1 | write_rules_pending.py | Normal case (all args) |
-| 2-2 | write_rules_pending.py | Missing arguments |
-| 2-3 | write_rules_pending.py | Insufficient keywords |
-| 2-4 | write_specs_pending.py | doc_type preservation |
-| 2-5 | merge_rules_toc.py | Full mode |
-| 2-6 | merge_rules_toc.py | Incremental mode |
-| 2-7 | create_checksums.py | Hash generation |
+| Test | Description |
+|------|-------------|
+| 2-1 | Normal case (all args) |
+| 2-2 | Missing arguments |
+| 2-3 | Insufficient keywords |
+| 2-4 | doc_type preservation (specs) |
+
+### Phase 2b: merge_toc.py
+
+| Test | Description |
+|------|-------------|
+| 2-5 | Full mode |
+| 2-6 | Incremental mode |
+| 2-7 | Cleanup after merge |
+| 2-8 | --delete-only mode |
+| 2-9 | Checksum integration |
+
+### Phase 2c: create_checksums.py
+
+| Test | Description |
+|------|-------------|
+| 2-10 | Hash generation |
+
+### Phase 2d: should_exclude()
+
+| Test | Description |
+|------|-------------|
+| 2-11 | Exclude pattern matching |
+
+### Phase 2e: Symlink Support
+
+| Test | Description |
+|------|-------------|
+| 2-12 | create_checksums.py with symlinks (rules) |
+| 2-13 | create_checksums.py with symlinks (specs) |
+| 2-14 | create_pending_yaml.py with symlinks (rules) |
+| 2-15 | create_pending_yaml.py with symlinks (specs) |
+| 2-16 | Symlink loop detection |
+| 2-17 | Duplicate file detection via multiple symlinks |
 
 ### Phase 3: Custom Directory Names
 
@@ -141,13 +175,36 @@ chmod +x *.sh
 
 | Test | Description |
 |------|-------------|
-| 5-1 | Clean install (no existing .claude) |
-| 5-2 | Legacy commands/ auto-deleted (file-specific) |
-| 5-3 | Legacy doc-advisor/ files auto-deleted |
-| 5-4 | config.yaml skip (preserve existing) |
-| 5-5 | config.yaml overwrite with backup |
-| 5-6 | skills/doc-advisor/ old files removed |
-| 5-7 | agents/ custom agent preserved |
+| 1 | Clean install (no existing .claude) |
+| 2 | Legacy commands/ auto-deleted (file-specific) |
+| 3 | v3.2 structure verification (split skills) |
+| 4 | config.yaml skip (preserve existing) |
+| 5 | config.yaml overwrite with backup |
+| 6 | v3.0 skills/doc-advisor/ removed on upgrade to v3.1 |
+| 7 | agents/ custom agent preserved |
+| 8 | Repeated setup preserves toc/ directory structure |
+| 9 | Version-based protection (current version protected) |
+| 10 | Old version deleted, current version protected |
+| 11 | Advisor agent deletion (T-008) |
+| 12 | query-* skill installation (T-009) |
+| 13 | classify-docs skill installed |
+| 14 | v3.8 unified scripts (old scripts removed) |
+| 15 | v3.8 unified agents (old agents removed) |
+| 16 | config.yaml root_dirs imported from .doc_structure.yaml |
+| 16b | import_doc_structure.py - multiple doc_types and paths |
+| 16c | import_doc_structure.py - no .doc_structure.yaml |
+| 16d | import_doc_structure.py - rules only |
+| 17 | classify_dirs.py installed from template |
+| 18 | v3.9 set_root_dirs.py legacy cleanup |
+| 19 | config.yaml root_dirs manual override |
+| 20 | config.yaml exclude patterns (empty defaults) |
+| 21 | No skip/exclude (empty input) |
+| 22 | v3.9 full legacy cleanup (all removed files) |
+| 23 | check_config.sh installed with exec permission (T-011) |
+| 24 | Skill Pre-check sections (T-012) |
+| 25 | check_config.sh behavior (FR-08) incl. specs & cross-category |
+| 26 | config.yaml merge option (REQ-002-03 [m]) |
+| 27 | validate_rules_toc.py abnormal input handling |
 
 ## Adding New Tests
 

@@ -220,9 +220,9 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 
 **受入条件**:
 - [ ] setup.sh 実行後に `scripts/check_config.sh` が存在し実行権限がある
-- [ ] `.doc_structure.yaml` が存在する場合、`check_config.sh` は何も出力しない
-- [ ] `root_dirs` が設定済みの場合、`check_config.sh` は何も出力しない
+- [ ] 対象カテゴリの `root_dirs` が `config.yaml` に設定済みの場合、`check_config.sh` は何も出力しない（`.doc_structure.yaml` がある場合は setup.sh が取り込み済みのため `root_dirs` は設定済み）
 - [ ] 未設定時のみ `/classify-docs` を案内する `[ACTION REQUIRED]` メッセージが出力される
+- [ ] `check_config.sh` はカテゴリ引数（rules/specs）を受け付け、対象カテゴリ単位で検証する
 - [ ] 4 スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の SKILL.md に Pre-check セクションがある
 
 ---

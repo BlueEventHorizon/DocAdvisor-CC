@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# doc-advisor-version-xK9XmQ: 3.8
+# doc-advisor-version-xK9XmQ: 4.1
 """
 ToC Auto-Generation Common Utilities
 
@@ -120,7 +120,12 @@ def find_config_file():
 
 def load_config(target=None):
     """
-    Load config.yaml and return configuration dictionary
+    Load config.yaml and return configuration dictionary.
+
+    config.yaml is the sole runtime configuration (FR-08-1).
+    root_dirs and doc_types_map must be pre-configured by setup.sh
+    (from .doc_structure.yaml) or /classify-docs skill.
+    This function does NOT fall back to .doc_structure.yaml at runtime.
 
     Args:
         target: 'rules' or 'specs'. If specified, returns only that section
@@ -167,7 +172,7 @@ def _get_default_config():
                 'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
-                'header_comment': 'Development Document Search Index for rules-advisor Subagent',
+                'header_comment': 'Development documentation search index for query-rules skill',
                 'metadata_name': 'Development Document Search Index'
             }
         },
@@ -181,7 +186,7 @@ def _get_default_config():
                 'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
-                'header_comment': 'Project Specification Document Search Index for specs-advisor Subagent',
+                'header_comment': 'Project specification document search index for query-specs skill',
                 'metadata_name': 'Project Specification Document Search Index'
             }
         },
@@ -320,9 +325,17 @@ def _lookahead_is_list(lines, start_idx, parent_indent=4):
 
 
 def _parse_value(value):
-    """Parse value (string, number, boolean)"""
-    value = value.strip().strip('"\'')
+    """Parse value (string, number, boolean, empty list)"""
+    value = value.strip()
 
+    # Strip inline comments (not inside quotes)
+    if not value.startswith('"') and '  #' in value:
+        value = value[:value.index('  #')].strip()
+
+    value = value.strip('"\'')
+
+    if value == '[]':
+        return []
     if value.lower() == 'true':
         return True
     if value.lower() == 'false':
@@ -334,6 +347,34 @@ def _parse_value(value):
         pass
 
     return value
+
+
+def expand_root_dir_globs(dirs, project_root):
+    """
+    Expand glob patterns in root_dirs paths.
+
+    config.yaml root_dirs supports patterns like "specs/*/requirements/"
+    which need to be expanded to actual directories before file scanning.
+
+    Args:
+        dirs: List of directory path strings (may contain globs)
+        project_root: Path to project root
+
+    Returns:
+        list: Expanded directory path strings
+    """
+    expanded = []
+    for dir_path in dirs:
+        if '*' in dir_path or '?' in dir_path:
+            pattern = dir_path.rstrip('/')
+            matches = sorted(project_root.glob(pattern))
+            for match in matches:
+                if match.is_dir():
+                    rel = str(match.relative_to(project_root))
+                    expanded.append(rel + '/')
+        else:
+            expanded.append(dir_path)
+    return expanded if expanded else dirs
 
 
 def parse_simple_yaml(content):
@@ -515,9 +556,11 @@ def load_checksums(checksums_file):
             if stripped == 'checksums:':
                 in_checksums = True
                 continue
-            if in_checksums and ':' in stripped:
-                filepath = stripped.split(':')[0].strip()
-                files.add(filepath)
+            if in_checksums and ': ' in stripped:
+                parts = stripped.rsplit(': ', 1)
+                if len(parts) == 2:
+                    filepath = parts[0].strip()
+                    files.add(filepath)
 
         return files
     except Exception as e:

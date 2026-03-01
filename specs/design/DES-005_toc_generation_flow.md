@@ -9,6 +9,7 @@
 - REQ-001 FR-02: ToC 自動生成
 - REQ-001 FR-03: 変更検出
 - REQ-001 FR-04: 並列処理
+- REQ-001 FR-08: config.yaml ランタイム設定原則
 
 ---
 
@@ -26,21 +27,23 @@
 | Merger | エントリ統合 | `merge_toc.py --target rules\|specs` |
 | Validator | 出力検証 | `validate_rules_toc.py` / `validate_specs_toc.py` |
 
-> **前提条件**: ToC 生成の前に `config.yaml` の `root_dirs` が設定されている必要がある。`.doc_structure.yaml` がある場合はランタイムで導出される。ない場合は `/classify-docs` スキルで事前に設定する。
+> **前提条件**: config.yaml は Doc Advisor の唯一のランタイム設定である。全スクリプトは config.yaml の `root_dirs` のみを参照する。`.doc_structure.yaml` はセットアップ時に config.yaml へ取り込まれるものであり、実行時には参照しない。
 
 ### データフロー
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Orchestrator                                │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐     │
-│  │  変更    │ -> │ pending  │ -> │ 並列     │ -> │ マージ   │     │
-│  │  検出    │    │ YAML生成 │    │ 処理     │    │ 検証     │     │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘     │
-│       │                              │                 │           │
-│       v                              v                 v           │
-│  .claude/doc-advisor/toc/specs/.toc_checksums.yaml  .claude/doc-advisor/toc/specs/.toc_work/  .claude/doc-advisor/toc/specs/specs_toc.yaml  │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Orchestrator
+        P0[Phase 0<br>起動時<br>バリデーション] --> P1[Phase 1<br>変更検出<br>+ pending生成]
+        P1 --> P2[Phase 2<br>並列処理]
+        P2 --> P3[Phase 3<br>マージ]
+        P3 --> P4[Phase 4<br>バリデーション]
+    end
+
+    P0 -.- C[config.yaml<br>root_dirs]
+    P1 -.- CS[.toc_checksums.yaml]
+    P2 -.- W[.toc_work/]
+    P4 -.- T[*_toc.yaml]
 ```
 
 ---
@@ -53,16 +56,16 @@
 |--------|---------|------|
 | `full` | `--full` オプション または ToC 未存在 | 全ファイルスキャン、ToC 新規生成 |
 | `incremental` | デフォルト | 変更ファイルのみ処理、差分マージ |
-| `continuation` | `.claude/doc-advisor/toc/specs/.toc_work/` が存在 | 中断された処理を再開 |
+| `continuation` | `.claude/doc-advisor/toc/{target}/.toc_work/` が存在 | 中断された処理を再開 |
 | `delete-only` | 変更0件、削除あり | 削除のみ反映（subagent 不要） |
 
 ### モード判定フロー
 
 ```mermaid
 flowchart TD
-    A[コマンド実行] --> B{.claude/doc-advisor/toc/specs/.toc_work/ 存在?}
-    B -->|Yes| C{--full 指定?}
-    C -->|Yes| D[.claude/doc-advisor/toc/specs/.toc_work/ 削除]
+    A[コマンド実行] --> B{".toc_work/ 存在?"}
+    B -->|Yes| C{"--full 指定?"}
+    C -->|Yes| D[".toc_work/ 削除"]
     D --> E[full モード]
     C -->|No| F[continuation モード]
 
@@ -81,18 +84,105 @@ flowchart TD
 
 ---
 
+## Phase 0: 起動時バリデーション
+
+### 設計思想
+
+- **config.yaml が唯一のランタイム設定**: `.doc_structure.yaml` は実行時に参照しない
+- **入口集約**: check_config.sh を通過すれば後段スクリプトは二重検証不要
+- **ソフトゲート**: AI への指示として機能（スキル Pre-check で呼び出される）
+
+### config.yaml 確立フロー
+
+config.yaml の `root_dirs` と `doc_types_map` は以下の2つの独立した経路で設定される。いずれも最終成果物は config.yaml の `root_dirs`（および `doc_types_map`）である。
+
+#### 経路 A: setup.sh（インストール時）
+
+```mermaid
+flowchart TD
+    A[setup.sh 実行] --> B[config.yaml テンプレート配置]
+    B --> C{".doc_structure.yaml 存在?"}
+    C -->|Yes| D["内容をそのまま取り込み<br>root_dirs, doc_types_map を<br>config.yaml に書き込む"]
+    D --> E[setup.sh 終了]
+    C -->|No| F["警告出力:<br>classify-docs の実行を案内"]
+    F --> G[config.yaml は root_dirs 未設定のまま<br>setup.sh 終了]
+```
+
+> `.doc_structure.yaml` が存在すれば、doc-structure プラグインが分析済みの結果である。setup.sh は内容の妥当性を判定せず、そのまま取り込む。カテゴリが空でもそれが事実（プロジェクトに該当ドキュメントが無い）。root_dirs の有効性検証は setup.sh の責務ではなく、check_config.sh（スキル起動時）の責務である。
+
+#### 経路 B: /classify-docs（check_config.sh の警告を契機に AI が実行）
+
+```mermaid
+flowchart TD
+    H[スキル起動] --> I[check_config.sh 実行]
+    I --> J{root_dirs 設定済み?}
+    J -->|Yes| K[スキル本体へ]
+    J -->|No| L["警告メッセージ出力"]
+    L --> M["AI が警告を読み取り<br>スキルを中断"]
+    M --> N["AI が classify-docs スキルを実行"]
+    N --> O[AI がプロジェクトをスキャン]
+    O --> P[ユーザー確認]
+    P --> Q[root_dirs, doc_types_map を<br>config.yaml に書き込む]
+    Q --> R[config.yaml 有効]
+```
+
+**重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_config.sh が警告を出力し、AI がそれを読み取って `/classify-docs` の実行を判断する（自動実行ではなく、AI の判断による実行）。実行時には `.doc_structure.yaml` を参照しない。
+
+**重要**: いずれの経路でも最終成果物は config.yaml の `root_dirs` と `doc_types_map` である。`.doc_structure.yaml` はセットアップ時の入力に過ぎず、実行時には参照しない。
+
+### check_config.sh 検証フロー
+
+スキル起動時に config.yaml の状態を検証する:
+
+```mermaid
+flowchart TD
+    A[check_config.sh 実行] --> B{config.yaml 存在?}
+    B -->|No| C[exit 0<br>Doc Advisor 未インストール]
+    B -->|Yes| D{root_dirs 設定あり?}
+    D -->|Yes| E[exit 0<br>設定 OK]
+    D -->|No| F[警告出力<br>/classify-docs の実行を促す]
+```
+
+### 現行からの変更点
+
+| 項目 | 現行 | 改善後 |
+|------|------|--------|
+| 旧 Case 1 | `.doc_structure.yaml` 存在で OK | **削除**（実行時に参照しない） |
+| Case 2 | config.yaml の root_dirs チェック | 変更なし |
+| Case 3 | config.yaml 不存在で OK | 変更なし |
+| 新規 | — | config.yaml 存在 + root_dirs 未設定 → 警告 |
+
+### 判定条件テーブル
+
+| config.yaml | root_dirs 行 | 判定 | 出力 |
+|-------------|-------------|------|------|
+| 存在しない | — | OK | なし（exit 0） |
+| 存在する | `root_dirs:` あり（空配列含む） | OK | なし（exit 0） |
+| 存在する | コメントアウト or 行なし | NG | 警告メッセージ |
+
+- **入力**: config.yaml（`.claude/doc-advisor/config.yaml`）
+- **出力**: 警告メッセージ（stdout）または出力なし
+- **副作用**: なし（config.yaml を変更しない）
+- **exit code**: 常に 0
+
+### 関連要件
+
+- REQ-001 FR-08: config.yaml ランタイム設定原則
+
+---
+
 ## Phase 1: 変更検出（ハッシュベース）
 
 ### 設計思想
 
 - **Git 非依存**: コミット状態に関係なく、実際のファイル内容で判定
 - **高精度**: SHA-256 ハッシュで変更を確実に検出
-- **チーム共有**: `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` を Git 管理し、チーム間で差分検出を共有
+- **チーム共有**: `.claude/doc-advisor/toc/{target}/.toc_checksums.yaml` を Git 管理し、チーム間で差分検出を共有
 
 ### チェックサムファイル形式
 
 ```yaml
-# .claude/doc-advisor/toc/specs/.toc_checksums.yaml
+# .claude/doc-advisor/toc/{target}/.toc_checksums.yaml
 generated_at: 2026-01-22T12:00:00Z
 file_count: 25
 checksums:
@@ -105,7 +195,7 @@ checksums:
 ```mermaid
 flowchart TD
     A[現在のファイル一覧取得] --> B[各ファイルのハッシュ計算]
-    B --> C[.claude/doc-advisor/toc/specs/.toc_checksums.yaml 読み込み]
+    B --> C[".toc_checksums.yaml 読み込み"]
     C --> D{比較}
 
     D --> E[新規ファイル<br>checksums に無い]
@@ -155,9 +245,9 @@ def calculate_file_hash(filepath):
 ### 作業ディレクトリ構造
 
 ```
-.claude/doc-advisor/toc/specs/.toc_work/               # 作業ディレクトリ
-├── specs_requirements_app_overview.yaml
-├── specs_design_login_screen.yaml
+.claude/doc-advisor/toc/{target}/.toc_work/               # 作業ディレクトリ
+├── a1b2c3d4e5f67890.yaml
+├── f0e1d2c3b4a59678.yaml
 └── ... (対象ファイルごとに1つ)
 ```
 
@@ -165,18 +255,25 @@ def calculate_file_hash(filepath):
 
 ```
 元パス: specs/requirements/login.md
-作業ファイル: specs_requirements_login.yaml
+作業ファイル: <SHA256先頭16文字>.yaml  (例: a1b2c3d4e5f67890.yaml)
 
-変換: '/' → '_', '.md' → '.yaml'
+変換: SHA256(source_file_path)[:16] + '.yaml'
 ```
+
+> ハッシュベースのファイル名を使用する理由:
+> - macOS のファイル名長制限（255 バイト）を回避
+> - 大文字小文字を区別しないファイルシステムでの衝突を防止
+> - ディレクトリ名やファイル名の特殊文字によるエスケープ問題を回避
+> - 元パスは YAML 内の `_meta.source_file` で保持される
 
 ### pending YAML テンプレート
 
-両カテゴリ共通のテンプレート:
+共通フィールド:
 
 ```yaml
 _meta:
   source_file: specs/requirements/app_overview.md  # 処理対象ファイルパス
+  doc_type: requirement                            # ドキュメント種別（config.yaml の doc_types_map から決定）
   status: pending                                  # pending | completed
   updated_at: null                                 # 完了時刻
 
@@ -188,14 +285,20 @@ applicable_tasks: []
 keywords: []
 ```
 
-> **Note**: rules と specs で同一テンプレート。カテゴリの違いは ToC 出力先と作業ディレクトリで区別される。
+specs カテゴリでは追加フィールドあり:
+
+```yaml
+references: []    # specs のみ: 関連ドキュメントへの参照
+```
+
+> **Note**: `doc_type` は `config.yaml` の `doc_types_map` から決定される。マップに一致しない場合はディレクトリ名からの推論、最終的にはカテゴリ名（rule/spec）をデフォルトとする。
 
 ### 並列処理フロー
 
 ```mermaid
 sequenceDiagram
     participant O as Orchestrator
-    participant W as .claude/doc-advisor/toc/specs/.toc_work/
+    participant W as .toc_work/
     participant S1 as Subagent 1
     participant S2 as Subagent 2
     participant S3 as Subagent 3
@@ -248,8 +351,8 @@ sequenceDiagram
 
 | モード | 入力 | 処理 |
 |--------|------|------|
-| `full` | `.claude/doc-advisor/toc/specs/.toc_work/*.yaml` のみ | 新規生成 |
-| `incremental` | 既存 ToC + `.claude/doc-advisor/toc/specs/.toc_work/*.yaml` | 差分マージ + 削除反映 |
+| `full` | `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` のみ | 新規生成 |
+| `incremental` | 既存 ToC + `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` | 差分マージ + 削除反映 |
 | `delete-only` | 既存 ToC のみ | 削除のみ反映 |
 
 ### マージフロー
@@ -258,11 +361,11 @@ sequenceDiagram
 flowchart TD
     A[マージ開始] --> B{モード}
 
-    B -->|full| C[docs = {}]
+    B -->|full| C["docs = empty"]
     B -->|incremental| D[docs = 既存 ToC 読み込み]
     B -->|delete-only| E[docs = 既存 ToC 読み込み]
 
-    C --> F[.claude/doc-advisor/toc/specs/.toc_work/*.yaml を追加]
+    C --> F[".toc_work/*.yaml を追加"]
     D --> G[削除ファイル検出]
     G --> H[該当エントリ削除]
     H --> F
@@ -273,12 +376,12 @@ flowchart TD
     F --> I
 
     I --> J[バックアップ作成]
-    J --> K[*_toc.yaml 書き込み]
+    J --> K["*_toc.yaml 書き込み"]
     K --> L[バリデーション実行]
-    L --> M{検証結果}
+    L --> M{"検証結果"}
     M -->|成功| N[チェックサム更新]
     M -->|失敗| O[バックアップから復元]
-    N --> P[.claude/doc-advisor/toc/specs/.toc_work/ 削除]
+    N --> P[".toc_work/ 削除"]
     O --> Q[エラー終了]
 ```
 
@@ -303,7 +406,7 @@ for del_file in deleted_files:
 ### マージ後の出力形式
 
 ```yaml
-# .claude/doc-advisor/toc/specs/specs_toc.yaml
+# .claude/doc-advisor/toc/{target}/{target}_toc.yaml
 metadata:
   name: Project Specification Search Index
   generated_at: 2026-01-22T12:00:00Z
@@ -364,7 +467,7 @@ flowchart TD
 
 1. バックアップファイル（`*.yaml.bak`）から復元
 2. チェックサムは更新しない
-3. `.claude/doc-advisor/toc/specs/.toc_work/` は削除しない（再実行可能）
+3. `.claude/doc-advisor/toc/{target}/.toc_work/` は削除しない（再実行可能）
 4. エラー内容を報告
 
 ---
@@ -378,7 +481,7 @@ flowchart TD
 | ファイル読み込みエラー | Subagent | エラーメッセージ出力、該当 YAML は pending のまま |
 | YAML 構文エラー | Merger | 該当ファイルをスキップ、警告出力 |
 | バリデーションエラー | Validator | バックアップ復元、処理中断 |
-| マージエラー | Merger | .claude/doc-advisor/toc/specs/.toc_work/ 保持、再実行可能 |
+| マージエラー | Merger | .claude/doc-advisor/toc/{target}/.toc_work/ 保持、再実行可能 |
 
 ### Subagent エラー時の扱い
 
@@ -389,14 +492,14 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[コマンド実行] --> B{.claude/doc-advisor/toc/specs/.toc_work/ 存在?}
+    A[コマンド実行] --> B{".toc_work/ 存在?"}
     B -->|No| C[通常処理]
     B -->|Yes| D[pending ファイル検索]
-    D --> E{pending あり?}
+    D --> E{"pending あり?"}
     E -->|Yes| F[Phase 2 から再開]
-    E -->|No| G{completed あり?}
+    E -->|No| G{"completed あり?"}
     G -->|Yes| H[Phase 3 マージへ]
-    G -->|No| I[.claude/doc-advisor/toc/specs/.toc_work/ 削除して終了]
+    G -->|No| I[".toc_work/ 削除して終了"]
 ```
 
 ### 中断耐性の実現
@@ -405,7 +508,7 @@ flowchart TD
 |------|---------------|-------------|
 | Phase 1 中断 | なし | 最初から実行 |
 | Phase 2 中断 | completed な YAML | pending から処理再開 |
-| Phase 3 中断 | .claude/doc-advisor/toc/specs/.toc_work/、バックアップ | マージから再実行 |
+| Phase 3 中断 | .claude/doc-advisor/toc/{target}/.toc_work/、バックアップ | マージから再実行 |
 
 ---
 
@@ -414,7 +517,7 @@ flowchart TD
 ### 完了レポート形式
 
 ```
-✅ specs_toc.yaml has been updated
+✅ {target}_toc.yaml has been updated
 
 [Summary]
 - Mode: incremental
@@ -422,13 +525,13 @@ flowchart TD
 - Deleted: 1
 
 [Cleanup]
-- Deleted .claude/doc-advisor/toc/specs/.toc_work/
+- Deleted .claude/doc-advisor/toc/{target}/.toc_work/
 ```
 
 ### エラーレポート形式
 
 ```
-⚠️ specs_toc.yaml generation completed with warnings
+⚠️ {target}_toc.yaml generation completed with warnings
 
 [Summary]
 - Mode: full

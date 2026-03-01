@@ -143,7 +143,7 @@ TARGET_DIR/
 │   │   └── create-specs-toc/        # specs ToC 生成スキル
 │   │       └── SKILL.md
 │   └── doc-advisor/                 # 共有リソース + ランタイム出力
-│       ├── config.yaml              # 設定ファイル（root_dirs は空、/classify-docs で設定）
+│       ├── config.yaml              # 設定ファイル（root_dirs は setup.sh で取り込み、または /classify-docs で設定）
 │       ├── docs/                    # ドキュメント
 │       │   ├── toc_orchestrator.md
 │       │   ├── toc_format.md
@@ -153,6 +153,7 @@ TARGET_DIR/
 │       │   ├── toc_utils.py
 │       │   ├── classify_dirs.py         # ディレクトリスキャナー
 │       │   ├── check_config.sh          # スキル Pre-check スクリプト
+│       │   ├── import_doc_structure.py  # .doc_structure.yaml → config.yaml 取り込み
 │       │   ├── create_checksums.py
 │       │   ├── create_pending_yaml.py   # --target rules|specs
 │       │   ├── write_pending.py         # --target rules|specs
@@ -303,33 +304,30 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 ```yaml
 # === rules 設定 ===
 rules:
-  root_dirs: []    # Auto-classified by /classify-docs
+  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
   patterns:
     target_glob: "**/*.md"
-    exclude:
-      # - reference
-      # - archive
+    exclude: []
   output:
-    header_comment: "Development documentation search index for rules-advisor subagent"
+    header_comment: "Development documentation search index for query-rules skill"
     metadata_name: "Development Documentation Search Index"
 
 # === specs 設定 ===
 specs:
-  root_dirs: []    # Auto-classified by /classify-docs
+  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/
   patterns:
     target_glob: "**/*.md"
-    exclude:
-      # - plan  # Uncomment to exclude plan directory
-      # - reference
-      # - /info/
+    exclude: []
   output:
-    header_comment: "Project specification document search index for specs-advisor subagent"
+    header_comment: "Project specification document search index for query-specs skill"
     metadata_name: "Project Specification Document Search Index"
 
 # === 共通設定 ===
@@ -339,7 +337,7 @@ common:
     fallback_to_serial: true     # 並列失敗時は直列実行
 ```
 
-> **Note**: `root_dirs` はテンプレート上はコメントアウト（`# root_dirs: []`）。setup.sh はテンプレートコピーに徹し、ディレクトリ分類は行わない。ターゲットプロジェクトで `/classify-docs` スキルを実行し、AI 駆動で `root_dirs` を設定する。`.doc_structure.yaml` がある場合はランタイムで `root_dirs` を導出するため手動設定は不要。
+> **Note**: `root_dirs` と `doc_types_map` はテンプレート上はコメントアウト状態。setup.sh は `.doc_structure.yaml` が存在する場合、`import_doc_structure.py` を呼び出して config.yaml の `root_dirs` と `doc_types_map` に書き込む。存在しない場合はテンプレートコピーに徹し、ターゲットプロジェクトで `/classify-docs` スキルが AI 駆動で設定する。実行時に `.doc_structure.yaml` は参照しない（REQ-001 FR-08）。
 
 ## スキル Pre-check（v4.0）
 
@@ -349,21 +347,24 @@ common:
 
 ### check_config.sh のチェック順序
 
-1. `.doc_structure.yaml` が存在 → 即 exit 0（出力なし = OK）
+1. `config.yaml` が存在しない → 即 exit 0（Doc Advisor 未インストール）
 2. `config.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし = OK）
-3. `config.yaml` が存在しない → 即 exit 0（Doc Advisor 未インストール）
-4. いずれにも該当しない → `[ACTION REQUIRED]` 警告メッセージを出力
+3. `config.yaml` は存在するが `root_dirs` が未設定 → `[ACTION REQUIRED]` 警告メッセージを出力
+
+> `.doc_structure.yaml` の存在チェックは行わない。実行時は config.yaml のみを参照する（REQ-001 FR-08）。
 
 ### スキル側の処理
 
 ```markdown
 ## Pre-check (MANDATORY - Run first)
 
-bash .claude/doc-advisor/scripts/check_config.sh
+bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 - No output → Proceed
 - Output present → STOP. Run /classify-docs first, then restart this skill
 ```
+
+> カテゴリ引数（`rules` または `specs`）を渡すことで、対象カテゴリの `root_dirs` のみを検証する。引数なしの場合はいずれかの `root_dirs` が設定されていれば OK（後方互換）。
 
 ---
 
@@ -381,9 +382,9 @@ bash .claude/doc-advisor/scripts/check_config.sh
 
 ## セットアップ後の次のステップ
 
-### .doc_structure.yaml がある場合
+### config.yaml に root_dirs が設定済みの場合
 
-ランタイムで `root_dirs` が導出されるため、すぐに ToC 生成が可能:
+setup.sh が `.doc_structure.yaml` を取り込み済み、または `/classify-docs` で設定済み。すぐに ToC 生成が可能:
 
 1. Claude Code を起動:
    ```bash
@@ -396,25 +397,25 @@ bash .claude/doc-advisor/scripts/check_config.sh
    /create-specs-toc --full
    ```
 
-### .doc_structure.yaml がない場合
+### config.yaml に root_dirs が未設定の場合
 
-スキルの Pre-check が未設定を検出し、`/classify-docs` を先に実行させる:
+スキルの Pre-check（check_config.sh）が未設定を検出し、`/classify-docs` の実行を指示する:
 
 1. Claude Code を起動
-2. `/create-rules-toc --full` を実行 → Pre-check が `/classify-docs` を先に実行させる
-3. `/create-specs-toc --full`
+2. `/create-rules-toc --full` を実行 → Pre-check が `/classify-docs` の実行を指示
+3. `/classify-docs` で root_dirs が設定された後、再度 `/create-rules-toc --full`
 
 ## 注意事項
 
 - templates/ ディレクトリがスクリプトと同じディレクトリに存在する必要がある
-- Python スクリプトと Shell スクリプトは変数置換なしでコピーされる（`.py`, `.sh` はそのままコピー）
+- `.py`, `.md`, `.yaml` はプレースホルダー置換付きでコピーされる。`.sh` 等その他はそのままコピー
 - `agents/` はディレクトリ削除せず上書きのみ（ユーザーの独自 agent を保護、管理対象は `toc-updater.md` 1 ファイルのみ）
 - `skills/doc-advisor/` はクリーンインストール（全削除→再作成）（v3.0 レガシー）
 - advisor agent（rules-advisor.md, specs-advisor.md）は自動削除される（v3.7 移行）
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
 - `config.yaml` が既存の場合はユーザーに確認を求める
-- setup.sh はテンプレートコピーに徹し、ディレクトリ分類は行わない
-- `config.yaml` の `root_dirs` はコメントアウト状態で生成（`/classify-docs` で設定）
+- setup.sh はテンプレートコピー・変数置換・`.doc_structure.yaml` からの設定取り込みを行う。AI によるディレクトリ分類は行わない
+- `.doc_structure.yaml` がない場合、`config.yaml` の `root_dirs` はコメントアウト状態のまま（`/classify-docs` で設定）
 - 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/classify-docs` を先に実行させる
 
 ## 関連ドキュメント

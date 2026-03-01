@@ -32,7 +32,7 @@ Generate/update rules ToC (Table of Contents) for AI-searchable document index.
 
 Run the configuration check:
 ```bash
-bash .claude/doc-advisor/scripts/check_config.sh
+bash .claude/doc-advisor/scripts/check_config.sh rules
 ```
 
 - **No output** → Proceed to Execution Flow
