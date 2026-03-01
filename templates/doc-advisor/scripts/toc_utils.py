@@ -172,7 +172,7 @@ def _get_default_config():
                 'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
-                'header_comment': 'Development Document Search Index for rules-advisor Subagent',
+                'header_comment': 'Development documentation search index for query-rules skill',
                 'metadata_name': 'Development Document Search Index'
             }
         },
@@ -186,7 +186,7 @@ def _get_default_config():
                 'exclude': []  # User-defined only; system files excluded separately
             },
             'output': {
-                'header_comment': 'Project Specification Document Search Index for specs-advisor Subagent',
+                'header_comment': 'Project specification document search index for query-specs skill',
                 'metadata_name': 'Project Specification Document Search Index'
             }
         },

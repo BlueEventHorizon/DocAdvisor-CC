@@ -143,7 +143,7 @@ TARGET_DIR/
 │   │   └── create-specs-toc/        # specs ToC 生成スキル
 │   │       └── SKILL.md
 │   └── doc-advisor/                 # 共有リソース + ランタイム出力
-│       ├── config.yaml              # 設定ファイル（root_dirs は空、/classify-docs で設定）
+│       ├── config.yaml              # 設定ファイル（root_dirs は setup.sh で取り込み、または /classify-docs で設定）
 │       ├── docs/                    # ドキュメント
 │       │   ├── toc_orchestrator.md
 │       │   ├── toc_format.md
@@ -153,6 +153,7 @@ TARGET_DIR/
 │       │   ├── toc_utils.py
 │       │   ├── classify_dirs.py         # ディレクトリスキャナー
 │       │   ├── check_config.sh          # スキル Pre-check スクリプト
+│       │   ├── import_doc_structure.py  # .doc_structure.yaml → config.yaml 取り込み
 │       │   ├── create_checksums.py
 │       │   ├── create_pending_yaml.py   # --target rules|specs
 │       │   ├── write_pending.py         # --target rules|specs
@@ -312,7 +313,7 @@ rules:
     target_glob: "**/*.md"
     exclude: []
   output:
-    header_comment: "Development documentation search index for rules-advisor subagent"
+    header_comment: "Development documentation search index for query-rules skill"
     metadata_name: "Development Documentation Search Index"
 
 # === specs 設定 ===
@@ -326,7 +327,7 @@ specs:
     target_glob: "**/*.md"
     exclude: []
   output:
-    header_comment: "Project specification document search index for specs-advisor subagent"
+    header_comment: "Project specification document search index for query-specs skill"
     metadata_name: "Project Specification Document Search Index"
 
 # === 共通設定 ===
@@ -357,11 +358,13 @@ common:
 ```markdown
 ## Pre-check (MANDATORY - Run first)
 
-bash .claude/doc-advisor/scripts/check_config.sh
+bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 - No output → Proceed
 - Output present → STOP. Run /classify-docs first, then restart this skill
 ```
+
+> カテゴリ引数（`rules` または `specs`）を渡すことで、対象カテゴリの `root_dirs` のみを検証する。引数なしの場合はいずれかの `root_dirs` が設定されていれば OK（後方互換）。
 
 ---
 

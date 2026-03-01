@@ -64,7 +64,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | ID | 要件 |
 |----|------|
 | FR-06-1 | `setup.sh` は `.doc_structure.yaml` が存在しない場合、警告を表示し `/classify-docs` の実行を案内する（エラー終了しない） |
-| FR-06-2 | `setup.sh` はテンプレートコピーとプレースホルダー置換に徹し、ディレクトリ分類は行わない |
+| FR-06-2 | `setup.sh` はテンプレートコピー・プレースホルダー置換・`.doc_structure.yaml` からの設定取り込み（`import_doc_structure.py`）を行う。AI によるディレクトリ分類は行わない |
 | FR-06-3 | `setup.sh` は `check_config.sh` をテンプレートとしてコピーする（スキル Pre-check で使用） |
 
 ### FR-07: ディレクトリ分類（ターゲットプロジェクト側）

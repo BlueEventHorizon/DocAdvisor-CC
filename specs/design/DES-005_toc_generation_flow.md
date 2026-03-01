@@ -94,7 +94,7 @@ flowchart TD
 
 ### config.yaml 確立フロー
 
-config.yaml の `root_dirs` は以下の2つの独立した経路で設定される。いずれも最終成果物は config.yaml の `root_dirs` である。
+config.yaml の `root_dirs` と `doc_types_map` は以下の2つの独立した経路で設定される。いずれも最終成果物は config.yaml の `root_dirs`（および `doc_types_map`）である。
 
 #### 経路 A: setup.sh（インストール時）
 
@@ -102,7 +102,7 @@ config.yaml の `root_dirs` は以下の2つの独立した経路で設定され
 flowchart TD
     A[setup.sh 実行] --> B[config.yaml テンプレート配置]
     B --> C{".doc_structure.yaml 存在?"}
-    C -->|Yes| D["内容をそのまま取り込み<br>root_dirs を config.yaml に書き込む"]
+    C -->|Yes| D["内容をそのまま取り込み<br>root_dirs, doc_types_map を<br>config.yaml に書き込む"]
     D --> E[setup.sh 終了]
     C -->|No| F["警告出力:<br>classify-docs の実行を案内"]
     F --> G[config.yaml は root_dirs 未設定のまま<br>setup.sh 終了]
@@ -122,13 +122,13 @@ flowchart TD
     M --> N["AI が classify-docs スキルを実行"]
     N --> O[AI がプロジェクトをスキャン]
     O --> P[ユーザー確認]
-    P --> Q[root_dirs を<br>config.yaml に書き込む]
+    P --> Q[root_dirs, doc_types_map を<br>config.yaml に書き込む]
     Q --> R[config.yaml 有効]
 ```
 
 **重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_config.sh が警告を出力し、AI がそれを読み取って `/classify-docs` の実行を判断する（自動実行ではなく、AI の判断による実行）。実行時には `.doc_structure.yaml` を参照しない。
 
-**重要**: いずれの経路でも最終成果物は config.yaml の `root_dirs` である。`.doc_structure.yaml` はセットアップ時の入力に過ぎず、実行時には参照しない。
+**重要**: いずれの経路でも最終成果物は config.yaml の `root_dirs` と `doc_types_map` である。`.doc_structure.yaml` はセットアップ時の入力に過ぎず、実行時には参照しない。
 
 ### check_config.sh 検証フロー
 
@@ -246,8 +246,8 @@ def calculate_file_hash(filepath):
 
 ```
 .claude/doc-advisor/toc/{target}/.toc_work/               # 作業ディレクトリ
-├── specs_requirements_app_overview.yaml
-├── specs_design_login_screen.yaml
+├── a1b2c3d4e5f67890.yaml
+├── f0e1d2c3b4a59678.yaml
 └── ... (対象ファイルごとに1つ)
 ```
 
@@ -255,18 +255,25 @@ def calculate_file_hash(filepath):
 
 ```
 元パス: specs/requirements/login.md
-作業ファイル: specs_requirements_login.yaml
+作業ファイル: <SHA256先頭16文字>.yaml  (例: a1b2c3d4e5f67890.yaml)
 
-変換: '/' → '_', '.md' → '.yaml'
+変換: SHA256(source_file_path)[:16] + '.yaml'
 ```
+
+> ハッシュベースのファイル名を使用する理由:
+> - macOS のファイル名長制限（255 バイト）を回避
+> - 大文字小文字を区別しないファイルシステムでの衝突を防止
+> - ディレクトリ名やファイル名の特殊文字によるエスケープ問題を回避
+> - 元パスは YAML 内の `_meta.source_file` で保持される
 
 ### pending YAML テンプレート
 
-両カテゴリ共通のテンプレート:
+共通フィールド:
 
 ```yaml
 _meta:
   source_file: specs/requirements/app_overview.md  # 処理対象ファイルパス
+  doc_type: requirement                            # ドキュメント種別（config.yaml の doc_types_map から決定）
   status: pending                                  # pending | completed
   updated_at: null                                 # 完了時刻
 
@@ -278,7 +285,13 @@ applicable_tasks: []
 keywords: []
 ```
 
-> **Note**: rules と specs で同一テンプレート。カテゴリの違いは ToC 出力先と作業ディレクトリで区別される。
+specs カテゴリでは追加フィールドあり:
+
+```yaml
+references: []    # specs のみ: 関連ドキュメントへの参照
+```
+
+> **Note**: `doc_type` は `config.yaml` の `doc_types_map` から決定される。マップに一致しない場合はディレクトリ名からの推論、最終的にはカテゴリ名（rule/spec）をデフォルトとする。
 
 ### 並列処理フロー
 
