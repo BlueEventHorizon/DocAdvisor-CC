@@ -184,7 +184,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目 | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
-| `root_dirs` | array | `[]`（`/classify-docs` で設定） | ルートディレクトリ群 |
+| `root_dirs` | array | `[]`（setup.sh または `/classify-docs` で設定） | ルートディレクトリ群 |
+| `doc_types_map` | object | `{}`（setup.sh または `/classify-docs` で設定） | パス → doc_type の対応。FR-01-6 参照 |
 | `toc_file` | string | `.claude/doc-advisor/toc/rules/rules_toc.yaml` | 出力 ToC ファイルパス |
 | `checksums_file` | string | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | チェックサムファイルパス |
 | `work_dir` | string | `.claude/doc-advisor/toc/rules/.toc_work/` | 作業ディレクトリパス |
@@ -197,7 +198,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目 | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
-| `root_dirs` | array | `[]`（`/classify-docs` で設定） | ルートディレクトリ群 |
+| `root_dirs` | array | `[]`（setup.sh または `/classify-docs` で設定） | ルートディレクトリ群 |
+| `doc_types_map` | object | `{}`（setup.sh または `/classify-docs` で設定） | パス → doc_type の対応。FR-01-6 参照 |
 | `toc_file` | string | `.claude/doc-advisor/toc/specs/specs_toc.yaml` | 出力 ToC ファイルパス |
 | `checksums_file` | string | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | チェックサムファイルパス |
 | `work_dir` | string | `.claude/doc-advisor/toc/specs/.toc_work/` | 作業ディレクトリパス |

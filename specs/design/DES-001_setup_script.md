@@ -408,14 +408,14 @@ setup.sh が `.doc_structure.yaml` を取り込み済み、または `/classify-
 ## 注意事項
 
 - templates/ ディレクトリがスクリプトと同じディレクトリに存在する必要がある
-- Python スクリプトと Shell スクリプトは変数置換なしでコピーされる（`.py`, `.sh` はそのままコピー）
+- `.py`, `.md`, `.yaml` はプレースホルダー置換付きでコピーされる。`.sh` 等その他はそのままコピー
 - `agents/` はディレクトリ削除せず上書きのみ（ユーザーの独自 agent を保護、管理対象は `toc-updater.md` 1 ファイルのみ）
 - `skills/doc-advisor/` はクリーンインストール（全削除→再作成）（v3.0 レガシー）
 - advisor agent（rules-advisor.md, specs-advisor.md）は自動削除される（v3.7 移行）
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
 - `config.yaml` が既存の場合はユーザーに確認を求める
-- setup.sh はテンプレートコピーに徹し、ディレクトリ分類は行わない
-- `config.yaml` の `root_dirs` はコメントアウト状態で生成（`/classify-docs` で設定）
+- setup.sh はテンプレートコピー・変数置換・`.doc_structure.yaml` からの設定取り込みを行う。AI によるディレクトリ分類は行わない
+- `.doc_structure.yaml` がない場合、`config.yaml` の `root_dirs` はコメントアウト状態のまま（`/classify-docs` で設定）
 - 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/classify-docs` を先に実行させる
 
 ## 関連ドキュメント

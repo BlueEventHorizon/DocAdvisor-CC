@@ -353,7 +353,7 @@ def expand_root_dir_globs(dirs, project_root):
     """
     Expand glob patterns in root_dirs paths.
 
-    .doc_structure.yaml supports patterns like "specs/*/requirements/"
+    config.yaml root_dirs supports patterns like "specs/*/requirements/"
     which need to be expanded to actual directories before file scanning.
 
     Args:
