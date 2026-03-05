@@ -74,6 +74,12 @@ Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
     # Incremental mode
     {{PYTHON_PATH}} .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
     ```
+    ↓
+5. Determine format document
+    - Count pending YAML files in .toc_work/
+    - If count > 100: format_doc = `.claude/doc-advisor/docs/toc_format_compact.md`
+    - Otherwise: format_doc = `.claude/doc-advisor/docs/toc_format.md` (default)
+    - Pass format_doc to toc-updater agents in Phase 2
 ```
 
 ### Phase 2: Parallel Processing
@@ -107,7 +113,7 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
 3. Read common.parallel.max_workers (N) from config.yaml
     CRITICAL: Launch up to N Task tool calls in a SINGLE assistant message.
     Do NOT launch them one at a time in separate messages — this defeats parallelism.
-    Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/{filename}.yaml")
+    Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/{filename}.yaml, format_doc: {format_doc}")
     ↓
 4. Wait for all N tasks to complete
     ↓
@@ -227,11 +233,12 @@ End processing (no need to create .toc_work/)
 
 ```
 # Launch 5 in parallel (filenames are SHA256 hashes of source paths)
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/a1b2c3d4e5f67890.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/1234567890abcdef.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/fedcba0987654321.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/0123456789abcdef.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/abcdef0123456789.yaml")
+# format_doc is determined in Phase 1 step 5 (compact for 100+ files, full otherwise)
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/a1b2c3d4e5f67890.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/1234567890abcdef.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/fedcba0987654321.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/0123456789abcdef.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/abcdef0123456789.yaml, format_doc: {format_doc}")
 ```
 
 ---
@@ -343,6 +350,7 @@ When encountering unexpected errors (e.g., sandbox restrictions, permission erro
 
 [Summary]
 - Mode: {full | incremental | continue}
+- Format: {full | compact}
 - Files processed: {N}
 - Errors: {E} (if any)
 
