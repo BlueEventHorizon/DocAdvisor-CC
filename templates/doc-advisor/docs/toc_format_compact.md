@@ -1,21 +1,23 @@
 ---
-name: toc_format
-description: Format definition for {target}_toc.yaml (Single Source of Truth)
+name: toc_format_compact
+description: Compact format definition for {target}_toc.yaml (for large projects with 100+ documents)
 applicable_when:
-  - Creating or updating ToC entries
-  - Validating rules_toc.yaml or specs_toc.yaml structure
+  - Creating or updating ToC entries for large projects (100+ documents)
+  - Automatically selected by orchestrator when document count exceeds threshold
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
-# ToC YAML Format Definition
+# ToC YAML Format Definition (Compact)
+
+This is the **compact** variant of the ToC format, automatically used when the project has more than 100 documents. It produces smaller ToC entries to reduce token costs during search queries.
+
+For the full format, see `toc_format.md`.
 
 ## Purpose
 
 `.claude/doc-advisor/toc/{target}/{target}_toc.yaml` is the **single source of truth** for the subagent to identify documents needed for tasks.
 
 The quality of this file determines task execution success. **Missing information is not acceptable.**
-
-**This file serves as the Single Source of Truth for format definition and intermediate file schema.**
 
 ---
 
@@ -124,10 +126,10 @@ docs:
   <file_path>:                     # Path from project root
     doc_type: string               # Document type (e.g., rule, requirement, design)
     title: string                  # Title (extracted from H1)
-    purpose: string                # Purpose (max 200 chars)
-    content_details: array[string] # Content details (max 10 items)
-    applicable_tasks: array[string] # Applicable tasks (max 10 items)
-    keywords: array[string]        # Keywords (max 10 words)
+    purpose: string                # Purpose (1 sentence, ~100 chars, no listing)
+    content_details: array[string] # Content details (5 items)
+    applicable_tasks: array[string] # Applicable tasks (5 items)
+    keywords: array[string]        # Keywords (8 words)
     references: array[string]      # [specs only] Referenced documents (empty array allowed)
 ```
 
@@ -139,23 +141,28 @@ docs:
   rules/core/architecture_rule.md:
     doc_type: rule
     title: Architecture Rules
-    purpose: Defines overall architecture structure, layer design, and inter-layer communication
+    purpose: Defines overall architecture structure and layer design
     content_details:
-      - Directory structure
-      - Layer dependencies
-      - Inter-layer communication patterns
-      - Data flow design
+      - Directory structure and layer separation
+      - Layer dependencies and communication patterns
+      - Data flow design principles
       - AsyncStream design principles
+      - DI container and Factory patterns
     applicable_tasks:
       - Architecture review
       - Layer violation detection
       - Overall design review
+      - New module integration
+      - Dependency management
     keywords:
       - architecture
       - layer
       - Clean Architecture
       - DI
       - Factory
+      - data flow
+      - dependency
+      - module
 ```
 
 **Specs Example**:
@@ -164,23 +171,28 @@ docs:
   specs/requirements/app_overview.md:
     doc_type: requirement
     title: Application Overview Specification
-    purpose: Defines overall requirements, feature scope, and use cases for the application
+    purpose: Defines overall requirements and feature scope for the application
     content_details:
-      - Application overview
-      - Main feature list
+      - Application overview and main feature list
       - Use case definitions
       - Screen navigation overview
-      - Data requirements
+      - Data requirements and constraints
+      - Non-functional requirements
     applicable_tasks:
       - New feature implementation planning
       - Feature scope confirmation
       - Overall design understanding
+      - Requirements review
+      - Impact analysis
     keywords:
       - application
       - requirements
       - feature list
       - use case
       - screen navigation
+      - scope
+      - overview
+      - specification
     references: []
 ```
 
@@ -190,28 +202,31 @@ docs:
 
 ### purpose
 
-- Describe the file's role concisely (max 200 characters)
+- Describe the file's role in **1 sentence** (around 100 characters)
+- Do **NOT** list contents — that belongs in content_details
 - Use phrases like "Defines rules for...", "Specifies requirements for...", "Describes design for..."
+- Bad: "Defines X. Includes A, B, C, and D" — listing belongs in content_details
+- Good: "Defines the unified format for requirement specification documents"
 
 ### content_details
 
 - List **specific content items** in the file (rules/constraints/patterns/requirements/design elements)
 - Detailed enough for subagent to understand overview without reading the file
 - Must include important constraints/requirements
-- Max 10 items
+- **5 items**
 
 ### applicable_tasks
 
 - List **specific task types** that need this file
 - Avoid vague expressions, use specific task names
 - Include actions like "implementation", "creation", "modification", "review"
-- Max 10 items
+- **5 items** — prioritize the most specific and distinguishing tasks
 
 ### keywords
 
 - **Matching terms** for task descriptions
 - Include technical terms, concept names, abbreviations, feature names
-- Max 10 words
+- **8 words**
 
 ### references (specs only)
 
@@ -240,22 +255,28 @@ docs:
   rules/core/architecture_rule.md:
     doc_type: rule
     title: Architecture Rules
-    purpose: Defines overall architecture structure, layer design, and inter-layer communication
+    purpose: Defines overall architecture structure and layer design
     content_details:
-      - Directory structure
-      - Layer dependencies
-      - Data flow design
+      - Directory structure and layer separation
+      - Layer dependencies and communication patterns
+      - Data flow design principles
       - AsyncStream design principles
+      - DI container and Factory patterns
     applicable_tasks:
       - Architecture review
       - Layer violation detection
       - Overall design review
+      - New module integration
+      - Dependency management
     keywords:
       - architecture
       - layer
       - Clean Architecture
       - DI
       - Factory
+      - data flow
+      - dependency
+      - module
 
   rules/layer/infrastructure/repository_rule.md:
     doc_type: rule
@@ -265,17 +286,23 @@ docs:
       - Repository layer responsibilities
       - Immediate response + eventual sync pattern
       - Application method for Create/Update/Delete
-      - Anti-patterns
+      - Anti-patterns and common mistakes
+      - Cache update strategies
     applicable_tasks:
       - Repository implementation
       - Infrastructure layer implementation
       - CRUD operation implementation
+      - Cache strategy review
+      - Data sync design
     keywords:
       - Repository
       - immediate response
       - eventual sync
       - cache update
       - forceBroadcast
+      - CRUD
+      - infrastructure
+      - data layer
 ```
 
 ### Specs ToC
@@ -294,17 +321,26 @@ docs:
     title: Application Overview Specification
     purpose: Defines overall requirements and feature scope for the application
     content_details:
-      - Application overview
-      - Main feature list
+      - Application overview and main feature list
       - Use case definitions
       - Screen navigation overview
+      - Data requirements and constraints
+      - Non-functional requirements
     applicable_tasks:
       - New feature implementation planning
       - Feature scope confirmation
+      - Overall design understanding
+      - Requirements review
+      - Impact analysis
     keywords:
       - application
       - requirements
       - feature list
+      - use case
+      - screen navigation
+      - scope
+      - overview
+      - specification
     references: []
 
   specs/design/login_screen_design.md:
@@ -312,18 +348,26 @@ docs:
     title: Login Screen Design
     purpose: Defines UI design, ViewModel, and state management for the login screen
     content_details:
-      - Screen layout
-      - ViewModel design
-      - State transitions
+      - Screen layout and UI components
+      - ViewModel design and state transitions
       - Authentication service integration
+      - Error handling and validation
+      - Navigation flow
     applicable_tasks:
       - Login screen implementation
       - UI layer design review
+      - Authentication flow implementation
+      - State management review
+      - Screen test implementation
     keywords:
       - login
       - ViewModel
       - SwiftUI
       - authentication
+      - screen design
+      - state management
+      - navigation
+      - UI component
     references:
       - specs/requirements/screens/login_screen.md
 ```

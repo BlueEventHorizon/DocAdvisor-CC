@@ -28,9 +28,11 @@ specs:
   root_dirs:
     - specs/requirements/
     - specs/design/
+    - specs/plan/
   doc_types_map:
     specs/requirements/: requirement
     specs/design/: design
+    specs/plan/: plan
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
   work_dir: .claude/doc-advisor/toc/specs/.toc_work/

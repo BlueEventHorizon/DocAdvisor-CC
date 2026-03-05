@@ -24,11 +24,12 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 |-----------|----------|-------------|
 | `target` | Yes | Target category: `rules` or `specs` |
 | `entry_file` | Yes | Path to the entry YAML file to process (e.g., `.claude/doc-advisor/toc/{target}/.toc_work/xxx.yaml`) |
+| `format_doc` | No | Path to format definition file (default: `.claude/doc-advisor/docs/toc_format.md`) |
 
 ## Required Reference Documents [MANDATORY]
 
 Read the following before processing:
-- `.claude/doc-advisor/docs/toc_format.md` - Format definition (Single Source of Truth)
+- Format definition file specified by `format_doc` parameter (default: `.claude/doc-advisor/docs/toc_format.md`)
 
 ## Procedure
 
