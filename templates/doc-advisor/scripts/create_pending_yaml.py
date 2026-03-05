@@ -60,7 +60,6 @@ purpose: null
 content_details: []
 applicable_tasks: []
 keywords: []
-references: []
 """
 
 # Directory name → doc_type mapping for fallback inference

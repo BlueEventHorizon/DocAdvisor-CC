@@ -18,7 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **`toc_format.md`**: Added explicit upper limits (purpose max 200 chars, content_details max 10, applicable_tasks max 10, keywords max 10)
 - **`toc_orchestrator.md`**: Added format selection step in Phase 1, updated agent prompt and examples with `format_doc` parameter
+- **Field quality guidelines**: Added "unique to this document" priority, "no heading copy" rule, and "class/method names first" keyword guidance to both full and compact formats
 - **Version identifier**: Updated from `4.1` to `4.2` across all managed files
+
+### Removed
+- **`references` field**: Removed from specs ToC entries — unused by query-specs, 50% empty, caused path hallucination bugs. Affected: `write_pending.py`, `merge_toc.py`, `create_pending_yaml.py`, `toc-updater.md`, `toc_format.md`, `toc_format_compact.md`, `toc_update_workflow.md`
 
 ---
 ## [4.1.0] - 2026-03-01

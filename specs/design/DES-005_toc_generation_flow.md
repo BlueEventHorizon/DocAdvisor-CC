@@ -285,12 +285,6 @@ applicable_tasks: []
 keywords: []
 ```
 
-specs カテゴリでは追加フィールドあり:
-
-```yaml
-references: []    # specs のみ: 関連ドキュメントへの参照
-```
-
 > **Note**: `doc_type` は `config.yaml` の `doc_types_map` から決定される。マップに一致しない場合はディレクトリ名からの推論、最終的にはカテゴリ名（rule/spec）をデフォルトとする。
 
 ### 並列処理フロー

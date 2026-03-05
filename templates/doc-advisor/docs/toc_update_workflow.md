@@ -123,7 +123,6 @@ Each subagent (toc-updater) executes:
    - `content_details`: Content details (5-10 items)
    - `applicable_tasks`: Applicable tasks
    - `keywords`: 5-10 words
-   - `references`: [specs only] Direct references found in document (empty array if none)
 5. Set `_meta.status: completed` and `_meta.updated_at`
 6. Write and save
 
@@ -181,7 +180,6 @@ Check before merge:
 2. **Required field check**:
    - metadata: name, generated_at, file_count
    - docs: Each entry has title, purpose, content_details, applicable_tasks, keywords
-   - [specs only] Each entry has references (empty array allowed)
 
 3. **File existence check**:
    - All files listed in docs actually exist
@@ -211,7 +209,6 @@ After generation/update, verify:
 
 - [ ] All target document files are listed
 - [ ] Each entry has required fields (title, purpose, content_details, applicable_tasks, keywords)
-- [ ] [specs only] Each entry has references field (empty array allowed)
 - [ ] purpose contains "what it defines" (1-2 lines)
 - [ ] keywords contain task-matchable terms (5-10 words)
 - [ ] YAML syntax is correct (indentation, colons, hyphens)

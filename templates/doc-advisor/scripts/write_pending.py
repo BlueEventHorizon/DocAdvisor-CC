@@ -16,11 +16,6 @@ Usage:
       --applicable-tasks "task1 ||| task2" \
       --keywords "kw1 ||| kw2 ||| kw3 ||| kw4 ||| kw5"
 
-    python3 write_pending.py --target specs \
-      --entry-file ".claude/doc-advisor/toc/specs/.toc_work/xxx.yaml" \
-      ... \
-      --references "ref1 ||| ref2"
-
 Error mode:
     python3 write_pending.py --target rules \
       --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
@@ -75,8 +70,6 @@ def parse_args():
                         help='Applicable tasks (||| separated, 1+ items)')
     parser.add_argument('--keywords', default=None,
                         help='Keywords (||| separated, 5-10)')
-    parser.add_argument('--references', default='',
-                        help='Reference documents (||| separated, specs only)')
     parser.add_argument('--force', action='store_true',
                         help='Force overwrite even if completed')
 
@@ -133,9 +126,6 @@ def write_error_yaml(filepath, meta, error_message, target):
     lines.append("applicable_tasks: []")
     lines.append("keywords: []")
 
-    if target == 'specs':
-        lines.append("references: []")
-
     lines.append("")  # Trailing newline
 
     try:
@@ -182,16 +172,6 @@ def write_entry_yaml(filepath, meta, entry, target):
         items = entry.get(field, [])
         for item in items:
             lines.append(f"  - {yaml_escape(item)}")
-
-    # references field (specs only)
-    if target == 'specs':
-        references = entry.get('references', [])
-        if references:
-            lines.append("references:")
-            for item in references:
-                lines.append(f"  - {yaml_escape(item)}")
-        else:
-            lines.append("references: []")
 
     lines.append("")  # Trailing newline
 
@@ -264,8 +244,6 @@ def main():
     content_details = parse_separated(args.content_details)
     applicable_tasks = parse_separated(args.applicable_tasks)
     keywords = parse_separated(args.keywords)
-    references = parse_separated(args.references) if target == 'specs' else []
-
     # Validation
     valid = True
     if not validate_array('content_details', content_details, MIN_CONTENT_DETAILS):
@@ -294,9 +272,6 @@ def main():
         'applicable_tasks': applicable_tasks,
         'keywords': keywords
     }
-    if target == 'specs':
-        entry['references'] = references
-
     # Write
     if not write_entry_yaml(entry_file, updated_meta, entry, target):
         return 4

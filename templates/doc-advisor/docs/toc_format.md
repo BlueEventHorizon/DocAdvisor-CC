@@ -37,7 +37,7 @@ The quality of this file determines task execution success. **Missing informatio
 - **After colon**: Always one space (`key: value`)
 - **Arrays**: Hyphen + space (`- item`)
 - **No null**: All fields must be filled
-- **No empty arrays**: `[]` is not allowed (minimum 1 item), except for `references` (specs only)
+- **No empty arrays**: `[]` is not allowed (minimum 1 item)
 - **No inline arrays**: Do not use `[a, b]` format. Always use list format
 - **No multiline**: Do not use `|` or `>`. Write in single line
 
@@ -87,7 +87,6 @@ purpose: null
 content_details: []
 applicable_tasks: []
 keywords: []
-references: []            # specs only (omitted for rules)
 ```
 
 ### _meta Field Description
@@ -128,10 +127,7 @@ docs:
     content_details: array[string] # Content details (max 10 items)
     applicable_tasks: array[string] # Applicable tasks (max 10 items)
     keywords: array[string]        # Keywords (max 10 words)
-    references: array[string]      # [specs only] Referenced documents (empty array allowed)
 ```
-
-> **Note**: The `references` field is present only in specs entries. Rules entries do not include this field.
 
 **Rules Example**:
 ```yaml
@@ -181,7 +177,6 @@ docs:
       - feature list
       - use case
       - screen navigation
-    references: []
 ```
 
 ---
@@ -217,15 +212,6 @@ docs:
 - Include technical terms, concept names, abbreviations, feature names
 - Avoid category labels (e.g., "workflow", "document") — prefer terms unique to this document
 - Max 10 words
-
-### references (specs only)
-
-- List documents **directly referenced** in this file
-- Do NOT follow references (only record what this document mentions)
-- Prefer concrete paths (e.g., `specs/requirements/auth.md`)
-- Abstract references are allowed if specific path is unknown (e.g., "authentication design document")
-- Empty array `[]` is allowed if no references found
-- Do NOT include self-reference
 
 ---
 
@@ -310,7 +296,6 @@ docs:
       - application
       - requirements
       - feature list
-    references: []
 
   specs/design/login_screen_design.md:
     doc_type: design
@@ -329,6 +314,4 @@ docs:
       - ViewModel
       - SwiftUI
       - authentication
-    references:
-      - specs/requirements/screens/login_screen.md
 ```

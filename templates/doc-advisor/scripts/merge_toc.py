@@ -243,15 +243,6 @@ def write_yaml_output(docs, output_path):
                 for item in entry[key]:
                     lines.append(f"      - {yaml_escape(item)}")
 
-        # references field (specs only, preserved if present)
-        if 'references' in entry:
-            if entry['references']:
-                lines.append("    references:")
-                for ref in entry['references']:
-                    lines.append(f"      - {yaml_escape(ref)}")
-            else:
-                lines.append("    references: []")
-
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines) + '\n')
