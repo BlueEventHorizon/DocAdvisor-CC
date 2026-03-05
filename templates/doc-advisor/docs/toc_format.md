@@ -198,6 +198,8 @@ docs:
 - List **specific content items** in the file (rules/constraints/patterns/requirements/design elements)
 - Detailed enough for subagent to understand overview without reading the file
 - Must include important constraints/requirements
+- Prioritize items **unique to this document** — generic items (e.g., "error handling", "overview") add little value
+- Describe **concrete details under each heading**, not the heading itself (e.g., not "Error handling" but "ContactContainerError enum with differentContainer, readOnlyContainer variants")
 - Max 10 items
 
 ### applicable_tasks
@@ -205,12 +207,15 @@ docs:
 - List **specific task types** that need this file
 - Avoid vague expressions, use specific task names
 - Include actions like "implementation", "creation", "modification", "review"
+- Prioritize the most specific and distinguishing tasks
 - Max 10 items
 
 ### keywords
 
 - **Matching terms** for task descriptions
+- Prioritize **class names, method names, and domain-specific terms** (e.g., `ContactListViewModel`, `canAddToGroup`, `debounce`)
 - Include technical terms, concept names, abbreviations, feature names
+- Avoid category labels (e.g., "workflow", "document") — prefer terms unique to this document
 - Max 10 words
 
 ### references (specs only)

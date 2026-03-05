@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ---
 
 
+
+## [4.2.0] - 2026-03-05
+
+### Added
+- **`toc_format_compact.md`**: New compact format definition for large projects (100+ documents) with tighter field limits (purpose ~100 chars, content_details 5, applicable_tasks 5, keywords 8)
+- **`toc-updater` `format_doc` parameter**: Agent now accepts optional format definition file path, enabling format switching
+- **Orchestrator format selection**: Phase 1 auto-selects compact or full format based on pending file count (threshold: 100)
+
+### Changed
+- **`toc_format.md`**: Added explicit upper limits (purpose max 200 chars, content_details max 10, applicable_tasks max 10, keywords max 10)
+- **`toc_orchestrator.md`**: Added format selection step in Phase 1, updated agent prompt and examples with `format_doc` parameter
+- **Version identifier**: Updated from `4.1` to `4.2` across all managed files
+
+---
 ## [4.1.0] - 2026-03-01
 
 ### Added
