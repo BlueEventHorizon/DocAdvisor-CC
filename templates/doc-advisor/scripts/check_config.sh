@@ -1,7 +1,7 @@
 #!/bin/bash
 # Doc Advisor config check: verify document directories are configured.
 # Called from skill Pre-check steps. If not configured, outputs a warning
-# that tells Claude to run /classify-docs first.
+# that tells Claude to run /setup-config first.
 # Exit 0 with no output = directories are configured (OK).
 #
 # Usage: bash check_config.sh [rules|specs]
@@ -34,4 +34,4 @@ else
 fi
 
 # Not configured → warn
-echo "[ACTION REQUIRED] Doc Advisor: Document directories are not configured${CATEGORY:+ for '$CATEGORY'}. Run /classify-docs skill to auto-detect and configure document directories. This must be completed before document search or ToC generation will work. If in plan mode, run /classify-docs after exiting plan mode."
+echo "[ACTION REQUIRED] Doc Advisor: Document directories are not configured${CATEGORY:+ for '$CATEGORY'}. Run /setup-config skill to auto-detect and configure document directories. This must be completed before document search or ToC generation will work. If in plan mode, run /setup-config after exiting plan mode."

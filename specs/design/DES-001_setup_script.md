@@ -68,7 +68,7 @@ flowchart TD
     M --> Z
 ```
 
-> **Note**: v4.0 で `.doc_structure.yaml` チェックはセットアップの最初に行われる。未検出時はユーザーに Continue/Exit を選択させ、doc-structure プラグインを先にインストールする機会を与える。ディレクトリ分類はターゲットプロジェクト側の `/classify-docs` スキルで AI 駆動で実行する。
+> **Note**: v4.0 で `.doc_structure.yaml` チェックはセットアップの最初に行われる。未検出時はユーザーに Continue/Exit を選択させ、doc-structure プラグインを先にインストールする機会を与える。ディレクトリ分類はターゲットプロジェクト側の `/setup-config` スキルで AI 駆動で実行する。
 
 ---
 
@@ -132,7 +132,7 @@ TARGET_DIR/
 │   ├── agents/                      # Agent 定義（上書きのみ、1ファイル）
 │   │   └── toc-updater.md           # ワーカー: rules/specs の個別エントリ処理
 │   ├── skills/
-│   │   ├── classify-docs/           # ドキュメントディレクトリ自動分類スキル
+│   │   ├── setup-config/           # ドキュメントディレクトリ自動分類スキル
 │   │   │   └── SKILL.md
 │   │   ├── query-rules/             # ドキュメント検索スキル (context: fork)
 │   │   │   └── SKILL.md
@@ -143,12 +143,12 @@ TARGET_DIR/
 │   │   └── create-specs-toc/        # specs ToC 生成スキル
 │   │       └── SKILL.md
 │   └── doc-advisor/                 # 共有リソース + ランタイム出力
-│       ├── config.yaml              # 設定ファイル（root_dirs は setup.sh で取り込み、または /classify-docs で設定）
+│       ├── config.yaml              # 設定ファイル（root_dirs は setup.sh で取り込み、または /setup-config で設定）
 │       ├── docs/                    # ドキュメント
 │       │   ├── toc_orchestrator.md
 │       │   ├── toc_format.md
 │       │   ├── toc_update_workflow.md
-│       │   └── classification_rules.md  # /classify-docs 用分類ルール
+│       │   └── classification_rules.md  # /setup-config 用分類ルール
 │       ├── scripts/                 # Python/Shell スクリプト
 │       │   ├── toc_utils.py
 │       │   ├── classify_dirs.py         # ディレクトリスキャナー
@@ -201,7 +201,7 @@ v2.0 からのアップグレード時、doc-advisor のレガシーファイル
 | ディレクトリ | 方式 | 理由 |
 |-------------|------|------|
 | `agents/` | **上書きのみ** | ユーザーの独自 agent を保護（管理対象は `toc-updater.md` 1 ファイルのみ） |
-| `skills/classify-docs/` | **上書き** | 単一ファイルなので上書きで十分 |
+| `skills/setup-config/` | **上書き** | 単一ファイルなので上書きで十分 |
 | `skills/query-rules/` | **上書き** | 単一ファイルなので上書きで十分 |
 | `skills/query-specs/` | **上書き** | 単一ファイルなので上書きで十分 |
 | `skills/create-rules-toc/` | **上書き** | 単一ファイルなので上書きで十分 |
@@ -267,16 +267,16 @@ v3.8 でカテゴリ別に分かれていたスクリプト・Agent・ドキュ�
 
 ### ディレクトリ選択の廃止
 
-v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` は空配列 `[]` で生成され、`/classify-docs` スキルで自動分類・設定する。
+v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` は空配列 `[]` で生成され、`/setup-config` スキルで自動分類・設定する。
 
-### v4.0: classify-docs 復活と SessionStart hook（v3.8 → v4.0）
+### v4.0: setup-config 復活と SessionStart hook（v3.8 → v4.0）
 
 | 変更 | 内容 |
 |------|------|
-| `setup_dirs.sh` 廃止 | `/classify-docs` スキルで完全に代替 |
+| `setup_dirs.sh` 廃止 | `/setup-config` スキルで完全に代替 |
 | `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要 |
-| `classify-docs` スキル復活 | テンプレートとして `templates/skills/classify-docs/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
-| スキル Pre-check 導入 | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/classify-docs` を先に実行させる |
+| `setup-config` スキル復活 | テンプレートとして `templates/skills/setup-config/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
+| スキル Pre-check 導入 | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/setup-config` を先に実行させる |
 
 ---
 
@@ -304,7 +304,7 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 ```yaml
 # === rules 設定 ===
 rules:
-  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # root_dirs: []    # Auto-configured by setup.sh or /setup-config
   # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
   toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
   checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
@@ -318,7 +318,7 @@ rules:
 
 # === specs 設定 ===
 specs:
-  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # root_dirs: []    # Auto-configured by setup.sh or /setup-config
   # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
   toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
   checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
@@ -337,13 +337,13 @@ common:
     fallback_to_serial: true     # 並列失敗時は直列実行
 ```
 
-> **Note**: `root_dirs` と `doc_types_map` はテンプレート上はコメントアウト状態。setup.sh は `.doc_structure.yaml` が存在する場合、`import_doc_structure.py` を呼び出して config.yaml の `root_dirs` と `doc_types_map` に書き込む。存在しない場合はテンプレートコピーに徹し、ターゲットプロジェクトで `/classify-docs` スキルが AI 駆動で設定する。実行時に `.doc_structure.yaml` は参照しない（REQ-001 FR-08）。
+> **Note**: `root_dirs` と `doc_types_map` はテンプレート上はコメントアウト状態。setup.sh は `.doc_structure.yaml` が存在する場合、`import_doc_structure.py` を呼び出して config.yaml の `root_dirs` と `doc_types_map` に書き込む。存在しない場合はテンプレートコピーに徹し、ターゲットプロジェクトで `/setup-config` スキルが AI 駆動で設定する。実行時に `.doc_structure.yaml` は参照しない（REQ-001 FR-08）。
 
 ## スキル Pre-check（v4.0）
 
 ### 概要
 
-各スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の先頭で `check_config.sh` を実行し、ドキュメントディレクトリが未設定の場合は `/classify-docs` を先に実行させる。
+各スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の先頭で `check_config.sh` を実行し、ドキュメントディレクトリが未設定の場合は `/setup-config` を先に実行させる。
 
 ### check_config.sh のチェック順序
 
@@ -361,7 +361,7 @@ common:
 bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 - No output → Proceed
-- Output present → STOP. Run /classify-docs first, then restart this skill
+- Output present → STOP. Run /setup-config first, then restart this skill
 ```
 
 > カテゴリ引数（`rules` または `specs`）を渡すことで、対象カテゴリの `root_dirs` のみを検証する。引数なしの場合はいずれかの `root_dirs` が設定されていれば OK（後方互換）。
@@ -384,7 +384,7 @@ bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 ### config.yaml に root_dirs が設定済みの場合
 
-setup.sh が `.doc_structure.yaml` を取り込み済み、または `/classify-docs` で設定済み。すぐに ToC 生成が可能:
+setup.sh が `.doc_structure.yaml` を取り込み済み、または `/setup-config` で設定済み。すぐに ToC 生成が可能:
 
 1. Claude Code を起動:
    ```bash
@@ -399,11 +399,11 @@ setup.sh が `.doc_structure.yaml` を取り込み済み、または `/classify-
 
 ### config.yaml に root_dirs が未設定の場合
 
-スキルの Pre-check（check_config.sh）が未設定を検出し、`/classify-docs` の実行を指示する:
+スキルの Pre-check（check_config.sh）が未設定を検出し、`/setup-config` の実行を指示する:
 
 1. Claude Code を起動
-2. `/create-rules-toc --full` を実行 → Pre-check が `/classify-docs` の実行を指示
-3. `/classify-docs` で root_dirs が設定された後、再度 `/create-rules-toc --full`
+2. `/create-rules-toc --full` を実行 → Pre-check が `/setup-config` の実行を指示
+3. `/setup-config` で root_dirs が設定された後、再度 `/create-rules-toc --full`
 
 ## 注意事項
 
@@ -415,8 +415,8 @@ setup.sh が `.doc_structure.yaml` を取り込み済み、または `/classify-
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
 - `config.yaml` が既存の場合はユーザーに確認を求める
 - setup.sh はテンプレートコピー・変数置換・`.doc_structure.yaml` からの設定取り込みを行う。AI によるディレクトリ分類は行わない
-- `.doc_structure.yaml` がない場合、`config.yaml` の `root_dirs` はコメントアウト状態のまま（`/classify-docs` で設定）
-- 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/classify-docs` を先に実行させる
+- `.doc_structure.yaml` がない場合、`config.yaml` の `root_dirs` はコメントアウト状態のまま（`/setup-config` で設定）
+- 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/setup-config` を先に実行させる
 
 ## 関連ドキュメント
 

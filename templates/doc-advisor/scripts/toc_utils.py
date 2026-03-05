@@ -124,7 +124,7 @@ def load_config(target=None):
 
     config.yaml is the sole runtime configuration (FR-08-1).
     root_dirs and doc_types_map must be pre-configured by setup.sh
-    (from .doc_structure.yaml) or /classify-docs skill.
+    (from .doc_structure.yaml) or /setup-config skill.
     This function does NOT fall back to .doc_structure.yaml at runtime.
 
     Args:

@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
             echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
             echo "If .doc_structure.yaml exists, directories are imported into config.yaml at setup time."
-            echo "Otherwise, run /classify-docs after setup to configure directories."
+            echo "Otherwise, run /setup-config after setup to configure directories."
             exit 0
             ;;
         -*)
@@ -123,10 +123,10 @@ if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
 else
     printf "${YELLOW}  .doc_structure.yaml not found${NC}\n"
     echo "  Document directories will need to be configured after setup."
-    printf "  Run ${YELLOW}/classify-docs${NC} in Claude Code to auto-detect and configure.\n"
+    printf "  Run ${YELLOW}/setup-config${NC} in Claude Code to auto-detect and configure.\n"
     echo ""
     echo "  Options:"
-    echo "    [c] Continue setup (configure directories later with /classify-docs)"
+    echo "    [c] Continue setup (configure directories later with /setup-config)"
     echo "    [e] Exit (install doc-structure plugin first)"
     read -p "  Choice [c]: " DOC_STRUCTURE_CHOICE
     DOC_STRUCTURE_CHOICE="${DOC_STRUCTURE_CHOICE:-c}"
@@ -192,7 +192,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="4.2"
+DOC_ADVISOR_VERSION="4.3"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -317,8 +317,13 @@ for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
     fi
 done
 
-# v3.9 had removed classify-docs skill, but v4.0 restores it
-# Old classify-docs (pre-4.0) will be overwritten by template copy
+# v4.2: classify-docs renamed to setup-config
+OLD_CLASSIFY_DIR="${SKILLS_DIR}/classify-docs"
+if [[ -d "$OLD_CLASSIFY_DIR" ]]; then
+    rm -rf "$OLD_CLASSIFY_DIR"
+    printf "${GREEN}Removed legacy: skills/classify-docs/ (renamed to setup-config/)${NC}\n"
+    LEGACY_CLEANED=1
+fi
 for old_script in "set_root_dirs.py"; do
     if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
         rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
@@ -455,9 +460,9 @@ echo "  skills/query-specs/ ..."
 mkdir -p "${SKILLS_DIR}/query-specs"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
 
-echo "  skills/classify-docs/ ..."
-mkdir -p "${SKILLS_DIR}/classify-docs"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/classify-docs/SKILL.md" "${SKILLS_DIR}/classify-docs/SKILL.md"
+echo "  skills/setup-config/ ..."
+mkdir -p "${SKILLS_DIR}/setup-config"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/setup-config/SKILL.md" "${SKILLS_DIR}/setup-config/SKILL.md"
 
 # Copy doc-advisor resources (config, docs, scripts)
 echo "  doc-advisor/ ..."
@@ -497,7 +502,7 @@ if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]]; then
         "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"; then
         printf "${GREEN}  root_dirs and doc_types_map imported from .doc_structure.yaml${NC}\n"
     else
-        printf "${YELLOW}  Warning: Failed to import .doc_structure.yaml. Run /classify-docs later.${NC}\n"
+        printf "${YELLOW}  Warning: Failed to import .doc_structure.yaml. Run /setup-config later.${NC}\n"
     fi
 fi
 
@@ -528,7 +533,7 @@ echo "  1. Start Claude Code:"
 printf "     cd ${BLUE}$(display_path "${TARGET_DIR}")${NC}\n"
 echo "     claude"
 if [[ "$HAS_DOC_STRUCTURE" != "true" ]]; then
-    printf "  2. Run ${YELLOW}/classify-docs${NC} to configure document directories\n"
+    printf "  2. Run ${YELLOW}/setup-config${NC} to configure document directories\n"
     printf "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
     printf "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
 else

@@ -70,7 +70,16 @@ cd /path/to/your-project
 claude
 ```
 
-4) 初回 ToC 生成
+4) ドキュメントディレクトリの設定
+
+`setup.sh` が `.doc_structure.yaml` を検出した場合、ディレクトリは自動設定されます。
+検出されなかった場合は、分類スキルを実行してください:
+
+```bash
+/setup-config
+```
+
+5) 初回 ToC 生成
 
 ```bash
 /create-rules-toc --full

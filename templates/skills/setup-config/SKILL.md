@@ -1,5 +1,5 @@
 ---
-name: classify-docs
+name: setup-config
 description: |
   Auto-detect and classify project document directories as rules or specs.
   Updates config.yaml root_dirs based on classification results.
@@ -13,14 +13,14 @@ argument-hint: "[--update]"
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
-# classify-docs
+# setup-config
 
 Auto-detect and classify project document directories for Doc Advisor.
 
 ## Usage
 
 ```
-/classify-docs [--update]
+/setup-config [--update]
 ```
 
 | Argument | Description |
@@ -105,7 +105,7 @@ Replace the commented `root_dirs` and `doc_types_map` lines with actual values:
 ```yaml
 # Before:
 rules:
-  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+  # root_dirs: []    # Auto-configured by setup.sh or /setup-config
   # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
 
 # After:

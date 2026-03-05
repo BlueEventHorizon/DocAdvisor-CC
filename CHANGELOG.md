@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+## [4.3.0] - 2026-03-05
+
+### Changed
+- **`/classify-docs` → `/setup-config`**: Renamed for clarity — "setup config" better describes the post-setup configuration step
+- **`yaml_escape()` precision**: Fixed over-quoting in `toc_utils.py` — commas, colons without trailing space, and brackets in middle of strings no longer trigger unnecessary double-quoting (YAML 1.2 block plain scalar compliant)
+- **`toc-updater.md` command example**: Unified `--target rules` to `--target {target}` — specs target was broken after references section removal
+- **README.md / README_ja.md**: Added `/setup-config` step to Quick Start (step 4) for projects without `.doc_structure.yaml`
+
+### Fixed
+- **`yaml_escape()` comments**: Updated `references: []` example to `keywords: []` in `merge_toc.py` and `toc_utils.py`
+
+---
+
 ## [4.2.0] - 2026-03-05
 
 ### Added

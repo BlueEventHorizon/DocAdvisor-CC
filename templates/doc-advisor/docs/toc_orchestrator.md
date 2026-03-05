@@ -44,11 +44,11 @@ Before Phase 1, verify that document directories are configured:
 1. The skill's Pre-check step runs `check_config.sh {target}` which verifies
    that `root_dirs` is set for the target category in `config.yaml`
 2. If `check_config.sh` outputs a warning, stop and direct the user to run
-   `/classify-docs` first
+   `/setup-config` first
 3. Once `check_config.sh` passes (no output), proceed to Phase 1
 
 Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
-`root_dirs` must be pre-configured by `setup.sh` or `/classify-docs`.
+`root_dirs` must be pre-configured by `setup.sh` or `/setup-config`.
 
 ### Phase 1: Initialization
 
