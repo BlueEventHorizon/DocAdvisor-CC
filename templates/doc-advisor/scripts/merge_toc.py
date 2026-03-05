@@ -166,7 +166,7 @@ def load_existing_toc(toc_path):
                 key = key.strip()
                 val = val.strip().strip('"\'')
                 if val == '[]':
-                    # Inline empty array (e.g., "references: []")
+                    # Inline empty array (e.g., "keywords: []")
                     current_list = []
                     current_entry[key] = current_list
                 elif val:

@@ -38,11 +38,9 @@ Read the following before processing:
 3. Extract each field according to "Field Guidelines" in `toc_format.md`
 4. Call the write script to save the completed entry:
 
-### For rules target:
-
 ```bash
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/write_pending.py \
-  --target rules \
+  --target {target} \
   --entry-file "{entry_file}" \
   --title "{extracted title}" \
   --purpose "{extracted purpose}" \
