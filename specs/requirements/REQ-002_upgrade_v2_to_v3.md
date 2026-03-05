@@ -194,7 +194,7 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 
 ---
 
-### REQ-002-07: setup-config スキルの復活（v4.0）
+### REQ-002-07: setup-config スキルの復活（v4.0、旧名 classify-docs）
 
 **説明**: v3.9 で削除された setup-config スキルを復活し、AI 駆動のディレクトリ分類に変更する
 

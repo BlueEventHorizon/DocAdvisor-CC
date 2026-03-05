@@ -317,7 +317,7 @@ for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
     fi
 done
 
-# v4.2: classify-docs renamed to setup-config
+# v4.3: classify-docs renamed to setup-config
 OLD_CLASSIFY_DIR="${SKILLS_DIR}/classify-docs"
 if [[ -d "$OLD_CLASSIFY_DIR" ]]; then
     rm -rf "$OLD_CLASSIFY_DIR"
