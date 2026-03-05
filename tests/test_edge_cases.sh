@@ -317,6 +317,76 @@ else
 fi
 echo ""
 
+# --------------------------------------------------
+# Test: yaml_escape quoting rules
+# --------------------------------------------------
+echo "--- yaml_escape unit tests ---"
+SCRIPTS_DIR_ESCAPE="$TEST_PROJECT/.claude/doc-advisor/scripts"
+
+$PYTHON_CMD -c "
+import sys
+sys.path.insert(0, '$SCRIPTS_DIR_ESCAPE')
+from toc_utils import yaml_escape
+
+# (input, should_be_quoted, description)
+cases = [
+    # Should NOT be quoted (block plain scalar safe)
+    ('normal text', False, 'plain text'),
+    ('App Store, Google Play', False, 'comma in middle'),
+    ('scope (App Store, Google Play)', False, 'parens with comma'),
+    ('Role assignments (Yumemi, Daytona)', False, 'parens with comma 2'),
+    ('10:00 deadline', False, 'colon without trailing space'),
+    ('foo&bar', False, 'ampersand in middle'),
+    ('item [1] description', False, 'brackets in middle'),
+
+    # Should be quoted (YAML special)
+    ('foo: bar', True, 'colon+space anywhere'),
+    ('see section #3', True, 'space+hash anywhere'),
+    ('[starts with bracket', True, 'first char ['),
+    ('{starts with brace', True, 'first char {'),
+    ('- starts with dash', True, 'first char -'),
+    ('#starts with hash', True, 'first char #'),
+    ('*starts with star', True, 'first char *'),
+    ('&starts with amp', True, 'first char &'),
+    ('!starts with bang', True, 'first char !'),
+    ('trailing colon:', True, 'ends with colon'),
+    ('trailing space ', True, 'ends with space'),
+    (' leading space', True, 'starts with space'),
+    ('true', True, 'YAML boolean'),
+    ('false', True, 'YAML boolean false'),
+    ('null', True, 'YAML null'),
+    ('123', True, 'number int'),
+    ('3.14', True, 'number float'),
+    ('', True, 'empty string'),
+    ('line1\nline2', True, 'contains newline'),
+    ('has\ttab', True, 'contains tab'),
+    ('has \"double quotes\"', True, 'contains double quote'),
+    (\"has 'single quotes'\", True, 'contains single quote'),
+]
+
+failed = 0
+for text, should_quote, desc in cases:
+    result = yaml_escape(text)
+    is_quoted = result.startswith('\"') and result.endswith('\"')
+    if is_quoted != should_quote:
+        print(f'FAIL: {desc} | input={text!r} result={result!r} expected_quoted={should_quote}')
+        failed += 1
+    else:
+        print(f'PASS: {desc}')
+
+sys.exit(1 if failed else 0)
+" 2>/dev/null
+ESCAPE_EXIT=$?
+
+if [[ $ESCAPE_EXIT -eq 0 ]]; then
+    echo -e "${GREEN}PASS${NC}: yaml_escape quoting rules"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: yaml_escape quoting rules"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
 echo "=================================================="
 echo "Summary"
 echo "=================================================="
