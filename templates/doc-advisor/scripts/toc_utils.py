@@ -489,10 +489,23 @@ def yaml_escape(s):
     # Convert to string if not already
     s = str(s)
 
-    # Check if special character escaping is needed
-    needs_quotes = any(c in s for c in ':#{}[]&*!|>\'"%@`\n\r\t,?')
-    needs_quotes = needs_quotes or s.startswith('-') or s.startswith(' ')
-    needs_quotes = needs_quotes or s.endswith(' ')  # Trailing space
+    # Check if first character is a YAML indicator (block plain scalar rule)
+    first_char_indicators = set('-?:,[]{}#&*!|>\'"% @`~')
+    needs_quotes = s[0] in first_char_indicators
+
+    # Patterns special ANYWHERE in block plain scalar
+    # ": " and " #" are YAML spec restrictions
+    # '"' and "'" cause round-trip issues with parse_simple_yaml's strip()
+    if not needs_quotes:
+        needs_quotes = ': ' in s or ' #' in s or '"' in s or "'" in s
+
+    # Trailing colon or trailing space
+    if not needs_quotes:
+        needs_quotes = s.endswith(':') or s.endswith(' ')
+
+    # Control characters always need quoting
+    if not needs_quotes:
+        needs_quotes = any(c in s for c in '\n\r\t')
 
     # Check if it looks like a number (would be parsed as int/float)
     if not needs_quotes:
