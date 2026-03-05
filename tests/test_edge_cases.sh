@@ -244,7 +244,6 @@ docs:
       - "キーワード3"
       - "キーワード4"
       - "キーワード5"
-    references: []
   specs/main/requirements/special_chars.md:
     title: "Special Characters Test"
     purpose: "Test document"
@@ -262,7 +261,6 @@ docs:
       - "chars"
       - "yaml"
       - "edge"
-    references: []
 TOCEOF
 
 # Create a pending YAML file for incremental merge
@@ -289,7 +287,6 @@ keywords:
   - "file"
   - "edge"
   - "case"
-references: []
 PENDINGEOF
 
 # Run incremental merge (--mode incremental)

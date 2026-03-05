@@ -166,7 +166,7 @@ def load_existing_toc(toc_path):
                 key = key.strip()
                 val = val.strip().strip('"\'')
                 if val == '[]':
-                    # Inline empty array (e.g., "references: []")
+                    # Inline empty array (e.g., "keywords: []")
                     current_list = []
                     current_entry[key] = current_list
                 elif val:
@@ -242,15 +242,6 @@ def write_yaml_output(docs, output_path):
                 lines.append(f"    {key}:")
                 for item in entry[key]:
                     lines.append(f"      - {yaml_escape(item)}")
-
-        # references field (specs only, preserved if present)
-        if 'references' in entry:
-            if entry['references']:
-                lines.append("    references:")
-                for ref in entry['references']:
-                    lines.append(f"      - {yaml_escape(ref)}")
-            else:
-                lines.append("    references: []")
 
     try:
         with open(output_path, 'w', encoding='utf-8') as f:

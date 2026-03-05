@@ -426,7 +426,7 @@ def parse_simple_yaml(content):
             value = value.strip()
 
             if value == '[]':
-                # Inline empty array (e.g., "references: []")
+                # Inline empty array (e.g., "keywords: []")
                 current_key = key
                 current_list = []
                 result[key] = current_list

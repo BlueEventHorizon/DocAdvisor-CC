@@ -38,11 +38,9 @@ Read the following before processing:
 3. Extract each field according to "Field Guidelines" in `toc_format.md`
 4. Call the write script to save the completed entry:
 
-### For rules target:
-
 ```bash
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/write_pending.py \
-  --target rules \
+  --target {target} \
   --entry-file "{entry_file}" \
   --title "{extracted title}" \
   --purpose "{extracted purpose}" \
@@ -51,24 +49,8 @@ Read the following before processing:
   --keywords "{kw1 ||| kw2 ||| kw3}"
 ```
 
-### For specs target:
-
-```bash
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/write_pending.py \
-  --target specs \
-  --entry-file "{entry_file}" \
-  --title "{extracted title}" \
-  --purpose "{extracted purpose}" \
-  --content-details "{item1 ||| item2 ||| item3}" \
-  --applicable-tasks "{task1 ||| task2}" \
-  --keywords "{kw1 ||| kw2 ||| kw3}" \
-  --references "{ref1 ||| ref2 or empty}"
-```
-
 **Important**:
 - Arrays are passed as `|||`-separated strings (NOT comma-separated). This allows commas within items (e.g., "10,000件").
-- For specs target: `--references` is required. Pass empty string `""` if no references found.
-- For specs target: Verify concrete file paths exist using Glob before including them. Do NOT guess or hallucinate file paths. If the document explicitly mentions a reference but the specific path cannot be determined, record the reference as written in the source document.
 
 ## Error Handling
 
