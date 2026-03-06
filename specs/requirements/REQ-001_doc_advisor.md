@@ -8,9 +8,9 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 
 | ID | 要件 |
 |----|------|
-| PRE-01 | `.doc_structure.yaml` がプロジェクトルートに存在する場合、setup.sh がセットアップ時に config.yaml へ取り込む。存在しない場合は `/classify-docs` で代替する（PRE-03 参照） |
+| PRE-01 | `.doc_structure.yaml` がプロジェクトルートに存在する場合、setup.sh がセットアップ時に config.yaml へ取り込む。存在しない場合は `/setup-config` で代替する（PRE-03 参照） |
 | PRE-02 | `.doc_structure.yaml` は doc-structure プラグイン（`/doc-structure:init-doc-structure`）で作成する。Doc Advisor は読み取り専用 |
-| PRE-03 | `.doc_structure.yaml` がない場合、`/classify-docs` スキルで `config.yaml` の `root_dirs` を自動設定できる |
+| PRE-03 | `.doc_structure.yaml` がない場合、`/setup-config` スキルで `config.yaml` の `root_dirs` を自動設定できる |
 
 ## 機能要件
 
@@ -63,7 +63,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 
 | ID | 要件 |
 |----|------|
-| FR-06-1 | `setup.sh` は `.doc_structure.yaml` が存在しない場合、警告を表示し `/classify-docs` の実行を案内する（エラー終了しない） |
+| FR-06-1 | `setup.sh` は `.doc_structure.yaml` が存在しない場合、警告を表示し `/setup-config` の実行を案内する（エラー終了しない） |
 | FR-06-2 | `setup.sh` はテンプレートコピー・プレースホルダー置換・`.doc_structure.yaml` からの設定取り込み（`import_doc_structure.py`）を行う。AI によるディレクトリ分類は行わない |
 | FR-06-3 | `setup.sh` は `check_config.sh` をテンプレートとしてコピーする（スキル Pre-check で使用） |
 
@@ -71,19 +71,19 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 
 | ID | 要件 |
 |----|------|
-| FR-07-1 | `/classify-docs` スキルは `classify_dirs.py` でプロジェクトをスキャンし、AI が `classification_rules.md` に基づいてディレクトリを分類する |
-| FR-07-2 | `/classify-docs` スキルはユーザー確認後に `config.yaml` の `root_dirs` を更新する |
+| FR-07-1 | `/setup-config` スキルは `classify_dirs.py` でプロジェクトをスキャンし、AI が `classification_rules.md` に基づいてディレクトリを分類する |
+| FR-07-2 | `/setup-config` スキルはユーザー確認後に `config.yaml` の `root_dirs` を更新する |
 | FR-07-3 | 各スキル（create-*-toc, query-*）の先頭で `check_config.sh` を実行し、`config.yaml` の対象カテゴリの `root_dirs` 設定状態を検査する |
-| FR-07-4 | `check_config.sh` は未設定時のみ警告メッセージを出力し、`/classify-docs` を先に実行させる（設定済みなら出力なし） |
+| FR-07-4 | `check_config.sh` は未設定時のみ警告メッセージを出力し、`/setup-config` を先に実行させる（設定済みなら出力なし） |
 
 ### FR-08: config.yaml ランタイム設定原則
 
 | ID | 要件 |
 |----|------|
 | FR-08-1 | config.yaml は Doc Advisor の唯一のランタイム設定ファイルである。全スクリプト・スキルは config.yaml のみを参照して動作する |
-| FR-08-2 | `.doc_structure.yaml` はセットアップ時（setup.sh または `/classify-docs`）にのみ参照し、結果を config.yaml の `root_dirs` に書き込む。実行時に `.doc_structure.yaml` を参照してはならない |
+| FR-08-2 | `.doc_structure.yaml` はセットアップ時（setup.sh または `/setup-config`）にのみ参照し、結果を config.yaml の `root_dirs` に書き込む。実行時に `.doc_structure.yaml` を参照してはならない |
 | FR-08-3 | config.yaml の有効条件: 対象カテゴリ（rules または specs）の `root_dirs` がコメントアウトでない状態で記載されていること（空配列 `[]` も設定済みと見なす） |
-| FR-08-4 | `check_config.sh` はスキル起動時に config.yaml の `root_dirs` 設定を検証する。未設定の場合は警告を出力し `/classify-docs` の実行を促す |
+| FR-08-4 | `check_config.sh` はスキル起動時に config.yaml の `root_dirs` 設定を検証する。未設定の場合は警告を出力し `/setup-config` の実行を促す |
 | FR-08-5 | `check_config.sh` の検証を通過した場合、後段スクリプトは root_dirs が有効であることを前提として動作してよい（二重検証は不要） |
 
 ## 非機能要件

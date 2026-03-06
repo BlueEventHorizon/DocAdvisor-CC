@@ -187,7 +187,7 @@ chmod +x *.sh
 | 10 | Old version deleted, current version protected |
 | 11 | Advisor agent deletion (T-008) |
 | 12 | query-* skill installation (T-009) |
-| 13 | classify-docs skill installed |
+| 13 | setup-config skill installed |
 | 14 | v3.8 unified scripts (old scripts removed) |
 | 15 | v3.8 unified agents (old agents removed) |
 | 16 | config.yaml root_dirs imported from .doc_structure.yaml |

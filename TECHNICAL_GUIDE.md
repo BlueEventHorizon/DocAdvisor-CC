@@ -287,7 +287,7 @@ your-project/
 │   ├── agents/
 │   │   └── toc-updater.md
 │   ├── skills/
-│   │   ├── classify-docs/
+│   │   ├── setup-config/
 │   │   │   └── SKILL.md        # document directory auto-classification skill
 │   │   ├── query-rules/
 │   │   │   └── SKILL.md        # rules document search skill
@@ -440,7 +440,7 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 
 **Installed** (v3.8+ structure):
 - `.claude/agents/toc-updater.md` (unified worker agent)
-- `.claude/skills/classify-docs/SKILL.md` (document directory auto-classification)
+- `.claude/skills/setup-config/SKILL.md` (document directory auto-classification)
 - `.claude/skills/query-rules/SKILL.md` (rules document search)
 - `.claude/skills/query-specs/SKILL.md` (specs document search)
 - `.claude/skills/create-rules-toc/SKILL.md` (rules ToC generation)

@@ -23,7 +23,7 @@ import sys
 import re
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, resolve_config_path
+from toc_utils import get_project_root, load_config, resolve_config_path, validate_path_within_base
 
 # Global configuration (initialized in init_config())
 CONFIG = None
@@ -188,7 +188,11 @@ def validate_toc(toc_path):
     # キーはプロジェクトルートからの相対パス（例: specs/requirements/app.md）
     file_errors = []
     for file_path in docs.keys():
-        full_path = PROJECT_ROOT / file_path
+        try:
+            full_path = validate_path_within_base(file_path, PROJECT_ROOT)
+        except ValueError:
+            file_errors.append(f"不正なパス: '{file_path}' はプロジェクト外を参照しています")
+            continue
         if not full_path.exists():
             file_errors.append(f"ファイル不在: '{file_path}' が存在しません")
 
@@ -225,6 +229,11 @@ def main():
         idx = sys.argv.index('--file')
         if idx + 1 < len(sys.argv):
             toc_path = Path(sys.argv[idx + 1])
+            try:
+                toc_path = validate_path_within_base(toc_path, PROJECT_ROOT)
+            except ValueError:
+                print(f"エラー: 不正なパス: {toc_path}")
+                return 1
 
     if not toc_path.exists():
         print(f"エラー: ファイルが存在しません: {toc_path}")

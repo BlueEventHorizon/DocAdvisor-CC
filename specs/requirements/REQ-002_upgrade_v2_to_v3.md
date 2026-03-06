@@ -186,7 +186,7 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 | T-007 | agents/ カスタム保持 | ユーザーの独自 agent が保持される |
 | T-008 | advisor agent 削除（v3.7） | rules-advisor.md, specs-advisor.md が削除される |
 | T-009 | query-\* skill インストール | query-rules/SKILL.md, query-specs/SKILL.md が存在する |
-| T-010 | classify-docs skill インストール（v4.0） | classify-docs/SKILL.md が存在する |
+| T-010 | setup-config skill インストール（v4.0） | setup-config/SKILL.md が存在する |
 | T-011 | check_config.sh コピー（v4.0） | scripts/check_config.sh が存在し実行権限がある |
 | T-012 | スキル Pre-check（v4.0） | create-*-toc, query-* の SKILL.md に Pre-check セクションが含まれる |
 
@@ -194,34 +194,34 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 
 ---
 
-### REQ-002-07: classify-docs スキルの復活（v4.0）
+### REQ-002-07: setup-config スキルの復活（v4.0、旧名 classify-docs）
 
-**説明**: v3.9 で削除された classify-docs スキルを復活し、AI 駆動のディレクトリ分類に変更する
+**説明**: v3.9 で削除された setup-config スキルを復活し、AI 駆動のディレクトリ分類に変更する
 
 **変更内容**:
 - `setup_dirs.sh` を廃止（対話的な手動ディレクトリ入力は不要に）
 - `--skip-doc-structure` フラグを廃止
-- `/classify-docs` スキルをテンプレートとして `templates/skills/classify-docs/SKILL.md` に配置
+- `/setup-config` スキルをテンプレートとして `templates/skills/setup-config/SKILL.md` に配置
 - `classify_dirs.py` と `classification_rules.md` をテンプレートに追加
 
 **受入条件**:
-- [ ] setup.sh 実行後に `skills/classify-docs/SKILL.md` が存在する
+- [ ] setup.sh 実行後に `skills/setup-config/SKILL.md` が存在する
 - [ ] `classify_dirs.py` と `classification_rules.md` が `doc-advisor/scripts/` と `doc-advisor/docs/` にコピーされる
-- [ ] `/classify-docs` 実行で AI がディレクトリを分類し `config.yaml` の `root_dirs` を更新する
+- [ ] `/setup-config` 実行で AI がディレクトリを分類し `config.yaml` の `root_dirs` を更新する
 
 ### REQ-002-08: スキル Pre-check の導入（v4.0）
 
-**説明**: ドキュメントディレクトリ未設定時に `/classify-docs` を先に実行させるスキル Pre-check を導入する
+**説明**: ドキュメントディレクトリ未設定時に `/setup-config` を先に実行させるスキル Pre-check を導入する
 
 **変更内容**:
 - `check_config.sh` を `templates/doc-advisor/scripts/` に追加
 - 各スキル（create-*-toc, query-*）の SKILL.md 先頭に Pre-check ステップを追加
-- Pre-check は `check_config.sh` を実行し、出力があれば `/classify-docs` を先に実行させる
+- Pre-check は `check_config.sh` を実行し、出力があれば `/setup-config` を先に実行させる
 
 **受入条件**:
 - [ ] setup.sh 実行後に `scripts/check_config.sh` が存在し実行権限がある
 - [ ] 対象カテゴリの `root_dirs` が `config.yaml` に設定済みの場合、`check_config.sh` は何も出力しない（`.doc_structure.yaml` がある場合は setup.sh が取り込み済みのため `root_dirs` は設定済み）
-- [ ] 未設定時のみ `/classify-docs` を案内する `[ACTION REQUIRED]` メッセージが出力される
+- [ ] 未設定時のみ `/setup-config` を案内する `[ACTION REQUIRED]` メッセージが出力される
 - [ ] `check_config.sh` はカテゴリ引数（rules/specs）を受け付け、対象カテゴリ単位で検証する
 - [ ] 4 スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の SKILL.md に Pre-check セクションがある
 

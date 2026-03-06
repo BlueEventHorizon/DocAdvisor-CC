@@ -34,7 +34,7 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import yaml_escape, load_entry_file
+from toc_utils import yaml_escape, load_entry_file, get_project_root, validate_path_within_base
 
 
 # Validation settings
@@ -189,6 +189,14 @@ def main():
 
     target = args.target
     entry_file = Path(args.entry_file)
+
+    # Path traversal check (CWE-22)
+    project_root = get_project_root()
+    try:
+        entry_file = validate_path_within_base(entry_file, project_root)
+    except ValueError:
+        print(f"Error: Path traversal detected: {args.entry_file}")
+        return 1
 
     # File existence check
     if not entry_file.exists():

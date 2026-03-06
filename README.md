@@ -72,7 +72,16 @@ cd /path/to/your-project
 claude
 ```
 
-4) Generate initial ToC files
+4) Configure document directories
+
+If `setup.sh` detected `.doc_structure.yaml`, directories are auto-configured.
+Otherwise, run the classification skill:
+
+```bash
+/setup-config
+```
+
+5) Generate initial ToC files
 
 ```bash
 /create-rules-toc --full

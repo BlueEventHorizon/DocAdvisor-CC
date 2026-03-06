@@ -27,7 +27,7 @@ bash .claude/doc-advisor/scripts/check_config.sh rules
 ```
 
 - **No output** → Proceed to Procedure
-- **Output present** → STOP. Run `/classify-docs` skill first to configure document directories, then restart this skill
+- **Output present** → STOP. Run `/setup-config` skill first to configure document directories, then restart this skill
 
 ## Procedure
 

@@ -12,8 +12,10 @@ Usage:
 Created by k_terada
 """
 
+import os
 import re
 import sys
+from pathlib import Path
 
 
 def parse_doc_structure(content):
@@ -212,6 +214,14 @@ def main():
 
     doc_structure_path = sys.argv[1]
     config_yaml_path = sys.argv[2]
+
+    # Path traversal check (CWE-22)
+    cwd = Path.cwd().resolve()
+    for arg_path in [doc_structure_path, config_yaml_path]:
+        resolved = Path(arg_path).resolve()
+        if not str(resolved).startswith(str(cwd) + os.sep) and resolved != cwd:
+            print(f"Error: Path traversal detected: {arg_path}", file=sys.stderr)
+            sys.exit(1)
 
     # Read .doc_structure.yaml
     try:
