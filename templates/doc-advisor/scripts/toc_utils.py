@@ -74,6 +74,28 @@ def get_project_root():
     raise RuntimeError("Project root not found (.git or .claude directory required)")
 
 
+def validate_path_within_base(path, base_dir):
+    """
+    Validate that a path resolves within the base directory.
+    Prevents path traversal attacks via ../ sequences (CWE-22).
+
+    Args:
+        path: Path to validate (str or Path)
+        base_dir: Allowed base directory (str or Path)
+
+    Returns:
+        Path: Resolved path
+
+    Raises:
+        ValueError: If path resolves outside base_dir
+    """
+    resolved = Path(base_dir, path).resolve()
+    base_resolved = Path(base_dir).resolve()
+    if not str(resolved).startswith(str(base_resolved) + os.sep) and resolved != base_resolved:
+        raise ValueError(f"Path traversal detected: {path}")
+    return resolved
+
+
 def resolve_config_path(config_value, default_base, project_root):
     """
     Resolve configuration path value.
