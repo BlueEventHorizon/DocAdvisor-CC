@@ -339,6 +339,55 @@ common:
 
 > **Note**: `root_dirs` と `doc_types_map` はテンプレート上はコメントアウト状態。setup.sh は `.doc_structure.yaml` が存在する場合、`import_doc_structure.py` を呼び出して config.yaml の `root_dirs` と `doc_types_map` に書き込む。存在しない場合はテンプレートコピーに徹し、ターゲットプロジェクトで `/setup-config` スキルが AI 駆動で設定する。実行時に `.doc_structure.yaml` は参照しない（REQ-001 FR-08）。
 
+---
+
+## config.yaml マイグレーション（v4.4〜）
+
+### バージョン体系と構造変更ルール
+
+バージョン形式は `"X.Y"`（例: `"4.3"`）。X が **major バージョン**。
+
+**ルール**: **config.yaml の構造を変更するリリースは必ず major バージョン (X) を上げること。**
+
+- フィールドの追加・削除・リネーム、セクション構造の変更が対象。
+- major が同じリリース（例: 4.3 → 4.4）では config.yaml 構造変更を行わない。
+
+### `[m] Merge (auto)` の処理フロー
+
+`setup.sh` でユーザーが `[m]` を選択した際、`merge_config.py` が実行される:
+
+1. **バージョン検出**: 旧 config の `# doc-advisor-version-xK9XmQ:` コメントから major バージョンを取得
+2. **構造マイグレーション**: `old_major < new_major` の範囲で `MIGRATIONS` を昇順に適用
+3. **ユーザー設定引き継ぎ**: 旧 config から以下を抽出して新 config に書き込む
+   - `root_dirs`・`doc_types_map`（非空の場合）
+   - `patterns.exclude`（非空の場合）
+   - `output.header_comment`・`output.metadata_name`（デフォルトと異なる場合）
+   - `common.parallel.max_workers`・`fallback_to_serial`（デフォルトと異なる場合）
+
+### マイグレーション履歴
+
+| バージョン | 変更内容 | マイグレーション関数 |
+|-----------|----------|---------------------|
+| v4.x（現行） | 構造変更なし | — (`MIGRATIONS` は空) |
+
+### 将来のマイグレーション追加手順
+
+config.yaml 構造を変更するリリース（例: v5.0）では以下を実施:
+
+1. `setup.sh` の `DOC_ADVISOR_VERSION` を新 major バージョン（例: `"5.0"`）に更新
+2. `templates/doc-advisor/scripts/merge_config.py` の `MIGRATIONS` に追加:
+   ```python
+   MIGRATIONS = {
+       5: migrate_to_v5,  # 追加
+   }
+   def migrate_to_v5(new_content, old_config_dict):
+       # 構造変更に応じたテキスト変換を実装
+       return new_content
+   ```
+3. この表（マイグレーション履歴）に変更内容とマイグレーション関数名を記録
+
+---
+
 ## スキル Pre-check（v4.0）
 
 ### 概要

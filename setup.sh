@@ -404,7 +404,7 @@ if [[ -f "$EXISTING_CONFIG" ]]; then
     echo "  Options:"
     echo "    [o] Overwrite (backup to config.yaml.bak)"
     echo "    [s] Skip (keep existing config)"
-    echo "    [m] Merge manually (show diff after setup)"
+    echo "    [m] Merge (auto) - carry over your settings to new template"
     read -p "  Choice [s]: " CONFIG_CHOICE
     CONFIG_CHOICE="${CONFIG_CHOICE:-s}"
 
@@ -485,9 +485,17 @@ if [[ "${RESTORE_BAK:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.bak.tmp"
     mv "${SKILLS_DIR}/config.yaml.bak.tmp" "${EXISTING_CONFIG}.bak"
 fi
 
-# Show diff if requested (merge mode)
+# Auto-merge user settings if requested (merge mode)
 if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old.tmp" ]]; then
     mv "${SKILLS_DIR}/config.yaml.old.tmp" "${EXISTING_CONFIG}.old"
+    echo ""
+    printf "${YELLOW}Merging your settings into new config...${NC}\n"
+    if "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/merge_config.py" \
+        "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG"; then
+        printf "${GREEN}  Settings merged successfully${NC}\n"
+    else
+        printf "${YELLOW}  Warning: Auto-merge failed. Review diff manually.${NC}\n"
+    fi
     echo ""
     printf "${YELLOW}Config diff (old vs new):${NC}\n"
     diff "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG" || true

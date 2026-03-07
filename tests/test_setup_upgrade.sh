@@ -860,6 +860,77 @@ echo ""
 
 # ==================================================
 echo "=================================================="
+echo "Test 26b: config.yaml merge - root_dirs and doc_types_map preserved"
+echo "=================================================="
+
+setup_test_project
+
+# First install (with .doc_structure.yaml → root_dirs and doc_types_map are set)
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify root_dirs was set by first install
+RULES_DIRS=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "root_dirs set after first install" "2" "$RULES_DIRS"
+
+# Run setup again with 'm' (merge)
+echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: root_dirs is still present in merged config
+RULES_DIRS_AFTER=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "root_dirs preserved after merge" "2" "$RULES_DIRS_AFTER"
+
+# Verify: doc_types_map is still present in merged config
+DOC_TYPES_AFTER=$(grep -c "^  doc_types_map:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "doc_types_map preserved after merge" "2" "$DOC_TYPES_AFTER"
+
+# Verify: actual directory path value is preserved
+RULES_PATH=$(grep -c -- "- rules/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "rules/ path preserved after merge" "1" "$([[ $RULES_PATH -ge 1 ]] && echo 1 || echo 0)"
+
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 26c: config.yaml merge - exclude patterns preserved"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Add exclude pattern to rules section
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+lines = content.split('\n')
+result = []
+replaced = False
+for line in lines:
+    if not replaced and line.strip() == 'exclude: []':
+        result.append('    exclude:')
+        result.append('      - archive/')
+        result.append('      - draft/')
+        replaced = True
+    else:
+        result.append(line)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
+"
+
+# Verify exclude was set
+BEFORE_EXCLUDE=$(grep -c "archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "exclude pattern set before merge" "1" "$([[ $BEFORE_EXCLUDE -ge 1 ]] && echo 1 || echo 0)"
+
+# Run setup again with 'm' (merge)
+echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: exclude patterns are preserved
+EXCLUDE_AFTER=$(grep -c "archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "exclude pattern 'archive/' preserved after merge" "1" "$([[ $EXCLUDE_AFTER -ge 1 ]] && echo 1 || echo 0)"
+
+echo ""
+
+# ==================================================
+echo "=================================================="
 echo "Test 27: validate_rules_toc.py abnormal input handling"
 echo "=================================================="
 

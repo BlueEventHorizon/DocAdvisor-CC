@@ -84,13 +84,16 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 **選択肢**:
 - `[o]` Overwrite: バックアップ（config.yaml.bak）を作成して上書き
 - `[s]` Skip: 既存設定を保持（デフォルト）
-- `[m]` Merge: セットアップ後に差分を表示
+- `[m]` Merge (auto): ユーザー設定を自動引き継ぎ + バージョン固有の構造変更を適用。セットアップ後に差分を表示
 
 **受入条件**:
 - [ ] 既存 config.yaml がある場合のみプロンプトが表示される
 - [ ] デフォルトは Skip（Enter で既存設定を保持）
 - [ ] Overwrite 選択時はバックアップが作成される
 - [ ] バックアップは `doc-advisor/config.yaml.bak` に保存される
+- [ ] `[m]` 選択時、旧 config の `root_dirs`・`doc_types_map` が新 config に自動引き継がれる
+- [ ] `[m]` 選択時、major バージョンが変わった場合のみ構造マイグレーションが適用される
+- [ ] `[m]` 選択時、旧 config が `config.yaml.old` として保存され差分が表示される
 
 ### REQ-002-04: agents/ の上書き方式
 

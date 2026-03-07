@@ -86,6 +86,11 @@
 - `Path.rglob()` はシンボリックリンクを follow しない。`rglob_follow_symlinks()` を使用する
 - バージョンの単一の真実の源は `setup.sh` の `DOC_ADVISOR_VERSION`
 
+### 6.5 バージョン管理ルール
+- **config.yaml の構造を変更するリリースは必ず major バージョン（X.Y の X）を上げること**
+  - 対応するマイグレーション関数を `merge_config.py` の `MIGRATIONS` に追加すること
+  - 変更内容を `specs/design/DES-001_setup_script.md` の「config.yaml マイグレーション履歴」に記録すること
+
 ### 6.4 エラーハンドリング
 - サブエージェント: エラーを報告し、オーケストレーターに委ねる
 - オーケストレーター: 人間に確認してから対処を決定
