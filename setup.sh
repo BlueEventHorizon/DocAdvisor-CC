@@ -490,8 +490,8 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
     mv "${SKILLS_DIR}/config.yaml.old.tmp" "${EXISTING_CONFIG}.old"
     echo ""
     printf "${YELLOW}Merging your settings into new config...${NC}\n"
-    if "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/merge_config.py" \
-        "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG"; then
+    if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/merge_config.py" \
+        "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG"); then
         printf "${GREEN}  Settings merged successfully${NC}\n"
     else
         printf "${YELLOW}  Warning: Auto-merge failed. Review diff manually.${NC}\n"
@@ -506,8 +506,8 @@ fi
 # Import .doc_structure.yaml into config.yaml (Route A: DES-005)
 if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]]; then
     echo "Importing .doc_structure.yaml into config.yaml..."
-    if "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
-        "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"; then
+    if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
+        "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"); then
         printf "${GREEN}  root_dirs and doc_types_map imported from .doc_structure.yaml${NC}\n"
     else
         printf "${YELLOW}  Warning: Failed to import .doc_structure.yaml. Run /setup-config later.${NC}\n"

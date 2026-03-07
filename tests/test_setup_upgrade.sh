@@ -931,6 +931,124 @@ echo ""
 
 # ==================================================
 echo "=================================================="
+echo "Test 26d: config.yaml merge - root_dirs preserved WITHOUT .doc_structure.yaml"
+echo "=================================================="
+
+# This test verifies merge_config.py works independently of import_doc_structure.py.
+# Tests 26b/26c have .doc_structure.yaml which causes import_doc_structure.py to
+# restore root_dirs as a fallback even if merge_config.py fails.
+# This test has NO .doc_structure.yaml, so only merge_config.py can preserve root_dirs.
+
+cleanup
+mkdir -p "$TEST_PROJECT/rules" "$TEST_PROJECT/specs"
+echo "# Test Rule" > "$TEST_PROJECT/rules/test.md"
+echo "# Test Spec" > "$TEST_PROJECT/specs/test.md"
+# Note: intentionally NO .doc_structure.yaml
+
+# First install (no .doc_structure.yaml → root_dirs stays commented out)
+echo -e "c\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Manually set root_dirs in config (simulating user who ran /setup-config manually)
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+# Replace '# root_dirs: []' for rules section (first occurrence)
+import re
+# Replace only the first occurrence (rules section)
+content = re.sub(
+    r'(# === rules configuration ===.*?)(\s*# root_dirs: \[\])',
+    lambda m: m.group(1) + '\n  root_dirs:\n    - rules/',
+    content, count=1, flags=re.DOTALL
+)
+# Replace only the first occurrence of # doc_types_map: {} (rules section)
+content = re.sub(
+    r'  # doc_types_map: \{\}.*',
+    '  doc_types_map:\n    rules/: rule',
+    content, count=1
+)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
+"
+
+# Verify root_dirs was manually set
+RULES_DIRS_BEFORE=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "root_dirs manually set before merge" "1" "$RULES_DIRS_BEFORE"
+
+# Run setup again with 'm' (merge) — NO .doc_structure.yaml, so only merge_config.py helps
+echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: root_dirs preserved by merge_config.py (not fallback import_doc_structure.py)
+RULES_DIRS_AFTER=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "root_dirs preserved after merge (no .doc_structure.yaml)" "1" "$RULES_DIRS_AFTER"
+
+# Verify: the actual path value is preserved
+RULES_PATH=$(grep -c -- "- rules/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "rules/ path value preserved (no .doc_structure.yaml)" "1" "$([[ $RULES_PATH -ge 1 ]] && echo 1 || echo 0)"
+
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 26e: config.yaml merge from external directory (README scenario)"
+echo "=================================================="
+
+# This test reproduces the exact README usage pattern:
+#   cd DocAdvisor-CC && bash setup.sh /path/to/your-project
+# where the target project is OUTSIDE DocAdvisor-CC.
+# Without the (cd "$TARGET_DIR" && ...) fix, merge_config.py would fail with
+# "Path traversal detected" because Path.cwd() (= DocAdvisor-CC) != target_dir.
+
+EXTERNAL_PROJECT="$(mktemp -d "$PROJECT_ROOT/../test_external_XXXXXX")"
+trap "rm -rf '$EXTERNAL_PROJECT'" EXIT
+
+mkdir -p "$EXTERNAL_PROJECT/rules" "$EXTERNAL_PROJECT/specs"
+echo "# Rule" > "$EXTERNAL_PROJECT/rules/test.md"
+echo "# Spec" > "$EXTERNAL_PROJECT/specs/test.md"
+cat > "$EXTERNAL_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+rules:
+  rule:
+    paths: [rules/]
+specs:
+  spec:
+    paths: [specs/]
+DOCEOF
+
+# First install from PROJECT_ROOT (simulating README usage: cd DocAdvisor-CC && bash setup.sh /path/...)
+echo "opus" | (cd "$PROJECT_ROOT" && bash "$PROJECT_ROOT/setup.sh" "$EXTERNAL_PROJECT") > /dev/null 2>&1
+
+# Verify root_dirs was set
+DIRS_AFTER_FIRST=$(grep -c "^  root_dirs:" "$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "root_dirs set after first install (external dir)" "2" "$DIRS_AFTER_FIRST"
+
+# Add custom exclude pattern
+python3 -c "
+content = open('$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml').read()
+lines = content.split('\n')
+result = []
+replaced = False
+for line in lines:
+    if not replaced and line.strip() == 'exclude: []':
+        result.append('    exclude:')
+        result.append('      - archive/')
+        replaced = True
+    else:
+        result.append(line)
+open('$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
+"
+
+# Second install with [m] from PROJECT_ROOT (same README usage pattern)
+echo -e "opus\nm" | (cd "$PROJECT_ROOT" && bash "$PROJECT_ROOT/setup.sh" "$EXTERNAL_PROJECT") > /dev/null 2>&1
+
+# Verify root_dirs preserved after merge (failed if path traversal check triggered)
+DIRS_AFTER_MERGE=$(grep -c "^  root_dirs:" "$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "root_dirs preserved after merge (external dir)" "2" "$DIRS_AFTER_MERGE"
+
+# Verify exclude preserved (only merge_config.py can do this; import_doc_structure.py cannot)
+EXCLUDE_AFTER=$(grep -c "archive/" "$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
+test_result "exclude pattern preserved after merge (external dir)" "1" "$([[ $EXCLUDE_AFTER -ge 1 ]] && echo 1 || echo 0)"
+
+echo ""
+
+# ==================================================
+echo "=================================================="
 echo "Test 27: validate_rules_toc.py abnormal input handling"
 echo "=================================================="
 
