@@ -18,6 +18,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - **`yaml_escape()` comments**: Updated `references: []` example to `keywords: []` in `merge_toc.py` and `toc_utils.py`
+- **`tests/test_setup_upgrade.sh` Test 22**: Added `classify-docs/` legacy directory creation and deletion verification — the v4.3 migration cleanup in `setup.sh` was not previously tested
+- **`specs/requirements/REQ-002_upgrade_v2_to_v3.md`**: Added "(旧名 classify-docs)" note to REQ-002-07 title — clarifies that v4.0 introduced the skill under the old name
+- **`setup.sh` comment**: Fixed `# v4.2:` → `# v4.3:` on classify-docs migration block
+
+### Security
+- **`validate_path_within_base()`**: Added to `toc_utils.py` — shared utility to prevent `../` path traversal (CWE-22) via `Path.resolve()` + prefix check
+- **`validate_rules_toc.py` / `validate_specs_toc.py`**: Validate YAML-extracted file paths and `--file` CLI arg against `PROJECT_ROOT` before file access
+- **`write_pending.py`**: Validate `--entry-file` CLI arg against project root before file access
+- **`import_doc_structure.py`**: Validate both CLI args (`doc_structure_path`, `config_yaml_path`) against `cwd` before file access
 
 ---
 
