@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [4.4.0] - 2026-03-07
+
+### Added
+- **`merge_config.py`**: New script (`templates/doc-advisor/scripts/`) for automatic config.yaml merging — preserves `root_dirs`, `doc_types_map`, `exclude` patterns, and custom `output`/`parallel` settings when re-running setup
+- **Version-aware migration registry**: `MIGRATIONS` dict in `merge_config.py` enables sequential structural migrations across major version upgrades (currently empty for v4.x; add entries when config structure changes in future major releases)
+
+### Changed
+- **`setup.sh` Merge option**: `[m]` option renamed from "Merge manually (show diff after setup)" to "Merge (auto) - carry over your settings to new template" — now auto-applies user settings instead of requiring manual diffing
+- **`rules/project_rule.md`**: Added rule 6.5 — config.yaml structure changes must be accompanied by a major version bump (X in X.Y), with corresponding `MIGRATIONS` entry and DES-001 documentation
+
+### Fixed
+- **`tests/test_setup_upgrade.sh` Test 26b**: Fixed `grep -c "- rules/"` to use `grep -c -- "- rules/"` — macOS BSD grep treated leading `-` in pattern as a flag option
+
+---
 ## [4.3.0] - 2026-03-05
 
 ### Changed
