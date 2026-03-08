@@ -7,7 +7,7 @@ description: |
   - After initial setup to configure document directories
   - "Classify my documents"
   - "What directories should be rules vs specs?"
-allowed-tools: Bash, Read, Edit
+allowed-tools: Bash, Read, Edit, Glob
 user-invocable: true
 argument-hint: "[--update]"
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
@@ -53,6 +53,23 @@ This document defines:
 
 Capture the JSON output. The script discovers markdown directories but does NOT classify them.
 
+### Step 1b: Supplement with empty directory candidates
+
+`classify_dirs.py` only finds directories that already contain markdown files.
+Empty directories (not yet populated) are missing from the scan result.
+
+After running the scan, use Glob to explore subdirectories under any
+document-related top-level directories found (e.g. `docs/`, `rules/`, `specs/`):
+
+```
+Glob: docs/*/, rules/*/, specs/*/
+```
+
+Any subdirectory returned by Glob that is **not already in the scan result**
+is added as an empty candidate: `{ dir, md_count: 0, empty: true }`.
+
+**Do NOT skip these** — present them to the user for confirmation in Step 3/4.
+
 ### Step 2: Classify using rules
 
 For each discovered directory in the JSON output:
@@ -69,7 +86,7 @@ Assign each directory a **category** (rules/specs) and note confidence:
 
 ### Step 3: Present results to user
 
-Display the classification results clearly:
+Display the classification results clearly, including empty directory candidates:
 
 ```
 Document Directory Classification
@@ -79,8 +96,8 @@ Rules (development rules, guidelines, standards):
   [medium] guidelines/    (2 files)
 
 Specs (requirements, designs, plans):
-  [high] specs/           (5 files)
-  [medium] design/        (2 files)
+  [high] specs/requirements/ (5 files)
+  [high] specs/design/    (0 files, empty)   ← empty candidate from Step 1b
 
 Skipped:
   docs/                   README/CHANGELOG only
@@ -94,6 +111,7 @@ Unclassified:
 Ask the user:
 - Are the classifications correct?
 - For unclassified directories: should they be rules, specs, or skipped?
+- For empty directories: confirm whether to include them in root_dirs.
 - Any overrides needed?
 
 ### Step 5: Update config.yaml
