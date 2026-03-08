@@ -971,6 +971,67 @@ echo ""
 
 # ==================================================
 echo "=================================================="
+echo "Test 26c-3: config.yaml merge - section-level exclude migrated to patterns.exclude"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Add section-level exclude (indent=2, directly under specs) - legacy format
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+# Insert section-level exclude after root_dirs block in specs section
+lines = content.split('\n')
+result = []
+in_specs = False
+inserted = False
+for i, line in enumerate(lines):
+    result.append(line)
+    if line.startswith('specs:'):
+        in_specs = True
+    elif in_specs and not inserted and line.strip().startswith('toc_file:'):
+        # Insert section-level exclude before toc_file
+        result.insert(len(result) - 1, '  exclude:')
+        result.insert(len(result) - 1, '    - section_plugins/')
+        result.insert(len(result) - 1, '    - section_reference/')
+        inserted = True
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
+"
+
+# Verify section-level exclude was set
+BEFORE_SECTION=$(grep -c "section_plugins/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "section-level exclude set before merge" "1" "$([[ $BEFORE_SECTION -ge 1 ]] && echo 1 || echo 0)"
+
+# Run setup again with 'm' (merge)
+echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: section-level excludes are preserved in patterns.exclude after merge
+AFTER_SECTION=$(grep -c "section_plugins/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "section-level exclude migrated to patterns.exclude after merge" "1" "$([[ $AFTER_SECTION -ge 1 ]] && echo 1 || echo 0)"
+
+# Verify: now under patterns.exclude (not at section level)
+UNDER_PATTERNS=$(python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+lines = content.split('\n')
+in_patterns = False
+for line in lines:
+    if line.strip() == 'patterns:' and '    ' not in line[:4]:
+        in_patterns = True
+    elif in_patterns and 'section_plugins/' in line:
+        print('1')
+        exit()
+    elif in_patterns and line.strip() and not line.startswith('    '):
+        in_patterns = False
+print('0')
+" 2>/dev/null || echo 0)
+test_result "exclude is now under patterns (not section level)" "1" "$UNDER_PATTERNS"
+
+echo ""
+
+# ==================================================
+echo "=================================================="
 echo "Test 26d: config.yaml merge - root_dirs preserved WITHOUT .doc_structure.yaml"
 echo "=================================================="
 

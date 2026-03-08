@@ -341,9 +341,17 @@ def extract_user_settings(old_dict):
             section_settings['doc_types_map'] = doc_types_map
 
         # patterns.exclude: carry over if non-empty
-        exclude = section_data.get('patterns', {}).get('exclude', [])
-        if isinstance(exclude, list) and exclude:
-            section_settings.setdefault('patterns', {})['exclude'] = exclude
+        # Also collect section-level exclude (legacy: some configs placed it at indent=2)
+        # Both are merged into patterns.exclude (where toc scripts actually read it)
+        section_exclude = section_data.get('exclude', [])
+        if not isinstance(section_exclude, list):
+            section_exclude = []
+        patterns_exclude = section_data.get('patterns', {}).get('exclude', [])
+        if not isinstance(patterns_exclude, list):
+            patterns_exclude = []
+        combined_exclude = list(dict.fromkeys(section_exclude + patterns_exclude))
+        if combined_exclude:
+            section_settings.setdefault('patterns', {})['exclude'] = combined_exclude
 
         # output.header_comment: carry over if customized
         header_comment = section_data.get('output', {}).get('header_comment')
