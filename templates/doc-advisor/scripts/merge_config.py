@@ -111,17 +111,22 @@ def apply_version_migrations(old_major, new_major, new_content, old_config_dict)
 # ==============================================================================
 
 def _parse_value(value):
-    """Parse a YAML scalar value (string, int, bool, or empty list)."""
+    """Parse a YAML scalar value (string, int, bool, or list)."""
     value = value.strip()
 
     # Strip inline comments (not inside quotes)
     if not value.startswith('"') and '  #' in value:
         value = value[:value.index('  #')].strip()
 
+    # Inline list: [] or [a, b, c]
+    if value.startswith('[') and value.endswith(']'):
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        return [item.strip().strip('"\'') for item in inner.split(',')]
+
     value = value.strip('"\'')
 
-    if value == '[]':
-        return []
     if value.lower() == 'true':
         return True
     if value.lower() == 'false':

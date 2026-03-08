@@ -931,6 +931,46 @@ echo ""
 
 # ==================================================
 echo "=================================================="
+echo "Test 26c-2: config.yaml merge - exclude in inline list format preserved"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Add exclude pattern in inline YAML list format (edge case)
+python3 -c "
+content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
+# Replace first 'exclude: []' with inline list format
+import re
+replaced = False
+lines = content.split('\n')
+result = []
+for line in lines:
+    if not replaced and line.strip() == 'exclude: []':
+        result.append('    exclude: [inline_archive/, inline_draft/]')
+        replaced = True
+    else:
+        result.append(line)
+open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
+"
+
+# Verify inline exclude was set
+BEFORE_INLINE=$(grep -c "inline_archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "inline exclude set before merge" "1" "$([[ $BEFORE_INLINE -ge 1 ]] && echo 1 || echo 0)"
+
+# Run setup again with 'm' (merge)
+echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: inline exclude patterns are preserved after merge
+EXCLUDE_INLINE_AFTER=$(grep -c "inline_archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
+test_result "inline exclude 'inline_archive/' preserved after merge" "1" "$([[ $EXCLUDE_INLINE_AFTER -ge 1 ]] && echo 1 || echo 0)"
+
+echo ""
+
+# ==================================================
+echo "=================================================="
 echo "Test 26d: config.yaml merge - root_dirs preserved WITHOUT .doc_structure.yaml"
 echo "=================================================="
 
