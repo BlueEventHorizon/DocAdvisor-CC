@@ -7,7 +7,6 @@ description: |
   トリガー:
   - 「バージョンを更新」「version を上げる」「リリース準備」
   - 「X.Y にバージョンアップ」のような具体的なバージョン指定
-  - `/update-version X.Y` のようなコマンド形式
 ---
 
 # Update Version Skill

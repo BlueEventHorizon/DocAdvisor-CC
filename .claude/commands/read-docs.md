@@ -1,3 +1,10 @@
+---
+description: |
+  Doc Advisor 関連文書（仕様書・ルール・設計書）を一括参照できる。常に最新の仕様を把握した上で作業できる。
+  トリガー: Doc Advisor 開発タスク開始時
+  DO NOT TRIGGER: 個別ファイルの参照（Read ツールで十分な場合）
+---
+
 # 文書 読み込み [MANDATORY]
 
 [README](README.md)
