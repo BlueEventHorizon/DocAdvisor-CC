@@ -1,11 +1,13 @@
-# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
-# Auto-generated - do not edit
-generated_at: 2026-02-21T02:31:04Z
-file_count: 6
+# specs_toc.yaml 用チェックサムファイル
+# 自動生成 - 手動編集禁止
+generated_at: 2026-03-08T13:50:08Z
+file_count: 8
 checksums:
-  specs/design/DES-001_setup_script.md: 944cb5c0b2012473a2d71a11835e6d1e9da92c99a1449b54e8bece7ef390cc0f
-  specs/design/DES-003_document_identifier.md: ed4eaf92e327b2c412b0c0a3ca2dbcd047c531c74c8958c00ab47fbd94a3406b
-  specs/design/DES-004_document_model.md: b07a1190b1d2e10fa9ed08eeab32f76c40136643dece92fa774dabea9305f725
-  specs/design/DES-005_toc_generation_flow.md: 87e2974d0f1955486be3bda6e2f4b9bd37a17abaee20b27bc3c9a7576cfa4ce2
-  specs/requirements/REQ-001_doc_advisor.md: 68d2b7ffc7ecc4cc31d81211fabb29c58f6e916bfcb8efae2296926fd9eab44b
-  specs/requirements/REQ-002_upgrade_v2_to_v3.md: 962eb8b9d6bc3955abbe5dd5e0c330222b901383e924c40c0d3b25b296701d0f
+  specs/design/DES-001_setup_script.md: bb5b5738993d4a781392b4d6ff4757a722db7c6e89871b1acfca44832ee49f2c
+  specs/design/DES-002_config_migration.md: 6f15237e841e1e0ecc938725eea2e2cde8e375f6f1e9d194f79baf768b8d99b0
+  specs/design/DES-003_document_identifier.md: 916f686577967cbee454b1064809704e4338e4c59e5c90e56a95ed11e4af4a6a
+  specs/design/DES-004_document_model.md: 2111a702b833095b14917b0455a756a1d4786ee63efa87e6934c0382bdd0d4f9
+  specs/design/DES-005_toc_generation_flow.md: 49f39ce919af688cb16e8ecb5d236e46e61022b52d5d3e1753ee77dd9bc4d06c
+  specs/plan/PLAN-001_v3.8_implementation.md: 4a7428118e65f3932cf2d52588da5bc8eaaf70cd5bcf0dc8260da7679e3768a3
+  specs/requirements/REQ-001_doc_advisor.md: 452a5274bdbeda5ea9dae57bdba7021bf8432dad921d09c1b4940c3f036b609a
+  specs/requirements/REQ-002_upgrade_v2_to_v3.md: 0bb89d7b85c6a6fb4898d533ef62d9b20b32e51fa01b9af2df39f82ca64fa39b
