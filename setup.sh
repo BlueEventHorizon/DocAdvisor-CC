@@ -247,11 +247,8 @@ fi
 # v2.0 had config/docs/scripts in skills/doc-advisor/ - migrate if found
 LEGACY_SKILL_CONFIG="${SKILLS_DIR}/doc-advisor/config.yaml"
 if [[ -f "$LEGACY_SKILL_CONFIG" ]]; then
-    # Backup v2.0 config for potential migration
-    cp "$LEGACY_SKILL_CONFIG" "${SKILLS_DIR}/config.yaml.legacy.tmp"
-    MIGRATE_LEGACY_CONFIG=1
     rm -f "$LEGACY_SKILL_CONFIG"
-    printf "${GREEN}Removed legacy: skills/doc-advisor/config.yaml (will migrate)${NC}\n"
+    printf "${GREEN}Removed legacy: skills/doc-advisor/config.yaml${NC}\n"
     LEGACY_CLEANED=1
 fi
 if [[ -d "${SKILLS_DIR}/doc-advisor/docs" ]]; then

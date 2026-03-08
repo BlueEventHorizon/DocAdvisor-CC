@@ -439,12 +439,12 @@ def apply_user_settings(new_content, user_settings):
 
             result.append('  root_dirs:')
             for d in root_dirs:
-                result.append(f'    - {d}')
+                result.append(f'    - {_yaml_escape(d)}')
 
             if doc_types_map:
                 result.append('  doc_types_map:')
                 for path, doc_type in doc_types_map.items():
-                    result.append(f'    {path}: {doc_type}')
+                    result.append(f'    {_yaml_escape(path)}: {_yaml_escape(doc_type)}')
 
             i += 1
             continue

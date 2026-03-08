@@ -114,7 +114,7 @@ def write_error_yaml(filepath, meta, error_message, target):
     doc_type = meta.get('doc_type', '')
     if doc_type:
         lines.append(f"  doc_type: {doc_type}")
-    lines.append("  status: error")
+    lines.append("  status: pending")
     lines.append(f"  error_message: {yaml_escape(error_message)}")
     lines.append(f"  updated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
     lines.append("")

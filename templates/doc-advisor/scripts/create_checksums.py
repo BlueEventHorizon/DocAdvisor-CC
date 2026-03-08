@@ -38,10 +38,10 @@ def calculate_file_hash(filepath):
         return None
 
 
-def find_md_files_rules(root_dir, exclude_patterns):
+def find_md_files_rules(root_dir, exclude_patterns, target_glob="**/*.md"):
     """rules/ 配下の全 .md ファイルを検索（シンボリックリンク対応）"""
     md_files = []
-    for filepath in rglob_follow_symlinks(root_dir, "**/*.md"):
+    for filepath in rglob_follow_symlinks(root_dir, target_glob):
         if not should_exclude(filepath, root_dir, exclude_patterns):
             md_files.append(filepath)
     return sorted(md_files)
@@ -118,8 +118,10 @@ def main():
         root_dirs_config = [root_dirs_config]
     # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
     root_dirs_config = expand_root_dir_globs(root_dirs_config, project_root)
+    # root_dirs_config が空の場合は project_root / target をフォールバックとして使用する
+    first_root_dir = project_root / root_dirs_config[0].rstrip('/') if root_dirs_config else project_root / target
     output_file = resolve_config_path(config.get('checksums_file', '.toc_checksums.yaml'),
-                                       project_root / root_dirs_config[0].rstrip('/'), project_root)
+                                       first_root_dir, project_root)
     patterns_config = config.get('patterns', {})
     target_glob = patterns_config.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
@@ -138,7 +140,7 @@ def main():
             print(f"警告: {root_dir} が存在しません、スキップします")
             continue
         if target == 'rules':
-            files = find_md_files_rules(root_dir, exclude_patterns)
+            files = find_md_files_rules(root_dir, exclude_patterns, target_glob)
         else:
             files = find_md_files_specs(root_dir, exclude_patterns, target_glob)
         for f in files:

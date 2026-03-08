@@ -1238,6 +1238,163 @@ fi
 echo ""
 
 # ==================================================
+echo "=================================================="
+echo "Test 28: root_dirs: [] does not crash (IndexError guard)"
+echo "=================================================="
+
+setup_test_project
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+
+# Set root_dirs: [] in config.yaml for both sections
+python3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
+import sys, re
+path = sys.argv[1]
+content = open(path).read()
+# Replace "# root_dirs: []" comments with "root_dirs: []"
+content = re.sub(r'^\s*#\s*(root_dirs:\s*\[\])', r'  \1', content, flags=re.MULTILINE)
+open(path, 'w').write(content)
+PYEOF
+
+# create_checksums.py with empty root_dirs should not crash with IndexError
+CREATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1)
+CREATE_EXIT=$?
+if echo "$CREATE_OUTPUT" | grep -q "IndexError"; then
+    echo -e "${RED}FAIL${NC}: create_checksums.py raised IndexError with root_dirs: []"
+    ((FAIL_COUNT++))
+else
+    echo -e "${GREEN}PASS${NC}: create_checksums.py does not raise IndexError with root_dirs: []"
+    ((PASS_COUNT++))
+fi
+
+# validate_rules_toc.py with empty root_dirs should not crash with IndexError
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" 2>&1)
+if echo "$VALIDATE_OUTPUT" | grep -q "IndexError"; then
+    echo -e "${RED}FAIL${NC}: validate_rules_toc.py raised IndexError with root_dirs: []"
+    ((FAIL_COUNT++))
+else
+    echo -e "${GREEN}PASS${NC}: validate_rules_toc.py does not raise IndexError with root_dirs: []"
+    ((PASS_COUNT++))
+fi
+
+# validate_specs_toc.py with empty root_dirs should not crash with IndexError
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_specs_toc.py" 2>&1)
+if echo "$VALIDATE_OUTPUT" | grep -q "IndexError"; then
+    echo -e "${RED}FAIL${NC}: validate_specs_toc.py raised IndexError with root_dirs: []"
+    ((FAIL_COUNT++))
+else
+    echo -e "${GREEN}PASS${NC}: validate_specs_toc.py does not raise IndexError with root_dirs: []"
+    ((PASS_COUNT++))
+fi
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 29: write_pending.py --error keeps status: pending (not error)"
+echo "=================================================="
+
+setup_test_project
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+SCRIPTS_DIR="$TEST_PROJECT/.claire/doc-advisor/scripts"
+SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+
+# Create a pending YAML entry
+WORK_DIR="$TEST_PROJECT/.claude/doc-advisor/toc/rules/.toc_work"
+mkdir -p "$WORK_DIR"
+ENTRY_FILE="$WORK_DIR/test_entry.yaml"
+cat > "$ENTRY_FILE" << 'ENTRYEOF'
+_meta:
+  source_file: rules/test.md
+  doc_type: rule
+  status: pending
+  updated_at: null
+
+title: null
+purpose: null
+content_details: []
+applicable_tasks: []
+keywords: []
+ENTRYEOF
+
+# Run write_pending.py --error
+cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" \
+    --target rules \
+    --entry-file ".claude/doc-advisor/toc/rules/.toc_work/test_entry.yaml" \
+    --error --error-message "Test error message" > /dev/null 2>&1
+
+STATUS_LINE=$(grep "status:" "$ENTRY_FILE" | head -1)
+if echo "$STATUS_LINE" | grep -q "status: pending"; then
+    echo -e "${GREEN}PASS${NC}: write_pending.py --error keeps status: pending"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: write_pending.py --error should set status: pending, got: $STATUS_LINE"
+    ((FAIL_COUNT++))
+fi
+
+ERROR_MSG_LINE=$(grep "error_message:" "$ENTRY_FILE" | head -1)
+if [[ -n "$ERROR_MSG_LINE" ]]; then
+    echo -e "${GREEN}PASS${NC}: write_pending.py --error preserves error_message field"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: write_pending.py --error should preserve error_message field"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 30: create_checksums.py respects rules.target_glob"
+echo "=================================================="
+
+setup_test_project
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+
+# Add a non-.md file and set target_glob to *.md only (default)
+mkdir -p "$TEST_PROJECT/rules"
+echo "# Rule doc" > "$TEST_PROJECT/rules/test_rule.md"
+echo "This is a text file" > "$TEST_PROJECT/rules/ignore_me.txt"
+
+# Set rules.root_dirs and target_glob: "**/*.md" in config
+python3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
+import sys, re
+path = sys.argv[1]
+content = open(path).read()
+content = re.sub(r'(rules:\n(?:.*\n)*?\s*)#\s*(root_dirs:\s*\[\])', r'\1root_dirs:\n    - rules/', content)
+open(path, 'w').write(content)
+PYEOF
+
+# Run create_checksums.py
+CHECKSUMS_FILE="$TEST_PROJECT/.claude/doc-advisor/toc/rules/.toc_checksums.yaml"
+cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules > /dev/null 2>&1
+
+if [[ -f "$CHECKSUMS_FILE" ]]; then
+    # .md file should be included, .txt file should NOT be included
+    MD_IN=$(grep -c "test_rule.md" "$CHECKSUMS_FILE" 2>/dev/null; true)
+    TXT_IN=$(grep -c "ignore_me.txt" "$CHECKSUMS_FILE" 2>/dev/null; true)
+    if [[ "$MD_IN" -ge 1 ]] && [[ "$TXT_IN" -eq 0 ]]; then
+        echo -e "${GREEN}PASS${NC}: create_checksums.py rules uses target_glob (*.md included, *.txt excluded)"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: create_checksums.py rules target_glob not working. md=$MD_IN txt=$TXT_IN"
+        ((FAIL_COUNT++))
+    fi
+else
+    echo -e "${RED}FAIL${NC}: create_checksums.py did not create checksums file"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# ==================================================
 # Cleanup
 cleanup
 

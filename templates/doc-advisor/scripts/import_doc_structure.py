@@ -18,6 +18,23 @@ import sys
 from pathlib import Path
 
 
+def _yaml_escape(s):
+    """Escape a string value for safe YAML output."""
+    if not s:
+        return '""'
+    s = str(s)
+    first_char_indicators = set('-?:,[]{}#&*!|>\'"% @`~')
+    needs_quotes = s[0] in first_char_indicators
+    if not needs_quotes:
+        needs_quotes = ': ' in s or ' #' in s or '"' in s or "'" in s
+    if not needs_quotes:
+        needs_quotes = s.endswith(':') or s.endswith(' ')
+    if needs_quotes:
+        escaped = s.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{escaped}"'
+    return s
+
+
 def parse_doc_structure(content):
     """
     Parse .doc_structure.yaml content.
@@ -171,9 +188,9 @@ def update_config_yaml(config_content, config_data):
                 if key in ('rules', 'specs', 'common'):
                     current_section = key
 
-        # Replace commented root_dirs line
+        # Replace root_dirs line (commented or active)
         if current_section in config_data and re.match(
-            r'^\s*#\s*root_dirs:\s*\[\]', line
+            r'^\s*#?\s*root_dirs:', line
         ):
             data = config_data[current_section]
             root_dirs = data['root_dirs']
@@ -182,15 +199,24 @@ def update_config_yaml(config_content, config_data):
             # Write root_dirs
             result.append('  root_dirs:')
             for d in root_dirs:
-                result.append(f'    - {d}')
+                result.append(f'    - {_yaml_escape(d)}')
 
             # Write doc_types_map
             if doc_types_map:
                 result.append('  doc_types_map:')
                 for path, doc_type in doc_types_map.items():
-                    result.append(f'    {path}: {doc_type}')
+                    result.append(f'    {_yaml_escape(path)}: {_yaml_escape(doc_type)}')
 
+            # Skip existing root_dirs block entries (  - item lines)
             i += 1
+            while i < len(lines) and re.match(r'^\s{4,}-\s', lines[i]):
+                i += 1
+
+            # Skip existing doc_types_map block (commented or active) and its entries
+            if i < len(lines) and re.match(r'^\s*#?\s*doc_types_map:', lines[i]):
+                i += 1
+                while i < len(lines) and re.match(r'^\s{4,}\S', lines[i]):
+                    i += 1
             continue
 
         # Skip commented doc_types_map line (replaced above with root_dirs)

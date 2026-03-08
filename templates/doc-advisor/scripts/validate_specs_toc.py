@@ -54,7 +54,8 @@ def init_config():
     root_dirs_config = CONFIG.get('root_dirs', ['specs/'])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
-    SPECS_DIR = PROJECT_ROOT / root_dirs_config[0].rstrip('/')
+    # root_dirs_config が空の場合は PROJECT_ROOT / 'specs' をフォールバックとして使用する
+    SPECS_DIR = PROJECT_ROOT / root_dirs_config[0].rstrip('/') if root_dirs_config else PROJECT_ROOT / 'specs'
     DEFAULT_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), SPECS_DIR, PROJECT_ROOT)
     return True
 
