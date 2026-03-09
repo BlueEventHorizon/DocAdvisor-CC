@@ -19,6 +19,15 @@ import re
 import sys
 from pathlib import Path
 
+# Import common utilities from toc_utils (installed in the same directory)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from toc_utils import (  # noqa: E402
+    _parse_value,
+    _lookahead_is_list,
+    _parse_config_yaml,
+    yaml_escape as _yaml_escape,
+)
+
 
 # ==============================================================================
 # Version detection
@@ -107,193 +116,6 @@ def apply_version_migrations(old_major, new_major, new_content, old_config_dict)
         old_config_dict = _parse_config_yaml(new_content)
 
     return new_content
-
-
-# ==============================================================================
-# Config YAML parser (adapted from toc_utils._parse_config_yaml)
-# ==============================================================================
-
-def _parse_value(value):
-    """Parse a YAML scalar value (string, int, bool, or list)."""
-    value = value.strip()
-
-    # Strip inline comments (not inside quotes)
-    if not value.startswith('"') and '  #' in value:
-        value = value[:value.index('  #')].strip()
-
-    # Inline list: [] or [a, b, c]
-    # NOTE: toc_utils.py は空リスト [] のみ対応。merge_config.py はインラインリスト形式も
-    # サポートする（config.yaml の exclude 等でユーザーが inline 記法を使う場合に対応）。
-    # 変更時は toc_utils.py との乖離に注意すること。
-    if value.startswith('[') and value.endswith(']'):
-        inner = value[1:-1].strip()
-        if not inner:
-            return []
-        return [item.strip().strip('"\'') for item in inner.split(',')]
-
-    value = value.strip('"\'')
-
-    if value.lower() == 'true':
-        return True
-    if value.lower() == 'false':
-        return False
-
-    try:
-        return int(value)
-    except ValueError:
-        pass
-
-    return value
-
-
-def _lookahead_is_list(lines, start_idx, parent_indent=4):
-    """
-    Look ahead to determine whether upcoming content is a list or a dict.
-
-    Returns:
-        bool: True if next non-empty/non-comment line starts with '- '.
-    """
-    for i in range(start_idx, min(start_idx + 10, len(lines))):
-        line = lines[i]
-        stripped = line.strip()
-
-        if not stripped or stripped.startswith('#'):
-            continue
-
-        indent = len(line) - len(line.lstrip())
-        if indent <= parent_indent:
-            break
-
-        if stripped.startswith('- '):
-            return True
-        if ':' in stripped:
-            return False
-
-    return True
-
-
-def _parse_config_yaml(content):
-    """
-    Parse config.yaml into a nested dict (adapted from toc_utils).
-
-    Handles up to 4 levels of nesting:
-      Level 0 (indent=0): Top-level sections (rules, specs, common)
-      Level 2 (indent=2): Subsections (root_dirs, doc_types_map, patterns, ...)
-      Level 4 (indent=4): Sub-subsections (target_glob, exclude, ...)
-      Level 6 (indent=6): Items within sub-subsection dicts
-    """
-    result = {}
-    current_section = None
-    current_subsection = None
-    current_subsubsection = None
-    current_list = None
-    current_dict = None
-
-    lines = content.split('\n')
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-
-        if not stripped or stripped.startswith('#'):
-            continue
-
-        indent = len(line) - len(line.lstrip())
-
-        if ':' in stripped and not stripped.startswith('- '):
-            key, _, value = stripped.partition(':')
-            key = key.strip()
-            value = value.strip()
-
-            if indent == 0:
-                current_section = key
-                result[key] = {}
-                current_subsection = None
-                current_subsubsection = None
-                current_list = None
-                current_dict = None
-
-            elif indent == 2 and current_section:
-                current_subsection = key
-                if value:
-                    result[current_section][key] = _parse_value(value)
-                    current_list = None
-                else:
-                    if _lookahead_is_list(lines, i + 1, parent_indent=2):
-                        result[current_section][key] = []
-                        current_list = result[current_section][key]
-                    else:
-                        result[current_section][key] = {}
-                        current_list = None
-                current_subsubsection = None
-                current_dict = None
-
-            elif indent == 4 and current_section and current_subsection:
-                current_subsubsection = key
-                if value:
-                    result[current_section][current_subsection][key] = _parse_value(value)
-                    current_list = None
-                    current_dict = None
-                else:
-                    if _lookahead_is_list(lines, i + 1):
-                        result[current_section][current_subsection][key] = []
-                        current_list = result[current_section][current_subsection][key]
-                        current_dict = None
-                    else:
-                        result[current_section][current_subsection][key] = {}
-                        current_dict = result[current_section][current_subsection][key]
-                        current_list = None
-
-            elif indent == 6 and current_dict is not None:
-                current_dict[key] = _parse_value(value) if value else ''
-
-        elif stripped.startswith('- ') and current_list is not None:
-            item = stripped[2:].strip().strip('"\'')
-            if '  #' in item and not item.startswith('"'):
-                item = item[:item.index('  #')].strip()
-            current_list.append(item)
-
-    return result
-
-
-# ==============================================================================
-# YAML escape (adapted from toc_utils.yaml_escape)
-# ==============================================================================
-
-def _yaml_escape(s):
-    """Escape a string value for safe YAML output."""
-    if not s:
-        return '""'
-
-    s = str(s)
-
-    first_char_indicators = set('-?:,[]{}#&*!|>\'"% @`~')
-    needs_quotes = s[0] in first_char_indicators
-
-    if not needs_quotes:
-        needs_quotes = ': ' in s or ' #' in s or '"' in s or "'" in s
-
-    if not needs_quotes:
-        needs_quotes = s.endswith(':') or s.endswith(' ')
-
-    if not needs_quotes:
-        needs_quotes = any(c in s for c in '\n\r\t')
-
-    if not needs_quotes:
-        try:
-            float(s)
-            needs_quotes = True
-        except ValueError:
-            pass
-
-    if s.lower() in ('true', 'false', 'yes', 'no', 'on', 'off', 'null', 'none', '~'):
-        needs_quotes = True
-
-    if needs_quotes:
-        escaped = s.replace('\\', '\\\\').replace('"', '\\"')
-        escaped = escaped.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-        return f'"{escaped}"'
-
-    return s
 
 
 # ==============================================================================

@@ -332,10 +332,10 @@ if [[ -d "$OLD_CLASSIFY_DIR" ]]; then
     printf "${GREEN}Removed legacy: skills/classify-docs/ (renamed to setup-config/)${NC}\n"
     LEGACY_CLEANED=1
 fi
-for old_script in "set_root_dirs.py"; do
+for old_script in "set_root_dirs.py" "validate_rules_toc.py" "validate_specs_toc.py"; do
     if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
         rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
-        printf "${GREEN}Removed legacy: scripts/${old_script} (replaced by doc-structure plugin)${NC}\n"
+        printf "${GREEN}Removed legacy: scripts/${old_script}${NC}\n"
         LEGACY_CLEANED=1
     fi
 done
@@ -357,6 +357,15 @@ _sed_escape() {
 }
 
 # Function to copy and substitute variables in a file
+# Cleanup handler: remove temp files on exit (normal or error)
+_cleanup() {
+    [[ -n "${SKILLS_DIR:-}" ]] || return 0
+    rm -f "${SKILLS_DIR}/config.yaml.bak.tmp" \
+          "${SKILLS_DIR}/config.yaml.old.tmp" \
+          "${SKILLS_DIR}/config.yaml.skip_bak"
+}
+trap _cleanup EXIT
+
 copy_and_substitute() {
     local src="$1"
     local dst="$2"

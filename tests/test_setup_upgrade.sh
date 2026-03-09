@@ -1178,7 +1178,7 @@ docs:
       - "task 1"
 TOCEOF
 
-VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" --file "$TOC_DIR/rules_toc.yaml" 2>&1)
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target rules --file "$TOC_DIR/rules_toc.yaml" 2>&1)
 VALIDATE_EXIT=$?
 if [[ $VALIDATE_EXIT -ne 0 ]]; then
     echo -e "${GREEN}PASS${NC}: Validator exits non-zero for missing required fields (title, keywords)"
@@ -1202,7 +1202,7 @@ docs:
       - "test"
 TOCEOF
 
-VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" --file "$TOC_DIR/rules_toc.yaml" 2>&1)
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target rules --file "$TOC_DIR/rules_toc.yaml" 2>&1)
 VALIDATE_EXIT=$?
 if [[ $VALIDATE_EXIT -ne 0 ]]; then
     echo -e "${GREEN}PASS${NC}: Validator exits non-zero for non-existent file reference"
@@ -1228,7 +1228,7 @@ docs:
       - "rule"
 TOCEOF
 
-VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" --file "$TOC_DIR/rules_toc.yaml" 2>&1)
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target rules --file "$TOC_DIR/rules_toc.yaml" 2>&1)
 VALIDATE_EXIT=$?
 if [[ $VALIDATE_EXIT -eq 0 ]]; then
     echo -e "${GREEN}PASS${NC}: Validator passes for valid ToC file"
@@ -1272,23 +1272,23 @@ else
     ((PASS_COUNT++))
 fi
 
-# validate_rules_toc.py with empty root_dirs should not crash with IndexError
-VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_rules_toc.py" 2>&1)
+# validate_toc.py (rules) with empty root_dirs should not crash with IndexError
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target rules 2>&1)
 if echo "$VALIDATE_OUTPUT" | grep -q "IndexError"; then
-    echo -e "${RED}FAIL${NC}: validate_rules_toc.py raised IndexError with root_dirs: []"
+    echo -e "${RED}FAIL${NC}: validate_toc.py --target rules raised IndexError with root_dirs: []"
     ((FAIL_COUNT++))
 else
-    echo -e "${GREEN}PASS${NC}: validate_rules_toc.py does not raise IndexError with root_dirs: []"
+    echo -e "${GREEN}PASS${NC}: validate_toc.py --target rules does not raise IndexError with root_dirs: []"
     ((PASS_COUNT++))
 fi
 
-# validate_specs_toc.py with empty root_dirs should not crash with IndexError
-VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_specs_toc.py" 2>&1)
+# validate_toc.py (specs) with empty root_dirs should not crash with IndexError
+VALIDATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target specs 2>&1)
 if echo "$VALIDATE_OUTPUT" | grep -q "IndexError"; then
-    echo -e "${RED}FAIL${NC}: validate_specs_toc.py raised IndexError with root_dirs: []"
+    echo -e "${RED}FAIL${NC}: validate_toc.py --target specs raised IndexError with root_dirs: []"
     ((FAIL_COUNT++))
 else
-    echo -e "${GREEN}PASS${NC}: validate_specs_toc.py does not raise IndexError with root_dirs: []"
+    echo -e "${GREEN}PASS${NC}: validate_toc.py --target specs does not raise IndexError with root_dirs: []"
     ((PASS_COUNT++))
 fi
 echo ""

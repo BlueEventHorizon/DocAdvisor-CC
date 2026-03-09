@@ -261,7 +261,7 @@ Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode full
 
 # 2. Validate (check return value)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_{target}_toc.py
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_toc.py --target {target}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
@@ -281,7 +281,7 @@ rm -rf .claude/doc-advisor/toc/{target}/.toc_work
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode incremental
 
 # 2. Validate (check return value)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_{target}_toc.py
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_toc.py --target {target}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
@@ -299,7 +299,7 @@ rm -rf .claude/doc-advisor/toc/{target}/.toc_work
 {{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_toc.py --target {target} --delete-only
 
 # 2. Validate (check return value)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_{target}_toc.py
+{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_toc.py --target {target}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
