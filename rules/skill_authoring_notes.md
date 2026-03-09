@@ -22,11 +22,11 @@ agent: Explore                # context: fork 時の subagent タイプ
 
 ### user-invocable と disable-model-invocation の使い分け
 
-| 設定 | メニュー表示 | ユーザー呼び出し | Claude 自動呼び出し |
-|-----|------------|--------------|-----------------|
-| デフォルト | ✅ | ✅ | ✅ |
-| `user-invocable: false` | ❌ | ❌ | ✅ |
-| `disable-model-invocation: true` | ✅ | ✅ | ❌ |
+| 設定                             | メニュー表示 | ユーザー呼び出し | Claude 自動呼び出し |
+| -------------------------------- | ------------ | ---------------- | ------------------- |
+| デフォルト                       | ✅           | ✅               | ✅                  |
+| `user-invocable: false`          | ❌           | ❌               | ✅                  |
+| `disable-model-invocation: true` | ✅           | ✅               | ❌                  |
 
 - **AI 専用スキル**（present-findings, fix-findings 等）→ `user-invocable: false`
 - **副作用ある操作**（デプロイ等）→ `disable-model-invocation: true`
@@ -52,9 +52,9 @@ description: |
 ## 引数の参照
 
 ```markdown
-$ARGUMENTS       # 全引数（文字列）
-$0, $1, $2       # 位置引数
-$ARGUMENTS[0]    # $0 と同等
+$ARGUMENTS # 全引数（文字列）
+$0, $1, $2 # 位置引数
+$ARGUMENTS[0] # $0 と同等
 ```
 
 `$ARGUMENTS` が SKILL.md 内に存在しない場合、末尾に自動付加される。
@@ -63,11 +63,11 @@ $ARGUMENTS[0]    # $0 と同等
 
 ## 使える変数
 
-| 変数 | 内容 |
-|-----|------|
+| 変数                    | 内容                         |
+| ----------------------- | ---------------------------- |
 | `${CLAUDE_PLUGIN_ROOT}` | プラグインルートディレクトリ |
-| `${CLAUDE_SKILL_DIR}` | このスキルのディレクトリ |
-| `${CLAUDE_SESSION_ID}` | 現在のセッション ID |
+| `${CLAUDE_SKILL_DIR}`   | このスキルのディレクトリ     |
+| `${CLAUDE_SESSION_ID}`  | 現在のセッション ID          |
 
 スクリプトのパス参照には `${CLAUDE_PLUGIN_ROOT}/scripts/foo.py` のように使う。
 
@@ -79,6 +79,7 @@ $ARGUMENTS[0]    # $0 と同等
 
 ```markdown
 以下を呼び出してください:
+
 - `/kaizen:fix-findings --batch` を呼び出し、🔴問題を修正する
 ```
 
@@ -103,11 +104,11 @@ SKILL.md から参照: `[詳細](reference.md)` または `${CLAUDE_SKILL_DIR}/s
 
 ## SKILL.md の分割基準
 
-| 内容の種類 | 置き場所 |
-|-----------|---------|
-| AI が実行する手順・ワークフロー指示 | **SKILL.md に残す**（外部化すると AI が読み飛ばすリスク） |
+| 内容の種類                                 | 置き場所                                                       |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| AI が実行する手順・ワークフロー指示        | **SKILL.md に残す**（外部化すると AI が読み飛ばすリスク）      |
 | コンテンツ（テンプレート・フォーマット等） | **外部ファイルに分離**（例: `defaults/requirement_format.md`） |
-| 詳細ガイドライン・ルール（500行超） | **外部ファイルに分離** して SKILL.md から参照 |
+| 詳細ガイドライン・ルール（500行超）        | **外部ファイルに分離** して SKILL.md から参照                  |
 
 ---
 

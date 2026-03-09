@@ -14,21 +14,23 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 **Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-{target}-toc command) via parallel invocation.
 
 ## EXECUTION RULES
+
 - Exit plan mode if active. Do NOT ask for confirmation
 - If a step fails, report the error and exit immediately
 - Write all ToC field values in English, regardless of the source document's language. ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
 
 ## Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `target` | Yes | Target category: `rules` or `specs` |
-| `entry_file` | Yes | Path to the entry YAML file to process (e.g., `.claude/doc-advisor/toc/{target}/.toc_work/xxx.yaml`) |
-| `format_doc` | No | Path to format definition file (default: `.claude/doc-advisor/docs/toc_format.md`) |
+| Parameter    | Required | Description                                                                                          |
+| ------------ | -------- | ---------------------------------------------------------------------------------------------------- |
+| `target`     | Yes      | Target category: `rules` or `specs`                                                                  |
+| `entry_file` | Yes      | Path to the entry YAML file to process (e.g., `.claude/doc-advisor/toc/{target}/.toc_work/xxx.yaml`) |
+| `format_doc` | No       | Path to format definition file (default: `.claude/doc-advisor/docs/toc_format.md`)                   |
 
 ## Required Reference Documents [MANDATORY]
 
 Read the following before processing:
+
 - Format definition file specified by `format_doc` parameter (default: `.claude/doc-advisor/docs/toc_format.md`)
 
 ## Procedure
@@ -50,6 +52,7 @@ Read the following before processing:
 ```
 
 **Important**:
+
 - Arrays are passed as `|||`-separated strings (NOT comma-separated). This allows commas within items (e.g., "10,000件").
 
 ## Error Handling
@@ -84,6 +87,7 @@ On error (after writing error status via write_pending.py --error), return ONLY:
 ```
 
 **Do NOT return**:
+
 - File contents
 - Extracted field values
 - Detailed processing logs

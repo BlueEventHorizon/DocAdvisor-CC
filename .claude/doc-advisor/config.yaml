@@ -48,5 +48,5 @@ specs:
 # === common configuration ===
 common:
   parallel:
-    max_workers: 5           # Concurrent subagents (reduce to 3 for 100+ files to avoid rate limits)
+    max_workers: 5 # Concurrent subagents (reduce to 3 for 100+ files to avoid rate limits)
     fallback_to_serial: true

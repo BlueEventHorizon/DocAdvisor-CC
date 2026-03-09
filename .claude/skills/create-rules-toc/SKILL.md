@@ -23,14 +23,15 @@ Generate/update rules ToC (Table of Contents) for AI-searchable document index.
 /create-rules-toc [--full]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| (none) | Incremental update (hash-based) or resume processing |
+| Argument | Description                                           |
+| -------- | ----------------------------------------------------- |
+| (none)   | Incremental update (hash-based) or resume processing  |
 | `--full` | Full file scan (for initial creation or regeneration) |
 
 ## Pre-check (MANDATORY - Run first)
 
 Run the configuration check:
+
 ```bash
 bash .claude/doc-advisor/scripts/check_config.sh rules
 ```

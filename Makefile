@@ -1,4 +1,4 @@
-.PHONY: help connect_gemini disconnect_gemini connect_serena disconnect_serena 
+.PHONY: help connect_gemini disconnect_gemini connect_serena disconnect_serena format
 
 default: help
 
@@ -7,6 +7,7 @@ help:
 	@echo "  make disconnect_gemini - Disconnect gemini-cli MCP tool from Claude Code"
 	@echo "  make connect_serena	- Connect serena MCP server to Claude Code"
 	@echo "  make disconnect_serena	- Disconnect serena MCP server from Claude Code"
+	@echo "  make dprint format"
 
 connect_gemini:
 	@echo "Connecting gemini-cli MCP tool to Claude Code..."
@@ -27,3 +28,6 @@ connect_serena:
 disconnect_serena:
 	@echo "Disconnecting serena MCP server from Claude Code..."
 	claude mcp remove serena
+	
+format:
+	dprint fmt 2>&1

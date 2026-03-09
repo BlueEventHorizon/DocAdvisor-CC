@@ -23,9 +23,9 @@ Auto-detect and classify project document directories for Doc Advisor.
 /classify-docs [--update]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| (none) | Full classification of all markdown directories |
+| Argument   | Description                                                   |
+| ---------- | ------------------------------------------------------------- |
+| (none)     | Full classification of all markdown directories               |
 | `--update` | Only process directories not already in config.yaml root_dirs |
 
 ## Prerequisite
@@ -36,9 +36,11 @@ If not, run `setup.sh` first.
 ## Reference Documents
 
 Before classifying, read the classification rules:
+
 - `.claude/doc-advisor/docs/classification_rules.md`
 
 This document defines:
+
 - **category**: rules / specs
 - **doc_type**: rule, requirement, design, plan, api, reference, spec
 - Judgment procedure (path components → frontmatter → file content)
@@ -63,6 +65,7 @@ For each discovered directory in the JSON output:
 4. If still unclear, read 1-2 .md files from the directory
 
 Assign each directory a **category** (rules/specs) and note confidence:
+
 - **high**: path component directly matches (e.g., `rules/`, `specs/requirements/`)
 - **medium**: semantic match or frontmatter match
 - **low**: inferred from file content
@@ -92,6 +95,7 @@ Unclassified:
 ### Step 4: Ask user for confirmation
 
 Ask the user:
+
 - Are the classifications correct?
 - For unclassified directories: should they be rules, specs, or skipped?
 - Any overrides needed?
@@ -105,8 +109,8 @@ Replace the commented `root_dirs` and `doc_types_map` lines with actual values:
 ```yaml
 # Before:
 rules:
-  # root_dirs: []    # Auto-configured by setup.sh or /classify-docs
-  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
+# root_dirs: []    # Auto-configured by setup.sh or /classify-docs
+# doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
 
 # After:
 rules:

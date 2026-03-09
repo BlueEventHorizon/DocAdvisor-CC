@@ -30,24 +30,24 @@ DocAdvisor-CC/
 
 作業開始前に以下を必ず読むこと：
 
-| ドキュメント | 内容 |
-|--------------|------|
+| ドキュメント                 | 内容                                 |
+| ---------------------------- | ------------------------------------ |
 | `README.md` / `README_ja.md` | プロジェクト概要、設計意図、コマンド |
-| `specs/requirements/**/*.md` | 要件定義書（実装の根拠） |
+| `specs/requirements/**/*.md` | 要件定義書（実装の根拠）             |
 
 ## 言語ルール
 
-| 対象 | 言語 |
-|------|------|
-| CLAUDE.md | 日本語 |
-| .claude/**/*.md | 日本語 |
-| README_ja.md | 日本語 |
-| meta/**/*.md | 日本語 |
-| rules/**/*.md | 日本語 |
-| specs/**/*.md | 日本語 |
-| README.md | 英語 |
-| templates/**/*.md | 英語 |
-| その他 | 英語 |
+| 対象              | 言語   |
+| ----------------- | ------ |
+| CLAUDE.md         | 日本語 |
+| .claude/**/*.md   | 日本語 |
+| README_ja.md      | 日本語 |
+| meta/**/*.md      | 日本語 |
+| rules/**/*.md     | 日本語 |
+| specs/**/*.md     | 日本語 |
+| README.md         | 英語   |
+| templates/**/*.md | 英語   |
+| その他            | 英語   |
 
 ## 開発ルール [必須]
 
@@ -67,6 +67,7 @@ Task(subagent_type: claude-code-guide, prompt: "調査したい内容")
 ```
 
 理由:
+
 - Claude Code の仕様は頻繁に更新される
 - 古い知識に基づく実装は動作しない可能性がある
 - 公式ドキュメントの最新情報を確認することで、正確な実装が可能になる
@@ -74,6 +75,7 @@ Task(subagent_type: claude-code-guide, prompt: "調査したい内容")
 ## ファイルヘッダー [必須]
 
 新規作成ファイルの `Created by` は git 定義の作者名を使用:
+
 ```bash
 git config user.name
 ```
@@ -82,25 +84,25 @@ git config user.name
 
 ### テンプレート（setup.sh で対象プロジェクトにコピーされる）
 
-| ファイル | 役割 |
-|----------|------|
-| `templates/doc-advisor/config.yaml` | プロジェクト設定テンプレート |
-| `templates/doc-advisor/docs/*_toc_format.md` | ToC スキーマ定義（Single Source of Truth） |
-| `templates/doc-advisor/docs/*_toc_update_workflow.md` | ToC 更新の詳細ワークフロー |
-| `templates/doc-advisor/docs/*_orchestrator.md` | オーケストレーター手順 |
-| `templates/doc-advisor/scripts/` | Python スクリプト群 |
-| `templates/skills/query-{rules,specs}/SKILL.md` | ドキュメント検索スキル |
-| `templates/skills/create-{rules,specs}-toc/SKILL.md` | ToC 生成スキル |
-| `templates/agents/` | ワーカーエージェント（toc-updater） |
+| ファイル                                              | 役割                                       |
+| ----------------------------------------------------- | ------------------------------------------ |
+| `templates/doc-advisor/config.yaml`                   | プロジェクト設定テンプレート               |
+| `templates/doc-advisor/docs/*_toc_format.md`          | ToC スキーマ定義（Single Source of Truth） |
+| `templates/doc-advisor/docs/*_toc_update_workflow.md` | ToC 更新の詳細ワークフロー                 |
+| `templates/doc-advisor/docs/*_orchestrator.md`        | オーケストレーター手順                     |
+| `templates/doc-advisor/scripts/`                      | Python スクリプト群                        |
+| `templates/skills/query-{rules,specs}/SKILL.md`       | ドキュメント検索スキル                     |
+| `templates/skills/create-{rules,specs}-toc/SKILL.md`  | ToC 生成スキル                             |
+| `templates/agents/`                                   | ワーカーエージェント（toc-updater）        |
 
 ### プロジェクト固有
 
-| ファイル | 役割 |
-|----------|------|
-| `setup.sh` | ターゲットプロジェクトへのセットアップスクリプト |
-| `specs/requirements/` | Doc Advisor 自体の要件定義書 |
-| `specs/design/` | Doc Advisor 自体の設計書 |
-| `rules/` | 開発ルール文書 |
+| ファイル              | 役割                                             |
+| --------------------- | ------------------------------------------------ |
+| `setup.sh`            | ターゲットプロジェクトへのセットアップスクリプト |
+| `specs/requirements/` | Doc Advisor 自体の要件定義書                     |
+| `specs/design/`       | Doc Advisor 自体の設計書                         |
+| `rules/`              | 開発ルール文書                                   |
 
 ## 禁止事項
 
@@ -115,12 +117,14 @@ git config user.name
 - `/` 直下全般
 
 理由:
+
 - セキュリティリスクがある
 - 他のユーザーやプロセスと競合する可能性がある
 - シンボリックリンク攻撃の対象になりやすい
 - 予測可能な名前だと悪用される可能性がある
 
 代替案:
+
 - プロジェクトの隣のディレクトリに作成する
 - ユーザーのワーキングディレクトリ配下で作業する
 - どうしても一時ディレクトリが必要な場合は `mktemp -d` を使用する
@@ -156,6 +160,7 @@ rg -L --files specs --glob "*.md"
 ```
 
 <!-- doc-advisor-section-start -->
+
 ## Doc Advisor ルール [MANDATORY]
 
 ### ToC ファイルの直接修正禁止
@@ -165,4 +170,5 @@ ToC の生成・更新には、必ず Doc Advisor の Skill/Agent を使用す�
 
 - `/create-rules-toc` — rules の ToC を生成・更新
 - `/create-specs-toc` — specs の ToC を生成・更新
+
 <!-- doc-advisor-section-end -->

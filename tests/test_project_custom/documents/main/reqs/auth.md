@@ -1,6 +1,7 @@
 # Authentication Requirements
 
 This document uses custom directory names:
+
 - "documents" instead of "specs"
 - "reqs" instead of "requirements"
 

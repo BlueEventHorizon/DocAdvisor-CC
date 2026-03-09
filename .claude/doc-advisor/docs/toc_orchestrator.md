@@ -15,9 +15,9 @@ Orchestrator workflow to generate/update `.claude/doc-advisor/toc/{target}/{targ
 
 ## Options
 
-| Option | Description |
-|--------|-------------|
-| (none) | Incremental update (hash-based) or resume processing |
+| Option   | Description                                           |
+| -------- | ----------------------------------------------------- |
+| (none)   | Incremental update (hash-based) or resume processing  |
 | `--full` | Full file scan (for initial creation or regeneration) |
 
 ## Arguments
@@ -30,6 +30,7 @@ Orchestrator workflow to generate/update `.claude/doc-advisor/toc/{target}/{targ
 ## Required Reference Documents [MANDATORY]
 
 Read the following before processing:
+
 - `.claude/doc-advisor/docs/toc_format.md` - Format definition and intermediate file schema
 - `.claude/doc-advisor/docs/toc_update_workflow.md` - Detailed workflow
 
@@ -52,7 +53,7 @@ Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
 
 ### Phase 1: Initialization
 
-```
+````
 1. Check if .claude/doc-advisor/toc/{target}/.toc_work/ exists
     ↓
 [If exists] → Continue mode (jump to Phase 2)
@@ -74,7 +75,7 @@ Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
     # Incremental mode
     $HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
     ```
-```
+````
 
 ### Phase 2: Parallel Processing
 
@@ -84,6 +85,7 @@ Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
 > When processing many files, this can cause context overflow.
 >
 > **Rules:**
+>
 > - Subagents return minimal responses (defined in agent's "Completion Response" section)
 > - After each batch completes, output a brief progress summary (e.g., "Batch 2/10 complete, 40 remaining")
 > - Keep orchestrator messages minimal between batches
@@ -91,6 +93,7 @@ Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
 >   (pending check races with task completion, causing duplicate processing)
 >
 > **For large projects (100+ files):**
+>
 > - Reduce `max_workers` to 3 in config.yaml to lower API load and context growth
 > - If context overflows mid-session, start a new session and re-run the same command.
 >   `.toc_work/` with completed entries is preserved; Continue Mode automatically
@@ -156,6 +159,7 @@ $HOME/.pyenv/shims/python3 .claude/doc-advisor/scripts/create_pending_yaml.py --
 ```
 
 The script handles:
+
 1. File discovery and change detection (SHA-256 hash comparison)
 2. Filename conversion (e.g., `rules/core/architecture_rule.md` → `rules_core_architecture_rule.yaml`)
 3. Template generation with pending status
@@ -166,11 +170,11 @@ The script handles:
 
 ## Continue Mode Details
 
-| Condition | Action |
-|-----------|--------|
-| `--full` + `.toc_work/` exists | Bash: `rm -rf .claude/doc-advisor/toc/{target}/.toc_work` → Start full mode |
-| `.toc_work/` exists + pending remain | Resume from pending (to Phase 2) |
-| `.toc_work/` exists + all completed | Go directly to merge phase (Phase 3) |
+| Condition                            | Action                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `--full` + `.toc_work/` exists       | Bash: `rm -rf .claude/doc-advisor/toc/{target}/.toc_work` → Start full mode |
+| `.toc_work/` exists + pending remain | Resume from pending (to Phase 2)                                            |
+| `.toc_work/` exists + all completed  | Go directly to merge phase (Phase 3)                                        |
 
 ---
 
@@ -187,6 +191,7 @@ test -f .claude/doc-advisor/toc/{target}/.toc_checksums.yaml && echo "EXISTS" ||
 ### Step 2-3: Detect Changes
 
 The `create_pending_yaml.py --target {target}` script handles:
+
 1. Reading current file list and computing hashes
 2. Comparing with `.toc_checksums.yaml`
 3. Categorizing files as New/Changed/Deleted/Unchanged
@@ -209,16 +214,20 @@ The `create_pending_yaml.py --target {target}` script handles:
 ```
 
 **If N=0 and M=0**:
+
 ```
 ✅ No changes - {target}_toc.yaml is up to date
 ```
+
 End processing (no need to create .toc_work/)
 
 **If N=0 and M>0**:
+
 ```
 📁 Detected deleted files: M items
 🔄 Running merge script to reflect deletions...
 ```
+
 → Run merge script (go directly to Phase 3, no .toc_work/ needed)
 
 ---

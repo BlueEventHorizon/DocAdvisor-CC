@@ -1,6 +1,7 @@
 # API Architecture
 
 This document uses custom directory names:
+
 - "documents" instead of "specs"
 - "arch" instead of "design"
 

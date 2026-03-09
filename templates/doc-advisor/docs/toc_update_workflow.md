@@ -75,12 +75,12 @@ test -d .claude/doc-advisor/toc/{target}/.toc_work && echo "EXISTS" || echo "NOT
 
 ### Step 1.2: Mode determination and branching
 
-| Condition | Processing |
-|-----------|------------|
-| `--full` option specified | Delete .toc_work/ → New processing in full mode |
-| .toc_work/ exists | Continue mode (process existing pending YAMLs) |
-| .toc_work/ doesn't exist + {target}_toc.yaml doesn't exist | New processing in full mode |
-| .toc_work/ doesn't exist + {target}_toc.yaml exists | Incremental mode |
+| Condition                                                  | Processing                                      |
+| ---------------------------------------------------------- | ----------------------------------------------- |
+| `--full` option specified                                  | Delete .toc_work/ → New processing in full mode |
+| .toc_work/ exists                                          | Continue mode (process existing pending YAMLs)  |
+| .toc_work/ doesn't exist + {target}_toc.yaml doesn't exist | New processing in full mode                     |
+| .toc_work/ doesn't exist + {target}_toc.yaml exists        | Incremental mode                                |
 
 ### Step 1.3: Identify target files
 
@@ -137,6 +137,7 @@ Repeat Steps 2.1-2.3 until all pending YAMLs are completed
 ### Step 3.1: Completion check
 
 Verify each `.toc_work/*.yaml` meets:
+
 - `_meta.status == completed`
 - `title != null`
 - `purpose != null`

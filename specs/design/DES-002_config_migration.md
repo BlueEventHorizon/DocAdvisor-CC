@@ -7,10 +7,10 @@
 `merge_config.py` は、Doc Advisor のバージョンアップ時に既存の `config.yaml` ユーザー設定を
 新テンプレートへ自動引き継ぎするスクリプト。処理は以下の 2 ステージで構成される。
 
-| ステージ | 処理内容 |
-|---------|---------|
-| Stage 1 | バージョンマイグレーション（メジャーバージョン間の構造変換） |
-| Stage 2 | ユーザー設定引き継ぎ（root_dirs, doc_types_map, exclude 等） |
+| ステージ | 処理内容                                                     |
+| -------- | ------------------------------------------------------------ |
+| Stage 1  | バージョンマイグレーション（メジャーバージョン間の構造変換） |
+| Stage 2  | ユーザー設定引き継ぎ（root_dirs, doc_types_map, exclude 等） |
 
 ---
 
@@ -29,11 +29,11 @@ for v in targets:
 
 v4 → v6 へアップグレードする場合（MIGRATIONS = {5: migrate_to_v5, 6: migrate_to_v6}）：
 
-| ステップ | `new_content` の状態 | `old_config_dict` の状態 |
-|---------|---------------------|------------------------|
-| 開始時   | v6 テンプレート     | v4 辞書（元）           |
-| v=5 実行後 | 中間結果（v5パッチ適用済み） | **v4 辞書のまま** |
-| v=6 実行後 | 最終結果            | **v4 辞書のまま** |
+| ステップ   | `new_content` の状態         | `old_config_dict` の状態 |
+| ---------- | ---------------------------- | ------------------------ |
+| 開始時     | v6 テンプレート              | v4 辞書（元）            |
+| v=5 実行後 | 中間結果（v5パッチ適用済み） | **v4 辞書のまま**        |
+| v=6 実行後 | 最終結果                     | **v4 辞書のまま**        |
 
 ### 設計上の制限
 
@@ -68,12 +68,14 @@ v5 で変換した値を v6 マイグレーションが参照したい場合、�
 これにより「v4 → 完全な v5 → 完全な v6」の真の段階変換が実現する。
 
 **改修前（現在）:**
+
 ```python
 for v in targets:
     new_content = MIGRATIONS[v](new_content, old_config_dict)
 ```
 
 **改修後:**
+
 ```python
 for v in targets:
     new_content = MIGRATIONS[v](new_content, old_config_dict)
@@ -82,10 +84,10 @@ for v in targets:
 
 改修後の各マイグレーション関数が受け取る `old_config_dict` の意味が変わる点に注意：
 
-| 関数 | `old_config_dict` の内容（改修後） |
-|------|---------------------------------|
-| `migrate_to_v5(new_content, old_dict)` | v4 形式の辞書 |
-| `migrate_to_v6(new_content, old_dict)` | v5 形式の辞書（前ステップの出力） |
+| 関数                                   | `old_config_dict` の内容（改修後） |
+| -------------------------------------- | ---------------------------------- |
+| `migrate_to_v5(new_content, old_dict)` | v4 形式の辞書                      |
+| `migrate_to_v6(new_content, old_dict)` | v5 形式の辞書（前ステップの出力）  |
 
 ### 改修2: `migrate_to_v5()` 関数の実装
 
@@ -131,11 +133,11 @@ MIGRATIONS = {
 
 **ファイル**: `tests/test_setup_upgrade.sh`
 
-| テスト ID | 内容 |
-|---------|------|
-| Test 26f | v4 → v5 の単体マイグレーション（v5 で変更されたキーが正しく引き継がれる） |
-| Test 26g | v4 → v6 の多段マイグレーション（v5 経由、v5 で変更したキーが v6 に反映される） |
-| Test 26h | v5 → v6 の単体マイグレーション（v5 辞書を正しく参照できる） |
+| テスト ID | 内容                                                                           |
+| --------- | ------------------------------------------------------------------------------ |
+| Test 26f  | v4 → v5 の単体マイグレーション（v5 で変更されたキーが正しく引き継がれる）      |
+| Test 26g  | v4 → v6 の多段マイグレーション（v5 経由、v5 で変更したキーが v6 に反映される） |
+| Test 26h  | v5 → v6 の単体マイグレーション（v5 辞書を正しく参照できる）                    |
 
 ---
 
@@ -149,8 +151,8 @@ MIGRATIONS = {
 
 ## 参照
 
-| 文書 | 内容 |
-|------|------|
-| `specs/design/DES-001_setup_script.md` | setup.sh 詳細設計（config.yaml マイグレーション履歴） |
-| `rules/project_rule.md` セクション 6.5 | バージョン管理ルール |
-| `templates/doc-advisor/scripts/merge_config.py` | 実装ファイル |
+| 文書                                            | 内容                                                  |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `specs/design/DES-001_setup_script.md`          | setup.sh 詳細設計（config.yaml マイグレーション履歴） |
+| `rules/project_rule.md` セクション 6.5          | バージョン管理ルール                                  |
+| `templates/doc-advisor/scripts/merge_config.py` | 実装ファイル                                          |

@@ -17,10 +17,10 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 
 ### カテゴリ一覧
 
-| カテゴリ | 用途 | ToC ファイル |
-|----------|------|--------------|
-| `rule` | 開発ドキュメント（コーディング規約、アーキテクチャルール、ワークフロー） | `.claude/doc-advisor/toc/rules/rules_toc.yaml` |
-| `spec` | プロジェクト仕様書（要件定義、設計書、画面仕様、API仕様等） | `.claude/doc-advisor/toc/specs/specs_toc.yaml` |
+| カテゴリ | 用途                                                                     | ToC ファイル                                   |
+| -------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
+| `rule`   | 開発ドキュメント（コーディング規約、アーキテクチャルール、ワークフロー） | `.claude/doc-advisor/toc/rules/rules_toc.yaml` |
+| `spec`   | プロジェクト仕様書（要件定義、設計書、画面仕様、API仕様等）              | `.claude/doc-advisor/toc/specs/specs_toc.yaml` |
 
 ### 処理の共通性
 
@@ -42,6 +42,7 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 各カテゴリは**1つ以上のルートディレクトリ**を持つ。ルートディレクトリ配下のサブディレクトリ構造は自由。
 
 `root_dirs` の設定方法（いずれもセットアップ時に config.yaml へ書き込まれる。ランタイムは config.yaml のみ参照: FR-08）:
+
 - `.doc_structure.yaml` がある場合: setup.sh が `import_doc_structure.py` で config.yaml へ取り込み
 - `.doc_structure.yaml` がない場合: `/setup-config` スキルで AI が分類し config.yaml を更新
 
@@ -157,12 +158,12 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 ### 除外例
 
-| パス | 除外パターン | 結果 |
-|------|-------------|------|
-| `specs/plan/roadmap.md` | `plan` | 除外 |
-| `specs/archive/old_spec.md` | `archive` | 除外 |
-| `specs/design/info/readme.md` | `/info/` | 除外 |
-| `specs/requirements/info.md` | `/info/` | **対象**（`info.md` はファイル名であり `/info/` にマッチしない）|
+| パス                          | 除外パターン | 結果                                                             |
+| ----------------------------- | ------------ | ---------------------------------------------------------------- |
+| `specs/plan/roadmap.md`       | `plan`       | 除外                                                             |
+| `specs/archive/old_spec.md`   | `archive`    | 除外                                                             |
+| `specs/design/info/readme.md` | `/info/`     | 除外                                                             |
+| `specs/requirements/info.md`  | `/info/`     | **対象**（`info.md` はファイル名であり `/info/` にマッチしない） |
 
 > **Note**: `.toc_work`, `rules_toc.yaml`, `specs_toc.yaml`, `.toc_checksums.yaml` はシステム除外として常に無視される。
 
@@ -172,8 +173,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 ### 設定ファイル
 
-| パス | 用途 |
-|------|------|
+| パス                              | 用途             |
+| --------------------------------- | ---------------- |
 | `.claude/doc-advisor/config.yaml` | プロジェクト設定 |
 
 > **Note**: デフォルト値は `toc_utils.py` の `_get_default_config()` にハードコードされている。
@@ -182,40 +183,40 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 #### rules セクション
 
-| 項目 | 型 | デフォルト | 説明 |
-|------|-----|-----------|------|
-| `root_dirs` | array | `[]`（setup.sh または `/setup-config` で設定） | ルートディレクトリ群 |
-| `doc_types_map` | object | `{}`（setup.sh または `/setup-config` で設定） | パス → doc_type の対応。FR-01-6 参照 |
-| `toc_file` | string | `.claude/doc-advisor/toc/rules/rules_toc.yaml` | 出力 ToC ファイルパス |
-| `checksums_file` | string | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | チェックサムファイルパス |
-| `work_dir` | string | `.claude/doc-advisor/toc/rules/.toc_work/` | 作業ディレクトリパス |
-| `patterns.target_glob` | string | `**/*.md` | スキャン対象パターン |
-| `patterns.exclude` | array | *なし* | 除外パターン（ユーザー定義） |
-| `output.header_comment` | string | *下記参照* | ToC ヘッダーコメント |
-| `output.metadata_name` | string | *下記参照* | メタデータ名 |
+| 項目                    | 型     | デフォルト                                          | 説明                                 |
+| ----------------------- | ------ | --------------------------------------------------- | ------------------------------------ |
+| `root_dirs`             | array  | `[]`（setup.sh または `/setup-config` で設定）      | ルートディレクトリ群                 |
+| `doc_types_map`         | object | `{}`（setup.sh または `/setup-config` で設定）      | パス → doc_type の対応。FR-01-6 参照 |
+| `toc_file`              | string | `.claude/doc-advisor/toc/rules/rules_toc.yaml`      | 出力 ToC ファイルパス                |
+| `checksums_file`        | string | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | チェックサムファイルパス             |
+| `work_dir`              | string | `.claude/doc-advisor/toc/rules/.toc_work/`          | 作業ディレクトリパス                 |
+| `patterns.target_glob`  | string | `**/*.md`                                           | スキャン対象パターン                 |
+| `patterns.exclude`      | array  | _なし_                                              | 除外パターン（ユーザー定義）         |
+| `output.header_comment` | string | _下記参照_                                          | ToC ヘッダーコメント                 |
+| `output.metadata_name`  | string | _下記参照_                                          | メタデータ名                         |
 
 #### specs セクション
 
-| 項目 | 型 | デフォルト | 説明 |
-|------|-----|-----------|------|
-| `root_dirs` | array | `[]`（setup.sh または `/setup-config` で設定） | ルートディレクトリ群 |
-| `doc_types_map` | object | `{}`（setup.sh または `/setup-config` で設定） | パス → doc_type の対応。FR-01-6 参照 |
-| `toc_file` | string | `.claude/doc-advisor/toc/specs/specs_toc.yaml` | 出力 ToC ファイルパス |
-| `checksums_file` | string | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | チェックサムファイルパス |
-| `work_dir` | string | `.claude/doc-advisor/toc/specs/.toc_work/` | 作業ディレクトリパス |
-| `patterns.target_glob` | string | `**/*.md` | スキャン対象パターン |
-| `patterns.exclude` | array | *なし* | 除外パターン（ユーザー定義） |
-| `output.header_comment` | string | *下記参照* | ToC ヘッダーコメント |
-| `output.metadata_name` | string | *下記参照* | メタデータ名 |
+| 項目                    | 型     | デフォルト                                          | 説明                                 |
+| ----------------------- | ------ | --------------------------------------------------- | ------------------------------------ |
+| `root_dirs`             | array  | `[]`（setup.sh または `/setup-config` で設定）      | ルートディレクトリ群                 |
+| `doc_types_map`         | object | `{}`（setup.sh または `/setup-config` で設定）      | パス → doc_type の対応。FR-01-6 参照 |
+| `toc_file`              | string | `.claude/doc-advisor/toc/specs/specs_toc.yaml`      | 出力 ToC ファイルパス                |
+| `checksums_file`        | string | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | チェックサムファイルパス             |
+| `work_dir`              | string | `.claude/doc-advisor/toc/specs/.toc_work/`          | 作業ディレクトリパス                 |
+| `patterns.target_glob`  | string | `**/*.md`                                           | スキャン対象パターン                 |
+| `patterns.exclude`      | array  | _なし_                                              | 除外パターン（ユーザー定義）         |
+| `output.header_comment` | string | _下記参照_                                          | ToC ヘッダーコメント                 |
+| `output.metadata_name`  | string | _下記参照_                                          | メタデータ名                         |
 
 > **Note**: rules と specs の設定項目は完全に同一構造。
 
 #### common セクション
 
-| 項目 | 型 | デフォルト | 説明 |
-|------|-----|-----------|------|
-| `parallel.max_workers` | integer | `5` | 最大並列処理数 |
-| `parallel.fallback_to_serial` | boolean | `true` | 並列失敗時に直列実行 |
+| 項目                          | 型      | デフォルト | 説明                 |
+| ----------------------------- | ------- | ---------- | -------------------- |
+| `parallel.max_workers`        | integer | `5`        | 最大並列処理数       |
+| `parallel.fallback_to_serial` | boolean | `true`     | 並列失敗時に直列実行 |
 
 #### 後方互換性
 
@@ -236,8 +237,8 @@ rules:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      # - archive
-      # - draft
+  # - archive
+  # - draft
 
   output:
     header_comment: "Development documentation search index for query-rules skill"
@@ -255,9 +256,9 @@ specs:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      - plan    # Read in full during work, no search needed
-      # - archive
-      # - /info/
+      - plan # Read in full during work, no search needed
+  # - archive
+  # - /info/
 
   output:
     header_comment: "Project specification search index for query-specs skill"
@@ -275,31 +276,31 @@ common:
 
 ### ToC ファイル
 
-| カテゴリ | ファイル | 内容 |
-|----------|----------|------|
-| rule | `.claude/doc-advisor/toc/rules/rules_toc.yaml` | 開発ドキュメントのインデックス |
-| spec | `.claude/doc-advisor/toc/specs/specs_toc.yaml` | 仕様書のインデックス |
+| カテゴリ | ファイル                                       | 内容                           |
+| -------- | ---------------------------------------------- | ------------------------------ |
+| rule     | `.claude/doc-advisor/toc/rules/rules_toc.yaml` | 開発ドキュメントのインデックス |
+| spec     | `.claude/doc-advisor/toc/specs/specs_toc.yaml` | 仕様書のインデックス           |
 
 ### チェックサムファイル
 
-| カテゴリ | ファイル | 用途 |
-|----------|----------|------|
-| rule | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | 差分検出用ハッシュ |
-| spec | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | 差分検出用ハッシュ |
+| カテゴリ | ファイル                                            | 用途               |
+| -------- | --------------------------------------------------- | ------------------ |
+| rule     | `.claude/doc-advisor/toc/rules/.toc_checksums.yaml` | 差分検出用ハッシュ |
+| spec     | `.claude/doc-advisor/toc/specs/.toc_checksums.yaml` | 差分検出用ハッシュ |
 
 ### 作業ディレクトリ
 
-| カテゴリ | ディレクトリ | 用途 |
-|----------|--------------|------|
-| rule | `.claude/doc-advisor/toc/rules/.toc_work/` | 処理中の pending YAML |
-| spec | `.claude/doc-advisor/toc/specs/.toc_work/` | 処理中の pending YAML |
+| カテゴリ | ディレクトリ                               | 用途                  |
+| -------- | ------------------------------------------ | --------------------- |
+| rule     | `.claude/doc-advisor/toc/rules/.toc_work/` | 処理中の pending YAML |
+| spec     | `.claude/doc-advisor/toc/specs/.toc_work/` | 処理中の pending YAML |
 
 ---
 
 ## 関連設計書
 
-| 設計書 | 内容 |
-|--------|------|
-| DES-001 | セットアップスクリプト |
-| DES-003 | 文書識別子の設計 |
+| 設計書  | 内容                                  |
+| ------- | ------------------------------------- |
+| DES-001 | セットアップスクリプト                |
+| DES-003 | 文書識別子の設計                      |
 | DES-005 | ToC 生成フローと Skill/Agent 設計根拠 |

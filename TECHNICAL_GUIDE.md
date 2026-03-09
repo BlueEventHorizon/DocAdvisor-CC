@@ -31,32 +31,33 @@ Doc Advisor helps you manage project documentation by automatically indexing doc
 
 Doc Advisor manages two categories of documents: **rule** and **spec**.
 
-| Category | Directory | Purpose | Configurable |
-|----------|-----------|---------|--------------|
-| rule | `rules/` | Development documentation | Yes |
-| spec | `specs/` | Project specifications | Yes |
+| Category | Directory | Purpose                   | Configurable |
+| -------- | --------- | ------------------------- | ------------ |
+| rule     | `rules/`  | Development documentation | Yes          |
+| spec     | `specs/`  | Project specifications    | Yes          |
 
 ### rule - Development Documentation
 
 Free-form structure. Any `.md` file in any subdirectory is indexed.
 
-| Content Type | Examples |
-|--------------|----------|
-| Architecture rules | `rules/core/architecture.md` |
-| Coding standards | `rules/coding/naming_convention.md` |
-| Workflow guides | `rules/workflow/review_process.md` |
+| Content Type       | Examples                            |
+| ------------------ | ----------------------------------- |
+| Architecture rules | `rules/core/architecture.md`        |
+| Coding standards   | `rules/coding/naming_convention.md` |
+| Workflow guides    | `rules/workflow/review_process.md`  |
 
 ### spec - Project Specifications
 
 The doc_type is automatically determined if the subdirectory name appears anywhere in the path.
 
-| doc_type | Subdirectory | Purpose | Configurable |
-|----------|--------------|---------|--------------|
-| `requirement` | `requirements/` | Functional requirements, use cases | Yes |
-| `design` | `design/` | Technical design, architecture decisions | Yes |
-| `plan` | `plan/` | Project plans (definition only, not indexed in ToC) | - |
+| doc_type      | Subdirectory    | Purpose                                             | Configurable |
+| ------------- | --------------- | --------------------------------------------------- | ------------ |
+| `requirement` | `requirements/` | Functional requirements, use cases                  | Yes          |
+| `design`      | `design/`       | Technical design, architecture decisions            | Yes          |
+| `plan`        | `plan/`         | Project plans (definition only, not indexed in ToC) | -            |
 
 Examples:
+
 - `specs/requirements/login.md` → requirement
 - `specs/main/design/architecture.md` → design
 - `specs/auth/oauth/requirements/api.md` → requirement
@@ -67,11 +68,11 @@ Examples:
 
 The system recursively searches under `specs/` and targets files whose path contains a `requirement` or `design` directory. There is no depth limit.
 
-| Path Example | Included | Reason |
-|--------------|----------|--------|
-| `specs/feature1/requirements/app.md` | ✅ | Contains `requirements` |
-| `specs/main/sub/design/api.md` | ✅ | Contains `design` |
-| `specs/feature1/plan/task.md` | ❌ | Not included |
+| Path Example                         | Included | Reason                  |
+| ------------------------------------ | -------- | ----------------------- |
+| `specs/feature1/requirements/app.md` | ✅       | Contains `requirements` |
+| `specs/main/sub/design/api.md`       | ✅       | Contains `design`       |
+| `specs/feature1/plan/task.md`        | ❌       | Not included            |
 
 #### Why plan is Excluded
 
@@ -82,12 +83,12 @@ The `plan` directory is excluded from ToC indexing:
 
 #### Processing Time
 
-| Process | Executor | Speed |
-|---------|----------|-------|
-| Recursive search | Python (`os.walk`) | Fast |
-| Change detection | Python (SHA-256) | Fast |
-| Content analysis | Claude (LLM) | **Slow** |
-| Merge | Python | Fast |
+| Process          | Executor           | Speed    |
+| ---------------- | ------------------ | -------- |
+| Recursive search | Python (`os.walk`) | Fast     |
+| Change detection | Python (SHA-256)   | Fast     |
+| Content analysis | Claude (LLM)       | **Slow** |
+| Merge            | Python             | Fast     |
 
 The bottleneck is LLM content analysis. Incremental mode (default) optimizes by processing only changed files.
 
@@ -121,6 +122,7 @@ cd DocAdvisor-CC
 ```
 
 This copies all necessary files to your project:
+
 ```
 your-project/.claude/
 ├── agents/            # Worker agents (toc-updater)
@@ -141,6 +143,7 @@ your-project/.claude/
 ```
 
 Setup will interactively ask for:
+
 - Rules directory (default: `rules/`)
 - Specs directory (default: `specs/`)
 - Requirements subdirectory name (default: `requirements`)
@@ -206,7 +209,7 @@ When receiving a work task, follow this flow:
 3. Read **all** required documents
 
 4. Execute the task
-   ```
+```
 
 ## Architecture
 
@@ -334,8 +337,8 @@ rules:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      # - reference    # Uncomment to exclude
-      # - archive
+  # - reference    # Uncomment to exclude
+  # - archive
 
   output:
     header_comment: "Development documentation search index for rules-advisor subagent"
@@ -353,9 +356,9 @@ specs:
       requirement: requirements
       design: design
     exclude:
-      - plan           # Read in full during work, no search needed
-      # - reference
-      # - /info/
+      - plan # Read in full during work, no search needed
+  # - reference
+  # - /info/
 
   output:
     header_comment: "Requirements and design document search index for specs-advisor subagent"
@@ -385,11 +388,11 @@ nano /path/to/your-project/.claude/doc-advisor/config.yaml
 
 ## Processing Modes
 
-| Mode | Description |
-|------|-------------|
-| full | Scan all files and regenerate ToC |
-| incremental | Process only changed files (SHA-256 hash detection) |
-| continuation | Resume interrupted processing |
+| Mode         | Description                                         |
+| ------------ | --------------------------------------------------- |
+| full         | Scan all files and regenerate ToC                   |
+| incremental  | Process only changed files (SHA-256 hash detection) |
+| continuation | Resume interrupted processing                       |
 
 ## Requirements
 
@@ -402,6 +405,7 @@ nano /path/to/your-project/.claude/doc-advisor/config.yaml
 ### Config not found error
 
 Ensure you've run setup for your project:
+
 ```bash
 ./setup.sh /path/to/your-project
 ```
@@ -409,6 +413,7 @@ Ensure you've run setup for your project:
 ### Skills not recognized
 
 Verify the files exist:
+
 ```bash
 ls -la /path/to/your-project/.claude/skills/create-rules-toc/SKILL.md
 ls -la /path/to/your-project/.claude/skills/create-specs-toc/SKILL.md
@@ -433,12 +438,14 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 ### What happens during upgrade
 
 **Automatically deleted** (doc-advisor legacy files):
+
 - `.claude/commands/create-rules_toc.md`
 - `.claude/commands/create-specs_toc.md`
 - `.claude/skills/doc-advisor/` (removed, replaced with split skills)
 - `.claude/doc-advisor/docs/` (recreated from templates)
 
 **Installed** (v3.8+ structure):
+
 - `.claude/agents/toc-updater.md` (unified worker agent)
 - `.claude/skills/setup-config/SKILL.md` (document directory auto-classification)
 - `.claude/skills/query-rules/SKILL.md` (rules document search)
@@ -452,10 +459,12 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 - `.claude/doc-advisor/toc/specs/` (ToC output)
 
 **Preserved** (user's custom files):
+
 - `.claude/commands/your-custom-command.md` (any other commands)
 - `.claude/agents/your-custom-agent.md` (any non-doc-advisor agents)
 
 **config.yaml handling**:
+
 - If `.claude/doc-advisor/config.yaml` exists, you'll be prompted:
   - `[o]` Overwrite (backup to config.yaml.bak)
   - `[s]` Skip (keep existing config)
