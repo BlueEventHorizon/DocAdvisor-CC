@@ -27,11 +27,21 @@ LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 # Agent model (opus, sonnet, haiku, inherit)
 DEFAULT_AGENT_MODEL="opus"
 
-# Load previous settings if available
+# Load previous settings if available (safe key=value parser, no source)
+_load_last_setup() {
+    local file="$1"
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// /}" ]] && continue
+        # Only accept KEY="value" or KEY=value where KEY is a known variable
+        if [[ "$line" =~ ^LAST_AGENT_MODEL=\"?([a-z]+)\"?$ ]]; then
+            DEFAULT_AGENT_MODEL="${BASH_REMATCH[1]}"
+        fi
+    done < "$file"
+}
 if [[ -f "$LAST_SETUP_FILE" ]]; then
-    source "$LAST_SETUP_FILE"
-    # Use saved values as defaults
-    DEFAULT_AGENT_MODEL="${LAST_AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
+    _load_last_setup "$LAST_SETUP_FILE"
 fi
 
 # Parse arguments
@@ -266,6 +276,7 @@ fi
 # (scripts and config are handled by the copy process, only docs/ needs explicit cleanup)
 if [[ -d "${DOC_ADVISOR_DIR}/docs" ]]; then
     rm -rf "${DOC_ADVISOR_DIR}/docs"
+    printf "${GREEN}Removed legacy: doc-advisor/docs/${NC}\n"
     LEGACY_CLEANED=1
 fi
 
@@ -339,15 +350,25 @@ mkdir -p "${DOC_ADVISOR_DIR}/toc/specs"    # ToC/checksums for specs
 mkdir -p "${AGENTS_DIR}"
 mkdir -p "${SKILLS_DIR}"
 
+# Function to escape a value for use in sed replacement string (| delimiter)
+# Escapes: \ → \\, & → \&, | → \|
+_sed_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/&/\\&/g; s/|/\\|/g'
+}
+
 # Function to copy and substitute variables in a file
 copy_and_substitute() {
     local src="$1"
     local dst="$2"
 
     if [[ -f "$src" ]]; then
-        sed -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
-            -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
-            -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
+        local esc_model esc_python esc_version
+        esc_model=$(_sed_escape "${AGENT_MODEL}")
+        esc_python=$(_sed_escape "${PYTHON_PATH}")
+        esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
+        sed -e "s|{{AGENT_MODEL}}|${esc_model}|g" \
+            -e "s|{{PYTHON_PATH}}|${esc_python}|g" \
+            -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
             "$src" > "$dst"
     fi
 }
@@ -501,7 +522,7 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
 fi
 
 # Import .doc_structure.yaml into config.yaml (Route A: DES-005)
-if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]]; then
+if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]] && [[ "${SHOW_CONFIG_DIFF:-0}" != "1" ]]; then
     echo "Importing .doc_structure.yaml into config.yaml..."
     if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
         "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"); then

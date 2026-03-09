@@ -151,11 +151,22 @@ def validate_toc(toc_path):
     # パース
     docs = load_existing_toc(toc_path)
 
+    # docs キー存在検査（壊れた YAML で空 dict が返された場合のガード）
+    if not docs or not isinstance(docs, dict):
+        errors.append("docs セクションが見つからないか、エントリが空です")
+        print("✗ docs セクション検査: docs が見つからないか空です")
+        print(f"\n❌ 検査失敗: {len(errors)} 件のエラー")
+        for err in errors:
+            print(f"  - {err}")
+        return False
+    else:
+        print("✓ docs セクション検査: OK")
+
     # 2. 必須フィールド検査
     # title/purpose が必須（文字列）
     # content_details/applicable_tasks/keywords が必須（非空配列）
     # フォーマット定義: No null, No empty arrays (rules_toc_format.md)
-    required_string_fields = ['title', 'purpose']
+    required_string_fields = ['title', 'purpose', 'doc_type']
     required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
 

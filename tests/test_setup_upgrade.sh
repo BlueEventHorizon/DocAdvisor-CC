@@ -51,6 +51,7 @@ DOCEOF
 }
 
 CURRENT_VERSION=$(grep 'DOC_ADVISOR_VERSION=' "$PROJECT_ROOT/setup.sh" | cut -d'"' -f2)
+PYTHON3=$(command -v python3 2>/dev/null || echo "python3")
 
 echo "=================================================="
 echo "Setup Upgrade Test Suite"
@@ -604,7 +605,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Manually change root_dirs to custom value (override auto-imported value)
-python3 -c "
+$PYTHON3 -c "
 import re
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 content = re.sub(r'(rules:\n)  root_dirs:\n    - rules/', r'\1  root_dirs:\n    - custom_rules/', content)
@@ -745,7 +746,7 @@ OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" specs 2>/dev/null)
 test_result "No output for 'specs' when configured" "" "$OUTPUT"
 
 # Case 3: Remove root_dirs → ACTION REQUIRED
-python3 -c "
+$PYTHON3 -c "
 import re
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 content = re.sub(r'  root_dirs:\n(    - [^\n]+\n)+', '  # root_dirs: []    # Auto-configured by setup.sh or /setup-config\n', content)
@@ -774,7 +775,7 @@ fi
 # Re-run setup to get fresh config, then selectively remove only specs root_dirs
 setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-python3 -c "
+$PYTHON3 -c "
 import re
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 # Remove only specs root_dirs (between 'specs:' section and next section or EOF)
@@ -900,7 +901,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add exclude pattern to rules section
-python3 -c "
+$PYTHON3 -c "
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 lines = content.split('\n')
 result = []
@@ -940,7 +941,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add exclude pattern in inline YAML list format (edge case)
-python3 -c "
+$PYTHON3 -c "
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 # Replace first 'exclude: []' with inline list format
 import re
@@ -980,7 +981,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Add section-level exclude (indent=2, directly under specs) - legacy format
-python3 -c "
+$PYTHON3 -c "
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 # Insert section-level exclude after root_dirs block in specs section
 lines = content.split('\n')
@@ -1012,7 +1013,7 @@ AFTER_SECTION=$(grep -c "section_plugins/" "$TEST_PROJECT/.claude/doc-advisor/co
 test_result "section-level exclude migrated to patterns.exclude after merge" "1" "$([[ $AFTER_SECTION -ge 1 ]] && echo 1 || echo 0)"
 
 # Verify: now under patterns.exclude (not at section level)
-UNDER_PATTERNS=$(python3 -c "
+UNDER_PATTERNS=$($PYTHON3 -c "
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 lines = content.split('\n')
 in_patterns = False
@@ -1050,7 +1051,7 @@ echo "# Test Spec" > "$TEST_PROJECT/specs/test.md"
 echo -e "c\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Manually set root_dirs in config (simulating user who ran /setup-config manually)
-python3 -c "
+$PYTHON3 -c "
 content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
 # Replace '# root_dirs: []' for rules section (first occurrence)
 import re
@@ -1120,7 +1121,7 @@ DIRS_AFTER_FIRST=$(grep -c "^  root_dirs:" "$EXTERNAL_PROJECT/.claude/doc-adviso
 test_result "root_dirs set after first install (external dir)" "2" "$DIRS_AFTER_FIRST"
 
 # Add custom exclude pattern
-python3 -c "
+$PYTHON3 -c "
 content = open('$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml').read()
 lines = content.split('\n')
 result = []
@@ -1163,7 +1164,7 @@ TOC_DIR="$TEST_PROJECT/.claude/doc-advisor/toc/rules"
 mkdir -p "$TOC_DIR"
 
 # Detect Python command (same as other test suites)
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 
 # Case 1: Missing required fields (no title, no keywords)
@@ -1217,6 +1218,7 @@ docs:
   rules/test.md:
     title: "Test Rule"
     purpose: "A test rule document"
+    doc_type: "rule"
     content_details:
       - "contains test rules"
     applicable_tasks:
@@ -1246,11 +1248,11 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 
 # Set root_dirs: [] in config.yaml for both sections
-python3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
+$PYTHON3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
 import sys, re
 path = sys.argv[1]
 content = open(path).read()
@@ -1301,7 +1303,7 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 SCRIPTS_DIR="$TEST_PROJECT/.claire/doc-advisor/scripts"
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 
 # Create a pending YAML entry
@@ -1356,7 +1358,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "python3")
+PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
 PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 
 # Add a non-.md file and set target_glob to *.md only (default)
@@ -1365,7 +1367,7 @@ echo "# Rule doc" > "$TEST_PROJECT/rules/test_rule.md"
 echo "This is a text file" > "$TEST_PROJECT/rules/ignore_me.txt"
 
 # Set rules.root_dirs and target_glob: "**/*.md" in config
-python3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
+$PYTHON3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
 import sys, re
 path = sys.argv[1]
 content = open(path).read()

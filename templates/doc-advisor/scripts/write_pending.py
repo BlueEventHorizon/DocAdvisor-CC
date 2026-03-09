@@ -110,7 +110,7 @@ def write_error_yaml(filepath, meta, error_message, target):
 
     # _meta section
     lines.append("_meta:")
-    lines.append(f"  source_file: {meta.get('source_file', '')}")
+    lines.append(f"  source_file: {yaml_escape(meta.get('source_file', ''))}")
     doc_type = meta.get('doc_type', '')
     if doc_type:
         lines.append(f"  doc_type: {doc_type}")
@@ -154,7 +154,7 @@ def write_entry_yaml(filepath, meta, entry, target):
 
     # _meta section
     lines.append("_meta:")
-    lines.append(f"  source_file: {meta.get('source_file', '')}")
+    lines.append(f"  source_file: {yaml_escape(meta.get('source_file', ''))}")
     doc_type = meta.get('doc_type', '')
     if doc_type:
         lines.append(f"  doc_type: {doc_type}")
@@ -229,7 +229,7 @@ def main():
             return 4
         print(f"Entry error: {entry_file}")
         print(f"  source_file: {meta['source_file']}")
-        print(f"  status: error")
+        print(f"  status: pending (error_message set)")
         print(f"  error_message: {args.error_message}")
         return 0
 

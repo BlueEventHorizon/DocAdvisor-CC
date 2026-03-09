@@ -102,6 +102,9 @@ def apply_version_migrations(old_major, new_major, new_content, old_config_dict)
 
     for v in targets:
         new_content = MIGRATIONS[v](new_content, old_config_dict)
+        # Update old_config_dict from intermediate result so that
+        # subsequent migrations see the transformed structure
+        old_config_dict = _parse_config_yaml(new_content)
 
     return new_content
 
@@ -119,6 +122,9 @@ def _parse_value(value):
         value = value[:value.index('  #')].strip()
 
     # Inline list: [] or [a, b, c]
+    # NOTE: toc_utils.py は空リスト [] のみ対応。merge_config.py はインラインリスト形式も
+    # サポートする（config.yaml の exclude 等でユーザーが inline 記法を使う場合に対応）。
+    # 変更時は toc_utils.py との乖離に注意すること。
     if value.startswith('[') and value.endswith(']'):
         inner = value[1:-1].strip()
         if not inner:
