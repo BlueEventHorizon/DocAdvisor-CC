@@ -27,11 +27,21 @@ LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 # Agent model (opus, sonnet, haiku, inherit)
 DEFAULT_AGENT_MODEL="opus"
 
-# Load previous settings if available
+# Load previous settings if available (safe key=value parser, no source)
+_load_last_setup() {
+    local file="$1"
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// /}" ]] && continue
+        # Only accept KEY="value" or KEY=value where KEY is a known variable
+        if [[ "$line" =~ ^LAST_AGENT_MODEL=\"?([a-z]+)\"?$ ]]; then
+            DEFAULT_AGENT_MODEL="${BASH_REMATCH[1]}"
+        fi
+    done < "$file"
+}
 if [[ -f "$LAST_SETUP_FILE" ]]; then
-    source "$LAST_SETUP_FILE"
-    # Use saved values as defaults
-    DEFAULT_AGENT_MODEL="${LAST_AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
+    _load_last_setup "$LAST_SETUP_FILE"
 fi
 
 # Parse arguments
@@ -192,7 +202,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="4.3"
+DOC_ADVISOR_VERSION="4.4"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -247,11 +257,8 @@ fi
 # v2.0 had config/docs/scripts in skills/doc-advisor/ - migrate if found
 LEGACY_SKILL_CONFIG="${SKILLS_DIR}/doc-advisor/config.yaml"
 if [[ -f "$LEGACY_SKILL_CONFIG" ]]; then
-    # Backup v2.0 config for potential migration
-    cp "$LEGACY_SKILL_CONFIG" "${SKILLS_DIR}/config.yaml.legacy.tmp"
-    MIGRATE_LEGACY_CONFIG=1
     rm -f "$LEGACY_SKILL_CONFIG"
-    printf "${GREEN}Removed legacy: skills/doc-advisor/config.yaml (will migrate)${NC}\n"
+    printf "${GREEN}Removed legacy: skills/doc-advisor/config.yaml${NC}\n"
     LEGACY_CLEANED=1
 fi
 if [[ -d "${SKILLS_DIR}/doc-advisor/docs" ]]; then
@@ -269,6 +276,7 @@ fi
 # (scripts and config are handled by the copy process, only docs/ needs explicit cleanup)
 if [[ -d "${DOC_ADVISOR_DIR}/docs" ]]; then
     rm -rf "${DOC_ADVISOR_DIR}/docs"
+    printf "${GREEN}Removed legacy: doc-advisor/docs/${NC}\n"
     LEGACY_CLEANED=1
 fi
 
@@ -324,10 +332,10 @@ if [[ -d "$OLD_CLASSIFY_DIR" ]]; then
     printf "${GREEN}Removed legacy: skills/classify-docs/ (renamed to setup-config/)${NC}\n"
     LEGACY_CLEANED=1
 fi
-for old_script in "set_root_dirs.py"; do
+for old_script in "set_root_dirs.py" "validate_rules_toc.py" "validate_specs_toc.py"; do
     if [[ -f "${DOC_ADVISOR_DIR}/scripts/${old_script}" ]]; then
         rm -f "${DOC_ADVISOR_DIR}/scripts/${old_script}"
-        printf "${GREEN}Removed legacy: scripts/${old_script} (replaced by doc-structure plugin)${NC}\n"
+        printf "${GREEN}Removed legacy: scripts/${old_script}${NC}\n"
         LEGACY_CLEANED=1
     fi
 done
@@ -342,15 +350,34 @@ mkdir -p "${DOC_ADVISOR_DIR}/toc/specs"    # ToC/checksums for specs
 mkdir -p "${AGENTS_DIR}"
 mkdir -p "${SKILLS_DIR}"
 
+# Function to escape a value for use in sed replacement string (| delimiter)
+# Escapes: \ → \\, & → \&, | → \|
+_sed_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/&/\\&/g; s/|/\\|/g'
+}
+
 # Function to copy and substitute variables in a file
+# Cleanup handler: remove temp files on exit (normal or error)
+_cleanup() {
+    [[ -n "${SKILLS_DIR:-}" ]] || return 0
+    rm -f "${SKILLS_DIR}/config.yaml.bak.tmp" \
+          "${SKILLS_DIR}/config.yaml.old.tmp" \
+          "${SKILLS_DIR}/config.yaml.skip_bak"
+}
+trap _cleanup EXIT
+
 copy_and_substitute() {
     local src="$1"
     local dst="$2"
 
     if [[ -f "$src" ]]; then
-        sed -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
-            -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
-            -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
+        local esc_model esc_python esc_version
+        esc_model=$(_sed_escape "${AGENT_MODEL}")
+        esc_python=$(_sed_escape "${PYTHON_PATH}")
+        esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
+        sed -e "s|{{AGENT_MODEL}}|${esc_model}|g" \
+            -e "s|{{PYTHON_PATH}}|${esc_python}|g" \
+            -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
             "$src" > "$dst"
     fi
 }
@@ -404,7 +431,7 @@ if [[ -f "$EXISTING_CONFIG" ]]; then
     echo "  Options:"
     echo "    [o] Overwrite (backup to config.yaml.bak)"
     echo "    [s] Skip (keep existing config)"
-    echo "    [m] Merge manually (show diff after setup)"
+    echo "    [m] Merge (auto) - carry over your settings to new template"
     read -p "  Choice [s]: " CONFIG_CHOICE
     CONFIG_CHOICE="${CONFIG_CHOICE:-s}"
 
@@ -485,9 +512,17 @@ if [[ "${RESTORE_BAK:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.bak.tmp"
     mv "${SKILLS_DIR}/config.yaml.bak.tmp" "${EXISTING_CONFIG}.bak"
 fi
 
-# Show diff if requested (merge mode)
+# Auto-merge user settings if requested (merge mode)
 if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old.tmp" ]]; then
     mv "${SKILLS_DIR}/config.yaml.old.tmp" "${EXISTING_CONFIG}.old"
+    echo ""
+    printf "${YELLOW}Merging your settings into new config...${NC}\n"
+    if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/merge_config.py" \
+        "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG"); then
+        printf "${GREEN}  Settings merged successfully${NC}\n"
+    else
+        printf "${YELLOW}  Warning: Auto-merge failed. Review diff manually.${NC}\n"
+    fi
     echo ""
     printf "${YELLOW}Config diff (old vs new):${NC}\n"
     diff "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG" || true
@@ -496,10 +531,10 @@ if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old
 fi
 
 # Import .doc_structure.yaml into config.yaml (Route A: DES-005)
-if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]]; then
+if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]] && [[ "${SHOW_CONFIG_DIFF:-0}" != "1" ]]; then
     echo "Importing .doc_structure.yaml into config.yaml..."
-    if "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
-        "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"; then
+    if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
+        "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"); then
         printf "${GREEN}  root_dirs and doc_types_map imported from .doc_structure.yaml${NC}\n"
     else
         printf "${YELLOW}  Warning: Failed to import .doc_structure.yaml. Run /setup-config later.${NC}\n"

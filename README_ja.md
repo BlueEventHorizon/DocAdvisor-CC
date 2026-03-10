@@ -50,27 +50,27 @@ Doc Advisor の目的は「必要な文書を、短時間で、確実に特定�
 
 ## クイックスタート
 
-1) リポジトリをクローン
+1. リポジトリをクローン
 
 ```bash
 git clone https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 ```
 
-2) ターゲットプロジェクトにセットアップ
+2. ターゲットプロジェクトにセットアップ
 
 ```bash
 cd DocAdvisor-CC
 ./setup.sh /path/to/your-project
 ```
 
-3) Claude Code を起動
+3. Claude Code を起動
 
 ```bash
 cd /path/to/your-project
 claude
 ```
 
-4) ドキュメントディレクトリの設定
+4. ドキュメントディレクトリの設定
 
 `setup.sh` が `.doc_structure.yaml` を検出した場合、ディレクトリは自動設定されます。
 検出されなかった場合は、分類スキルを実行してください:
@@ -79,7 +79,7 @@ claude
 /setup-config
 ```
 
-5) 初回 ToC 生成
+5. 初回 ToC 生成
 
 ```bash
 /create-rules-toc --full

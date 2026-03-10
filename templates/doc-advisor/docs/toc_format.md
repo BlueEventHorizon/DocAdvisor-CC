@@ -91,13 +91,13 @@ keywords: []
 
 ### _meta Field Description
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `source_file` | string | Target document path (from project root) |
-| `doc_type` | string | Document type derived from `.doc_structure.yaml` (e.g., rule, requirement, design, plan, api, reference, spec) |
-| `status` | enum | `pending` (unprocessed), `completed` (done), or `error` (failed) |
-| `error_message` | string/null | Error details (only when `status: error`), `null` otherwise |
-| `updated_at` | datetime/null | Completion time (ISO 8601 format), `null` if incomplete |
+| Field           | Type          | Description                                                                                                    |
+| --------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `source_file`   | string        | Target document path (from project root)                                                                       |
+| `doc_type`      | string        | Document type derived from `.doc_structure.yaml` (e.g., rule, requirement, design, plan, api, reference, spec) |
+| `status`        | enum          | `pending` (unprocessed), `completed` (done), or `error` (failed)                                               |
+| `error_message` | string/null   | Error details (only when `status: error`), `null` otherwise                                                    |
+| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                                        |
 
 ---
 
@@ -107,11 +107,11 @@ keywords: []
 
 ```yaml
 metadata:
-  name: string              # Index name
-  generated_at: datetime    # Generation time (ISO 8601 format)
-  file_count: integer       # Total target file count
+  name: string # Index name
+  generated_at: datetime # Generation time (ISO 8601 format)
+  file_count: integer # Total target file count
 
-docs: object                # Document entries (key: file path)
+docs: object # Document entries (key: file path)
 ```
 
 ---
@@ -120,16 +120,17 @@ docs: object                # Document entries (key: file path)
 
 ```yaml
 docs:
-  <file_path>:                     # Path from project root
-    doc_type: string               # Document type (e.g., rule, requirement, design)
-    title: string                  # Title (extracted from H1)
-    purpose: string                # Purpose (max 200 chars)
+  <file_path>: # Path from project root
+    doc_type: string # Document type (e.g., rule, requirement, design)
+    title: string # Title (extracted from H1)
+    purpose: string # Purpose (max 200 chars)
     content_details: array[string] # Content details (max 10 items)
     applicable_tasks: array[string] # Applicable tasks (max 10 items)
-    keywords: array[string]        # Keywords (max 10 words)
+    keywords: array[string] # Keywords (max 10 words)
 ```
 
 **Rules Example**:
+
 ```yaml
 docs:
   rules/core/architecture_rule.md:
@@ -155,6 +156,7 @@ docs:
 ```
 
 **Specs Example**:
+
 ```yaml
 docs:
   specs/requirements/app_overview.md:

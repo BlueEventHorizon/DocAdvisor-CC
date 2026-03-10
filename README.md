@@ -52,27 +52,27 @@ For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
 
 ## Quick Start
 
-1) Clone the repository
+1. Clone the repository
 
 ```bash
 git clone https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 ```
 
-2) Run setup for your target project
+2. Run setup for your target project
 
 ```bash
 cd DocAdvisor-CC
 ./setup.sh /path/to/your-project
 ```
 
-3) Launch Claude Code
+3. Launch Claude Code
 
 ```bash
 cd /path/to/your-project
 claude
 ```
 
-4) Configure document directories
+4. Configure document directories
 
 If `setup.sh` detected `.doc_structure.yaml`, directories are auto-configured.
 Otherwise, run the classification skill:
@@ -81,7 +81,7 @@ Otherwise, run the classification skill:
 /setup-config
 ```
 
-5) Generate initial ToC files
+5. Generate initial ToC files
 
 ```bash
 /create-rules-toc --full

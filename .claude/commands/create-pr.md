@@ -50,8 +50,8 @@ create-pr [ベースブランチ]
    - `gh pr create`でPR作成
    - ドラフトで作成
    - 不要な装飾削除:
-      - 「🤖 Generated with [Claude Code](https://claude.com/claude-code)」
-      - 「Co-Authored-By: Claude <noreply@anthropic.com>」
+     - 「🤖 Generated with [Claude Code](https://claude.com/claude-code)」
+     - 「Co-Authored-By: Claude <noreply@anthropic.com>」
 
 6. **完了処理**
    - PR URL表示
@@ -73,9 +73,7 @@ EOF
 ```
 
 **ポイント**:
+
 - `/bin/bash -c '...'` でラップ
 - `TMPDIR=/private/tmp/claude;` を先頭に設定
 - heredoc の中身はシングルクォート内に記述
-
-
-

@@ -6,11 +6,11 @@
 
 ## 基本情報
 
-| 項目 | 値 |
-|------|-----|
-| ファイル名 | `setup.sh` |
-| バージョン | v4.0 |
-| 実行要件 | Bash |
+| 項目         | 値                                          |
+| ------------ | ------------------------------------------- |
+| ファイル名   | `setup.sh`                                  |
+| バージョン   | v4.0                                        |
+| 実行要件     | Bash                                        |
 | 依存コマンド | `sed`, `find`, `mkdir`, `cp`, `chmod`, `rm` |
 
 ## 使用方法
@@ -29,17 +29,17 @@
 
 ## 引数
 
-| 引数 | 必須 | 説明 |
-|------|------|------|
-| `TARGET_DIR` | 任意 | セットアップ先プロジェクトのパス。省略時は対話的に入力を求める |
-| `-h`, `--help` | 任意 | ヘルプメッセージを表示して終了 |
+| 引数           | 必須 | 説明                                                           |
+| -------------- | ---- | -------------------------------------------------------------- |
+| `TARGET_DIR`   | 任意 | セットアップ先プロジェクトのパス。省略時は対話的に入力を求める |
+| `-h`, `--help` | 任意 | ヘルプメッセージを表示して終了                                 |
 
 ## デフォルト値
 
-| 変数 | デフォルト値 | 説明 |
-|------|--------------|------|
-| `DEFAULT_AGENT_MODEL` | `opus` | Agent 定義に使用するモデル |
-| `PYTHON_PATH` | `python3` | Python 実行パス（shell wrapper 検出時は実パスに切替） |
+| 変数                  | デフォルト値 | 説明                                                  |
+| --------------------- | ------------ | ----------------------------------------------------- |
+| `DEFAULT_AGENT_MODEL` | `opus`       | Agent 定義に使用するモデル                            |
+| `PYTHON_PATH`         | `python3`    | Python 実行パス（shell wrapper 検出時は実パスに切替） |
 
 ## 処理フロー
 
@@ -84,11 +84,11 @@ copy_and_substitute "$src" "$dst"
 
 **置換対象変数:**
 
-| プレースホルダー | 置換値 | 置換方法 |
-|------------------|--------|----------|
-| `{{AGENT_MODEL}}` | Agent 定義のモデル指定 | `sed` |
-| `{{PYTHON_PATH}}` | Python 実行パス | `sed` |
-| `{{DOC_ADVISOR_VERSION}}` | Doc Advisor バージョン | `sed` |
+| プレースホルダー          | 置換値                 | 置換方法 |
+| ------------------------- | ---------------------- | -------- |
+| `{{AGENT_MODEL}}`         | Agent 定義のモデル指定 | `sed`    |
+| `{{PYTHON_PATH}}`         | Python 実行パス        | `sed`    |
+| `{{DOC_ADVISOR_VERSION}}` | Doc Advisor バージョン | `sed`    |
 
 **実装:**
 
@@ -115,12 +115,12 @@ copy_dir_with_substitution "$src_dir" "$dst_dir"
 
 **処理対象ファイル:**
 
-| 拡張子 | 処理 |
-|--------|------|
-| `.md` | 変数置換してコピー |
-| `.yaml` | 変数置換してコピー |
-| `.py` | 変数置換してコピー |
-| `.sh` | そのままコピー → 実行権限付与 |
+| 拡張子  | 処理                          |
+| ------- | ----------------------------- |
+| `.md`   | 変数置換してコピー            |
+| `.yaml` | 変数置換してコピー            |
+| `.py`   | 変数置換してコピー            |
+| `.sh`   | そのままコピー → 実行権限付与 |
 
 ---
 
@@ -181,32 +181,32 @@ v2.0 からのアップグレード時、doc-advisor のレガシーファイル
 
 #### 削除対象
 
-| レガシーパス | 処理 | 理由 |
-|-------------|------|------|
-| `commands/create-rules_toc.md` | 自動削除 | Skills に統合 |
-| `commands/create-specs_toc.md` | 自動削除 | Skills に統合 |
-| `doc-advisor/config.yaml` | 自動削除 | 新しい場所に移動 |
-| `doc-advisor/docs/` | 自動削除 | 新しい場所に移動 |
+| レガシーパス                   | 処理     | 理由             |
+| ------------------------------ | -------- | ---------------- |
+| `commands/create-rules_toc.md` | 自動削除 | Skills に統合    |
+| `commands/create-specs_toc.md` | 自動削除 | Skills に統合    |
+| `doc-advisor/config.yaml`      | 自動削除 | 新しい場所に移動 |
+| `doc-advisor/docs/`            | 自動削除 | 新しい場所に移動 |
 
 #### 保持されるもの
 
-| パス | 理由 |
-|------|------|
-| `commands/` 内のユーザー独自コマンド | ユーザー資産の保護 |
-| `agents/` 内のユーザー独自エージェント | ユーザー資産の保護 |
-| `doc-advisor/toc/rules/`, `doc-advisor/toc/specs/` | ランタイム出力 |
+| パス                                               | 理由               |
+| -------------------------------------------------- | ------------------ |
+| `commands/` 内のユーザー独自コマンド               | ユーザー資産の保護 |
+| `agents/` 内のユーザー独自エージェント             | ユーザー資産の保護 |
+| `doc-advisor/toc/rules/`, `doc-advisor/toc/specs/` | ランタイム出力     |
 
 ### コピー方式
 
-| ディレクトリ | 方式 | 理由 |
-|-------------|------|------|
-| `agents/` | **上書きのみ** | ユーザーの独自 agent を保護（管理対象は `toc-updater.md` 1 ファイルのみ） |
-| `skills/setup-config/` | **上書き** | 単一ファイルなので上書きで十分 |
-| `skills/query-rules/` | **上書き** | 単一ファイルなので上書きで十分 |
-| `skills/query-specs/` | **上書き** | 単一ファイルなので上書きで十分 |
-| `skills/create-rules-toc/` | **上書き** | 単一ファイルなので上書きで十分 |
-| `skills/create-specs-toc/` | **上書き** | 単一ファイルなので上書きで十分 |
-| `skills/doc-advisor/` | **自動削除** | v3.0 レガシー（分割されたため不要） |
+| ディレクトリ               | 方式           | 理由                                                                      |
+| -------------------------- | -------------- | ------------------------------------------------------------------------- |
+| `agents/`                  | **上書きのみ** | ユーザーの独自 agent を保護（管理対象は `toc-updater.md` 1 ファイルのみ） |
+| `skills/setup-config/`     | **上書き**     | 単一ファイルなので上書きで十分                                            |
+| `skills/query-rules/`      | **上書き**     | 単一ファイルなので上書きで十分                                            |
+| `skills/query-specs/`      | **上書き**     | 単一ファイルなので上書きで十分                                            |
+| `skills/create-rules-toc/` | **上書き**     | 単一ファイルなので上書きで十分                                            |
+| `skills/create-specs-toc/` | **上書き**     | 単一ファイルなので上書きで十分                                            |
+| `skills/doc-advisor/`      | **自動削除**   | v3.0 レガシー（分割されたため不要）                                       |
 
 ### config.yaml の保護
 
@@ -225,8 +225,8 @@ Overwrite 選択時のバックアップ先: `doc-advisor/config.yaml.bak`
 
 ### 削除対象
 
-| レガシーパス | 処理 | 理由 |
-|-------------|------|------|
+| レガシーパス              | 処理                                 | 理由                         |
+| ------------------------- | ------------------------------------ | ---------------------------- |
 | `agents/rules-advisor.md` | バージョン識別子チェック後に自動削除 | query-rules skill に置き換え |
 | `agents/specs-advisor.md` | バージョン識別子チェック後に自動削除 | query-specs skill に置き換え |
 
@@ -246,22 +246,22 @@ v3.8 でカテゴリ別に分かれていたスクリプト・Agent・ドキュ�
 
 統合による置き換えのため、同一バージョンであっても旧ファイルを削除する。
 
-| レガシーパス | 統合先 |
-|-------------|--------|
-| `agents/rules-toc-updater.md` | `agents/toc-updater.md` |
-| `agents/specs-toc-updater.md` | `agents/toc-updater.md` |
+| レガシーパス                           | 統合先                           |
+| -------------------------------------- | -------------------------------- |
+| `agents/rules-toc-updater.md`          | `agents/toc-updater.md`          |
+| `agents/specs-toc-updater.md`          | `agents/toc-updater.md`          |
 | `scripts/create_pending_yaml_rules.py` | `scripts/create_pending_yaml.py` |
 | `scripts/create_pending_yaml_specs.py` | `scripts/create_pending_yaml.py` |
-| `scripts/write_rules_pending.py` | `scripts/write_pending.py` |
-| `scripts/write_specs_pending.py` | `scripts/write_pending.py` |
-| `scripts/merge_rules_toc.py` | `scripts/merge_toc.py` |
-| `scripts/merge_specs_toc.py` | `scripts/merge_toc.py` |
-| `docs/rules_orchestrator.md` | `docs/toc_orchestrator.md` |
-| `docs/specs_orchestrator.md` | `docs/toc_orchestrator.md` |
-| `docs/rules_toc_format.md` | `docs/toc_format.md` |
-| `docs/specs_toc_format.md` | `docs/toc_format.md` |
-| `docs/rules_toc_update_workflow.md` | `docs/toc_update_workflow.md` |
-| `docs/specs_toc_update_workflow.md` | `docs/toc_update_workflow.md` |
+| `scripts/write_rules_pending.py`       | `scripts/write_pending.py`       |
+| `scripts/write_specs_pending.py`       | `scripts/write_pending.py`       |
+| `scripts/merge_rules_toc.py`           | `scripts/merge_toc.py`           |
+| `scripts/merge_specs_toc.py`           | `scripts/merge_toc.py`           |
+| `docs/rules_orchestrator.md`           | `docs/toc_orchestrator.md`       |
+| `docs/specs_orchestrator.md`           | `docs/toc_orchestrator.md`       |
+| `docs/rules_toc_format.md`             | `docs/toc_format.md`             |
+| `docs/specs_toc_format.md`             | `docs/toc_format.md`             |
+| `docs/rules_toc_update_workflow.md`    | `docs/toc_update_workflow.md`    |
+| `docs/specs_toc_update_workflow.md`    | `docs/toc_update_workflow.md`    |
 
 > **Note**: バージョンチェックを行わない理由 — これらは「更新」ではなく「置き換え」であるため。旧ファイル名のまま残すと重複動作の原因となる。
 
@@ -271,12 +271,12 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 
 ### v4.0: setup-config 復活と SessionStart hook（v3.8 → v4.0）
 
-| 変更 | 内容 |
-|------|------|
-| `setup_dirs.sh` 廃止 | `/setup-config` スキルで完全に代替 |
-| `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要 |
-| `setup-config` スキル復活 | テンプレートとして `templates/skills/setup-config/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
-| スキル Pre-check 導入 | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/setup-config` を先に実行させる |
+| 変更                              | 内容                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `setup_dirs.sh` 廃止              | `/setup-config` スキルで完全に代替                                                              |
+| `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要                                                   |
+| `setup-config` スキル復活         | テンプレートとして `templates/skills/setup-config/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
+| スキル Pre-check 導入             | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/setup-config` を先に実行させる       |
 
 ---
 
@@ -333,11 +333,60 @@ specs:
 # === 共通設定 ===
 common:
   parallel:
-    max_workers: 5               # 並列処理数
-    fallback_to_serial: true     # 並列失敗時は直列実行
+    max_workers: 5 # 並列処理数
+    fallback_to_serial: true # 並列失敗時は直列実行
 ```
 
 > **Note**: `root_dirs` と `doc_types_map` はテンプレート上はコメントアウト状態。setup.sh は `.doc_structure.yaml` が存在する場合、`import_doc_structure.py` を呼び出して config.yaml の `root_dirs` と `doc_types_map` に書き込む。存在しない場合はテンプレートコピーに徹し、ターゲットプロジェクトで `/setup-config` スキルが AI 駆動で設定する。実行時に `.doc_structure.yaml` は参照しない（REQ-001 FR-08）。
+
+---
+
+## config.yaml マイグレーション（v4.4〜）
+
+### バージョン体系と構造変更ルール
+
+バージョン形式は `"X.Y"`（例: `"4.3"`）。X が **major バージョン**。
+
+**ルール**: **config.yaml の構造を変更するリリースは必ず major バージョン (X) を上げること。**
+
+- フィールドの追加・削除・リネーム、セクション構造の変更が対象。
+- major が同じリリース（例: 4.3 → 4.4）では config.yaml 構造変更を行わない。
+
+### `[m] Merge (auto)` の処理フロー
+
+`setup.sh` でユーザーが `[m]` を選択した際、`merge_config.py` が実行される:
+
+1. **バージョン検出**: 旧 config の `# doc-advisor-version-xK9XmQ:` コメントから major バージョンを取得
+2. **構造マイグレーション**: `old_major < new_major` の範囲で `MIGRATIONS` を昇順に適用
+3. **ユーザー設定引き継ぎ**: 旧 config から以下を抽出して新 config に書き込む
+   - `root_dirs`・`doc_types_map`（非空の場合）
+   - `patterns.exclude`（非空の場合）
+   - `output.header_comment`・`output.metadata_name`（デフォルトと異なる場合）
+   - `common.parallel.max_workers`・`fallback_to_serial`（デフォルトと異なる場合）
+
+### マイグレーション履歴
+
+| バージョン   | 変更内容     | マイグレーション関数  |
+| ------------ | ------------ | --------------------- |
+| v4.x（現行） | 構造変更なし | — (`MIGRATIONS` は空) |
+
+### 将来のマイグレーション追加手順
+
+config.yaml 構造を変更するリリース（例: v5.0）では以下を実施:
+
+1. `setup.sh` の `DOC_ADVISOR_VERSION` を新 major バージョン（例: `"5.0"`）に更新
+2. `templates/doc-advisor/scripts/merge_config.py` の `MIGRATIONS` に追加:
+   ```python
+   MIGRATIONS = {
+       5: migrate_to_v5,  # 追加
+   }
+   def migrate_to_v5(new_content, old_config_dict):
+       # 構造変更に応じたテキスト変換を実装
+       return new_content
+   ```
+3. この表（マイグレーション履歴）に変更内容とマイグレーション関数名を記録
+
+---
 
 ## スキル Pre-check（v4.0）
 
@@ -370,14 +419,15 @@ bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 ## エラーハンドリング
 
-| エラー条件 | 挙動 |
-|------------|------|
-| 不明なオプション | エラーメッセージ + exit 1 |
-| 引数が多すぎる | エラーメッセージ + exit 1 |
-| TARGET_DIR が存在しない | エラーメッセージ + exit 1 |
-| テンプレートディレクトリが存在しない | Warning 表示 + 続行 |
+| エラー条件                           | 挙動                      |
+| ------------------------------------ | ------------------------- |
+| 不明なオプション                     | エラーメッセージ + exit 1 |
+| 引数が多すぎる                       | エラーメッセージ + exit 1 |
+| TARGET_DIR が存在しない              | エラーメッセージ + exit 1 |
+| テンプレートディレクトリが存在しない | Warning 表示 + 続行       |
 
 **スクリプト設定:**
+
 - `set -e`: エラー発生時に即座に終了
 
 ## セットアップ後の次のステップ

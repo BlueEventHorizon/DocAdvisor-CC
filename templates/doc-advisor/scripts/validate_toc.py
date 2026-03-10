@@ -2,47 +2,53 @@
 # -*- coding: utf-8 -*-
 # doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 """
-specs_toc.yaml 検査スクリプト
+ToC 検査スクリプト（rules / specs 共通）
 
-生成された specs_toc.yaml の整合性を検査する。
+生成された {target}_toc.yaml の整合性を検査する。
 
 使用方法:
-    python3 validate_specs_toc.py [--file PATH]
+    python3 validate_toc.py --target rules|specs [--file PATH]
 
 オプション:
-    --file    検査対象ファイル（デフォルト: .claude/doc-advisor/toc/specs/specs_toc.yaml）
+    --target  検査対象カテゴリ（rules または specs）
+    --file    検査対象ファイル（デフォルト: .claude/doc-advisor/toc/{target}/{target}_toc.yaml）
 
 検査項目:
     1. ファイル読み込み検査
     2. 必須フィールド検査
     3. ファイル参照検査
-    4. 重複ID検査
+    4. 重複パス検査
 """
 
 import sys
-import re
 from pathlib import Path
 
 from toc_utils import get_project_root, load_config, resolve_config_path, validate_path_within_base
 
 # Global configuration (initialized in init_config())
+TARGET = None  # 'rules' or 'specs'
 CONFIG = None
 PROJECT_ROOT = None
-SPECS_DIR = None
+TARGET_DIR = None
 DEFAULT_TOC_FILE = None
 
 
-def init_config():
+def init_config(target):
     """
-    Initialize configuration. Call this at the start of main().
+    Initialize configuration for the given target category.
+
+    Args:
+        target: 'rules' or 'specs'
 
     Returns:
         bool: True on success, False on failure
     """
-    global CONFIG, PROJECT_ROOT, SPECS_DIR, DEFAULT_TOC_FILE
+    global TARGET, CONFIG, PROJECT_ROOT, TARGET_DIR, DEFAULT_TOC_FILE
+
+    TARGET = target
 
     try:
-        CONFIG = load_config('specs')
+        CONFIG = load_config(target)
         PROJECT_ROOT = get_project_root()
     except RuntimeError as e:
         print(f"Error: {e}")
@@ -51,16 +57,23 @@ def init_config():
         print(f"Error: {e}")
         return False
 
-    root_dirs_config = CONFIG.get('root_dirs', ['specs/'])
+    root_dirs_config = CONFIG.get('root_dirs', [f'{target}/'])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
-    SPECS_DIR = PROJECT_ROOT / root_dirs_config[0].rstrip('/')
-    DEFAULT_TOC_FILE = resolve_config_path(CONFIG.get('toc_file', 'specs_toc.yaml'), SPECS_DIR, PROJECT_ROOT)
+    # root_dirs_config が空の場合は PROJECT_ROOT / target をフォールバックとして使用する
+    TARGET_DIR = (
+        PROJECT_ROOT / root_dirs_config[0].rstrip('/')
+        if root_dirs_config
+        else PROJECT_ROOT / target
+    )
+    DEFAULT_TOC_FILE = resolve_config_path(
+        CONFIG.get('toc_file', f'{target}_toc.yaml'), TARGET_DIR, PROJECT_ROOT
+    )
     return True
 
 
 def load_existing_toc(toc_path):
-    """既存の specs_toc.yaml を読み込み（docs: セクション形式対応）"""
+    """既存の {target}_toc.yaml を読み込み（docs: セクション形式対応）"""
     if not toc_path.exists():
         return {}
 
@@ -93,12 +106,11 @@ def load_existing_toc(toc_path):
 
         # docs セクション内のエントリ解析
         if current_section == 'docs':
-            # ファイルパスキーの検出
+            # ファイルパスキーの検出（2スペースインデントで : で終わる）
             if line.startswith('  ') and not line.startswith('    ') and stripped.endswith(':'):
                 # 前のエントリを保存
                 if current_path and current_entry:
                     docs[current_path] = current_entry
-
                 current_path = stripped.rstrip(':')
                 # Handle quoted YAML keys: "path/to/file.md"
                 if current_path.startswith('"') and current_path.endswith('"'):
@@ -136,10 +148,10 @@ def validate_toc(toc_path):
     - YAML構文検査
     - 必須フィールド検査
     - ファイル参照検査
-    - 重複ID検査
+    - 重複パス検査
     """
     print("=" * 50)
-    print("specs_toc.yaml 検査")
+    print(f"{TARGET}_toc.yaml 検査")
     print("=" * 50)
     print(f"対象: {toc_path}")
     print()
@@ -149,7 +161,7 @@ def validate_toc(toc_path):
     # 1. ファイル読み込み検査（ファイルが読み込めるか）
     try:
         with open(toc_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+            f.read()
         print("✓ ファイル読み込み検査: OK（ファイル読み込み成功）")
     except Exception as e:
         errors.append(f"ファイル読み込み検査: ファイル読み込み失敗 - {e}")
@@ -161,11 +173,22 @@ def validate_toc(toc_path):
     # パース
     docs = load_existing_toc(toc_path)
 
+    # docs キー存在検査（壊れた YAML で空 dict が返された場合のガード）
+    if not docs or not isinstance(docs, dict):
+        errors.append("docs セクションが見つからないか、エントリが空です")
+        print("✗ docs セクション検査: docs が見つからないか空です")
+        print(f"\n❌ 検査失敗: {len(errors)} 件のエラー")
+        for err in errors:
+            print(f"  - {err}")
+        return False
+    else:
+        print("✓ docs セクション検査: OK")
+
     # 2. 必須フィールド検査
-    # キーがファイルパス、title/purpose が必須（文字列）
+    # title/purpose/doc_type が必須（文字列）
     # content_details/applicable_tasks/keywords が必須（非空配列）
-    # フォーマット定義: No null, No empty arrays (specs_toc_format.md)
-    required_string_fields = ['title', 'purpose']
+    # フォーマット定義: No null, No empty arrays ({TARGET}_toc_format.md)
+    required_string_fields = ['title', 'purpose', 'doc_type']
     required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
 
@@ -176,7 +199,9 @@ def validate_toc(toc_path):
         for field in required_array_fields:
             value = entry.get(field)
             if not isinstance(value, list) or len(value) == 0:
-                field_errors.append(f"必須配列フィールド不正: {file_path} の '{field}' が未設定または空配列です")
+                field_errors.append(
+                    f"必須配列フィールド不正: {file_path} の '{field}' が未設定または空配列です"
+                )
 
     if not field_errors:
         print(f"✓ 必須フィールド検査: OK（{len(docs)}件のエントリ）")
@@ -185,7 +210,7 @@ def validate_toc(toc_path):
         errors.extend(field_errors)
 
     # 3. ファイル参照検査
-    # キーはプロジェクトルートからの相対パス（例: specs/requirements/app.md）
+    # キーはプロジェクトルートからの相対パス（例: {target}/core/doc.md）
     file_errors = []
     for file_path in docs.keys():
         try:
@@ -219,8 +244,26 @@ def validate_toc(toc_path):
 
 
 def main():
+    # --target オプションの処理（必須）
+    if '--target' not in sys.argv:
+        print("エラー: --target rules|specs が必要です", file=sys.stderr)
+        print("使用方法: python3 validate_toc.py --target rules|specs [--file PATH]",
+              file=sys.stderr)
+        return 1
+
+    target_idx = sys.argv.index('--target')
+    if target_idx + 1 >= len(sys.argv):
+        print("エラー: --target に値が指定されていません", file=sys.stderr)
+        return 1
+
+    target = sys.argv[target_idx + 1]
+    if target not in ('rules', 'specs'):
+        print(f"エラー: --target は rules または specs を指定してください（指定値: {target}）",
+              file=sys.stderr)
+        return 1
+
     # Initialize configuration
-    if not init_config():
+    if not init_config(target):
         return 1
 
     # --file オプションの処理

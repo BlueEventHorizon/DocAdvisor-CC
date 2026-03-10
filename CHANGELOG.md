@@ -6,8 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.4.0] - 2026-03-07
 
+### Added
 
+- **`merge_config.py`**: New script (`templates/doc-advisor/scripts/`) for automatic config.yaml merging — preserves `root_dirs`, `doc_types_map`, `exclude` patterns, and custom `output`/`parallel` settings when re-running setup
+- **Version-aware migration registry**: `MIGRATIONS` dict in `merge_config.py` enables sequential structural migrations across major version upgrades (currently empty for v4.x; add entries when config structure changes in future major releases)
+
+### Changed
+
+- **`setup.sh` Merge option**: `[m]` option renamed from "Merge manually (show diff after setup)" to "Merge (auto) - carry over your settings to new template" — now auto-applies user settings instead of requiring manual diffing
+- **`rules/project_rule.md`**: Added rule 6.5 — config.yaml structure changes must be accompanied by a major version bump (X in X.Y), with corresponding `MIGRATIONS` entry and DES-001 documentation
+
+### Fixed
+
+- **`tests/test_setup_upgrade.sh` Test 26b**: Fixed `grep -c "- rules/"` to use `grep -c -- "- rules/"` — macOS BSD grep treated leading `-` in pattern as a flag option
+
+---
 ## [4.3.0] - 2026-03-05
 
 ### Changed
@@ -27,23 +42,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`validate_rules_toc.py` / `validate_specs_toc.py`**: Validate YAML-extracted file paths and `--file` CLI arg against `PROJECT_ROOT` before file access
 - **`write_pending.py`**: Validate `--entry-file` CLI arg against project root before file access
 - **`import_doc_structure.py`**: Validate both CLI args (`doc_structure_path`, `config_yaml_path`) against `cwd` before file access
-
 ---
 
 ## [4.2.0] - 2026-03-05
 
 ### Added
+
 - **`toc_format_compact.md`**: New compact format definition for large projects (100+ documents) with tighter field limits (purpose ~100 chars, content_details 5, applicable_tasks 5, keywords 8)
 - **`toc-updater` `format_doc` parameter**: Agent now accepts optional format definition file path, enabling format switching
 - **Orchestrator format selection**: Phase 1 auto-selects compact or full format based on pending file count (threshold: 100)
 
 ### Changed
+
 - **`toc_format.md`**: Added explicit upper limits (purpose max 200 chars, content_details max 10, applicable_tasks max 10, keywords max 10)
 - **`toc_orchestrator.md`**: Added format selection step in Phase 1, updated agent prompt and examples with `format_doc` parameter
 - **Field quality guidelines**: Added "unique to this document" priority, "no heading copy" rule, and "class/method names first" keyword guidance to both full and compact formats
 - **Version identifier**: Updated from `4.1` to `4.2` across all managed files
 
 ### Removed
+
 - **`references` field**: Removed from specs ToC entries — unused by query-specs, 50% empty, caused path hallucination bugs. Affected: `write_pending.py`, `merge_toc.py`, `create_pending_yaml.py`, `toc-updater.md`, `toc_format.md`, `toc_format_compact.md`, `toc_update_workflow.md`
 
 ---
@@ -65,28 +82,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 - **Code quality**: Various improvements from `/simplify` review (classify_dirs.py, check_config.sh, toc_utils.py)
 - **Silent failure patterns**: Replaced in `test_write_pending.sh` and `test_merge.sh` with explicit failure handling
-
 ---
+
 ## [4.0.0] - 2026-02-25
 
 ### Added
+
 - **`/classify-docs` skill**: AI-driven directory classification using `classify_dirs.py` scanner and `classification_rules.md`; replaces `setup_dirs.sh`
-- **Skill Pre-check**: `check_config.sh` called at the start of each skill (create-*-toc, query-*) to detect unconfigured directories and trigger `/classify-docs` first
+- **Skill Pre-check**: `check_config.sh` called at the start of each skill (create-_-toc, query-_) to detect unconfigured directories and trigger `/classify-docs` first
 - **`classify_dirs.py`**: Python stdlib directory scanner that outputs JSON metadata for AI classification
 - **`classification_rules.md`**: Classification rules for AI to categorize directories as rules/specs with doc_type
 - **`doc_type` in ToC**: Each ToC entry includes `doc_type` field auto-derived from file path via `.doc_structure.yaml`
 - **Path display**: `display_path()` function replaces `$HOME` with `~` for readable terminal output
 
 ### Changed
+
 - **setup.sh scope**: Now focuses solely on template copy and placeholder substitution; directory classification delegated to target project
 - **`.doc_structure.yaml` check**: Changed from error-exit to warning + `/classify-docs` guidance
 - **Version identifier**: Updated from `3.8` to `4.0` across all managed files
 
 ### Removed
+
 - **`setup_dirs.sh`**: Replaced by `/classify-docs` skill (AI-driven classification)
 - **`--skip-doc-structure` flag**: No longer needed since setup.sh doesn't perform directory classification
 
 ### Files modified (templates/)
+
 - `skills/classify-docs/SKILL.md` - New: AI-driven directory classification skill
 - `doc-advisor/scripts/check_config.sh` - New: Skill pre-check script
 - `doc-advisor/scripts/classify_dirs.py` - New: Directory scanner
@@ -97,6 +118,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.8.0] - 2026-02-21
 
 ### Changed
+
 - **`doc_type` removed**: AI determines document type from content; `doc_type` field removed from all YAML schemas, pending templates, merge/validate/write scripts, and format docs
 - **`Feature` removed**: Flattened directory structure (`specs/main/requirements/` → `specs/`); `target_dirs` config replaced with `target_glob: "**/*.md"`
 - **`root_dirs` array support**: `root_dir` (string) → `root_dirs` (array) in config.yaml; backward compatibility: `load_config()` auto-converts old `root_dir` format
@@ -104,10 +126,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Version identifier**: Updated from `3.6` to `3.8` across all managed files
 
 ### Fixed
+
 - **`set -e` + `read` EOF crash**: Added `|| true` to CLAUDE.md `read` prompt in setup.sh to prevent exit on piped input EOF
 - **Unsafe `eval` in setup.sh**: Replaced `eval echo "$TARGET_DIR"` with safe parameter expansion `${TARGET_DIR/#\~/$HOME}`
 
 ### Files modified (templates/)
+
 - `scripts/toc_utils.py` - `root_dir` → `root_dirs`, `target_dirs` → `target_glob`, `get_default_target_dirs()` removed
 - `scripts/create_checksums.py` - Multi `root_dirs` loop, `find_md_files_specs()` simplified
 - `scripts/create_pending_yaml_specs.py` - `doc_type` removed, `TARGET_DIRS`/`is_target_dir()`/`get_doc_type()` removed, multi `root_dirs`
@@ -125,6 +149,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `doc-advisor/config.yaml` - `root_dir` → `root_dirs`, `target_dirs` → `target_glob`
 
 ### Files modified (project root)
+
 - `setup.sh` - Subdirectory prompts removed, `eval` removed, `read` EOF fix
 
 ---
@@ -161,15 +186,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `create_pending_yaml_specs.py` - `references: []` addition
 - `write_rules_pending.py`, `write_specs_pending.py` - Docstring separator fix
 - `test_merge.sh` - `--cleanup` → manual cleanup
-
 ---
 
 ## [3.5.0] - 2026-02-11
 
 ### Changed
+
 - **Version identifier**: Updated from `3.4` to `3.5` across all managed files
 
 ### Fixed
+
 - **`references: []` corruption**: `parse_simple_yaml()` treated inline `[]` as string `"[]"` instead of empty list, causing `write_yaml_output()` to iterate over characters producing `"["`, `"]"` entries
   - Fixed in `toc_utils.py`, `merge_specs_toc.py`, `merge_rules_toc.py`
 - **content_details comma splitting**: `parse_comma_separated()` split on all commas, breaking items containing commas (e.g., "10,000件")
@@ -180,6 +206,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **references path hallucination**: Added instruction for subagent to verify file paths with Glob before including in references
 
 ### Files modified
+
 - `toc_utils.py` - `parse_simple_yaml()`: `[]` handled as empty list
 - `merge_specs_toc.py` - `load_existing_toc()`: `[]` handling, dot-file exclusion
 - `merge_rules_toc.py` - `load_existing_toc()`: `[]` handling, dot-file exclusion
@@ -193,6 +220,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.4.0] - 2026-02-09
 
 ### Added
+
 - **Phase 1 checksums snapshot**: `create_pending_yaml_rules.py` and `create_pending_yaml_specs.py` now save `.toc_checksums_pending.yaml` during Phase 1
   - Captures file hashes at the time of pending YAML generation
   - Used in Phase 3 to replace `.toc_checksums.yaml` instead of recalculating
@@ -203,6 +231,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Skips if rules are already present
 
 ### Changed
+
 - **Version identifier**: Updated from `3.3` to `3.4` across all managed files
 - **Phase 3 checksum update**: Orchestrators now use `cp .toc_checksums_pending.yaml` instead of running `create_checksums.py`
   - Prevents the "stale ToC" problem when source files are modified during Phase 2
@@ -214,6 +243,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `update_version.py` を簡素化（対象ファイルが `setup.sh` + `CHANGELOG.md` のみに）
 
 ### Files modified
+
 - `create_pending_yaml_rules.py` - Added `save_pending_checksums()` function
 - `create_pending_yaml_specs.py` - Added `save_pending_checksums()` function
 - `specs_orchestrator.md` - Phase 3 `cp` replacement, "batch" wording fix
@@ -227,6 +257,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.3.0] - 2026-02-06
 
 ### Added
+
 - **References field**: `specs_toc.yaml` now includes a `references` field to track document cross-references
   - Direct references only (no recursive following)
   - Supports both concrete paths and abstract references
@@ -236,10 +267,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Version changes now require updating only `setup.sh`
 
 ### Changed
+
 - **Version identifier**: Updated from `3.2` to `3.3` across all managed files
 - **setup.sh**: Now substitutes `{{DOC_ADVISOR_VERSION}}` in `.py` files as well as `.md` and `.yaml`
 
 ### Files modified
+
 - `specs_toc_format.md` - Added references field to schema
 - `specs_toc_update_workflow.md` - Added references to subagent processing
 - `specs-toc-updater.md` - Added `--references` parameter
@@ -251,6 +284,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.2.0] - 2026-02-05
 
 ### Added
+
 - **Symlink support**: All scripts now follow symbolic links when scanning `rules/` and `specs/` directories
   - New `rglob_follow_symlinks()` function in `toc_utils.py`
   - Inode tracking prevents infinite loops from circular symlinks
@@ -258,12 +292,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Symlink tests**: New `tests/test_symlink.sh` for comprehensive symlink handling verification
 
 ### Changed
+
 - **Version identifier**: Updated from `3.1` to `3.2` across all managed files
 
 ### Fixed
+
 - Python's `Path.rglob()` and `Path.glob()` do not follow symlinks by default - now using `os.walk(followlinks=True)` wrapped in `rglob_follow_symlinks()`
 
 ### Scripts modified
+
 - `create_checksums.py` - `find_md_files_rules()`, `find_md_files_specs()`
 - `create_pending_yaml_rules.py` - `get_all_md_files()`
 - `create_pending_yaml_specs.py` - `get_all_md_files()`
@@ -275,10 +312,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.1.0] - 2026-02-04
 
 ### Added
+
 - **Version identifier**: All managed files now include `doc-advisor-version: "3.1"` for future upgrade detection (REQ-002-NF-02)
 - **Identifier-based protection**: Legacy cleanup now checks for `doc-advisor-version` before deletion - files with identifier are protected
 
 ### Changed
+
 - **Skill split**: Single `doc-advisor` skill split into two independent skills:
   - `/create-rules-toc [--full]` - Generate rules ToC
   - `/create-specs-toc [--full]` - Generate specs ToC
@@ -288,6 +327,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Argument handling**: `--full` option now properly passed as `$0` instead of unused `$1`
 
 ### Structure (v3.1)
+
 ```
 .claude/
 ├── agents/
@@ -310,9 +350,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ```
 
 ### Removed
+
 - `skills/doc-advisor/` (replaced with split skills)
 
 ### Fixed
+
 - `$1` argument (`--full` option) was not being used in the previous unified skill
 
 ---
@@ -320,6 +362,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.0.0] - 2026-02-03
 
 ### Added
+
 - **Skills integration**: doc-advisor is now a Claude Code Skill with `$ARGUMENTS` support
 - **Unified command interface**: `/doc-advisor make-rules-toc [--full]` and `/doc-advisor make-specs-toc [--full]`
 - **Auto-triggering**: Claude can automatically suggest ToC updates when documents change
@@ -327,6 +370,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Upgrade support**: Automatic legacy file cleanup from v2.0
 
 ### Changed
+
 - **Directory structure** (major reorganization):
   - `commands/` deprecated and removed (migrated to Skills)
   - `skills/doc-advisor/` now contains only `SKILL.md` (entry point)
@@ -348,6 +392,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `config.yaml` protection with skip/overwrite/merge options
 
 ### Structure (v3.0)
+
 ```
 .claude/
 ├── agents/
@@ -374,9 +419,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ```
 
 ### Removed
+
 - `templates/commands/` directory
 
 ### Fixed
+
 - User's custom agents and commands are no longer accidentally deleted during upgrade
 - Legacy cleanup no longer incorrectly deletes `doc-advisor/config.yaml` on re-install (was looking for v2.0 legacy in wrong path)
 
@@ -385,6 +432,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [2.0.0] - 2026-01-25
 
 ### Added
+
 - **Project-based setup**: All files copied to target project (no `--plugin-dir` needed)
 - **Slash commands**: `/create-rules_toc` and `/create-specs_toc`
 - **Parallel processing**: Up to 5 concurrent subagents for ToC generation
@@ -394,11 +442,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Agent model selection**: Choose opus/sonnet/haiku/inherit for subagents
 
 ### Changed
+
 - Moved from plugin mode to project-based mode
 - Configuration file location: `.claude/doc-advisor/config.yaml`
 - Documentation location: `.claude/doc-advisor/docs/`
 
 ### Structure (v2.0)
+
 ```
 .claude/
 ├── commands/
@@ -423,6 +473,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.0.0] - 2026-01-20
 
 ### Added
+
 - **Initial release**
 - **Plugin mode**: Run with `claude --plugin-dir /path/to/DocAdvisor-CC`
 - **Basic ToC generation**: Parse `.md` files and generate YAML index
@@ -431,6 +482,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Advisor agents**: rules-advisor and specs-advisor for document lookup
 
 ### Structure (v1.x)
+
 ```
 DocAdvisor-CC/  (plugin directory)
 ├── commands/
@@ -447,19 +499,19 @@ DocAdvisor-CC/  (plugin directory)
 
 ## Version Comparison
 
-| Feature | v1.x | v2.0 | v3.0 | v3.1 | v3.2 |
-|---------|------|------|------|------|------|
-| Installation | Plugin mode | Project-based | Project-based | Project-based | Project-based |
-| Commands | `/create-*_toc` | `/create-*_toc` | `/doc-advisor make-*-toc` | `/create-rules-toc`, `/create-specs-toc` | `/create-rules-toc`, `/create-specs-toc` |
-| Config location | Plugin dir | `.claude/doc-advisor/` | `.claude/doc-advisor/` | `.claude/doc-advisor/` | `.claude/doc-advisor/` |
-| Docs/Scripts location | Plugin dir | `.claude/doc-advisor/` | `.claude/doc-advisor/` | `.claude/doc-advisor/` | `.claude/doc-advisor/` |
-| ToC output location | Plugin dir | `.claude/doc-advisor/rules/` | `.claude/doc-advisor/toc/rules/` | `.claude/doc-advisor/toc/rules/` | `.claude/doc-advisor/toc/rules/` |
-| Auto-trigger | No | No | Yes | Yes | Yes |
-| Parallel processing | No | Yes | Yes | Yes | Yes |
-| Incremental updates | No | Yes | Yes | Yes | Yes |
-| Custom directories | No | Yes | Yes | Yes | Yes |
-| Upgrade support | - | - | Yes | Yes | Yes |
-| Symlink support | No | No | No | No | Yes |
+| Feature               | v1.x            | v2.0                         | v3.0                             | v3.1                                     | v3.2                                     |
+| --------------------- | --------------- | ---------------------------- | -------------------------------- | ---------------------------------------- | ---------------------------------------- |
+| Installation          | Plugin mode     | Project-based                | Project-based                    | Project-based                            | Project-based                            |
+| Commands              | `/create-*_toc` | `/create-*_toc`              | `/doc-advisor make-*-toc`        | `/create-rules-toc`, `/create-specs-toc` | `/create-rules-toc`, `/create-specs-toc` |
+| Config location       | Plugin dir      | `.claude/doc-advisor/`       | `.claude/doc-advisor/`           | `.claude/doc-advisor/`                   | `.claude/doc-advisor/`                   |
+| Docs/Scripts location | Plugin dir      | `.claude/doc-advisor/`       | `.claude/doc-advisor/`           | `.claude/doc-advisor/`                   | `.claude/doc-advisor/`                   |
+| ToC output location   | Plugin dir      | `.claude/doc-advisor/rules/` | `.claude/doc-advisor/toc/rules/` | `.claude/doc-advisor/toc/rules/`         | `.claude/doc-advisor/toc/rules/`         |
+| Auto-trigger          | No              | No                           | Yes                              | Yes                                      | Yes                                      |
+| Parallel processing   | No              | Yes                          | Yes                              | Yes                                      | Yes                                      |
+| Incremental updates   | No              | Yes                          | Yes                              | Yes                                      | Yes                                      |
+| Custom directories    | No              | Yes                          | Yes                              | Yes                                      | Yes                                      |
+| Upgrade support       | -               | -                            | Yes                              | Yes                                      | Yes                                      |
+| Symlink support       | No              | No                           | No                               | No                                       | Yes                                      |
 
 ---
 
@@ -474,6 +526,7 @@ Run `setup.sh` on your project:
 ```
 
 **Automatic changes:**
+
 - All scripts updated with symlink support
 - Version identifier updated to `3.2`
 
@@ -488,10 +541,12 @@ Run `setup.sh` on your project:
 ```
 
 **Automatic changes:**
+
 - `skills/doc-advisor/` removed (replaced with split skills)
 - New skills installed: `skills/create-rules-toc/`, `skills/create-specs-toc/`
 
 **Command changes:**
+
 - `/doc-advisor make-rules-toc` → `/create-rules-toc`
 - `/doc-advisor make-specs-toc` → `/create-specs-toc`
 
@@ -504,6 +559,7 @@ Run `setup.sh` on your project:
 ```
 
 **Automatic changes:**
+
 - Legacy commands deleted: `commands/create-rules_toc.md`, `commands/create-specs_toc.md`
 - `skills/doc-advisor/` removed
 - New skills installed: `skills/create-rules-toc/`, `skills/create-specs-toc/`
@@ -512,11 +568,13 @@ Run `setup.sh` on your project:
 - ToC output moved: `doc-advisor/specs/` → `doc-advisor/toc/specs/`
 
 **Preserved:**
+
 - Your custom commands in `commands/`
 - Your custom agents in `agents/`
 - Your `config.yaml` settings (with skip/overwrite/merge options)
 
 **Note:** After upgrade, regenerate ToC files:
+
 ```bash
 /create-rules-toc --full
 /create-specs-toc --full

@@ -7,7 +7,6 @@ description: |
   トリガー:
   - 「バージョンを更新」「version を上げる」「リリース準備」
   - 「X.Y にバージョンアップ」のような具体的なバージョン指定
-  - `/update-version X.Y` のようなコマンド形式
 ---
 
 # Update Version Skill
@@ -38,10 +37,10 @@ DOC_ADVISOR_VERSION="X.Y"
 
 バージョンがハードコードされているのは `setup.sh` のみ:
 
-| ファイル | パターン |
-|----------|----------|
-| setup.sh | `DOC_ADVISOR_VERSION="X.Y"` |
-| CHANGELOG.md | バージョン履歴 |
+| ファイル     | パターン                    |
+| ------------ | --------------------------- |
+| setup.sh     | `DOC_ADVISOR_VERSION="X.Y"` |
+| CHANGELOG.md | バージョン履歴              |
 
 他のファイル（Makefile, テスト等）は `setup.sh` から動的に取得する。
 README.md, TECHNICAL_GUIDE.md 等にはバージョン表記を含めない。
@@ -94,12 +93,15 @@ python3 .claude/skills/update-version/scripts/update_version.py NEW_VERSION --pr
 ## [X.Y.0] - YYYY-MM-DD
 
 ### Added
+
 - (実際の追加機能を記載)
 
 ### Changed
+
 - **Version identifier**: Updated from `OLD` to `NEW` across all managed files
 
 ### Fixed
+
 - (実際の修正を記載)
 ```
 

@@ -17,15 +17,15 @@
 
 ### コンポーネント一覧
 
-| コンポーネント | 役割 | 実装 |
-|---------------|------|------|
-| Orchestrator | 全体フロー制御 | `skills/create-*-toc/SKILL.md` |
-| Subagent | 個別ファイル処理 | `agents/toc-updater.md`（`--target rules\|specs` で切替） |
-| Checksum Generator | ハッシュ計算 | `create_checksums.py` |
-| Pending Generator | pending YAML 生成 | `create_pending_yaml.py --target rules\|specs` |
-| Writer | pending YAML 書き込み | `write_pending.py --target rules\|specs` |
-| Merger | エントリ統合 | `merge_toc.py --target rules\|specs` |
-| Validator | 出力検証 | `validate_rules_toc.py` / `validate_specs_toc.py` |
+| コンポーネント     | 役割                  | 実装                                                      |
+| ------------------ | --------------------- | --------------------------------------------------------- |
+| Orchestrator       | 全体フロー制御        | `skills/create-*-toc/SKILL.md`                            |
+| Subagent           | 個別ファイル処理      | `agents/toc-updater.md`（`--target rules\|specs` で切替） |
+| Checksum Generator | ハッシュ計算          | `create_checksums.py`                                     |
+| Pending Generator  | pending YAML 生成     | `create_pending_yaml.py --target rules\|specs`            |
+| Writer             | pending YAML 書き込み | `write_pending.py --target rules\|specs`                  |
+| Merger             | エントリ統合          | `merge_toc.py --target rules\|specs`                      |
+| Validator          | 出力検証              | `validate_rules_toc.py` / `validate_specs_toc.py`         |
 
 > **前提条件**: config.yaml は Doc Advisor の唯一のランタイム設定である。全スクリプトは config.yaml の `root_dirs` のみを参照する。`.doc_structure.yaml` はセットアップ時に config.yaml へ取り込まれるものであり、実行時には参照しない。
 
@@ -52,12 +52,12 @@ flowchart LR
 
 ### モード一覧
 
-| モード | トリガー | 動作 |
-|--------|---------|------|
-| `full` | `--full` オプション または ToC 未存在 | 全ファイルスキャン、ToC 新規生成 |
-| `incremental` | デフォルト | 変更ファイルのみ処理、差分マージ |
-| `continuation` | `.claude/doc-advisor/toc/{target}/.toc_work/` が存在 | 中断された処理を再開 |
-| `delete-only` | 変更0件、削除あり | 削除のみ反映（subagent 不要） |
+| モード         | トリガー                                             | 動作                             |
+| -------------- | ---------------------------------------------------- | -------------------------------- |
+| `full`         | `--full` オプション または ToC 未存在                | 全ファイルスキャン、ToC 新規生成 |
+| `incremental`  | デフォルト                                           | 変更ファイルのみ処理、差分マージ |
+| `continuation` | `.claude/doc-advisor/toc/{target}/.toc_work/` が存在 | 中断された処理を再開             |
+| `delete-only`  | 変更0件、削除あり                                    | 削除のみ反映（subagent 不要）    |
 
 ### モード判定フロー
 
@@ -145,20 +145,20 @@ flowchart TD
 
 ### 現行からの変更点
 
-| 項目 | 現行 | 改善後 |
-|------|------|--------|
-| 旧 Case 1 | `.doc_structure.yaml` 存在で OK | **削除**（実行時に参照しない） |
-| Case 2 | config.yaml の root_dirs チェック | 変更なし |
-| Case 3 | config.yaml 不存在で OK | 変更なし |
-| 新規 | — | config.yaml 存在 + root_dirs 未設定 → 警告 |
+| 項目      | 現行                              | 改善後                                     |
+| --------- | --------------------------------- | ------------------------------------------ |
+| 旧 Case 1 | `.doc_structure.yaml` 存在で OK   | **削除**（実行時に参照しない）             |
+| Case 2    | config.yaml の root_dirs チェック | 変更なし                                   |
+| Case 3    | config.yaml 不存在で OK           | 変更なし                                   |
+| 新規      | —                                 | config.yaml 存在 + root_dirs 未設定 → 警告 |
 
 ### 判定条件テーブル
 
-| config.yaml | root_dirs 行 | 判定 | 出力 |
-|-------------|-------------|------|------|
-| 存在しない | — | OK | なし（exit 0） |
-| 存在する | `root_dirs:` あり（空配列含む） | OK | なし（exit 0） |
-| 存在する | コメントアウト or 行なし | NG | 警告メッセージ |
+| config.yaml | root_dirs 行                    | 判定 | 出力           |
+| ----------- | ------------------------------- | ---- | -------------- |
+| 存在しない  | —                               | OK   | なし（exit 0） |
+| 存在する    | `root_dirs:` あり（空配列含む） | OK   | なし（exit 0） |
+| 存在する    | コメントアウト or 行なし        | NG   | 警告メッセージ |
 
 - **入力**: config.yaml（`.claude/doc-advisor/config.yaml`）
 - **出力**: 警告メッセージ（stdout）または出力なし
@@ -223,11 +223,11 @@ def calculate_file_hash(filepath):
 
 ### 変更カウントと処理分岐
 
-| 条件 | 処理 |
-|------|------|
-| N=0, M=0 | 処理終了（変更なし） |
+| 条件     | 処理                                           |
+| -------- | ---------------------------------------------- |
+| N=0, M=0 | 処理終了（変更なし）                           |
 | N=0, M>0 | delete-only モード（マージスクリプトのみ実行） |
-| N>0 | pending YAML 生成 → subagent → マージ |
+| N>0      | pending YAML 生成 → subagent → マージ          |
 
 **N** = 新規 + 変更ファイル数、**M** = 削除ファイル数
 
@@ -261,6 +261,7 @@ def calculate_file_hash(filepath):
 ```
 
 > ハッシュベースのファイル名を使用する理由:
+>
 > - macOS のファイル名長制限（255 バイト）を回避
 > - 大文字小文字を区別しないファイルシステムでの衝突を防止
 > - ディレクトリ名やファイル名の特殊文字によるエスケープ問題を回避
@@ -272,10 +273,10 @@ def calculate_file_hash(filepath):
 
 ```yaml
 _meta:
-  source_file: specs/requirements/app_overview.md  # 処理対象ファイルパス
-  doc_type: requirement                            # ドキュメント種別（config.yaml の doc_types_map から決定）
-  status: pending                                  # pending | completed
-  updated_at: null                                 # 完了時刻
+  source_file: specs/requirements/app_overview.md # 処理対象ファイルパス
+  doc_type: requirement # ドキュメント種別（config.yaml の doc_types_map から決定）
+  status: pending # pending | completed
+  updated_at: null # 完了時刻
 
 # 以下は subagent が埋める
 title: null
@@ -343,11 +344,11 @@ sequenceDiagram
 
 ### マージモード
 
-| モード | 入力 | 処理 |
-|--------|------|------|
-| `full` | `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` のみ | 新規生成 |
+| モード        | 入力                                                           | 処理                  |
+| ------------- | -------------------------------------------------------------- | --------------------- |
+| `full`        | `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` のみ       | 新規生成              |
 | `incremental` | 既存 ToC + `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` | 差分マージ + 削除反映 |
-| `delete-only` | 既存 ToC のみ | 削除のみ反映 |
+| `delete-only` | 既存 ToC のみ                                                  | 削除のみ反映          |
 
 ### マージフロー
 
@@ -426,12 +427,12 @@ docs:
 
 ### 検証項目
 
-| カテゴリ | 検証内容 | 実装状況 |
-|----------|----------|----------|
-| YAML 構文 | インデント、コロン、ハイフンの正確性 | ✅ 実装済み |
-| 必須フィールド | metadata: name, generated_at, file_count | 📋 将来対応 |
+| カテゴリ           | 検証内容                                                    | 実装状況    |
+| ------------------ | ----------------------------------------------------------- | ----------- |
+| YAML 構文          | インデント、コロン、ハイフンの正確性                        | ✅ 実装済み |
+| 必須フィールド     | metadata: name, generated_at, file_count                    | 📋 将来対応 |
 | エントリフィールド | title, purpose, content_details, applicable_tasks, keywords | ✅ 実装済み |
-| ファイル存在 | docs に記載された全ファイルが実在 | ✅ 実装済み |
+| ファイル存在       | docs に記載された全ファイルが実在                           | ✅ 実装済み |
 
 > **Note**: metadata セクションの必須フィールド検証は現行実装では未対応。エントリレベルの検証のみ実施。
 
@@ -470,12 +471,12 @@ flowchart TD
 
 ### エラー種別と対応
 
-| エラー種別 | 発生箇所 | 対応 |
-|-----------|---------|------|
-| ファイル読み込みエラー | Subagent | エラーメッセージ出力、該当 YAML は pending のまま |
-| YAML 構文エラー | Merger | 該当ファイルをスキップ、警告出力 |
-| バリデーションエラー | Validator | バックアップ復元、処理中断 |
-| マージエラー | Merger | .claude/doc-advisor/toc/{target}/.toc_work/ 保持、再実行可能 |
+| エラー種別             | 発生箇所  | 対応                                                         |
+| ---------------------- | --------- | ------------------------------------------------------------ |
+| ファイル読み込みエラー | Subagent  | エラーメッセージ出力、該当 YAML は pending のまま            |
+| YAML 構文エラー        | Merger    | 該当ファイルをスキップ、警告出力                             |
+| バリデーションエラー   | Validator | バックアップ復元、処理中断                                   |
+| マージエラー           | Merger    | .claude/doc-advisor/toc/{target}/.toc_work/ 保持、再実行可能 |
 
 ### Subagent エラー時の扱い
 
@@ -498,11 +499,11 @@ flowchart TD
 
 ### 中断耐性の実現
 
-| 状況 | 保持されるもの | 再開時の動作 |
-|------|---------------|-------------|
-| Phase 1 中断 | なし | 最初から実行 |
-| Phase 2 中断 | completed な YAML | pending から処理再開 |
-| Phase 3 中断 | .claude/doc-advisor/toc/{target}/.toc_work/、バックアップ | マージから再実行 |
+| 状況         | 保持されるもの                                            | 再開時の動作         |
+| ------------ | --------------------------------------------------------- | -------------------- |
+| Phase 1 中断 | なし                                                      | 最初から実行         |
+| Phase 2 中断 | completed な YAML                                         | pending から処理再開 |
+| Phase 3 中断 | .claude/doc-advisor/toc/{target}/.toc_work/、バックアップ | マージから再実行     |
 
 ---
 
@@ -548,10 +549,10 @@ flowchart TD
 ### 並列処理の効果
 
 | ファイル数 | 直列処理 | 5並列処理 | 短縮率 |
-|-----------|---------|----------|-------|
-| 5 | 5T | T | 80% |
-| 25 | 25T | 5T | 80% |
-| 100 | 100T | 20T | 80% |
+| ---------- | -------- | --------- | ------ |
+| 5          | 5T       | T         | 80%    |
+| 25         | 25T      | 5T        | 80%    |
+| 100        | 100T     | 20T       | 80%    |
 
 **T** = 1ファイルあたりの処理時間
 
@@ -573,11 +574,11 @@ flowchart TD
 
 ### コンポーネントの使い分け
 
-| コンポーネント | 種別 | 根拠 |
-|---------------|------|------|
-| `query-rules`, `query-specs` | **Skill** (`context: fork`) | ユーザー呼び出し (`/query-*`)、Claude 自動トリガー、隔離実行が必要 |
-| `create-rules-toc`, `create-specs-toc` | **Skill** (fork なし) | ユーザー呼び出し (`/create-*-toc`) が必要。agent を並列起動するため fork 不可 |
-| `toc-updater` | **Agent** | ツール制限 (`Read, Bash` のみ)、並列起動、system prompt の確実性が必要。`--target rules\|specs` で分岐 |
+| コンポーネント                         | 種別                        | 根拠                                                                                                   |
+| -------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `query-rules`, `query-specs`           | **Skill** (`context: fork`) | ユーザー呼び出し (`/query-*`)、Claude 自動トリガー、隔離実行が必要                                     |
+| `create-rules-toc`, `create-specs-toc` | **Skill** (fork なし)       | ユーザー呼び出し (`/create-*-toc`) が必要。agent を並列起動するため fork 不可                          |
+| `toc-updater`                          | **Agent**                   | ツール制限 (`Read, Bash` のみ)、並列起動、system prompt の確実性が必要。`--target rules\|specs` で分岐 |
 
 ### 重要な制約: fork と subagent の関係
 
@@ -594,7 +595,7 @@ flowchart TD
 
 ## 関連設計書
 
-| 設計書 | 内容 |
-|--------|------|
-| DES-003 | 文書識別子の設計 |
+| 設計書  | 内容                         |
+| ------- | ---------------------------- |
+| DES-003 | 文書識別子の設計             |
 | DES-004 | ドキュメントモデルと設定仕様 |

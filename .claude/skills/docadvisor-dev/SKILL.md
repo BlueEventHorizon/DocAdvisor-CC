@@ -19,13 +19,13 @@ Doc Advisor プロジェクトの構築・開発作業を支援する。
 
 作業前に以下を読むこと:
 
-| ドキュメント | 内容 |
-|-------------|------|
+| ドキュメント                                   | 内容                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------- |
 | `TECHNICAL_GUIDE.md` / `TECHNICAL_GUIDE_ja.md` | ドキュメントモデル、アーキテクチャ、設定詳細、トラブルシューティング |
-| `rules/docadvisor_development.md` | 開発ルール全般 |
-| `rules/symlink_handling.md` | シンボリックリンク対応 |
-| `rules/version_management.md` | バージョン管理 |
-| `rules/template_development.md` | テンプレート開発 |
+| `rules/docadvisor_development.md`              | 開発ルール全般                                                       |
+| `rules/symlink_handling.md`                    | シンボリックリンク対応                                               |
+| `rules/version_management.md`                  | バージョン管理                                                       |
+| `rules/template_development.md`                | テンプレート開発                                                     |
 
 ## プロジェクト構造
 
@@ -77,6 +77,7 @@ DocAdvisor-CC/
 ```
 
 または手動で:
+
 1. `setup.sh` の `DOC_ADVISOR_VERSION` を変更
 2. ルートファイル（README, TECHNICAL_GUIDE 等）を更新
 3. CHANGELOG.md を更新
@@ -92,15 +93,15 @@ DocAdvisor-CC/
 
 ## 重要な教訓（サマリー）
 
-| 教訓 | 説明 |
-|------|------|
-| doc_type と ToC 生成対象の区別 | plan ディレクトリは存在するが ToC 対象外。doc_type 値は `requirement \| design` のみ |
-| ファイルパスで識別 | ID ではなくファイルパスを識別子として使用。`extract_id_from_filename()` は deprecated |
-| 除外パターンの動作 | `should_exclude()` はディレクトリパスのみでマッチ（ファイル名は除外しない） |
-| config.yaml は自動参照されない | Markdown テンプレートは sed 置換で値を埋め込む |
-| Python パスはラッパー環境を考慮 | `{{PYTHON_PATH}}` プレースホルダーを使用。`python3` をハードコードしない |
-| シンボリックリンク対応 | `Path.rglob()` は follow しない、`rglob_follow_symlinks()` を使用 |
-| クロスプラットフォーム | `sed -i` を避け `awk` を使用 |
+| 教訓                            | 説明                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| doc_type と ToC 生成対象の区別  | plan ディレクトリは存在するが ToC 対象外。doc_type 値は `requirement \| design` のみ  |
+| ファイルパスで識別              | ID ではなくファイルパスを識別子として使用。`extract_id_from_filename()` は deprecated |
+| 除外パターンの動作              | `should_exclude()` はディレクトリパスのみでマッチ（ファイル名は除外しない）           |
+| config.yaml は自動参照されない  | Markdown テンプレートは sed 置換で値を埋め込む                                        |
+| Python パスはラッパー環境を考慮 | `{{PYTHON_PATH}}` プレースホルダーを使用。`python3` をハードコードしない              |
+| シンボリックリンク対応          | `Path.rglob()` は follow しない、`rglob_follow_symlinks()` を使用                     |
+| クロスプラットフォーム          | `sed -i` を避け `awk` を使用                                                          |
 
 詳細は `rules/docadvisor_development.md` を参照。
 
@@ -111,6 +112,7 @@ cd tests && ./run_all_tests.sh
 ```
 
 テストスイート:
+
 - `test_basic.sh`: 基本セットアップ
 - `test_checksums.sh`: チェックサム生成
 - `test_write_pending.sh`: pending YAML 書き込み
@@ -122,8 +124,8 @@ cd tests && ./run_all_tests.sh
 
 ## 関連スキル
 
-| スキル | 用途 |
-|--------|------|
-| `/update-version` | バージョン番号の一括更新 |
+| スキル              | 用途                                         |
+| ------------------- | -------------------------------------------- |
+| `/update-version`   | バージョン番号の一括更新                     |
 | `/create-rules-toc` | rules ToC の生成（ターゲットプロジェクト用） |
 | `/create-specs-toc` | specs ToC の生成（ターゲットプロジェクト用） |

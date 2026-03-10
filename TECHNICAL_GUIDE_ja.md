@@ -31,32 +31,33 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 
 Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメントを管理します。
 
-| カテゴリ | ディレクトリ | 用途 | 設定可能 |
-|----------|--------------|------|----------|
-| rule | `rules/` | 開発ドキュメント | Yes |
-| spec | `specs/` | プロジェクト仕様 | Yes |
+| カテゴリ | ディレクトリ | 用途             | 設定可能 |
+| -------- | ------------ | ---------------- | -------- |
+| rule     | `rules/`     | 開発ドキュメント | Yes      |
+| spec     | `specs/`     | プロジェクト仕様 | Yes      |
 
 ### rule - 開発ドキュメント
 
 自由形式の構造。任意のサブディレクトリ内の `.md` ファイルがインデックス化されます。
 
-| コンテンツ種別 | 例 |
-|----------------|-----|
-| アーキテクチャルール | `rules/core/architecture.md` |
-| コーディング規約 | `rules/coding/naming_convention.md` |
-| ワークフローガイド | `rules/workflow/review_process.md` |
+| コンテンツ種別       | 例                                  |
+| -------------------- | ----------------------------------- |
+| アーキテクチャルール | `rules/core/architecture.md`        |
+| コーディング規約     | `rules/coding/naming_convention.md` |
+| ワークフローガイド   | `rules/workflow/review_process.md`  |
 
 ### spec - プロジェクト仕様
 
 パス内にサブディレクトリ名が含まれていれば、自動的に doc_type が判定されます。
 
-| doc_type | サブディレクトリ | 目的 | 設定可能 |
-|----------|------------------|------|----------|
-| `requirement` | `requirements/` | 機能要件、ユースケース | Yes |
-| `design` | `design/` | 技術設計、アーキテクチャ決定 | Yes |
-| `plan` | `plan/` | プロジェクト計画（定義のみ、ToC対象外） | - |
+| doc_type      | サブディレクトリ | 目的                                    | 設定可能 |
+| ------------- | ---------------- | --------------------------------------- | -------- |
+| `requirement` | `requirements/`  | 機能要件、ユースケース                  | Yes      |
+| `design`      | `design/`        | 技術設計、アーキテクチャ決定            | Yes      |
+| `plan`        | `plan/`          | プロジェクト計画（定義のみ、ToC対象外） | -        |
 
 例:
+
 - `specs/requirements/login.md` → requirement
 - `specs/main/design/architecture.md` → design
 - `specs/auth/oauth/requirements/api.md` → requirement
@@ -67,11 +68,11 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 
 `specs/` 配下を再帰的に探索し、パスに `requirement` または `design` ディレクトリが含まれるファイルを対象とします。深さ制限はありません。
 
-| パス例 | 対象 | 理由 |
-|--------|------|------|
-| `specs/feature1/requirements/app.md` | ✅ | `requirements` を含む |
-| `specs/main/sub/design/api.md` | ✅ | `design` を含む |
-| `specs/feature1/plan/task.md` | ❌ | 対象外 |
+| パス例                               | 対象 | 理由                  |
+| ------------------------------------ | ---- | --------------------- |
+| `specs/feature1/requirements/app.md` | ✅   | `requirements` を含む |
+| `specs/main/sub/design/api.md`       | ✅   | `design` を含む       |
+| `specs/feature1/plan/task.md`        | ❌   | 対象外                |
 
 #### plan が対象外の理由
 
@@ -82,12 +83,12 @@ Doc Advisor は **rule** と **spec** の2つのカテゴリのドキュメン�
 
 #### 処理時間
 
-| 処理 | 実行者 | 速度 |
-|------|--------|------|
-| 再帰探索 | Python (`os.walk`) | 高速 |
-| 差分検出 | Python (SHA-256) | 高速 |
-| 内容解析 | Claude (LLM) | **遅い** |
-| 統合 | Python | 高速 |
+| 処理     | 実行者             | 速度     |
+| -------- | ------------------ | -------- |
+| 再帰探索 | Python (`os.walk`) | 高速     |
+| 差分検出 | Python (SHA-256)   | 高速     |
+| 内容解析 | Claude (LLM)       | **遅い** |
+| 統合     | Python             | 高速     |
 
 ボトルネックは LLM による解析です。インクリメンタルモード（デフォルト）では変更ファイルのみ処理することで最適化しています。
 
@@ -121,6 +122,7 @@ cd DocAdvisor-CC
 ```
 
 これにより、必要なファイルがプロジェクトにコピーされます：
+
 ```
 your-project/.claude/
 ├── agents/            # ワーカーエージェント（toc-updater）
@@ -141,6 +143,7 @@ your-project/.claude/
 ```
 
 セットアップは対話形式で以下を聞いてきます：
+
 - Rules ディレクトリ（デフォルト: `rules/`）
 - Specs ディレクトリ（デフォルト: `specs/`）
 - Requirements サブディレクトリ名（デフォルト: `requirements`）
@@ -206,7 +209,7 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 3. 必要となる文書セット**全て**を読む
 
 4. 作業タスクを実行
-   ```
+```
 
 ## アーキテクチャ
 
@@ -334,8 +337,8 @@ rules:
   patterns:
     target_glob: "**/*.md"
     exclude:
-      # - reference    # 必要に応じてコメント解除
-      # - archive
+  # - reference    # 必要に応じてコメント解除
+  # - archive
 
   output:
     header_comment: "Development documentation search index for rules-advisor subagent"
@@ -353,9 +356,9 @@ specs:
       requirement: requirements
       design: design
     exclude:
-      - plan           # 作業中に全文読むため、検索不要
-      # - reference
-      # - /info/
+      - plan # 作業中に全文読むため、検索不要
+  # - reference
+  # - /info/
 
   output:
     header_comment: "Requirements and design document search index for specs-advisor subagent"
@@ -385,11 +388,11 @@ nano /path/to/your-project/.claude/doc-advisor/config.yaml
 
 ## 処理モード
 
-| モード | 説明 |
-|--------|------|
-| full | 全ファイルをスキャンして ToC を再生成 |
+| モード      | 説明                                           |
+| ----------- | ---------------------------------------------- |
+| full        | 全ファイルをスキャンして ToC を再生成          |
 | incremental | 変更ファイルのみ処理（SHA-256 ハッシュで検出） |
-| 継続 | 中断された処理を再開 |
+| 継続        | 中断された処理を再開                           |
 
 ## 必要要件
 
@@ -402,6 +405,7 @@ nano /path/to/your-project/.claude/doc-advisor/config.yaml
 ### 設定が見つからないエラー
 
 プロジェクトのセットアップを実行したか確認：
+
 ```bash
 ./setup.sh /path/to/your-project
 ```
@@ -409,6 +413,7 @@ nano /path/to/your-project/.claude/doc-advisor/config.yaml
 ### スキルが認識されない
 
 ファイルが存在するか確認：
+
 ```bash
 ls -la /path/to/your-project/.claude/skills/create-rules-toc/SKILL.md
 ls -la /path/to/your-project/.claude/skills/create-specs-toc/SKILL.md
@@ -433,12 +438,14 @@ ls -la /path/to/your-project/.claude/agents/
 ### アップグレード時の動作
 
 **自動削除**（doc-advisor のレガシーファイル）:
+
 - `.claude/commands/create-rules_toc.md`
 - `.claude/commands/create-specs_toc.md`
 - `.claude/skills/doc-advisor/`（削除、分割されたスキルに置き換え）
 - `.claude/doc-advisor/docs/`（テンプレートから再作成）
 
 **インストール**（v3.7+ 構造）:
+
 - `.claude/agents/`（rules-toc-updater, specs-toc-updater）
 - `.claude/skills/query-rules/SKILL.md`（rules ドキュメント検索）
 - `.claude/skills/query-specs/SKILL.md`（specs ドキュメント検索）
@@ -451,10 +458,12 @@ ls -la /path/to/your-project/.claude/agents/
 - `.claude/doc-advisor/toc/specs/`（ToC 出力）
 
 **保持**（ユーザーのカスタムファイル）:
+
 - `.claude/commands/your-custom-command.md`（他のコマンド）
 - `.claude/agents/your-custom-agent.md`（doc-advisor 以外のエージェント）
 
 **config.yaml の処理**:
+
 - `.claude/doc-advisor/config.yaml` が既に存在する場合、以下を選択：
   - `[o]` 上書き（config.yaml.bak にバックアップ）
   - `[s]` スキップ（既存設定を保持）

@@ -9,6 +9,7 @@ This document describes the API design for user authentication.
 ### POST /api/auth/login
 
 Request:
+
 ```json
 {
   "email": "user@example.com",
@@ -18,6 +19,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "token": "jwt-token-here",
@@ -32,6 +34,7 @@ Response:
 ### POST /api/auth/register
 
 Request:
+
 ```json
 {
   "email": "user@example.com",
@@ -43,6 +46,7 @@ Request:
 ### POST /api/auth/reset-password
 
 Request:
+
 ```json
 {
   "email": "user@example.com"
@@ -51,11 +55,11 @@ Request:
 
 ## Error Codes
 
-| Code | Description |
-|------|-------------|
-| 401 | Invalid credentials |
-| 403 | Account locked |
-| 422 | Validation error |
+| Code | Description         |
+| ---- | ------------------- |
+| 401  | Invalid credentials |
+| 403  | Account locked      |
+| 422  | Validation error    |
 
 ## Security Considerations
 
