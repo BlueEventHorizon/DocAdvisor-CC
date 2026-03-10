@@ -241,6 +241,38 @@ rm -f "$TEST_PROJECT/rules/linked_rules_dup"
 echo ""
 
 echo "=================================================="
+echo "Test 7: validate_toc.py accepts ToC containing symlinked paths (rules)"
+echo "=================================================="
+
+# Create a minimal rules_toc.yaml with a symlinked path entry
+# This tests that validate_path_within_base correctly handles paths via symlinks
+RULES_TOC_DIR=".claude/doc-advisor/toc/rules"
+mkdir -p "$RULES_TOC_DIR"
+cat > "$RULES_TOC_DIR/rules_toc.yaml" << 'EOF'
+docs:
+  rules/linked_rules/external_rule.md:
+    title: "External Rule"
+    purpose: "Testing symlink support"
+    doc_type: "rule"
+    content_details:
+      - "Symlinked external rule for testing"
+    applicable_tasks:
+      - "testing"
+    keywords:
+      - "symlink"
+      - "test"
+EOF
+
+# validate_toc.py should accept symlinked paths without ValueError
+EXIT_CODE=0
+$PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target rules 2>&1 || EXIT_CODE=$?
+test_result "Test 7 - validate_toc accepts symlinked paths in ToC" "0" "$EXIT_CODE"
+
+# Cleanup test ToC
+rm -f "$RULES_TOC_DIR/rules_toc.yaml"
+echo ""
+
+echo "=================================================="
 echo "Cleanup"
 echo "=================================================="
 

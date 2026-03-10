@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# doc-advisor-version-xK9XmQ: 4.4
+# doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 """
 ToC Auto-Generation Common Utilities
 
@@ -80,7 +80,7 @@ def validate_path_within_base(path, base_dir):
     Prevents path traversal attacks via ../ sequences (CWE-22).
     Supports symlinked directories by checking the logical path
     (without resolving symlinks) for containment, then returning
-    the resolved path for existence checks.
+    the joined path for file access.
 
     Args:
         path: Path to validate (str or Path)
@@ -91,6 +91,11 @@ def validate_path_within_base(path, base_dir):
 
     Raises:
         ValueError: If path contains traversal sequences escaping base_dir
+
+    Note:
+        Symlinks within base_dir may point outside it; such access is intentionally
+        permitted (project-configured symlinks). Only ../ traversal sequences that
+        escape base_dir in the logical path are rejected.
     """
     # シンボリックリンクを解決せずに論理パスで包含チェック
     # （.. を正規化しつつシンボリックリンクは辿らない）
