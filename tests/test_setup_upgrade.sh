@@ -1163,9 +1163,7 @@ SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 TOC_DIR="$TEST_PROJECT/.claude/doc-advisor/toc/rules"
 mkdir -p "$TOC_DIR"
 
-# Detect Python command (same as other test suites)
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
-PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+PYTHON_CMD=python3
 
 # Case 1: Missing required fields (no title, no keywords)
 cat > "$TOC_DIR/rules_toc.yaml" << 'TOCEOF'
@@ -1248,8 +1246,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
-PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+PYTHON_CMD=python3
 
 # Set root_dirs: [] in config.yaml for both sections
 $PYTHON3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
@@ -1303,8 +1300,7 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 SCRIPTS_DIR="$TEST_PROJECT/.claire/doc-advisor/scripts"
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
-PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+PYTHON_CMD=python3
 
 # Create a pending YAML entry
 WORK_DIR="$TEST_PROJECT/.claude/doc-advisor/toc/rules/.toc_work"
@@ -1358,8 +1354,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' "$TEST_PROJECT/.claude/doc-advisor/docs/toc_orchestrator.md" 2>/dev/null | head -1 || echo "$PYTHON3")
-PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+PYTHON_CMD=python3
 
 # Add a non-.md file and set target_glob to *.md only (default)
 mkdir -p "$TEST_PROJECT/rules"

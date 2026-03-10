@@ -168,29 +168,15 @@ case "$AGENT_MODEL" in
         ;;
 esac
 
-# Detect Python path
-# Check if shell wrapper exists (e.g., Claude Code shell-snapshots directory)
-if [[ -d "$HOME/.claude/shell-snapshots" ]] && [[ -n "$(ls -A "$HOME/.claude/shell-snapshots" 2>/dev/null)" ]]; then
-    # Shell wrapper likely present: use full path to bypass
-    PYTHON_PATH=$(/usr/bin/which python3 2>/dev/null || echo "python3")
-    PYTHON_CMD="${PYTHON_PATH}"  # Save actual command before $HOME substitution
-    # Replace $HOME with $HOME variable (expands at runtime)
-    PYTHON_PATH="${PYTHON_PATH/#$HOME/\$HOME}"
-    PYTHON_WRAPPED="yes"
-else
-    # No wrapper detected: use simple command
-    PYTHON_CMD="python3"
-    PYTHON_PATH="python3"
-    PYTHON_WRAPPED="no"
-fi
+# python3 works correctly via Claude Code's shell wrapper (wrapSafeChainCommand
+# resolves to the pyenv-managed interpreter). No full-path detection needed.
+PYTHON_CMD="python3"
+PYTHON_PATH="python3"
 
 echo ""
 echo "Configuration:"
 printf "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}\n"
 printf "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}\n"
-if [[ "$PYTHON_WRAPPED" == "yes" ]]; then
-    printf "    ${RED}(python3 may be wrapped: using explicit path for reliability)${NC}\n"
-fi
 echo ""
 
 # Create directories
