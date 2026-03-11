@@ -26,11 +26,11 @@ Python 3.14.3         # pyenv の python3 が使われている
 
 ## ルール [MANDATORY]
 
-| シーン | すべきこと |
-| ------ | ---------- |
-| `setup.sh` で Python を呼ぶ | `PYTHON_CMD="python3"` を使う |
-| `tests/*.sh` で Python を呼ぶ | `PYTHON_CMD=python3` を使う |
-| インストール先のコマンド（`toc_orchestrator.md` 等） | `python3` をそのまま記述する |
+| シーン                                               | すべきこと                    |
+| ---------------------------------------------------- | ----------------------------- |
+| `setup.sh` で Python を呼ぶ                          | `PYTHON_CMD="python3"` を使う |
+| `tests/*.sh` で Python を呼ぶ                        | `PYTHON_CMD=python3` を使う   |
+| インストール先のコマンド（`toc_orchestrator.md` 等） | `python3` をそのまま記述する  |
 
 ---
 
@@ -62,6 +62,7 @@ PYTHON_CMD=$(eval echo "$PYTHON_CMD")
 ## 背景（旧設計との違い）
 
 旧設計（v4.4 以前）では 2 フェーズ検出を採用していた:
+
 - Phase 1（`setup.sh`）: `/usr/bin/which python3` でフルパスを取得し `toc_orchestrator.md` に埋め込む
 - Phase 2（`tests/*.sh`）: `toc_orchestrator.md` を grep してパスを読み戻す
 
