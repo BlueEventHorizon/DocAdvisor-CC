@@ -70,10 +70,10 @@ Note: `.doc_structure.yaml` is NOT referenced at runtime (FR-08).
 4. Identify target files and generate pending YAML templates
     ```bash
     # Full mode
-    {{PYTHON_PATH}} .claude/doc-advisor/scripts/create_pending_yaml.py --target {target} --full
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target} --full
 
     # Incremental mode
-    {{PYTHON_PATH}} .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
     ```
     ↓
 5. Determine format document
@@ -158,10 +158,10 @@ Use the script to generate `.claude/doc-advisor/toc/{target}/.toc_work/{filename
 
 ```bash
 # Full mode (all files)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/create_pending_yaml.py --target {target} --full
+python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target} --full
 
 # Incremental mode (changed files only)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
+python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
 ```
 
 The script handles:
@@ -258,10 +258,10 @@ Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/
 
 ```bash
 # 1. Merge
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode full
+python3 .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode full
 
 # 2. Validate (check return value)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_toc.py --target {target}
+python3 .claude/doc-advisor/scripts/validate_toc.py --target {target}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
@@ -278,10 +278,10 @@ rm -rf .claude/doc-advisor/toc/{target}/.toc_work
 
 ```bash
 # 1. Merge
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode incremental
+python3 .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode incremental
 
 # 2. Validate (check return value)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_toc.py --target {target}
+python3 .claude/doc-advisor/scripts/validate_toc.py --target {target}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
@@ -296,15 +296,15 @@ rm -rf .claude/doc-advisor/toc/{target}/.toc_work
 
 ```bash
 # 1. Delete only (no .toc_work/ needed)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/merge_toc.py --target {target} --delete-only
+python3 .claude/doc-advisor/scripts/merge_toc.py --target {target} --delete-only
 
 # 2. Validate (check return value)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/validate_toc.py --target {target}
+python3 .claude/doc-advisor/scripts/validate_toc.py --target {target}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-{{PYTHON_PATH}} .claude/doc-advisor/scripts/create_checksums.py --target {target}
+python3 .claude/doc-advisor/scripts/create_checksums.py --target {target}
 ```
 
 ---

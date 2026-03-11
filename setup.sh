@@ -171,12 +171,10 @@ esac
 # python3 works correctly via Claude Code's shell wrapper (wrapSafeChainCommand
 # resolves to the pyenv-managed interpreter). No full-path detection needed.
 PYTHON_CMD="python3"
-PYTHON_PATH="python3"
 
 echo ""
 echo "Configuration:"
 printf "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}\n"
-printf "  PYTHON_PATH: ${BLUE}${PYTHON_PATH}${NC}\n"
 echo ""
 
 # Create directories
@@ -357,12 +355,10 @@ copy_and_substitute() {
     local dst="$2"
 
     if [[ -f "$src" ]]; then
-        local esc_model esc_python esc_version
+        local esc_model esc_version
         esc_model=$(_sed_escape "${AGENT_MODEL}")
-        esc_python=$(_sed_escape "${PYTHON_PATH}")
         esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
         sed -e "s|{{AGENT_MODEL}}|${esc_model}|g" \
-            -e "s|{{PYTHON_PATH}}|${esc_python}|g" \
             -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
             "$src" > "$dst"
     fi
