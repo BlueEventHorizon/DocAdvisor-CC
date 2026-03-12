@@ -28,8 +28,17 @@ Run the configuration check:
 bash .claude/doc-advisor/scripts/check_config.sh specs
 ```
 
-- **No output** → Proceed to Procedure
+- **No output** → Proceed to Staleness Check
 - **Output present** → STOP. Run `/setup-config` skill first to configure document directories, then restart this skill
+
+## Staleness Check
+
+```bash
+python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --check
+```
+
+- **WARNING 出力あり** → ユーザーに警告メッセージを伝えてから Procedure に進む
+- **出力なし** → そのまま Procedure に進む
 
 ## Procedure
 
