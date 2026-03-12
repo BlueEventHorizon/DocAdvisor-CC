@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+
+## [4.5.0] - 2026-03-13
+
+### Added
+- **ToC staleness check**: `create_pending_yaml.py --check` flag for detecting stale ToC without creating files
+- **Query skill pre-check**: `/query-rules` and `/query-specs` now warn users when ToC is outdated before returning results
+
+### Changed
+- **Python path simplified**: Removed 2-phase Python path detection (`shell-snapshots` + full path embedding); all scripts now use `python3` directly
+- **`{{PYTHON_PATH}}` placeholder removed**: Templates hardcode `python3` instead of using setup-time substitution
+- **`setup.sh` simplified**: Removed `PYTHON_PATH` variable, `esc_python` escaping, and `PYTHON_WRAPPED` detection logic
+- **Test scripts simplified**: All 9 test suites replaced `grep/eval` Python path detection with `PYTHON_CMD=python3`
+- **`rules/python_detection.md` rewritten**: Documents that `python3` works correctly via Claude Code's `wrapSafeChainCommand`; old 2-phase design deprecated
+- **Version identifier**: Updated from `4.4` to `4.5` across all managed files
+
+---
 ## [4.4.0] - 2026-03-07
 
 ### Added
