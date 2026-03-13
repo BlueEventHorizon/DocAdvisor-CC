@@ -57,16 +57,15 @@ echo "Test 2: Verify variable substitution"
 echo "=================================================="
 echo ""
 
-# Check PYTHON_PATH substitution (now in orchestrator docs)
-PYTHON_PATH_IN_FILE=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "NOT_FOUND")
-
-if [[ "$PYTHON_PATH_IN_FILE" == "NOT_FOUND" ]] || [[ "$PYTHON_PATH_IN_FILE" == *"{{"* ]]; then
-    echo -e "${RED}FAIL: PYTHON_PATH not substituted${NC}"
-    echo "  Found: $PYTHON_PATH_IN_FILE"
+# Check python3 is hardcoded and {{PYTHON_PATH}} placeholder is gone
+if grep -q "{{PYTHON_PATH}}" .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null; then
+    echo -e "${RED}FAIL: {{PYTHON_PATH}} placeholder not removed${NC}"
+    exit 1
+elif ! grep -q "python3" .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null; then
+    echo -e "${RED}FAIL: python3 not found in toc_orchestrator.md${NC}"
     exit 1
 else
-    echo -e "${GREEN}PASS: PYTHON_PATH substituted${NC}"
-    echo "  Value: $PYTHON_PATH_IN_FILE"
+    echo -e "${GREEN}PASS: python3 hardcoded in toc_orchestrator.md${NC}"
 fi
 
 # Check AGENT_MODEL substitution (in toc_orchestrator docs)
@@ -84,9 +83,7 @@ echo "Test 3: Run create_pending_yaml.py --target rules"
 echo "=================================================="
 echo ""
 
-# Get Python path from the orchestrator docs
-PYTHON_CMD=$(grep -oE '(\$HOME|~|/)[^"]*python3' .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null | head -1 || echo "python3")
-PYTHON_CMD=$(eval echo "$PYTHON_CMD")
+PYTHON_CMD=python3
 
 echo "Using Python: $PYTHON_CMD"
 echo ""
