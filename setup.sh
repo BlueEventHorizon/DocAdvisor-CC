@@ -354,14 +354,31 @@ copy_and_substitute() {
     local src="$1"
     local dst="$2"
 
-    if [[ -f "$src" ]]; then
-        local esc_model esc_version
-        esc_model=$(_sed_escape "${AGENT_MODEL}")
-        esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
-        sed -e "s|{{AGENT_MODEL}}|${esc_model}|g" \
-            -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
-            "$src" > "$dst"
+    [[ -f "$src" ]] || return 0
+
+    local esc_model esc_version
+    esc_model=$(_sed_escape "${AGENT_MODEL}")
+    esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
+
+    # Generate substituted content
+    local new_content
+    new_content=$(sed -e "s|{{AGENT_MODEL}}|${esc_model}|g" \
+        -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
+        "$src")
+
+    # If target file exists, compare content excluding version identifier line
+    if [[ -f "$dst" ]]; then
+        local new_stripped old_stripped
+        new_stripped=$(printf '%s\n' "$new_content" | grep -v 'doc-advisor-version-xK9XmQ:' || true)
+        old_stripped=$(grep -v 'doc-advisor-version-xK9XmQ:' "$dst" || true)
+
+        if [[ "$new_stripped" = "$old_stripped" ]]; then
+            printf "${BLUE}    Skipped (unchanged): %s${NC}\n" "$(basename "$dst")"
+            return 0
+        fi
     fi
+
+    printf '%s\n' "$new_content" > "$dst"
 }
 
 # Function to copy directory recursively with variable substitution

@@ -1392,6 +1392,92 @@ fi
 echo ""
 
 # ==================================================
+echo "=================================================="
+echo "Test 31: Smart copy - unchanged files are skipped"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Record file contents (with version lines) after first install
+SKILL_FILE="$TEST_PROJECT/.claude/skills/query-rules/SKILL.md"
+SCRIPT_FILE="$TEST_PROJECT/.claude/doc-advisor/scripts/toc_utils.py"
+AGENT_FILE="$TEST_PROJECT/.claude/agents/toc-updater.md"
+
+SKILL_BEFORE=$(cat "$SKILL_FILE")
+SCRIPT_BEFORE=$(cat "$SCRIPT_FILE")
+AGENT_BEFORE=$(cat "$AGENT_FILE")
+
+# Run setup again (same version, no content changes → should skip all files)
+SMART_OUTPUT=$(echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
+
+# Files should be identical (not overwritten)
+SKILL_AFTER=$(cat "$SKILL_FILE")
+SCRIPT_AFTER=$(cat "$SCRIPT_FILE")
+AGENT_AFTER=$(cat "$AGENT_FILE")
+
+test_result "Smart copy: SKILL.md unchanged after re-install" "0" "$([[ "$SKILL_BEFORE" = "$SKILL_AFTER" ]] && echo 0 || echo 1)"
+test_result "Smart copy: toc_utils.py unchanged after re-install" "0" "$([[ "$SCRIPT_BEFORE" = "$SCRIPT_AFTER" ]] && echo 0 || echo 1)"
+test_result "Smart copy: toc-updater.md unchanged after re-install" "0" "$([[ "$AGENT_BEFORE" = "$AGENT_AFTER" ]] && echo 0 || echo 1)"
+
+# Verify "Skipped" messages appear in output
+SKIP_COUNT=$(echo "$SMART_OUTPUT" | grep -c "Skipped (unchanged)" || true)
+test_result "Smart copy: skip messages shown (>0)" "1" "$([[ $SKIP_COUNT -gt 0 ]] && echo 1 || echo 0)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 32: Smart copy - changed files are updated"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Modify a template file to simulate content change
+ORIG_TEMPLATE="$PROJECT_ROOT/templates/skills/query-rules/SKILL.md"
+ORIG_CONTENT=$(cat "$ORIG_TEMPLATE")
+echo "# Smart copy test marker" >> "$ORIG_TEMPLATE"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: modified template was copied
+MARKER_FOUND=$(grep -c "Smart copy test marker" "$TEST_PROJECT/.claude/skills/query-rules/SKILL.md" 2>/dev/null || echo 0)
+test_result "Smart copy: changed file is updated" "1" "$MARKER_FOUND"
+
+# Verify: unchanged file was NOT overwritten (version stays the same)
+UTILS_VERSION=$(grep 'doc-advisor-version-xK9XmQ:' "$TEST_PROJECT/.claude/doc-advisor/scripts/toc_utils.py" | awk '{print $NF}')
+test_result "Smart copy: unchanged file keeps its version" "$CURRENT_VERSION" "$UTILS_VERSION"
+
+# Restore original template
+printf '%s\n' "$ORIG_CONTENT" > "$ORIG_TEMPLATE"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 33: Smart copy - new files are always copied"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Remove one file to simulate "new file" scenario
+rm -f "$TEST_PROJECT/.claude/doc-advisor/scripts/validate_toc.py"
+
+# Run setup again
+echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: file is re-created
+test_result "Smart copy: deleted file re-created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/validate_toc.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
 # Cleanup
 cleanup
 
