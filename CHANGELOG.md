@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`doc_structure_version`**: Bumped from 2.0 to 3.0 (structure-only format, no internal fields)
 - **All SKILL.md / docs**: Updated references from config.yaml to `.doc_structure.yaml`
 - **Specs revised**: REQ-001 (FR-08), DES-001, DES-002 (abolished), DES-004, DES-005
+- **`/setup-config` renamed to `/setup-doc-structure`**: Aligned with forge plugin naming convention
 - **Version identifier**: Updated from `4.5` to `5.0` across all managed files
 
 ### Removed

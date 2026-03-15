@@ -29,7 +29,7 @@ bash .claude/doc-advisor/scripts/check_config.sh specs
 ```
 
 - **No output** → Proceed to Staleness Check
-- **Output present** → STOP. Run `/setup-config` skill first to configure document directories, then restart this skill
+- **Output present** → STOP. Run `/setup-doc-structure` skill first to configure document directories, then restart this skill
 
 ## Staleness Check
 

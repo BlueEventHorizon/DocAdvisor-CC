@@ -1,5 +1,5 @@
 ---
-name: setup-config
+name: setup-doc-structure
 description: |
   Auto-detect and classify project document directories as rules or specs.
   Updates .doc_structure.yaml root_dirs based on classification results.
@@ -13,14 +13,14 @@ argument-hint: "[--update]"
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 ---
 
-# setup-config
+# setup-doc-structure
 
 Auto-detect and classify project document directories for Doc Advisor.
 
 ## Usage
 
 ```
-/setup-config [--update]
+/setup-doc-structure [--update]
 ```
 
 | Argument   | Description                                                   |

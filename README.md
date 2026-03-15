@@ -78,7 +78,7 @@ If `setup.sh` detected `.doc_structure.yaml`, directories are auto-configured.
 Otherwise, run the classification skill:
 
 ```bash
-/setup-config
+/setup-doc-structure
 ```
 
 5. Generate initial ToC files

@@ -76,7 +76,7 @@ claude
 検出されなかった場合は、分類スキルを実行してください:
 
 ```bash
-/setup-config
+/setup-doc-structure
 ```
 
 5. 初回 ToC 生成

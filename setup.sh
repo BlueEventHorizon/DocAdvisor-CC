@@ -63,7 +63,7 @@ while [[ $# -gt 0 ]]; do
             echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
             echo "If .doc_structure.yaml exists, it is used as document structure configuration."
-            echo "Otherwise, run /setup-config after setup to create .doc_structure.yaml."
+            echo "Otherwise, run /setup-doc-structure after setup to create .doc_structure.yaml."
             exit 0
             ;;
         -*)
@@ -133,10 +133,10 @@ if [[ -f "$DOC_STRUCTURE_FILE" ]]; then
 else
     printf "${YELLOW}  .doc_structure.yaml not found${NC}\n"
     echo "  Document directories will need to be configured after setup."
-    printf "  Run ${YELLOW}/setup-config${NC} in Claude Code to auto-detect and configure.\n"
+    printf "  Run ${YELLOW}/setup-doc-structure${NC} in Claude Code to auto-detect and configure.\n"
     echo ""
     echo "  Options:"
-    echo "    [c] Continue setup (configure directories later with /setup-config)"
+    echo "    [c] Continue setup (configure directories later with /setup-doc-structure)"
     echo "    [e] Exit (install doc-structure plugin first)"
     read -p "  Choice [c]: " DOC_STRUCTURE_CHOICE
     DOC_STRUCTURE_CHOICE="${DOC_STRUCTURE_CHOICE:-c}"
@@ -309,11 +309,11 @@ for old_agent in "rules-toc-updater.md" "specs-toc-updater.md"; do
     fi
 done
 
-# v4.3: classify-docs renamed to setup-config
+# v4.3: classify-docs renamed to setup-doc-structure
 OLD_CLASSIFY_DIR="${SKILLS_DIR}/classify-docs"
 if [[ -d "$OLD_CLASSIFY_DIR" ]]; then
     rm -rf "$OLD_CLASSIFY_DIR"
-    printf "${GREEN}Removed legacy: skills/classify-docs/ (renamed to setup-config/)${NC}\n"
+    printf "${GREEN}Removed legacy: skills/classify-docs/ (renamed to setup-doc-structure/)${NC}\n"
     LEGACY_CLEANED=1
 fi
 for old_script in "set_root_dirs.py" "validate_rules_toc.py" "validate_specs_toc.py"; do
@@ -332,6 +332,14 @@ for old_file in "config.yaml" "scripts/import_doc_structure.py" "scripts/merge_c
         LEGACY_CLEANED=1
     fi
 done
+
+# v5.0: setup-config renamed to setup-doc-structure
+OLD_SETUP_CONFIG="${SKILLS_DIR}/setup-config"
+if [[ -d "$OLD_SETUP_CONFIG" ]]; then
+    rm -rf "$OLD_SETUP_CONFIG"
+    printf "${GREEN}Removed legacy: skills/setup-config/ (renamed to setup-doc-structure/)${NC}\n"
+    LEGACY_CLEANED=1
+fi
 
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
@@ -452,9 +460,9 @@ echo "  skills/query-specs/ ..."
 mkdir -p "${SKILLS_DIR}/query-specs"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
 
-echo "  skills/setup-config/ ..."
-mkdir -p "${SKILLS_DIR}/setup-config"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/setup-config/SKILL.md" "${SKILLS_DIR}/setup-config/SKILL.md"
+echo "  skills/setup-doc-structure/ ..."
+mkdir -p "${SKILLS_DIR}/setup-doc-structure"
+copy_and_substitute "${SCRIPT_DIR}/templates/skills/setup-doc-structure/SKILL.md" "${SKILLS_DIR}/setup-doc-structure/SKILL.md"
 
 # Copy doc-advisor resources (docs, scripts)
 echo "  doc-advisor/ ..."
@@ -485,7 +493,7 @@ echo "  1. Start Claude Code:"
 printf "     cd ${BLUE}$(display_path "${TARGET_DIR}")${NC}\n"
 echo "     claude"
 if [[ "$HAS_DOC_STRUCTURE" != "true" ]]; then
-    printf "  2. Run ${YELLOW}/setup-config${NC} to configure document directories\n"
+    printf "  2. Run ${YELLOW}/setup-doc-structure${NC} to configure document directories\n"
     printf "  3. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation\n"
     printf "  4. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation\n"
 else

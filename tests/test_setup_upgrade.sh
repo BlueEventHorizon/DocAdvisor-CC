@@ -357,7 +357,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 13: setup-config skill installed from template"
+echo "Test 13: setup-doc-structure skill installed from template"
 echo "=================================================="
 
 setup_test_project
@@ -365,9 +365,9 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: setup-config skill installed
-test_result "setup-config/SKILL.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/setup-config/SKILL.md" ]] && echo 1 || echo 0)"
-test_result "setup-config/ dir exists" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/setup-config" ]] && echo 1 || echo 0)"
+# Verify: setup-doc-structure skill installed
+test_result "setup-doc-structure/SKILL.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/setup-doc-structure/SKILL.md" ]] && echo 1 || echo 0)"
+test_result "setup-doc-structure/ dir exists" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/setup-doc-structure" ]] && echo 1 || echo 0)"
 echo ""
 
 # ==================================================
@@ -466,8 +466,8 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Create all legacy files (simulate pre-3.9 installation + v4.2 classify-docs)
-mkdir -p "$TEST_PROJECT/.claude/skills/setup-config"
-echo "# Legacy" > "$TEST_PROJECT/.claude/skills/setup-config/SKILL.md"
+mkdir -p "$TEST_PROJECT/.claude/skills/setup-doc-structure"
+echo "# Legacy" > "$TEST_PROJECT/.claude/skills/setup-doc-structure/SKILL.md"
 mkdir -p "$TEST_PROJECT/.claude/skills/classify-docs"
 echo "# Legacy" > "$TEST_PROJECT/.claude/skills/classify-docs/SKILL.md"
 echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py"
@@ -477,7 +477,7 @@ echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify all legacy files cleaned up
-test_result "setup-config/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/setup-config" ]] && echo 1 || echo 0)"
+test_result "setup-doc-structure/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/setup-doc-structure" ]] && echo 1 || echo 0)"
 test_result "classify-docs/ removed after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 0 || echo 1)"
 test_result "classify_dirs.py exists after upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
 test_result "set_root_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"

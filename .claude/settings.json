@@ -77,6 +77,7 @@
     ],
     "ask": [
       "Bash(git add *)",
+      "Bash(git mv *)",
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(git checkout *)",
@@ -91,6 +92,7 @@
 
       "Bash(mkdir *)",
       "Bash(cp *)",
+      "Bash(mv *)",
       
       "Bash(python3 *)"
     ],
@@ -120,7 +122,6 @@
       "Bash(export *)",
 
       "Bash(rm *)",
-      "Bash(mv *)",
       "Bash(touch *)",
       "Bash(sed *)",
       "Bash(awk *)",
