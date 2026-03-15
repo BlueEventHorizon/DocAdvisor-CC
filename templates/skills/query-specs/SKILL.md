@@ -44,6 +44,7 @@ python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --chec
 
 1. Read `.claude/doc-advisor/toc/specs/specs_toc.yaml` **completely** (YAML format index)
    - **MANDATORY**: Read the entire file with the Read tool. Do NOT use Grep or search tools on ToC
+   - **If not found**: Read `.doc_structure.yaml` to get `specs.root_dirs`, then search with Glob `<dir>/**/*.md` for each configured directory
 2. Deeply understand all entries, then identify relevant candidates from task content
    - Find relevant entries (match by keywords, purpose, title, applicable_tasks)
 3. If there's any chance of relevance, read the actual file to confirm (no false negatives allowed)
