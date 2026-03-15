@@ -35,7 +35,7 @@ PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
 TARGET = None  # 'rules' or 'specs'
-DOC_TYPES_MAP = None  # path → doc_type name (from config.yaml)
+DOC_TYPES_MAP = None  # path → doc_type name (from .doc_structure.yaml)
 
 # Pending YAML templates
 PENDING_TEMPLATE_RULES = """_meta:
@@ -139,7 +139,7 @@ def init_config(target):
 
 
 def determine_doc_type(root_dir_name):
-    """Determine doc_type from root_dir path using config.yaml doc_types_map"""
+    """Determine doc_type from root_dir path using .doc_structure.yaml doc_types_map"""
     if DOC_TYPES_MAP:
         normalized = root_dir_name.rstrip('/')
         for path, doc_type in DOC_TYPES_MAP.items():

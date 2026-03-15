@@ -15,7 +15,7 @@ Doc Advisor は、Claude Code 向けのドキュメント検索基盤ツール�
 ```
 DocAdvisor-CC/
 ├── templates/          ← コピー元テンプレート（修正対象はここ）
-│   ├── doc-advisor/    ← config, docs, scripts
+│   ├── doc-advisor/    ← docs, scripts
 │   ├── agents/         ← ワーカーエージェント定義
 │   └── skills/         ← スキル定義
 ├── setup.sh            ← インストーラー（テンプレート → ターゲットへコピー・置換）
@@ -86,7 +86,6 @@ git config user.name
 
 | ファイル                                              | 役割                                       |
 | ----------------------------------------------------- | ------------------------------------------ |
-| `templates/doc-advisor/config.yaml`                   | プロジェクト設定テンプレート               |
 | `templates/doc-advisor/docs/*_toc_format.md`          | ToC スキーマ定義（Single Source of Truth） |
 | `templates/doc-advisor/docs/*_toc_update_workflow.md` | ToC 更新の詳細ワークフロー                 |
 | `templates/doc-advisor/docs/*_orchestrator.md`        | オーケストレーター手順                     |

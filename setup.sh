@@ -62,8 +62,8 @@ while [[ $# -gt 0 ]]; do
             echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
             echo ""
-            echo "If .doc_structure.yaml exists, directories are imported into config.yaml at setup time."
-            echo "Otherwise, run /setup-config after setup to configure directories."
+            echo "If .doc_structure.yaml exists, it is used as document structure configuration."
+            echo "Otherwise, run /setup-config after setup to create .doc_structure.yaml."
             exit 0
             ;;
         -*)
@@ -186,7 +186,7 @@ SKILLS_DIR="${CLAUDE_DIR}/skills"
 # =============================================================================
 # Version identifier functions
 # =============================================================================
-DOC_ADVISOR_VERSION="4.5"
+DOC_ADVISOR_VERSION="5.0"
 # Unique identifier key: doc-advisor-version-xK9XmQ
 # Note: xK9XmQ is a permanent, fixed string to prevent false matches with user files
 
@@ -324,6 +324,15 @@ for old_script in "set_root_dirs.py" "validate_rules_toc.py" "validate_specs_toc
     fi
 done
 
+# v5.0: config.yaml abolished (.doc_structure.yaml is now the sole configuration)
+for old_file in "config.yaml" "scripts/import_doc_structure.py" "scripts/merge_config.py"; do
+    if [[ -f "${DOC_ADVISOR_DIR}/${old_file}" ]]; then
+        rm -f "${DOC_ADVISOR_DIR}/${old_file}"
+        printf "${GREEN}Removed legacy: doc-advisor/${old_file} (replaced by .doc_structure.yaml)${NC}\n"
+        LEGACY_CLEANED=1
+    fi
+done
+
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
 fi
@@ -341,15 +350,6 @@ _sed_escape() {
 }
 
 # Function to copy and substitute variables in a file
-# Cleanup handler: remove temp files on exit (normal or error)
-_cleanup() {
-    [[ -n "${SKILLS_DIR:-}" ]] || return 0
-    rm -f "${SKILLS_DIR}/config.yaml.bak.tmp" \
-          "${SKILLS_DIR}/config.yaml.old.tmp" \
-          "${SKILLS_DIR}/config.yaml.skip_bak"
-}
-trap _cleanup EXIT
-
 copy_and_substitute() {
     local src="$1"
     local dst="$2"
@@ -419,40 +419,6 @@ copy_dir_with_substitution() {
 echo "Copying templates..."
 echo ""
 
-# Check if config.yaml already exists (user may have customized it)
-EXISTING_CONFIG="${DOC_ADVISOR_DIR}/config.yaml"
-SKIP_CONFIG=0
-
-if [[ -f "$EXISTING_CONFIG" ]]; then
-    printf "${YELLOW}Existing config.yaml found: ${EXISTING_CONFIG}${NC}\n"
-    echo "  This file may contain your custom settings (exclude patterns, output config, etc.)."
-    echo ""
-    echo "  Options:"
-    echo "    [o] Overwrite (backup to config.yaml.bak)"
-    echo "    [s] Skip (keep existing config)"
-    echo "    [m] Merge (auto) - carry over your settings to new template"
-    read -p "  Choice [s]: " CONFIG_CHOICE
-    CONFIG_CHOICE="${CONFIG_CHOICE:-s}"
-
-    case "$CONFIG_CHOICE" in
-        [Oo])
-            # Backup to skills/ dir (outside doc-advisor/ which will be deleted)
-            cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.bak.tmp"
-            RESTORE_BAK=1
-            printf "${GREEN}  Backup will be created: config.yaml.bak${NC}\n"
-            ;;
-        [Mm])
-            cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.old.tmp"
-            SHOW_CONFIG_DIFF=1
-            ;;
-        *)
-            SKIP_CONFIG=1
-            printf "${BLUE}  Keeping existing config.yaml${NC}\n"
-            ;;
-    esac
-    echo ""
-fi
-
 # Copy agents (overwrite only - preserve user's custom agents)
 echo "  agents/ ..."
 if [[ -d "${AGENTS_DIR}" ]]; then
@@ -490,59 +456,11 @@ echo "  skills/setup-config/ ..."
 mkdir -p "${SKILLS_DIR}/setup-config"
 copy_and_substitute "${SCRIPT_DIR}/templates/skills/setup-config/SKILL.md" "${SKILLS_DIR}/setup-config/SKILL.md"
 
-# Copy doc-advisor resources (config, docs, scripts)
+# Copy doc-advisor resources (docs, scripts)
 echo "  doc-advisor/ ..."
-
-# Backup config to temp location if skipping
-if [[ $SKIP_CONFIG -eq 1 ]]; then
-    cp "$EXISTING_CONFIG" "${SKILLS_DIR}/config.yaml.skip_bak"
-fi
 
 # Copy templates/doc-advisor/ to .claude/doc-advisor/
 copy_dir_with_substitution "${SCRIPT_DIR}/templates/doc-advisor" "${DOC_ADVISOR_DIR}"
-
-# Restore config if skipped
-if [[ $SKIP_CONFIG -eq 1 ]]; then
-    mv "${SKILLS_DIR}/config.yaml.skip_bak" "$EXISTING_CONFIG"
-fi
-
-# Move backup to final location (overwrite mode)
-if [[ "${RESTORE_BAK:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.bak.tmp" ]]; then
-    mv "${SKILLS_DIR}/config.yaml.bak.tmp" "${EXISTING_CONFIG}.bak"
-fi
-
-# Auto-merge user settings if requested (merge mode)
-if [[ "${SHOW_CONFIG_DIFF:-0}" == "1" ]] && [[ -f "${SKILLS_DIR}/config.yaml.old.tmp" ]]; then
-    mv "${SKILLS_DIR}/config.yaml.old.tmp" "${EXISTING_CONFIG}.old"
-    echo ""
-    printf "${YELLOW}Merging your settings into new config...${NC}\n"
-    if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/merge_config.py" \
-        "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG"); then
-        printf "${GREEN}  Settings merged successfully${NC}\n"
-    else
-        printf "${YELLOW}  Warning: Auto-merge failed. Review diff manually.${NC}\n"
-    fi
-    echo ""
-    printf "${YELLOW}Config diff (old vs new):${NC}\n"
-    diff "${EXISTING_CONFIG}.old" "$EXISTING_CONFIG" || true
-    echo ""
-    printf "${YELLOW}Old config saved as: ${EXISTING_CONFIG}.old${NC}\n"
-fi
-
-# Import .doc_structure.yaml into config.yaml (Route A: DES-005)
-if [[ "$HAS_DOC_STRUCTURE" == "true" ]] && [[ $SKIP_CONFIG -ne 1 ]] && [[ "${SHOW_CONFIG_DIFF:-0}" != "1" ]]; then
-    echo "Importing .doc_structure.yaml into config.yaml..."
-    if (cd "$TARGET_DIR" && "$PYTHON_CMD" "${DOC_ADVISOR_DIR}/scripts/import_doc_structure.py" \
-        "$DOC_STRUCTURE_FILE" "${DOC_ADVISOR_DIR}/config.yaml"); then
-        printf "${GREEN}  root_dirs and doc_types_map imported from .doc_structure.yaml${NC}\n"
-    else
-        printf "${YELLOW}  Warning: Failed to import .doc_structure.yaml. Run /setup-config later.${NC}\n"
-    fi
-fi
-
-echo ""
-echo "Generated configuration:"
-echo "  ${DOC_ADVISOR_DIR}/config.yaml"
 
 echo ""
 printf "${GREEN}==========================================${NC}\n"
@@ -553,7 +471,7 @@ echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
 echo "    agents/            # Worker agents (toc-updater)"
 echo "    skills/            # Skills (query-*, create-*-toc)"
-echo "    doc-advisor/       # Config, docs, scripts, ToC files"
+echo "    doc-advisor/       # Docs, scripts, ToC files"
 
 # Save settings for next run
 cat > "$LAST_SETUP_FILE" << EOF

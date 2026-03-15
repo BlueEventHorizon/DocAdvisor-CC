@@ -36,10 +36,9 @@
 
 ## デフォルト値
 
-| 変数                  | デフォルト値 | 説明                                                  |
-| --------------------- | ------------ | ----------------------------------------------------- |
-| `DEFAULT_AGENT_MODEL` | `opus`       | Agent 定義に使用するモデル                            |
-| `PYTHON_PATH`         | `python3`    | Python 実行パス（shell wrapper 検出時は実パスに切替） |
+| 変数                  | デフォルト値 | 説明                       |
+| --------------------- | ------------ | -------------------------- |
+| `DEFAULT_AGENT_MODEL` | `opus`       | Agent 定義に使用するモデル |
 
 ## 処理フロー
 
@@ -62,13 +61,12 @@ flowchart TD
     G --> H[レガシーファイル削除]
 
     H --> I[ディレクトリ作成]
-    I --> J[config.yaml 確認]
-    J --> K[テンプレートコピー<br>変数置換付き]
+    I --> K[テンプレートコピー<br>変数置換付き]
     K --> M[完了メッセージ]
     M --> Z
 ```
 
-> **Note**: v4.0 で `.doc_structure.yaml` チェックはセットアップの最初に行われる。未検出時はユーザーに Continue/Exit を選択させ、doc-structure プラグインを先にインストールする機会を与える。ディレクトリ分類はターゲットプロジェクト側の `/setup-config` スキルで AI 駆動で実行する。
+> **Note**: v4.0 で `.doc_structure.yaml` チェックはセットアップの最初に行われる。未検出時はユーザーに Continue/Exit を選択させ、doc-structure プラグインを先にインストールする機会を与える。`.doc_structure.yaml` がなければ `/setup-config` スキルで作成する。ディレクトリ分類はターゲットプロジェクト側の `/setup-config` スキルで AI 駆動で実行する。
 
 ---
 
@@ -87,7 +85,6 @@ copy_and_substitute "$src" "$dst"
 | プレースホルダー          | 置換値                 | 置換方法 |
 | ------------------------- | ---------------------- | -------- |
 | `{{AGENT_MODEL}}`         | Agent 定義のモデル指定 | `sed`    |
-| `{{PYTHON_PATH}}`         | Python 実行パス        | `sed`    |
 | `{{DOC_ADVISOR_VERSION}}` | Doc Advisor バージョン | `sed`    |
 
 **実装:**
@@ -98,7 +95,6 @@ copy_and_substitute() {
     local dst="$2"
     if [[ -f "$src" ]]; then
         sed -e "s|{{AGENT_MODEL}}|${AGENT_MODEL}|g" \
-            -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
             -e "s|{{DOC_ADVISOR_VERSION}}|${DOC_ADVISOR_VERSION}|g" \
             "$src" > "$dst"
     fi
@@ -143,7 +139,6 @@ TARGET_DIR/
 │   │   └── create-specs-toc/        # specs ToC 生成スキル
 │   │       └── SKILL.md
 │   └── doc-advisor/                 # 共有リソース + ランタイム出力
-│       ├── config.yaml              # 設定ファイル（root_dirs は setup.sh で取り込み、または /setup-config で設定）
 │       ├── docs/                    # ドキュメント
 │       │   ├── toc_orchestrator.md
 │       │   ├── toc_format.md
@@ -153,7 +148,6 @@ TARGET_DIR/
 │       │   ├── toc_utils.py
 │       │   ├── classify_dirs.py         # ディレクトリスキャナー
 │       │   ├── check_config.sh          # スキル Pre-check スクリプト
-│       │   ├── import_doc_structure.py  # .doc_structure.yaml → config.yaml 取り込み
 │       │   ├── create_checksums.py
 │       │   ├── create_pending_yaml.py   # --target rules|specs
 │       │   ├── write_pending.py         # --target rules|specs
@@ -208,19 +202,6 @@ v2.0 からのアップグレード時、doc-advisor のレガシーファイル
 | `skills/create-specs-toc/` | **上書き**     | 単一ファイルなので上書きで十分                                            |
 | `skills/doc-advisor/`      | **自動削除**   | v3.0 レガシー（分割されたため不要）                                       |
 
-### config.yaml の保護
-
-既存の `config.yaml` がある場合、ユーザーに選択肢を提示:
-
-```
-Options:
-  [o] Overwrite (backup to config.yaml.bak)
-  [s] Skip (keep existing config)
-  [m] Merge manually (show diff after setup)
-```
-
-Overwrite 選択時のバックアップ先: `doc-advisor/config.yaml.bak`
-
 ## アップグレード処理（v3.6 → v3.7: advisor agent → skill 移行）
 
 ### 削除対象
@@ -267,7 +248,7 @@ v3.8 でカテゴリ別に分かれていたスクリプト・Agent・ドキュ�
 
 ### ディレクトリ選択の廃止
 
-v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` は空配列 `[]` で生成され、`/setup-config` スキルで自動分類・設定する。
+v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` は空配列 `[]` で生成され、`/setup-config` スキルで自動分類・設定する。（v5.0 で config.yaml 廃止、`.doc_structure.yaml` + コードデフォルトに移行）
 
 ### v4.0: setup-config 復活と SessionStart hook（v3.8 → v4.0）
 
@@ -277,6 +258,22 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 | `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要                                                   |
 | `setup-config` スキル復活         | テンプレートとして `templates/skills/setup-config/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
 | スキル Pre-check 導入             | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/setup-config` を先に実行させる       |
+
+---
+
+## アップグレード処理（v5.0: config.yaml 廃止）
+
+### 概要
+
+v5.0 で config.yaml を廃止し、`.doc_structure.yaml` + コードデフォルトに移行。
+
+### 削除対象
+
+| レガシーパス                                  | 処理     | 理由                                       |
+| --------------------------------------------- | -------- | ------------------------------------------ |
+| `doc-advisor/config.yaml`                     | 自動削除 | `.doc_structure.yaml` に移行               |
+| `doc-advisor/scripts/import_doc_structure.py` | 自動削除 | 直接参照に変更（import 不要）              |
+| `doc-advisor/scripts/merge_config.py`         | 自動削除 | config.yaml 廃止に伴い不要                 |
 
 ---
 
@@ -297,94 +294,41 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 
 ---
 
-## config.yaml の構造
+## .doc_structure.yaml の構造
 
-生成される設定ファイルの構造:
+文書構造の SSOT（Single Source of Truth）となる設定ファイルの構造:
 
 ```yaml
-# === rules 設定 ===
+# doc_structure_version: 3.0
+
 rules:
-  # root_dirs: []    # Auto-configured by setup.sh or /setup-config
-  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
-  toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
-  work_dir: .claude/doc-advisor/toc/rules/.toc_work/
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
   patterns:
     target_glob: "**/*.md"
     exclude: []
-  output:
-    header_comment: "Development documentation search index for query-rules skill"
-    metadata_name: "Development Documentation Search Index"
 
-# === specs 設定 ===
 specs:
-  # root_dirs: []    # Auto-configured by setup.sh or /setup-config
-  # doc_types_map: {}  # Path-to-doc_type mapping (auto-configured)
-  toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
-  work_dir: .claude/doc-advisor/toc/specs/.toc_work/
+  root_dirs:
+    - specs/
+  doc_types_map:
+    specs/requirements/: requirement
+    specs/design/: design
   patterns:
     target_glob: "**/*.md"
     exclude: []
-  output:
-    header_comment: "Project specification document search index for query-specs skill"
-    metadata_name: "Project Specification Document Search Index"
-
-# === 共通設定 ===
-common:
-  parallel:
-    max_workers: 5 # 並列処理数
-    fallback_to_serial: true # 並列失敗時は直列実行
 ```
 
-> **Note**: `root_dirs` と `doc_types_map` はテンプレート上はコメントアウト状態。setup.sh は `.doc_structure.yaml` が存在する場合、`import_doc_structure.py` を呼び出して config.yaml の `root_dirs` と `doc_types_map` に書き込む。存在しない場合はテンプレートコピーに徹し、ターゲットプロジェクトで `/setup-config` スキルが AI 駆動で設定する。実行時に `.doc_structure.yaml` は参照しない（REQ-001 FR-08）。
+> **Note**: `.doc_structure.yaml` は forge プラグインまたは `/setup-config` スキルで作成する。Doc Advisor 内部設定（toc_file, checksums_file, work_dir, output, common 等）はコードデフォルト（toc_utils.py `_get_default_config()`）で管理される。
 
 ---
 
-## config.yaml マイグレーション（v4.4〜）
+## config.yaml マイグレーション（廃止）
 
-### バージョン体系と構造変更ルール
-
-バージョン形式は `"X.Y"`（例: `"4.3"`）。X が **major バージョン**。
-
-**ルール**: **config.yaml の構造を変更するリリースは必ず major バージョン (X) を上げること。**
-
-- フィールドの追加・削除・リネーム、セクション構造の変更が対象。
-- major が同じリリース（例: 4.3 → 4.4）では config.yaml 構造変更を行わない。
-
-### `[m] Merge (auto)` の処理フロー
-
-`setup.sh` でユーザーが `[m]` を選択した際、`merge_config.py` が実行される:
-
-1. **バージョン検出**: 旧 config の `# doc-advisor-version-xK9XmQ:` コメントから major バージョンを取得
-2. **構造マイグレーション**: `old_major < new_major` の範囲で `MIGRATIONS` を昇順に適用
-3. **ユーザー設定引き継ぎ**: 旧 config から以下を抽出して新 config に書き込む
-   - `root_dirs`・`doc_types_map`（非空の場合）
-   - `patterns.exclude`（非空の場合）
-   - `output.header_comment`・`output.metadata_name`（デフォルトと異なる場合）
-   - `common.parallel.max_workers`・`fallback_to_serial`（デフォルトと異なる場合）
-
-### マイグレーション履歴
-
-| バージョン   | 変更内容     | マイグレーション関数  |
-| ------------ | ------------ | --------------------- |
-| v4.x（現行） | 構造変更なし | — (`MIGRATIONS` は空) |
-
-### 将来のマイグレーション追加手順
-
-config.yaml 構造を変更するリリース（例: v5.0）では以下を実施:
-
-1. `setup.sh` の `DOC_ADVISOR_VERSION` を新 major バージョン（例: `"5.0"`）に更新
-2. `templates/doc-advisor/scripts/merge_config.py` の `MIGRATIONS` に追加:
-   ```python
-   MIGRATIONS = {
-       5: migrate_to_v5,  # 追加
-   }
-   def migrate_to_v5(new_content, old_config_dict):
-       # 構造変更に応じたテキスト変換を実装
-       return new_content
-   ```
-3. この表（マイグレーション履歴）に変更内容とマイグレーション関数名を記録
+v5.0 で config.yaml を廃止。`.doc_structure.yaml` + コードデフォルトに移行したため、
+`merge_config.py` によるマイグレーションは不要になった。
 
 ---
 
@@ -396,11 +340,9 @@ config.yaml 構造を変更するリリース（例: v5.0）では以下を実�
 
 ### check_config.sh のチェック順序
 
-1. `config.yaml` が存在しない → 即 exit 0（Doc Advisor 未インストール）
-2. `config.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし = OK）
-3. `config.yaml` は存在するが `root_dirs` が未設定 → `[ACTION REQUIRED]` 警告メッセージを出力
-
-> `.doc_structure.yaml` の存在チェックは行わない。実行時は config.yaml のみを参照する（REQ-001 FR-08）。
+1. `.doc_structure.yaml` が存在しない → 警告メッセージを出力（`/setup-config` の実行を促す）
+2. `.doc_structure.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし = OK）
+3. `.doc_structure.yaml` は存在するが `root_dirs` が未設定 → `[ACTION REQUIRED]` 警告メッセージを出力
 
 ### スキル側の処理
 
@@ -432,9 +374,9 @@ bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 ## セットアップ後の次のステップ
 
-### config.yaml に root_dirs が設定済みの場合
+### .doc_structure.yaml に root_dirs が設定済みの場合
 
-setup.sh が `.doc_structure.yaml` を取り込み済み、または `/setup-config` で設定済み。すぐに ToC 生成が可能:
+`.doc_structure.yaml` が存在し root_dirs が設定済み。すぐに ToC 生成が可能:
 
 1. Claude Code を起動:
    ```bash
@@ -447,7 +389,7 @@ setup.sh が `.doc_structure.yaml` を取り込み済み、または `/setup-con
    /create-specs-toc --full
    ```
 
-### config.yaml に root_dirs が未設定の場合
+### .doc_structure.yaml に root_dirs が未設定の場合
 
 スキルの Pre-check（check_config.sh）が未設定を検出し、`/setup-config` の実行を指示する:
 
@@ -463,9 +405,8 @@ setup.sh が `.doc_structure.yaml` を取り込み済み、または `/setup-con
 - `skills/doc-advisor/` はクリーンインストール（全削除→再作成）（v3.0 レガシー）
 - advisor agent（rules-advisor.md, specs-advisor.md）は自動削除される（v3.7 移行）
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
-- `config.yaml` が既存の場合はユーザーに確認を求める
-- setup.sh はテンプレートコピー・変数置換・`.doc_structure.yaml` からの設定取り込みを行う。AI によるディレクトリ分類は行わない
-- `.doc_structure.yaml` がない場合、`config.yaml` の `root_dirs` はコメントアウト状態のまま（`/setup-config` で設定）
+- setup.sh はテンプレートコピー・変数置換を行う。AI によるディレクトリ分類は行わない
+- `.doc_structure.yaml` がない場合は `/setup-config` スキルで作成する
 - 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/setup-config` を先に実行させる
 
 ## 関連ドキュメント

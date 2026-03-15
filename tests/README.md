@@ -178,8 +178,7 @@ chmod +x *.sh
 | 1    | Clean install (no existing .claude)                           |
 | 2    | Legacy commands/ auto-deleted (file-specific)                 |
 | 3    | v3.2 structure verification (split skills)                    |
-| 4    | config.yaml skip (preserve existing)                          |
-| 5    | config.yaml overwrite with backup                             |
+| 4    | v5.0 legacy config.yaml removed                               |
 | 6    | v3.0 skills/doc-advisor/ removed on upgrade to v3.1           |
 | 7    | agents/ custom agent preserved                                |
 | 8    | Repeated setup preserves toc/ directory structure             |
@@ -190,21 +189,19 @@ chmod +x *.sh
 | 13   | setup-config skill installed                                  |
 | 14   | v3.8 unified scripts (old scripts removed)                    |
 | 15   | v3.8 unified agents (old agents removed)                      |
-| 16   | config.yaml root_dirs imported from .doc_structure.yaml       |
-| 16b  | import_doc_structure.py - multiple doc_types and paths        |
-| 16c  | import_doc_structure.py - no .doc_structure.yaml              |
-| 16d  | import_doc_structure.py - rules only                          |
 | 17   | classify_dirs.py installed from template                      |
 | 18   | v3.9 set_root_dirs.py legacy cleanup                          |
-| 19   | config.yaml root_dirs manual override                         |
-| 20   | config.yaml exclude patterns (empty defaults)                 |
-| 21   | No skip/exclude (empty input)                                 |
 | 22   | v3.9 full legacy cleanup (all removed files)                  |
 | 23   | check_config.sh installed with exec permission (T-011)        |
 | 24   | Skill Pre-check sections (T-012)                              |
 | 25   | check_config.sh behavior (FR-08) incl. specs & cross-category |
-| 26   | config.yaml merge option (REQ-002-03 [m])                     |
 | 27   | validate_rules_toc.py abnormal input handling                 |
+| 28   | root_dirs: [] does not crash (IndexError guard)               |
+| 29   | write_pending.py --error keeps status: pending (not error)    |
+| 30   | create_checksums.py respects rules.target_glob                |
+| 31   | Smart copy - unchanged files are skipped                      |
+| 32   | Smart copy - changed files are updated                        |
+| 33   | Smart copy - new files are always copied                      |
 
 ## Adding New Tests
 

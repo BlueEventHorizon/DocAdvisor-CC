@@ -26,9 +26,7 @@ rules:
 # === specs configuration ===
 specs:
   root_dirs:
-    - specs/requirements/
-    - specs/design/
-    - specs/plan/
+    - specs/
   doc_types_map:
     specs/requirements/: requirement
     specs/design/: design

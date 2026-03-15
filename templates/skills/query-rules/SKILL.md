@@ -43,7 +43,7 @@ python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --chec
 
 1. Read `.claude/doc-advisor/toc/rules/rules_toc.yaml` **completely**
    - **MANDATORY**: Read the entire file with the Read tool. Do NOT use Grep or search tools on ToC
-   - **If not found**: Read `.claude/doc-advisor/config.yaml` to get `rules.root_dirs`, then search with Glob `<dir>/**/*.md` for each configured directory
+   - **If not found**: Read `.doc_structure.yaml` to get `rules.root_dirs`, then search with Glob `<dir>/**/*.md` for each configured directory
 2. Deeply understand all entries, then match task content against each entry's `applicable_tasks` and `keywords`
 3. If there's any chance of relevance, read the actual file to confirm (no false negatives allowed)
 4. Return the confirmed path list
@@ -71,4 +71,4 @@ Required documents:
 
 - False negatives are strictly prohibited. When in doubt, include it
 - Requirements, design documents, and plans are out of scope (use /query-specs instead)
-- Target is rules documents only (directories configured in config.yaml `rules.root_dirs`)
+- Target is rules documents only (directories configured in `.doc_structure.yaml` `rules.root_dirs`)
