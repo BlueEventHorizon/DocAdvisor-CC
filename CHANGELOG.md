@@ -7,6 +7,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ---
 
 
+
+## [5.0.0] - 2026-03-15
+
+### Added
+- **REQ-003**: Generic versioned migration requirements (`specs/requirements/REQ-003_versioned_migration.md`)
+- **v1.0 backward compatibility**: `_migrate_v1_to_v2()` auto-converts legacy `.doc_structure.yaml` format (in-memory only)
+- **`.doc_structure.yaml` schema spec**: Full schema definition added to DES-004 (field definitions, doc_type list, merge logic)
+
+### Changed
+- **config.yaml abolished**: Replaced by `.doc_structure.yaml` (document structure) + code defaults (`toc_utils.py`)
+- **`load_config()`**: Now reads `.doc_structure.yaml` directly and merges with `_get_default_config()` via `_deep_merge()`
+- **`check_config.sh`**: Validates `.doc_structure.yaml` instead of config.yaml; supports v1.0 `paths:` detection
+- **`setup.sh`**: Removed config.yaml handling (skip/overwrite/merge/import); added v5.0 legacy cleanup
+- **`doc_structure_version`**: Bumped from 2.0 to 3.0 (structure-only format, no internal fields)
+- **All SKILL.md / docs**: Updated references from config.yaml to `.doc_structure.yaml`
+- **Specs revised**: REQ-001 (FR-08), DES-001, DES-002 (abolished), DES-004, DES-005
+- **Version identifier**: Updated from `4.5` to `5.0` across all managed files
+
+### Removed
+- `templates/doc-advisor/config.yaml` — replaced by `.doc_structure.yaml` + code defaults
+- `templates/doc-advisor/scripts/import_doc_structure.py` — direct reading eliminates import step
+- `templates/doc-advisor/scripts/merge_config.py` — config.yaml no longer exists
+- `rules/claude_code_shell_wrapper.md` — outdated `/usr/bin/which python3` recommendations
+
+---
 ## [4.5.0] - 2026-03-13
 
 ### Added
