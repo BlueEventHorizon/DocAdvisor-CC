@@ -18,3 +18,4 @@ __pycache__/
 .claude/settings.local.json
 reference_projects
 /meta/
+.claude/.temp

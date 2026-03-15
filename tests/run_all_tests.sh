@@ -58,6 +58,7 @@ run_test "Phase 2b: merge_toc.py" "test_merge.sh"
 run_test "Phase 2c: create_checksums.py" "test_checksums.sh"
 run_test "Phase 2d: should_exclude()" "test_should_exclude.sh"
 run_test "Phase 2e: symlink support" "test_symlink.sh"
+run_test "Phase 2f: version migration" "test_migration.sh"
 
 # Phase 3: Custom directory tests
 run_test "Phase 3: Custom Directories" "test_custom_dirs.sh"

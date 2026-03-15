@@ -8,6 +8,7 @@ Common functions used by merge-rules-toc, merge-specs-toc, create-toc-checksums.
 Uses only standard library.
 """
 
+import copy
 import fnmatch
 import os
 import re
@@ -176,8 +177,9 @@ def load_config(target=None):
 
     doc_structure = _parse_config_yaml(content)
 
-    # Backward compatibility: v1.0 format → v2.0 format (in-memory only)
-    doc_structure = _migrate_v1_to_v2(doc_structure)
+    # Versioned migration: detect version and apply staged migrations (REQ-003)
+    detected_version = _detect_version(content)
+    doc_structure = apply_migrations(doc_structure, detected_version)
 
     # Merge: doc_structure values override defaults
     config = _deep_merge(defaults, doc_structure)
@@ -249,6 +251,97 @@ def _migrate_v1_to_v2(parsed):
             # Add v2.0 keys
             section['root_dirs'] = root_dirs
             section['doc_types_map'] = doc_types_map
+
+    return parsed
+
+
+def _migrate_v2_to_v3(parsed):
+    """
+    Convert v2.0 .doc_structure.yaml format to v3.0 (in-memory only).
+
+    v2.0 contains internal Doc Advisor fields (toc_file, checksums_file,
+    work_dir, output) that were moved to code defaults in v3.0.
+    Also removes the top-level 'common' section.
+
+    v3.0 format retains only: root_dirs, doc_types_map, patterns.
+    """
+    INTERNAL_FIELDS = {'toc_file', 'checksums_file', 'work_dir', 'output'}
+
+    for category in ('rules', 'specs'):
+        if category not in parsed:
+            continue
+        section = parsed[category]
+        for field in INTERNAL_FIELDS:
+            section.pop(field, None)
+
+    # Remove top-level 'common' section (code default in v3)
+    parsed.pop('common', None)
+
+    return parsed
+
+
+# --- Version Migration Framework (REQ-003) ---
+
+CURRENT_DOC_STRUCTURE_VERSION = 3
+
+MIGRATIONS = {
+    2: _migrate_v1_to_v2,
+    3: _migrate_v2_to_v3,
+}
+
+
+def _detect_version(content):
+    """
+    Detect doc_structure_version from raw file content.
+
+    Scans for '# doc_structure_version: X.0' comment line.
+    Returns integer major version, or 1 if not found (FR-01-2).
+
+    Args:
+        content: Raw .doc_structure.yaml file content (string)
+
+    Returns:
+        int: Detected major version number
+    """
+    for line in content.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith('#'):
+            break  # YAML本文行に到達、走査打ち切り
+        match = re.match(r'^#\s*doc_structure_version:\s*(\d+)', stripped)
+        if match:
+            return int(match.group(1))
+    return 1  # FR-01-2: default to v1
+
+
+def apply_migrations(parsed, detected_version):
+    """
+    Apply staged migrations from detected_version to CURRENT_DOC_STRUCTURE_VERSION.
+
+    Migrations are applied one version at a time in ascending order (FR-02-1).
+    On error, returns the original data unchanged (FR-04-1).
+    If detected_version >= CURRENT, returns data as-is (FR-04-2).
+
+    Args:
+        parsed: Parsed configuration dictionary
+        detected_version: Integer version detected from file
+
+    Returns:
+        dict: Migrated configuration dictionary
+    """
+    if detected_version >= CURRENT_DOC_STRUCTURE_VERSION:
+        return parsed  # FR-04-2: future/current version, no migration
+
+    targets = [v for v in sorted(MIGRATIONS.keys())
+               if detected_version < v <= CURRENT_DOC_STRUCTURE_VERSION]
+
+    original = copy.deepcopy(parsed)  # FR-04-1: rollback reference
+    try:
+        for v in targets:
+            parsed = MIGRATIONS[v](parsed)
+    except Exception:
+        return original
 
     return parsed
 
