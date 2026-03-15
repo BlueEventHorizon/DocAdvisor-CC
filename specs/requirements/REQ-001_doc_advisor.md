@@ -85,6 +85,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | FR-08-3 | `.doc_structure.yaml` の有効条件: 対象カテゴリ（rules または specs）の `root_dirs` が記載されていること                                                                                  |
 | FR-08-4 | `check_config.sh` はスキル起動時に `.doc_structure.yaml` の `root_dirs` 設定を検証する。未設定の場合は警告を出力し `/setup-config` の実行を促す                                          |
 | FR-08-5 | `check_config.sh` の検証を通過した場合、後段スクリプトは root_dirs が有効であることを前提として動作してよい（二重検証は不要）                                                            |
+| FR-08-6 | `.doc_structure.yaml` は先頭に `# doc_structure_version: 2.0` コメントを含む。Doc Advisor はこのバージョンを参照して互換性を判断する                                                      |
 
 ## 非機能要件
 
@@ -101,7 +102,9 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | -------- | -------------------------------------------------------- |
 | NFR-02-1 | 各カテゴリのルートディレクトリは複数設定可能とする       |
 | NFR-02-2 | スキャンパターン（グロブ）と除外パターンは設定可能とする |
-| NFR-02-3 | 並列処理数はコードデフォルトで定義する（`toc_utils.py`） |
+| NFR-02-3 | 並列処理数はコードデフォルトで定義する（`toc_utils.py`）                                                                                                                          |
+| NFR-02-4 | `.doc_structure.yaml` は `root_dirs`（配列）、`doc_types_map`（辞書）、`patterns`（辞書: target_glob, exclude）の3フィールドで文書構造を定義する                                     |
+| NFR-02-5 | Doc Advisor 内部設定（toc_file, checksums_file, work_dir, output, common）はコードデフォルト（`toc_utils.py` の `_get_default_config()`）で定義し、`.doc_structure.yaml` には含めない |
 
 ## 用語定義
 
@@ -115,3 +118,4 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | Skill               | Claude Code のスラッシュコマンドとして登録される機能単位                                                                              |
 | Agent               | Claude Code のサブエージェントとして内部的に起動されるワーカー                                                                        |
 | Pre-check           | スキル実行前に `check_config.sh` を呼び出し、設定状態を検証する仕組み                                                                 |
+| doc_structure_version | `.doc_structure.yaml` の形式バージョン。コメント形式（`# doc_structure_version: 2.0`）で記録。forge プラグインと Doc Advisor で共通    |
