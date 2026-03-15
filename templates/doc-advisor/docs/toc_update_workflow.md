@@ -101,7 +101,7 @@ Read `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` and identify files with
 
 ### Step 2.2: Launch subagents in parallel
 
-**Parallel count**: Read from config.yaml `common.parallel.max_workers`
+**Parallel count**: Default 5 (defined in toc_utils.py)
 
 ```
 # Orchestrator calls multiple Task tools in one message

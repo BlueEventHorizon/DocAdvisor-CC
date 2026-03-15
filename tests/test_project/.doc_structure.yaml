@@ -1,6 +1,19 @@
+# doc_structure_version: 2.0
+
 rules:
-  rule:
-    paths: [rules/]
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
 specs:
-  spec:
-    paths: [specs/]
+  root_dirs:
+    - specs/
+  doc_types_map:
+    specs/: spec
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []

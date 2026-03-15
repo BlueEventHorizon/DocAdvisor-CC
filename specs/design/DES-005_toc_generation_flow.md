@@ -9,7 +9,7 @@
 - REQ-001 FR-02: ToC 自動生成
 - REQ-001 FR-03: 変更検出
 - REQ-001 FR-04: 並列処理
-- REQ-001 FR-08: config.yaml ランタイム設定原則
+- REQ-001 FR-08: ランタイム設定原則
 
 ---
 
@@ -27,7 +27,7 @@
 | Merger             | エントリ統合          | `merge_toc.py --target rules\|specs`                      |
 | Validator          | 出力検証              | `validate_rules_toc.py` / `validate_specs_toc.py`         |
 
-> **前提条件**: config.yaml は Doc Advisor の唯一のランタイム設定である。全スクリプトは config.yaml の `root_dirs` のみを参照する。`.doc_structure.yaml` はセットアップ時に config.yaml へ取り込まれるものであり、実行時には参照しない。
+> **前提条件**: `.doc_structure.yaml` はプロジェクトルートに配置される文書構造の SSOT である。全スクリプトは `load_config()`（toc_utils.py）を経由して `.doc_structure.yaml` を読み込み、コードデフォルト（toc_file, checksums_file, work_dir, output, common）とマージした設定を使用する。
 
 ### データフロー
 
@@ -40,7 +40,7 @@ flowchart LR
         P3 --> P4[Phase 4<br>バリデーション]
     end
 
-    P0 -.- C[config.yaml<br>root_dirs]
+    P0 -.- C[.doc_structure.yaml<br>root_dirs]
     P1 -.- CS[.toc_checksums.yaml]
     P2 -.- W[.toc_work/]
     P4 -.- T[*_toc.yaml]
@@ -88,27 +88,26 @@ flowchart TD
 
 ### 設計思想
 
-- **config.yaml が唯一のランタイム設定**: `.doc_structure.yaml` は実行時に参照しない
+- **`.doc_structure.yaml` + コードデフォルトがランタイム設定**: `.doc_structure.yaml` はランタイムで直接参照する
 - **入口集約**: check_config.sh を通過すれば後段スクリプトは二重検証不要
 - **ソフトゲート**: AI への指示として機能（スキル Pre-check で呼び出される）
 
-### config.yaml 確立フロー
+### .doc_structure.yaml 確立フロー
 
-config.yaml の `root_dirs` と `doc_types_map` は以下の2つの独立した経路で設定される。いずれも最終成果物は config.yaml の `root_dirs`（および `doc_types_map`）である。
+`.doc_structure.yaml` の `root_dirs` と `doc_types_map` は以下の2つの独立した経路で設定される。いずれも最終成果物は `.doc_structure.yaml`（プロジェクトルート）である。
 
 #### 経路 A: setup.sh（インストール時）
 
 ```mermaid
 flowchart TD
-    A[setup.sh 実行] --> B[config.yaml テンプレート配置]
-    B --> C{".doc_structure.yaml 存在?"}
-    C -->|Yes| D["内容をそのまま取り込み<br>root_dirs, doc_types_map を<br>config.yaml に書き込む"]
-    D --> E[setup.sh 終了]
-    C -->|No| F["警告出力:<br>setup-config の実行を案内"]
-    F --> G[config.yaml は root_dirs 未設定のまま<br>setup.sh 終了]
+    A[setup.sh 実行] --> B{".doc_structure.yaml 存在?"}
+    B -->|Yes| C[そのまま使用]
+    C --> D[setup.sh 終了]
+    B -->|No| E["警告出力:<br>.doc_structure.yaml の作成を案内"]
+    E --> F[setup.sh 終了]
 ```
 
-> `.doc_structure.yaml` が存在すれば、doc-structure プラグインが分析済みの結果である。setup.sh は内容の妥当性を判定せず、そのまま取り込む。カテゴリが空でもそれが事実（プロジェクトに該当ドキュメントが無い）。root_dirs の有効性検証は setup.sh の責務ではなく、check_config.sh（スキル起動時）の責務である。
+> `.doc_structure.yaml` が存在すれば、doc-structure プラグインが分析済みの結果である。setup.sh は内容の妥当性を判定せず、そのまま使用する。root_dirs の有効性検証は setup.sh の責務ではなく、check_config.sh（スキル起動時）の責務である。
 
 #### 経路 B: /setup-config（check_config.sh の警告を契機に AI が実行）
 
@@ -122,52 +121,49 @@ flowchart TD
     M --> N["AI が setup-config スキルを実行"]
     N --> O[AI がプロジェクトをスキャン]
     O --> P[ユーザー確認]
-    P --> Q[root_dirs, doc_types_map を<br>config.yaml に書き込む]
-    Q --> R[config.yaml 有効]
+    P --> Q[.doc_structure.yaml を作成]
+    Q --> R[.doc_structure.yaml 有効]
 ```
 
-**重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_config.sh が警告を出力し、AI がそれを読み取って `/setup-config` の実行を判断する（自動実行ではなく、AI の判断による実行）。実行時には `.doc_structure.yaml` を参照しない。
-
-**重要**: いずれの経路でも最終成果物は config.yaml の `root_dirs` と `doc_types_map` である。`.doc_structure.yaml` はセットアップ時の入力に過ぎず、実行時には参照しない。
+**重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_config.sh が警告を出力し、AI がそれを読み取って `/setup-config` の実行を判断する（自動実行ではなく、AI の判断による実行）。
 
 ### check_config.sh 検証フロー
 
-スキル起動時に config.yaml の状態を検証する:
+スキル起動時に `.doc_structure.yaml` の状態を検証する:
 
 ```mermaid
 flowchart TD
-    A[check_config.sh 実行] --> B{config.yaml 存在?}
-    B -->|No| C[exit 0<br>Doc Advisor 未インストール]
+    A[check_config.sh 実行] --> B{".doc_structure.yaml 存在?"}
+    B -->|No| C[警告出力<br>/setup-config の実行を促す]
     B -->|Yes| D{root_dirs 設定あり?}
     D -->|Yes| E[exit 0<br>設定 OK]
-    D -->|No| F[警告出力<br>/setup-config の実行を促す]
+    D -->|No| C
 ```
 
 ### 現行からの変更点
 
-| 項目      | 現行                              | 改善後                                     |
-| --------- | --------------------------------- | ------------------------------------------ |
-| 旧 Case 1 | `.doc_structure.yaml` 存在で OK   | **削除**（実行時に参照しない）             |
-| Case 2    | config.yaml の root_dirs チェック | 変更なし                                   |
-| Case 3    | config.yaml 不存在で OK           | 変更なし                                   |
-| 新規      | —                                 | config.yaml 存在 + root_dirs 未設定 → 警告 |
+| 項目      | 現行                                        | 改善後                                                |
+| --------- | ------------------------------------------- | ----------------------------------------------------- |
+| Case 1    | `.doc_structure.yaml` 存在 + root_dirs あり | exit 0（設定 OK）                                     |
+| Case 2    | `.doc_structure.yaml` 存在 + root_dirs なし | 警告出力（/setup-config の実行を促す）                |
+| Case 3    | `.doc_structure.yaml` 不存在                | 警告出力（/setup-config の実行を促す）                |
 
 ### 判定条件テーブル
 
-| config.yaml | root_dirs 行                    | 判定 | 出力           |
-| ----------- | ------------------------------- | ---- | -------------- |
-| 存在しない  | —                               | OK   | なし（exit 0） |
-| 存在する    | `root_dirs:` あり（空配列含む） | OK   | なし（exit 0） |
-| 存在する    | コメントアウト or 行なし        | NG   | 警告メッセージ |
+| .doc_structure.yaml | root_dirs 行                    | 判定 | 出力           |
+| ------------------- | ------------------------------- | ---- | -------------- |
+| 存在しない          | —                               | NG   | 警告メッセージ |
+| 存在する            | `root_dirs:` あり（空配列含む） | OK   | なし（exit 0） |
+| 存在する            | コメントアウト or 行なし        | NG   | 警告メッセージ |
 
-- **入力**: config.yaml（`.claude/doc-advisor/config.yaml`）
+- **入力**: `.doc_structure.yaml`（プロジェクトルート）
 - **出力**: 警告メッセージ（stdout）または出力なし
-- **副作用**: なし（config.yaml を変更しない）
+- **副作用**: なし（`.doc_structure.yaml` を変更しない）
 - **exit code**: 常に 0
 
 ### 関連要件
 
-- REQ-001 FR-08: config.yaml ランタイム設定原則
+- REQ-001 FR-08: ランタイム設定原則
 
 ---
 
@@ -274,7 +270,7 @@ def calculate_file_hash(filepath):
 ```yaml
 _meta:
   source_file: specs/requirements/app_overview.md # 処理対象ファイルパス
-  doc_type: requirement # ドキュメント種別（config.yaml の doc_types_map から決定）
+  doc_type: requirement # ドキュメント種別（.doc_structure.yaml の doc_types_map から決定）
   status: pending # pending | completed
   updated_at: null # 完了時刻
 
@@ -286,7 +282,7 @@ applicable_tasks: []
 keywords: []
 ```
 
-> **Note**: `doc_type` は `config.yaml` の `doc_types_map` から決定される。マップに一致しない場合はディレクトリ名からの推論、最終的にはカテゴリ名（rule/spec）をデフォルトとする。
+> **Note**: `doc_type` は `.doc_structure.yaml` の `doc_types_map` から決定される。マップに一致しない場合はディレクトリ名からの推論、最終的にはカテゴリ名（rule/spec）をデフォルトとする。
 
 ### 並列処理フロー
 
@@ -564,7 +560,7 @@ flowchart TD
 
 ### 最適化ポイント
 
-- 並列数は `config.yaml` の `common.parallel.max_workers` で調整可能
+- 並列数はコードデフォルト（toc_utils.py の _get_default_config()）で定義
 - incremental モードで変更ファイルのみ処理
 - チェックサムファイルで不要な再計算を回避
 

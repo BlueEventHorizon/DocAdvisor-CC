@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test script for setup.sh upgrade scenarios
-# Tests: legacy file deletion, config.yaml handling, agent preservation
+# Tests: legacy file deletion, .doc_structure.yaml handling, agent preservation
 # Usage: ./test_setup_upgrade.sh
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -41,12 +41,25 @@ setup_test_project() {
     echo "# Test Rule" > "$TEST_PROJECT/rules/test.md"
     echo "# Test Spec" > "$TEST_PROJECT/specs/main/requirements/test.md"
     cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+# doc_structure_version: 2.0
+
 rules:
-  rule:
-    paths: [rules/]
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
 specs:
-  spec:
-    paths: [specs/]
+  root_dirs:
+    - specs/
+  doc_types_map:
+    specs/: spec
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
 DOCEOF
 }
 
@@ -77,7 +90,7 @@ test_result "agents/ created" "0" "$([[ -d "$TEST_PROJECT/.claude/agents" ]] && 
 test_result "skills/create-rules-toc/SKILL.md created" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/create-rules-toc/SKILL.md" ]] && echo 0 || echo 1)"
 test_result "skills/create-specs-toc/SKILL.md created" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/create-specs-toc/SKILL.md" ]] && echo 0 || echo 1)"
 test_result "No skills/doc-advisor/ (legacy)" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
-test_result "doc-advisor/config.yaml created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
+test_result "config.yaml NOT created (abolished)" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
 test_result "doc-advisor/docs/ created" "0" "$([[ -d "$TEST_PROJECT/.claude/doc-advisor/docs" ]] && echo 0 || echo 1)"
 test_result "doc-advisor/scripts/ created" "0" "$([[ -d "$TEST_PROJECT/.claude/doc-advisor/scripts" ]] && echo 0 || echo 1)"
 test_result "doc-advisor/toc/rules/ created" "0" "$([[ -d "$TEST_PROJECT/.claude/doc-advisor/toc/rules" ]] && echo 0 || echo 1)"
@@ -127,7 +140,7 @@ setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify new structure
-test_result "config.yaml in doc-advisor/" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
+test_result "config.yaml NOT in doc-advisor/ (abolished)" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
 test_result "docs/ in doc-advisor/" "0" "$([[ -d "$TEST_PROJECT/.claude/doc-advisor/docs" ]] && echo 0 || echo 1)"
 test_result "scripts/ in doc-advisor/" "0" "$([[ -d "$TEST_PROJECT/.claude/doc-advisor/scripts" ]] && echo 0 || echo 1)"
 test_result "toc/rules/ in doc-advisor/" "0" "$([[ -d "$TEST_PROJECT/.claude/doc-advisor/toc/rules" ]] && echo 0 || echo 1)"
@@ -139,48 +152,19 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 4: config.yaml skip (preserve existing)"
+echo "Test 4: v5.0 legacy config.yaml removed"
 echo "=================================================="
 
 setup_test_project
-
-# First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Add custom exclude to config
-echo "      - my_custom_exclude" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-CUSTOM_LINE=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" | tr -d '[:space:]')
+# Create legacy config.yaml
+echo "# legacy" > "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
 
-# Run setup again with 's' to skip config
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify custom line is preserved
-CUSTOM_LINE_AFTER=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
-test_result "Custom config preserved (skip)" "$CUSTOM_LINE" "$CUSTOM_LINE_AFTER"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 5: config.yaml overwrite with backup"
-echo "=================================================="
-
-setup_test_project
-
-# First install
+# Re-run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Add custom exclude to config
-echo "      - my_custom_exclude" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Run setup again with 'o' to overwrite
-echo -e "opus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify backup exists and custom line is gone from main config
-test_result "Backup created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml.bak" ]] && echo 0 || echo 1)"
-CUSTOM_IN_BACKUP=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml.bak" 2>/dev/null | tr -d '[:space:]' || echo 0)
-test_result "Custom in backup" "1" "$CUSTOM_IN_BACKUP"
-CUSTOM_IN_NEW=$(grep -c "my_custom_exclude" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
-test_result "Custom NOT in new config" "0" "$CUSTOM_IN_NEW"
+test_result "config.yaml removed by v5.0 cleanup" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
@@ -197,8 +181,8 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 mkdir -p "$TEST_PROJECT/.claude/skills/doc-advisor"
 echo "# Old v3.0 skill" > "$TEST_PROJECT/.claude/skills/doc-advisor/SKILL.md"
 
-# Run setup again with 'o' to overwrite config
-echo -e "opus\no" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Run setup again
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: v3.0 unified skill removed, v3.1 split skills installed
 test_result "Legacy skills/doc-advisor/ removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -220,7 +204,7 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 echo "# My custom agent" > "$TEST_PROJECT/.claude/agents/my-custom-agent.md"
 
 # Run setup again (capture output for message verification)
-SETUP_OUTPUT=$(echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
+SETUP_OUTPUT=$(echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
 
 # Verify: custom agent preserved, managed agents still exist
 test_result "Custom agent preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/my-custom-agent.md" ]] && echo 0 || echo 1)"
@@ -250,8 +234,8 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 echo "# Generated ToC" > "$TEST_PROJECT/.claude/doc-advisor/toc/rules/rules_toc.yaml"
 echo "# Generated ToC" > "$TEST_PROJECT/.claude/doc-advisor/toc/specs/specs_toc.yaml"
 
-# Run setup again with 's' to skip config
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+# Run setup again
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: toc files are preserved
 test_result "rules_toc.yaml preserved" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/toc/rules/rules_toc.yaml" ]] && echo 0 || echo 1)"
@@ -282,7 +266,7 @@ EOF
 echo "# No identifier - legacy file" > "$TEST_PROJECT/.claude/commands/create-specs_toc.md"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: file with current version is protected, file without is deleted
 test_result "File with current version protected" "0" "$([[ -f "$TEST_PROJECT/.claude/commands/create-rules_toc.md" ]] && echo 0 || echo 1)"
@@ -310,7 +294,7 @@ name: doc-advisor
 EOF
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: skills/doc-advisor/ with old version is deleted
 test_result "skills/doc-advisor/ with old version deleted" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -326,7 +310,7 @@ name: doc-advisor
 EOF
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: skills/doc-advisor/ with current version is protected
 test_result "skills/doc-advisor/ with current version protected" "0" "$([[ -d "$TEST_PROJECT/.claude/skills/doc-advisor" ]] && echo 0 || echo 1)"
@@ -347,7 +331,7 @@ echo "# Legacy rules advisor" > "$TEST_PROJECT/.claude/agents/rules-advisor.md"
 echo "# Legacy specs advisor" > "$TEST_PROJECT/.claude/agents/specs-advisor.md"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: advisor agents deleted
 test_result "rules-advisor.md deleted" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-advisor.md" ]] && echo 0 || echo 1)"
@@ -402,7 +386,7 @@ echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/merge_rules_toc
 echo "# Old script" > "$TEST_PROJECT/.claude/doc-advisor/scripts/write_rules_pending.py"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: old scripts removed, new unified scripts exist
 test_result "Old create_pending_yaml_rules.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/create_pending_yaml_rules.py" ]] && echo 0 || echo 1)"
@@ -428,135 +412,12 @@ echo "# Old agent" > "$TEST_PROJECT/.claude/agents/rules-toc-updater.md"
 echo "# Old agent" > "$TEST_PROJECT/.claude/agents/specs-toc-updater.md"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: old agents removed, new unified agent exists
 test_result "Old rules-toc-updater.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/rules-toc-updater.md" ]] && echo 0 || echo 1)"
 test_result "Old specs-toc-updater.md removed" "1" "$([[ -f "$TEST_PROJECT/.claude/agents/specs-toc-updater.md" ]] && echo 0 || echo 1)"
 test_result "New toc-updater.md exists" "0" "$([[ -f "$TEST_PROJECT/.claude/agents/toc-updater.md" ]] && echo 0 || echo 1)"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 16: config.yaml has root_dirs imported from .doc_structure.yaml"
-echo "=================================================="
-
-setup_test_project
-
-# Run setup
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Verify: root_dirs IS set (imported from .doc_structure.yaml by setup.sh)
-ACTIVE_ROOTDIRS=$(grep -c "^  root_dirs:" "$CONFIG" || true)
-test_result "root_dirs imported from .doc_structure.yaml" "2" "$ACTIVE_ROOTDIRS"
-
-# Verify: doc_types_map is also set
-DOCTYPES_MAP=$(grep -c "^  doc_types_map:" "$CONFIG" || true)
-test_result "doc_types_map imported from .doc_structure.yaml" "2" "$DOCTYPES_MAP"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 16b: import_doc_structure.py - multiple doc_types and paths"
-echo "=================================================="
-
-cleanup
-mkdir -p "$TEST_PROJECT/rules" "$TEST_PROJECT/references"
-mkdir -p "$TEST_PROJECT/specs/requirements" "$TEST_PROJECT/specs/design" "$TEST_PROJECT/specs/plans"
-echo "# Rule" > "$TEST_PROJECT/rules/test.md"
-echo "# Ref" > "$TEST_PROJECT/references/test.md"
-echo "# Req" > "$TEST_PROJECT/specs/requirements/test.md"
-echo "# Des" > "$TEST_PROJECT/specs/design/test.md"
-echo "# Plan" > "$TEST_PROJECT/specs/plans/test.md"
-
-cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-rules:
-  rule:
-    paths: [rules/]
-  reference:
-    paths:
-      - references/
-specs:
-  requirement:
-    paths: [specs/requirements/]
-  design:
-    paths: [specs/design/]
-  plan:
-    paths: [specs/plans/]
-DOCEOF
-
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Verify: rules has 2 root_dirs (rules/, references/)
-RULES_DIRS=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="rules" && /^    - /{c++} END{print c+0}' "$CONFIG")
-test_result "rules has 2 root_dirs" "2" "$RULES_DIRS"
-
-# Verify: specs has 3 root_dirs
-SPECS_DIRS=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="specs" && /^    - /{c++} END{print c+0}' "$CONFIG")
-test_result "specs has 3 root_dirs" "3" "$SPECS_DIRS"
-
-# Verify: doc_types_map has correct mappings
-test_result "doc_types_map: rules/ -> rule" "1" "$(grep -c 'rules/: rule' "$CONFIG" || echo 0)"
-test_result "doc_types_map: references/ -> reference" "1" "$(grep -c 'references/: reference' "$CONFIG" || echo 0)"
-test_result "doc_types_map: specs/requirements/ -> requirement" "1" "$(grep -c 'specs/requirements/: requirement' "$CONFIG" || echo 0)"
-test_result "doc_types_map: specs/design/ -> design" "1" "$(grep -c 'specs/design/: design' "$CONFIG" || echo 0)"
-test_result "doc_types_map: specs/plans/ -> plan" "1" "$(grep -c 'specs/plans/: plan' "$CONFIG" || echo 0)"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 16c: import_doc_structure.py - no .doc_structure.yaml"
-echo "=================================================="
-
-cleanup
-mkdir -p "$TEST_PROJECT/rules" "$TEST_PROJECT/specs"
-echo "# Rule" > "$TEST_PROJECT/rules/test.md"
-echo "# Spec" > "$TEST_PROJECT/specs/test.md"
-# No .doc_structure.yaml created
-
-echo -e "c\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Verify: root_dirs remains commented out
-ACTIVE_ROOTDIRS=$(grep -c "^  root_dirs:" "$CONFIG" || true)
-test_result "No root_dirs when no .doc_structure.yaml" "0" "$ACTIVE_ROOTDIRS"
-
-# Verify: doc_types_map remains commented out
-ACTIVE_DOCTYPES=$(grep -c "^  doc_types_map:" "$CONFIG" || true)
-test_result "No doc_types_map when no .doc_structure.yaml" "0" "$ACTIVE_DOCTYPES"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 16d: import_doc_structure.py - rules only (no specs in .doc_structure.yaml)"
-echo "=================================================="
-
-cleanup
-mkdir -p "$TEST_PROJECT/rules"
-echo "# Rule" > "$TEST_PROJECT/rules/test.md"
-
-cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-rules:
-  rule:
-    paths: [rules/]
-DOCEOF
-
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Verify: rules root_dirs is set (uncommented root_dirs: exists in rules section)
-RULES_SET=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="rules" && /^  root_dirs:/{print}' "$CONFIG" | grep -c "root_dirs:" || true)
-test_result "rules root_dirs set (rules-only .doc_structure)" "1" "$RULES_SET"
-
-# Verify: specs root_dirs remains commented
-SPECS_SET=$(awk '/^rules:/{s="rules"} /^specs:/{s="specs"} /^common:/{s=""} s=="specs" && /^  root_dirs:/{print}' "$CONFIG" | grep -c "root_dirs:" || true)
-test_result "specs root_dirs NOT set (rules-only .doc_structure)" "0" "$SPECS_SET"
 echo ""
 
 # ==================================================
@@ -588,74 +449,10 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 echo "# Legacy set_root_dirs" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: set_root_dirs.py removed
 test_result "set_root_dirs.py removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 19: config.yaml root_dirs manual override"
-echo "=================================================="
-
-setup_test_project
-
-# First install
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Manually change root_dirs to custom value (override auto-imported value)
-$PYTHON3 -c "
-import re
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = re.sub(r'(rules:\n)  root_dirs:\n    - rules/', r'\1  root_dirs:\n    - custom_rules/', content)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
-"
-
-# Verify: root_dirs override is set
-RULES_CUSTOM=$(grep -c "custom_rules" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" || echo 0)
-test_result "Manual root_dirs override in config" "1" "$RULES_CUSTOM"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 20: config.yaml exclude patterns (empty defaults)"
-echo "=================================================="
-
-setup_test_project
-
-# Run setup
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Verify: exclude section exists with empty array (no items)
-RULES_EXCLUDE_ITEMS=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
-RULES_EXCLUDE_ITEMS="${RULES_EXCLUDE_ITEMS:-0}"
-test_result "Rules exclude empty by default" "0" "$RULES_EXCLUDE_ITEMS"
-SPECS_EXCLUDE_ITEMS=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
-SPECS_EXCLUDE_ITEMS="${SPECS_EXCLUDE_ITEMS:-0}"
-test_result "Specs exclude empty by default" "0" "$SPECS_EXCLUDE_ITEMS"
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 21: No skip/exclude (empty input)"
-echo "=================================================="
-
-setup_test_project
-
-# Setup only asks for model name now
-echo -e "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-CONFIG="$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-# exclude: should be present but with no items (no lines starting with 6-space dash)
-EXCLUDE_ITEMS=$(awk '/^rules:/,/^specs:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
-EXCLUDE_ITEMS="${EXCLUDE_ITEMS:-0}"
-test_result "No rules exclude items" "0" "$EXCLUDE_ITEMS"
-EXCLUDE_ITEMS=$(awk '/^specs:/,/^common:/' "$CONFIG" | grep -c "^      - " | tr -d '[:space:]')
-EXCLUDE_ITEMS="${EXCLUDE_ITEMS:-0}"
-test_result "No specs exclude items" "0" "$EXCLUDE_ITEMS"
 echo ""
 
 # ==================================================
@@ -677,7 +474,7 @@ echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py"
 echo "# Legacy" > "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify all legacy files cleaned up
 test_result "setup-config/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/setup-config" ]] && echo 1 || echo 0)"
@@ -728,12 +525,12 @@ echo "=================================================="
 
 setup_test_project
 
-# Run setup (root_dirs imported from .doc_structure.yaml)
+# Run setup (.doc_structure.yaml has root_dirs)
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh"
 
-# Case 1: root_dirs set (after setup import) → no output
+# Case 1: root_dirs set in .doc_structure.yaml → no output
 OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
 test_result "No output when root_dirs set (no category arg)" "" "$OUTPUT"
 
@@ -745,69 +542,32 @@ test_result "No output for 'rules' when configured" "" "$OUTPUT"
 OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" specs 2>/dev/null)
 test_result "No output for 'specs' when configured" "" "$OUTPUT"
 
-# Case 3: Remove root_dirs → ACTION REQUIRED
-$PYTHON3 -c "
-import re
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-content = re.sub(r'  root_dirs:\n(    - [^\n]+\n)+', '  # root_dirs: []    # Auto-configured by setup.sh or /setup-config\n', content)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
-"
+# Case 3: Remove .doc_structure.yaml → ACTION REQUIRED
+rm -f "$TEST_PROJECT/.doc_structure.yaml"
 OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
 if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
-    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED when root_dirs not set"
+    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED when .doc_structure.yaml missing"
     ((PASS_COUNT++))
 else
     echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED message, got: $OUTPUT"
     ((FAIL_COUNT++))
 fi
 
-# Case 4: .doc_structure.yaml exists but root_dirs NOT set → still ACTION REQUIRED (FR-08)
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
-if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
-    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED even with .doc_structure.yaml present (FR-08)"
-    ((PASS_COUNT++))
-else
-    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED (FR-08: no runtime .doc_structure.yaml), got: $OUTPUT"
-    ((FAIL_COUNT++))
-fi
+# Case 4: Restore .doc_structure.yaml with only rules (no specs)
+cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+# doc_structure_version: 2.0
 
-# Case 5: Cross-category — restore rules root_dirs only, specs stays removed
-# Re-run setup to get fresh config, then selectively remove only specs root_dirs
-setup_test_project
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-$PYTHON3 -c "
-import re
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-# Remove only specs root_dirs (between 'specs:' section and next section or EOF)
-# Find specs section and remove its root_dirs block
-lines = content.split('\n')
-result = []
-in_specs = False
-skip_root_items = False
-for line in lines:
-    stripped = line.strip()
-    # Track section
-    if stripped and not stripped.startswith('#') and ':' in stripped:
-        indent = len(line) - len(line.lstrip())
-        if indent == 0:
-            key = stripped.partition(':')[0].strip()
-            if key in ('rules', 'specs', 'common'):
-                in_specs = (key == 'specs')
-    # In specs section: replace root_dirs with commented version
-    if in_specs and stripped == 'root_dirs:' and line.startswith('  '):
-        result.append('  # root_dirs: []    # Auto-configured by setup.sh or /setup-config')
-        skip_root_items = True
-        continue
-    if skip_root_items:
-        if stripped.startswith('- '):
-            continue  # skip list items
-        else:
-            skip_root_items = False
-    result.append(line)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
-"
+rules:
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+DOCEOF
 
-# rules should still pass
+# rules should pass
 OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
 test_result "Cross-category: 'rules' OK when only rules configured" "" "$OUTPUT"
 
@@ -820,333 +580,6 @@ else
     echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED for specs, got: $OUTPUT"
     ((FAIL_COUNT++))
 fi
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26: config.yaml merge option (REQ-002-03 [m])"
-echo "=================================================="
-
-setup_test_project
-
-# First install
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Add custom setting to config
-echo "      - merge_test_custom_setting" >> "$TEST_PROJECT/.claude/doc-advisor/config.yaml"
-
-# Run setup again with 'm' to merge
-SETUP_OUTPUT=$(echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
-
-# Verify: config.yaml.old exists (old config saved)
-test_result "config.yaml.old created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/config.yaml.old" ]] && echo 0 || echo 1)"
-
-# Verify: old config preserved in .old
-CUSTOM_IN_OLD=$(grep -c "merge_test_custom_setting" "$TEST_PROJECT/.claude/doc-advisor/config.yaml.old" 2>/dev/null | tr -d '[:space:]' || echo 0)
-test_result "Custom setting in .old" "1" "$CUSTOM_IN_OLD"
-
-# Verify: new config does NOT have the custom setting (overwritten with template)
-CUSTOM_IN_NEW=$(grep -c "merge_test_custom_setting" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null | tr -d '[:space:]' || echo 0)
-test_result "Custom NOT in new config" "0" "$CUSTOM_IN_NEW"
-
-# Verify: diff output was shown
-if echo "$SETUP_OUTPUT" | grep -q "Config diff"; then
-    echo -e "${GREEN}PASS${NC}: Diff output displayed"
-    ((PASS_COUNT++))
-else
-    echo -e "${RED}FAIL${NC}: No diff output in merge mode"
-    ((FAIL_COUNT++))
-fi
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26b: config.yaml merge - root_dirs and doc_types_map preserved"
-echo "=================================================="
-
-setup_test_project
-
-# First install (with .doc_structure.yaml → root_dirs and doc_types_map are set)
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify root_dirs was set by first install
-RULES_DIRS=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "root_dirs set after first install" "2" "$RULES_DIRS"
-
-# Run setup again with 'm' (merge)
-echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: root_dirs is still present in merged config
-RULES_DIRS_AFTER=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "root_dirs preserved after merge" "2" "$RULES_DIRS_AFTER"
-
-# Verify: doc_types_map is still present in merged config
-DOC_TYPES_AFTER=$(grep -c "^  doc_types_map:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "doc_types_map preserved after merge" "2" "$DOC_TYPES_AFTER"
-
-# Verify: actual directory path value is preserved
-RULES_PATH=$(grep -c -- "- rules/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "rules/ path preserved after merge" "1" "$([[ $RULES_PATH -ge 1 ]] && echo 1 || echo 0)"
-
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26c: config.yaml merge - exclude patterns preserved"
-echo "=================================================="
-
-setup_test_project
-
-# First install
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Add exclude pattern to rules section
-$PYTHON3 -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-lines = content.split('\n')
-result = []
-replaced = False
-for line in lines:
-    if not replaced and line.strip() == 'exclude: []':
-        result.append('    exclude:')
-        result.append('      - archive/')
-        result.append('      - draft/')
-        replaced = True
-    else:
-        result.append(line)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
-"
-
-# Verify exclude was set
-BEFORE_EXCLUDE=$(grep -c "archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "exclude pattern set before merge" "1" "$([[ $BEFORE_EXCLUDE -ge 1 ]] && echo 1 || echo 0)"
-
-# Run setup again with 'm' (merge)
-echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: exclude patterns are preserved
-EXCLUDE_AFTER=$(grep -c "archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "exclude pattern 'archive/' preserved after merge" "1" "$([[ $EXCLUDE_AFTER -ge 1 ]] && echo 1 || echo 0)"
-
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26c-2: config.yaml merge - exclude in inline list format preserved"
-echo "=================================================="
-
-setup_test_project
-
-# First install
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Add exclude pattern in inline YAML list format (edge case)
-$PYTHON3 -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-# Replace first 'exclude: []' with inline list format
-import re
-replaced = False
-lines = content.split('\n')
-result = []
-for line in lines:
-    if not replaced and line.strip() == 'exclude: []':
-        result.append('    exclude: [inline_archive/, inline_draft/]')
-        replaced = True
-    else:
-        result.append(line)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
-"
-
-# Verify inline exclude was set
-BEFORE_INLINE=$(grep -c "inline_archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "inline exclude set before merge" "1" "$([[ $BEFORE_INLINE -ge 1 ]] && echo 1 || echo 0)"
-
-# Run setup again with 'm' (merge)
-echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: inline exclude patterns are preserved after merge
-EXCLUDE_INLINE_AFTER=$(grep -c "inline_archive/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "inline exclude 'inline_archive/' preserved after merge" "1" "$([[ $EXCLUDE_INLINE_AFTER -ge 1 ]] && echo 1 || echo 0)"
-
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26c-3: config.yaml merge - section-level exclude migrated to patterns.exclude"
-echo "=================================================="
-
-setup_test_project
-
-# First install
-echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Add section-level exclude (indent=2, directly under specs) - legacy format
-$PYTHON3 -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-# Insert section-level exclude after root_dirs block in specs section
-lines = content.split('\n')
-result = []
-in_specs = False
-inserted = False
-for i, line in enumerate(lines):
-    result.append(line)
-    if line.startswith('specs:'):
-        in_specs = True
-    elif in_specs and not inserted and line.strip().startswith('toc_file:'):
-        # Insert section-level exclude before toc_file
-        result.insert(len(result) - 1, '  exclude:')
-        result.insert(len(result) - 1, '    - section_plugins/')
-        result.insert(len(result) - 1, '    - section_reference/')
-        inserted = True
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
-"
-
-# Verify section-level exclude was set
-BEFORE_SECTION=$(grep -c "section_plugins/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "section-level exclude set before merge" "1" "$([[ $BEFORE_SECTION -ge 1 ]] && echo 1 || echo 0)"
-
-# Run setup again with 'm' (merge)
-echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: section-level excludes are preserved in patterns.exclude after merge
-AFTER_SECTION=$(grep -c "section_plugins/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || true)
-test_result "section-level exclude migrated to patterns.exclude after merge" "1" "$([[ $AFTER_SECTION -ge 1 ]] && echo 1 || echo 0)"
-
-# Verify: now under patterns.exclude (not at section level)
-UNDER_PATTERNS=$($PYTHON3 -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-lines = content.split('\n')
-in_patterns = False
-for line in lines:
-    if line.strip() == 'patterns:' and '    ' not in line[:4]:
-        in_patterns = True
-    elif in_patterns and 'section_plugins/' in line:
-        print('1')
-        exit()
-    elif in_patterns and line.strip() and not line.startswith('    '):
-        in_patterns = False
-print('0')
-" 2>/dev/null || echo 0)
-test_result "exclude is now under patterns (not section level)" "1" "$UNDER_PATTERNS"
-
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26d: config.yaml merge - root_dirs preserved WITHOUT .doc_structure.yaml"
-echo "=================================================="
-
-# This test verifies merge_config.py works independently of import_doc_structure.py.
-# Tests 26b/26c have .doc_structure.yaml which causes import_doc_structure.py to
-# restore root_dirs as a fallback even if merge_config.py fails.
-# This test has NO .doc_structure.yaml, so only merge_config.py can preserve root_dirs.
-
-cleanup
-mkdir -p "$TEST_PROJECT/rules" "$TEST_PROJECT/specs"
-echo "# Test Rule" > "$TEST_PROJECT/rules/test.md"
-echo "# Test Spec" > "$TEST_PROJECT/specs/test.md"
-# Note: intentionally NO .doc_structure.yaml
-
-# First install (no .doc_structure.yaml → root_dirs stays commented out)
-echo -e "c\nopus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Manually set root_dirs in config (simulating user who ran /setup-config manually)
-$PYTHON3 -c "
-content = open('$TEST_PROJECT/.claude/doc-advisor/config.yaml').read()
-# Replace '# root_dirs: []' for rules section (first occurrence)
-import re
-# Replace only the first occurrence (rules section)
-content = re.sub(
-    r'(# === rules configuration ===.*?)(\s*# root_dirs: \[\])',
-    lambda m: m.group(1) + '\n  root_dirs:\n    - rules/',
-    content, count=1, flags=re.DOTALL
-)
-# Replace only the first occurrence of # doc_types_map: {} (rules section)
-content = re.sub(
-    r'  # doc_types_map: \{\}.*',
-    '  doc_types_map:\n    rules/: rule',
-    content, count=1
-)
-open('$TEST_PROJECT/.claude/doc-advisor/config.yaml', 'w').write(content)
-"
-
-# Verify root_dirs was manually set
-RULES_DIRS_BEFORE=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "root_dirs manually set before merge" "1" "$RULES_DIRS_BEFORE"
-
-# Run setup again with 'm' (merge) — NO .doc_structure.yaml, so only merge_config.py helps
-echo -e "opus\nm" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
-
-# Verify: root_dirs preserved by merge_config.py (not fallback import_doc_structure.py)
-RULES_DIRS_AFTER=$(grep -c "^  root_dirs:" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "root_dirs preserved after merge (no .doc_structure.yaml)" "1" "$RULES_DIRS_AFTER"
-
-# Verify: the actual path value is preserved
-RULES_PATH=$(grep -c -- "- rules/" "$TEST_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "rules/ path value preserved (no .doc_structure.yaml)" "1" "$([[ $RULES_PATH -ge 1 ]] && echo 1 || echo 0)"
-
-echo ""
-
-# ==================================================
-echo "=================================================="
-echo "Test 26e: config.yaml merge from external directory (README scenario)"
-echo "=================================================="
-
-# This test reproduces the exact README usage pattern:
-#   cd DocAdvisor-CC && bash setup.sh /path/to/your-project
-# where the target project is OUTSIDE DocAdvisor-CC.
-# Without the (cd "$TARGET_DIR" && ...) fix, merge_config.py would fail with
-# "Path traversal detected" because Path.cwd() (= DocAdvisor-CC) != target_dir.
-
-EXTERNAL_PROJECT="$(mktemp -d "$PROJECT_ROOT/../test_external_XXXXXX")"
-trap "rm -rf '$EXTERNAL_PROJECT'" EXIT
-
-mkdir -p "$EXTERNAL_PROJECT/rules" "$EXTERNAL_PROJECT/specs"
-echo "# Rule" > "$EXTERNAL_PROJECT/rules/test.md"
-echo "# Spec" > "$EXTERNAL_PROJECT/specs/test.md"
-cat > "$EXTERNAL_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-rules:
-  rule:
-    paths: [rules/]
-specs:
-  spec:
-    paths: [specs/]
-DOCEOF
-
-# First install from PROJECT_ROOT (simulating README usage: cd DocAdvisor-CC && bash setup.sh /path/...)
-echo "opus" | (cd "$PROJECT_ROOT" && bash "$PROJECT_ROOT/setup.sh" "$EXTERNAL_PROJECT") > /dev/null 2>&1
-
-# Verify root_dirs was set
-DIRS_AFTER_FIRST=$(grep -c "^  root_dirs:" "$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "root_dirs set after first install (external dir)" "2" "$DIRS_AFTER_FIRST"
-
-# Add custom exclude pattern
-$PYTHON3 -c "
-content = open('$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml').read()
-lines = content.split('\n')
-result = []
-replaced = False
-for line in lines:
-    if not replaced and line.strip() == 'exclude: []':
-        result.append('    exclude:')
-        result.append('      - archive/')
-        replaced = True
-    else:
-        result.append(line)
-open('$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml', 'w').write('\n'.join(result))
-"
-
-# Second install with [m] from PROJECT_ROOT (same README usage pattern)
-echo -e "opus\nm" | (cd "$PROJECT_ROOT" && bash "$PROJECT_ROOT/setup.sh" "$EXTERNAL_PROJECT") > /dev/null 2>&1
-
-# Verify root_dirs preserved after merge (failed if path traversal check triggered)
-DIRS_AFTER_MERGE=$(grep -c "^  root_dirs:" "$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "root_dirs preserved after merge (external dir)" "2" "$DIRS_AFTER_MERGE"
-
-# Verify exclude preserved (only merge_config.py can do this; import_doc_structure.py cannot)
-EXCLUDE_AFTER=$(grep -c "archive/" "$EXTERNAL_PROJECT/.claude/doc-advisor/config.yaml" 2>/dev/null || echo 0)
-test_result "exclude pattern preserved after merge (external dir)" "1" "$([[ $EXCLUDE_AFTER -ge 1 ]] && echo 1 || echo 0)"
-
 echo ""
 
 # ==================================================
@@ -1248,15 +681,24 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 PYTHON_CMD=python3
 
-# Set root_dirs: [] in config.yaml for both sections
-$PYTHON3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
-import sys, re
-path = sys.argv[1]
-content = open(path).read()
-# Replace "# root_dirs: []" comments with "root_dirs: []"
-content = re.sub(r'^\s*#\s*(root_dirs:\s*\[\])', r'  \1', content, flags=re.MULTILINE)
-open(path, 'w').write(content)
-PYEOF
+# Set root_dirs: [] in .doc_structure.yaml for both sections
+cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
+# doc_structure_version: 2.0
+
+rules:
+  root_dirs: []
+  doc_types_map: {}
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
+specs:
+  root_dirs: []
+  doc_types_map: {}
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+DOCEOF
 
 # create_checksums.py with empty root_dirs should not crash with IndexError
 CREATE_OUTPUT=$(cd "$TEST_PROJECT" && $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1)
@@ -1298,7 +740,6 @@ echo "=================================================="
 setup_test_project
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-SCRIPTS_DIR="$TEST_PROJECT/.claire/doc-advisor/scripts"
 SCRIPTS_DIR="$TEST_PROJECT/.claude/doc-advisor/scripts"
 PYTHON_CMD=python3
 
@@ -1361,14 +802,7 @@ mkdir -p "$TEST_PROJECT/rules"
 echo "# Rule doc" > "$TEST_PROJECT/rules/test_rule.md"
 echo "This is a text file" > "$TEST_PROJECT/rules/ignore_me.txt"
 
-# Set rules.root_dirs and target_glob: "**/*.md" in config
-$PYTHON3 - "$TEST_PROJECT/.claude/doc-advisor/config.yaml" << 'PYEOF'
-import sys, re
-path = sys.argv[1]
-content = open(path).read()
-content = re.sub(r'(rules:\n(?:.*\n)*?\s*)#\s*(root_dirs:\s*\[\])', r'\1root_dirs:\n    - rules/', content)
-open(path, 'w').write(content)
-PYEOF
+# .doc_structure.yaml already has rules root_dirs and target_glob: "**/*.md"
 
 # Run create_checksums.py
 CHECKSUMS_FILE="$TEST_PROJECT/.claude/doc-advisor/toc/rules/.toc_checksums.yaml"
@@ -1411,7 +845,7 @@ SCRIPT_BEFORE=$(cat "$SCRIPT_FILE")
 AGENT_BEFORE=$(cat "$AGENT_FILE")
 
 # Run setup again (same version, no content changes → should skip all files)
-SMART_OUTPUT=$(echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
+SMART_OUTPUT=$(echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" 2>&1)
 
 # Files should be identical (not overwritten)
 SKILL_AFTER=$(cat "$SKILL_FILE")
@@ -1443,7 +877,7 @@ ORIG_CONTENT=$(cat "$ORIG_TEMPLATE")
 echo "# Smart copy test marker" >> "$ORIG_TEMPLATE"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: modified template was copied
 MARKER_FOUND=$(grep -c "Smart copy test marker" "$TEST_PROJECT/.claude/skills/query-rules/SKILL.md" 2>/dev/null || echo 0)
@@ -1471,7 +905,7 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 rm -f "$TEST_PROJECT/.claude/doc-advisor/scripts/validate_toc.py"
 
 # Run setup again
-echo -e "opus\ns" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: file is re-created
 test_result "Smart copy: deleted file re-created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/validate_toc.py" ]] && echo 0 || echo 1)"

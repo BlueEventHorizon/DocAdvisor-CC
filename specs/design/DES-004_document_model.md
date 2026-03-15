@@ -41,10 +41,10 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 
 各カテゴリは**1つ以上のルートディレクトリ**を持つ。ルートディレクトリ配下のサブディレクトリ構造は自由。
 
-`root_dirs` の設定方法（いずれもセットアップ時に config.yaml へ書き込まれる。ランタイムは config.yaml のみ参照: FR-08）:
+`root_dirs` の設定方法（`.doc_structure.yaml` に記述。ランタイムで直接参照: FR-08）:
 
-- `.doc_structure.yaml` がある場合: setup.sh が `import_doc_structure.py` で config.yaml へ取り込み
-- `.doc_structure.yaml` がない場合: `/setup-config` スキルで AI が分類し config.yaml を更新
+- `.doc_structure.yaml` がある場合: そのまま使用
+- `.doc_structure.yaml` がない場合: `/setup-config` スキルで AI が分類し `.doc_structure.yaml` を作成
 
 ```yaml
 rules:
@@ -175,9 +175,9 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | パス                              | 用途             |
 | --------------------------------- | ---------------- |
-| `.claude/doc-advisor/config.yaml` | プロジェクト設定 |
+| `.doc_structure.yaml`（プロジェクトルート） | 文書構造設定（root_dirs, doc_types_map, patterns） |
 
-> **Note**: デフォルト値は `toc_utils.py` の `_get_default_config()` にハードコードされている。
+> **Note**: Doc Advisor 内部設定（toc_file, checksums_file, work_dir, output, common）は `toc_utils.py` の `_get_default_config()` にコードデフォルトとして定義。`load_config()` が `.doc_structure.yaml` とマージして返す。
 
 ### 設定項目一覧
 
@@ -225,13 +225,13 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 ### 完全な設定例
 
 ```yaml
-# .claude/doc-advisor/config.yaml
+# .doc_structure.yaml (文書構造) + コードデフォルト (Doc Advisor 内部設定) のマージ結果
 
 rules:
   root_dirs:
     - rules/
-  toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
+  toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml        # コードデフォルト
+  checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml  # コードデフォルト
   work_dir: .claude/doc-advisor/toc/rules/.toc_work/
 
   patterns:

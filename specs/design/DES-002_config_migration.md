@@ -1,6 +1,26 @@
-# DES-002: config.yaml マイグレーション設計
+# DES-002: config.yaml マイグレーション設計（廃止）
 
 <!-- Created by k_terada -->
+
+## 廃止について
+
+v5.0 で `config.yaml` を廃止し、`.doc_structure.yaml` + コードデフォルト（toc_utils.py）に移行した。
+これに伴い `merge_config.py` も廃止されたため、本設計書は参考資料としてのみ残す。
+
+**廃止された仕組み:**
+- `merge_config.py`: バージョンアップ時の config.yaml マイグレーションスクリプト
+- `import_doc_structure.py`: .doc_structure.yaml → config.yaml の取り込みスクリプト
+
+**現行アーキテクチャ（v5.0〜）:**
+- `.doc_structure.yaml`: 文書構造の SSOT（root_dirs, doc_types_map, patterns）
+- コードデフォルト（toc_utils.py `_get_default_config()`）: Doc Advisor 内部設定
+- `load_config()`: `.doc_structure.yaml` を読み込み、コードデフォルトとマージして返す
+
+---
+
+以下は v4.x 時代の設計を参考として残す。
+
+---
 
 ## 概要
 

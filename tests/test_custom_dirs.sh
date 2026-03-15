@@ -76,10 +76,9 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3-2: Verify .doc_structure.yaml and config.yaml"
+echo "Test 3-2: Verify .doc_structure.yaml"
 echo "=================================================="
 
-CONFIG_FILE=".claude/doc-advisor/config.yaml"
 DOC_STRUCTURE=".doc_structure.yaml"
 
 if [[ -f "$DOC_STRUCTURE" ]]; then
@@ -99,22 +98,17 @@ if [[ -f "$DOC_STRUCTURE" ]]; then
         echo -e "${RED}FAIL${NC}: .doc_structure.yaml missing 'documents' path"
         ((FAIL_COUNT++))
     fi
-else
-    echo -e "${RED}FAIL${NC}: .doc_structure.yaml not found"
-    ((FAIL_COUNT++))
-fi
 
-if [[ -f "$CONFIG_FILE" ]]; then
     # Check target_glob is set
-    if grep -q 'target_glob:' "$CONFIG_FILE"; then
+    if grep -q 'target_glob:' "$DOC_STRUCTURE"; then
         echo -e "${GREEN}PASS${NC}: target_glob is configured"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: target_glob not found in config"
+        echo -e "${RED}FAIL${NC}: target_glob not found in .doc_structure.yaml"
         ((FAIL_COUNT++))
     fi
 else
-    echo -e "${RED}FAIL${NC}: config.yaml not found"
+    echo -e "${RED}FAIL${NC}: .doc_structure.yaml not found"
     ((FAIL_COUNT++))
 fi
 echo ""
@@ -196,11 +190,16 @@ echo "=================================================="
 mkdir -p documents/archive
 echo "# Archived Doc" > documents/archive/old_doc.md
 
-# Add exclude pattern to config (replace inline empty array with multi-line format)
+# Add exclude pattern to .doc_structure.yaml
 $PYTHON_CMD -c "
-content = open('.claude/doc-advisor/config.yaml').read()
-content = content.replace('    exclude: []    # Additional excludes (merged with .doc_structure.yaml)', '    exclude:\n      - archive')
-open('.claude/doc-advisor/config.yaml', 'w').write(content)
+import re
+content = open('.doc_structure.yaml').read()
+# Replace exclude in specs section (second occurrence), not rules section
+parts = content.split('specs:')
+if len(parts) == 2:
+    parts[1] = parts[1].replace('    exclude: []', '    exclude:\n      - archive', 1)
+    content = 'specs:'.join(parts)
+open('.doc_structure.yaml', 'w').write(content)
 "
 
 # Regenerate

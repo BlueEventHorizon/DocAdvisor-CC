@@ -1,12 +1,21 @@
-version: "1.0"
-
-specs:
-  requirement:
-    paths: [specs/requirements/]
-    description: "Functional and non-functional requirements"
-  design:
-    paths: [specs/design/]
+# doc_structure_version: 2.0
 
 rules:
-  rule:
-    paths: [rules/]
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
+specs:
+  root_dirs:
+    - specs/
+  doc_types_map:
+    specs/requirements/: requirement
+    specs/design/: design
+    specs/plan/: plan
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []

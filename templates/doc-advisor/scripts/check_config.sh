@@ -13,11 +13,14 @@
 # Hook cwd is not guaranteed to be project root; use $CLAUDE_PROJECT_DIR
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
-CONFIG=".claude/doc-advisor/config.yaml"
+CONFIG=".doc_structure.yaml"
 CATEGORY="${1:-}"
 
-# config.yaml doesn't exist → Doc Advisor not installed
-[[ ! -f "$CONFIG" ]] && exit 0
+# .doc_structure.yaml doesn't exist → not configured
+[[ ! -f "$CONFIG" ]] && {
+    echo "[ACTION REQUIRED] Doc Advisor: .doc_structure.yaml not found. Run /setup-config skill to create document structure configuration. This must be completed before document search or ToC generation will work. If in plan mode, run /setup-config after exiting plan mode."
+    exit 0
+}
 
 if [[ -n "$CATEGORY" ]]; then
     # Category-specific check: look for uncommented root_dirs within the target section

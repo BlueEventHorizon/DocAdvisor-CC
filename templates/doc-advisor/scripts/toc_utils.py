@@ -131,35 +131,30 @@ def resolve_config_path(config_value, default_base, project_root):
 
 def find_config_file():
     """
-    Find configuration file.
-
-    Location: {CWD}/.claude/doc-advisor/config.yaml
+    Find .doc_structure.yaml at project root.
 
     Returns:
-        Path: Path to configuration file
+        Path: Path to .doc_structure.yaml
 
     Raises:
         FileNotFoundError: When no configuration file is found
     """
-    project_config = Path.cwd() / ".claude/doc-advisor/config.yaml"
-    if project_config.exists():
-        return project_config
+    doc_structure = Path.cwd() / ".doc_structure.yaml"
+    if doc_structure.exists():
+        return doc_structure
 
     raise FileNotFoundError(
-        "Configuration file not found. Please create one at:\n"
-        "  - .claude/doc-advisor/config.yaml\n"
-        "Run setup.sh to generate the configuration file."
+        ".doc_structure.yaml not found.\n"
+        "Run /setup-config to create document structure configuration."
     )
 
 
 def load_config(target=None):
     """
-    Load config.yaml and return configuration dictionary.
+    Load .doc_structure.yaml and merge with internal defaults.
 
-    config.yaml is the sole runtime configuration (FR-08-1).
-    root_dirs and doc_types_map must be pre-configured by setup.sh
-    (from .doc_structure.yaml) or /setup-config skill.
-    This function does NOT fall back to .doc_structure.yaml at runtime.
+    .doc_structure.yaml provides document structure (root_dirs, doc_types_map, patterns).
+    Internal defaults provide Doc Advisor settings (toc_file, checksums_file, work_dir, output, common).
 
     Args:
         target: 'rules' or 'specs'. If specified, returns only that section
@@ -167,11 +162,11 @@ def load_config(target=None):
     Returns:
         dict: Configuration dictionary
     """
+    defaults = _get_default_config()
+
     try:
         config_path = find_config_file()
     except FileNotFoundError:
-        # Return default configuration if no file found
-        defaults = _get_default_config()
         if target:
             return defaults.get(target, {})
         return defaults
@@ -179,7 +174,10 @@ def load_config(target=None):
     with open(config_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    config = _parse_config_yaml(content)
+    doc_structure = _parse_config_yaml(content)
+
+    # Merge: doc_structure values override defaults
+    config = _deep_merge(defaults, doc_structure)
 
     # Backward compatibility: root_dir (string) → root_dirs (list)
     for section in ('rules', 'specs'):
@@ -193,8 +191,33 @@ def load_config(target=None):
     return config
 
 
+def _deep_merge(base, override):
+    """
+    Deep merge two dictionaries. override values take precedence.
+    Lists are replaced, not merged.
+
+    Args:
+        base: Base dictionary (defaults)
+        override: Override dictionary (.doc_structure.yaml)
+
+    Returns:
+        dict: Merged dictionary
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def _get_default_config():
-    """Return default configuration"""
+    """Return default configuration.
+
+    root_dirs defaults are used as fallback when .doc_structure.yaml is not found
+    (e.g., direct script execution without Pre-check).
+    """
     return {
         'rules': {
             'root_dirs': ['rules/'],
@@ -235,7 +258,7 @@ def _get_default_config():
 
 def _parse_config_yaml(content):
     """
-    Parse config.yaml (simple YAML parser)
+    Parse YAML configuration (simple YAML parser)
 
     Handles up to 4 levels of nesting:
     - Level 0: Top-level sections (rules, specs, common)
@@ -392,7 +415,7 @@ def expand_root_dir_globs(dirs, project_root):
     """
     Expand glob patterns in root_dirs paths.
 
-    config.yaml root_dirs supports patterns like "specs/*/requirements/"
+    root_dirs supports patterns like "specs/*/requirements/"
     which need to be expanded to actual directories before file scanning.
 
     Args:
