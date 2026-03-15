@@ -135,6 +135,7 @@ After user confirmation, write `.doc_structure.yaml` (at project root) using the
 
 If `.doc_structure.yaml` already exists, update the `root_dirs`, `doc_types_map`, and `patterns` sections.
 Preserve existing `patterns.exclude` entries unless the user explicitly requests changes.
+**For `--update` mode**: Read the existing file first, keep all existing `root_dirs` and `doc_types_map` entries, and append only the newly classified directories. Do not remove or overwrite existing entries.
 If it does not exist, create it with the following structure.
 
 Output example:

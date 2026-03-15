@@ -37,8 +37,8 @@ bash .claude/doc-advisor/scripts/check_config.sh specs
 python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --check
 ```
 
-- **WARNING 出力あり** → ユーザーに警告メッセージを伝えてから Procedure に進む
-- **出力なし** → そのまま Procedure に進む
+- **WARNING output present** → Inform user of the warning message, then proceed to Procedure
+- **No output** → Proceed to Procedure directly
 
 ## Procedure
 
