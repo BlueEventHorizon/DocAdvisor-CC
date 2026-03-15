@@ -44,7 +44,7 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 `root_dirs` の設定方法（`.doc_structure.yaml` に記述。ランタイムで直接参照: FR-08）:
 
 - `.doc_structure.yaml` がある場合: そのまま使用
-- `.doc_structure.yaml` がない場合: `/setup-config` スキルで AI が分類し `.doc_structure.yaml` を作成
+- `.doc_structure.yaml` がない場合: `/setup-doc-structure` スキルで AI が分類し `.doc_structure.yaml` を作成
 
 ```yaml
 rules:
@@ -239,8 +239,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目                    | 型     | 設定ソース / デフォルト                                            | 説明                                 |
 | ----------------------- | ------ | ------------------------------------------------------------------ | ------------------------------------ |
-| `root_dirs`             | array  | `.doc_structure.yaml`（`/setup-config` で設定）                    | ルートディレクトリ群                 |
-| `doc_types_map`         | object | `.doc_structure.yaml`（`/setup-config` で設定）                    | パス → doc_type の対応。FR-01-6 参照 |
+| `root_dirs`             | array  | `.doc_structure.yaml`（`/setup-doc-structure` で設定）                    | ルートディレクトリ群                 |
+| `doc_types_map`         | object | `.doc_structure.yaml`（`/setup-doc-structure` で設定）                    | パス → doc_type の対応。FR-01-6 参照 |
 | `patterns.target_glob`  | string | `.doc_structure.yaml` / デフォルト: `**/*.md`                      | スキャン対象パターン                 |
 | `patterns.exclude`      | array  | `.doc_structure.yaml` / デフォルト: `[]`                           | 除外パターン（ユーザー定義）         |
 | `toc_file`              | string | コードデフォルト（`toc_utils.py`）: `.claude/doc-advisor/toc/rules/rules_toc.yaml`      | 出力 ToC ファイルパス                |
@@ -253,8 +253,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目                    | 型     | 設定ソース / デフォルト                                            | 説明                                 |
 | ----------------------- | ------ | ------------------------------------------------------------------ | ------------------------------------ |
-| `root_dirs`             | array  | `.doc_structure.yaml`（`/setup-config` で設定）                    | ルートディレクトリ群                 |
-| `doc_types_map`         | object | `.doc_structure.yaml`（`/setup-config` で設定）                    | パス → doc_type の対応。FR-01-6 参照 |
+| `root_dirs`             | array  | `.doc_structure.yaml`（`/setup-doc-structure` で設定）                    | ルートディレクトリ群                 |
+| `doc_types_map`         | object | `.doc_structure.yaml`（`/setup-doc-structure` で設定）                    | パス → doc_type の対応。FR-01-6 参照 |
 | `patterns.target_glob`  | string | `.doc_structure.yaml` / デフォルト: `**/*.md`                      | スキャン対象パターン                 |
 | `patterns.exclude`      | array  | `.doc_structure.yaml` / デフォルト: `[]`                           | 除外パターン（ユーザー定義）         |
 | `toc_file`              | string | コードデフォルト（`toc_utils.py`）: `.claude/doc-advisor/toc/specs/specs_toc.yaml`      | 出力 ToC ファイルパス                |
