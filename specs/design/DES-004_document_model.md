@@ -183,13 +183,13 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 #### バージョン
 
-ファイル先頭に `# doc_structure_version: 2.0` コメントを記述する。
+ファイル先頭に `# doc_structure_version: 3.0` コメントを記述する。
 これは forge プラグインと Doc Advisor で共通のバージョニング規約。
 
 #### 構造
 
 ```yaml
-# doc_structure_version: 2.0
+# doc_structure_version: 3.0
 
 {category}:           # "rules" または "specs"
   root_dirs:          # [必須] スキャン対象ディレクトリ群

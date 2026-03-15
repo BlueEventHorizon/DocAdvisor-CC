@@ -41,7 +41,7 @@ setup_test_project() {
     echo "# Test Rule" > "$TEST_PROJECT/rules/test.md"
     echo "# Test Spec" > "$TEST_PROJECT/specs/main/requirements/test.md"
     cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-# doc_structure_version: 2.0
+# doc_structure_version: 3.0
 
 rules:
   root_dirs:
@@ -555,7 +555,7 @@ fi
 
 # Case 4: Restore .doc_structure.yaml with only rules (no specs)
 cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-# doc_structure_version: 2.0
+# doc_structure_version: 3.0
 
 rules:
   root_dirs:
@@ -683,7 +683,7 @@ PYTHON_CMD=python3
 
 # Set root_dirs: [] in .doc_structure.yaml for both sections
 cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-# doc_structure_version: 2.0
+# doc_structure_version: 3.0
 
 rules:
   root_dirs: []

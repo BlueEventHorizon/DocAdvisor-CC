@@ -85,7 +85,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | FR-08-3 | `.doc_structure.yaml` の有効条件: 対象カテゴリ（rules または specs）の `root_dirs` が記載されていること                                                                                  |
 | FR-08-4 | `check_config.sh` はスキル起動時に `.doc_structure.yaml` の `root_dirs` 設定を検証する。未設定の場合は警告を出力し `/setup-config` の実行を促す                                          |
 | FR-08-5 | `check_config.sh` の検証を通過した場合、後段スクリプトは root_dirs が有効であることを前提として動作してよい（二重検証は不要）                                                            |
-| FR-08-6 | `.doc_structure.yaml` は先頭に `# doc_structure_version: 2.0` コメントを含む。Doc Advisor はこのバージョンを参照して互換性を判断する                                                      |
+| FR-08-6 | `.doc_structure.yaml` は先頭に `# doc_structure_version: 3.0` コメントを含む。Doc Advisor はこのバージョンを参照して互換性を判断する                                                      |
 
 ## 非機能要件
 
@@ -118,4 +118,4 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | Skill               | Claude Code のスラッシュコマンドとして登録される機能単位                                                                              |
 | Agent               | Claude Code のサブエージェントとして内部的に起動されるワーカー                                                                        |
 | Pre-check           | スキル実行前に `check_config.sh` を呼び出し、設定状態を検証する仕組み                                                                 |
-| doc_structure_version | `.doc_structure.yaml` の形式バージョン。コメント形式（`# doc_structure_version: 2.0`）で記録。forge プラグインと Doc Advisor で共通    |
+| doc_structure_version | `.doc_structure.yaml` の形式バージョン。コメント形式（`# doc_structure_version: 3.0`）で記録。forge プラグインと Doc Advisor で共通    |

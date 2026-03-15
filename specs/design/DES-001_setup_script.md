@@ -299,7 +299,7 @@ v5.0 で config.yaml を廃止し、`.doc_structure.yaml` + コードデフォ�
 文書構造の SSOT（Single Source of Truth）となる設定ファイルの構造:
 
 ```yaml
-# doc_structure_version: 2.0
+# doc_structure_version: 3.0
 
 rules:
   root_dirs:

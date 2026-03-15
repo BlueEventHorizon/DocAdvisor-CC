@@ -128,7 +128,7 @@ If it does not exist, create it with the following structure.
 Output example:
 
 ```yaml
-# doc_structure_version: 2.0
+# doc_structure_version: 3.0
 
 rules:
   root_dirs:

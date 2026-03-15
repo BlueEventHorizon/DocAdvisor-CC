@@ -176,6 +176,9 @@ def load_config(target=None):
 
     doc_structure = _parse_config_yaml(content)
 
+    # Backward compatibility: v1.0 format → v2.0 format (in-memory only)
+    doc_structure = _migrate_v1_to_v2(doc_structure)
+
     # Merge: doc_structure values override defaults
     config = _deep_merge(defaults, doc_structure)
 
@@ -189,6 +192,65 @@ def load_config(target=None):
     if target:
         return config.get(target, {})
     return config
+
+
+def _migrate_v1_to_v2(parsed):
+    """
+    Convert v1.0 .doc_structure.yaml format to v2.0 (in-memory only).
+
+    v1.0 format:
+        rules:
+          rule:
+            paths: [rules/]
+        specs:
+          spec:
+            paths: [specs/]
+
+    v2.0 format:
+        rules:
+          root_dirs: [rules/]
+          doc_types_map:
+            rules/: rule
+        specs:
+          root_dirs: [specs/]
+          doc_types_map:
+            specs/: spec
+
+    Detection: a category section has no 'root_dirs' key but has a sub-dict
+    with a 'paths' key (v1.0 doc_type → {paths: [...]}).
+    """
+    for category in ('rules', 'specs'):
+        if category not in parsed:
+            continue
+        section = parsed[category]
+
+        # Already v2.0 format
+        if 'root_dirs' in section:
+            continue
+
+        # Detect v1.0: sub-dicts with 'paths' key
+        root_dirs = []
+        doc_types_map = {}
+        v1_keys = []
+
+        for key, value in section.items():
+            if isinstance(value, dict) and 'paths' in value:
+                v1_keys.append(key)
+                paths = value['paths']
+                if isinstance(paths, list):
+                    for p in paths:
+                        root_dirs.append(p)
+                        doc_types_map[p] = key
+
+        if v1_keys:
+            # Remove v1.0 keys
+            for key in v1_keys:
+                del section[key]
+            # Add v2.0 keys
+            section['root_dirs'] = root_dirs
+            section['doc_types_map'] = doc_types_map
+
+    return parsed
 
 
 def _deep_merge(base, override):

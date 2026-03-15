@@ -23,17 +23,19 @@ CATEGORY="${1:-}"
 }
 
 if [[ -n "$CATEGORY" ]]; then
-    # Category-specific check: look for uncommented root_dirs within the target section
+    # Category-specific check: look for root_dirs (v2.0) or paths (v1.0) within the target section
     in_section=$(awk -v cat="$CATEGORY" '
         /^(rules|specs|common):/ { sub(/:.*/, ""); section = $0 }
         section == cat && /^  root_dirs:/ { found=1; exit }
+        section == cat && /^    paths:/ { found=1; exit }
         END { print (found ? "yes" : "no") }
     ' "$CONFIG")
 
     [[ "$in_section" == "yes" ]] && exit 0
 else
-    # No category specified: check if any root_dirs exists (backward compat)
+    # No category specified: check if any root_dirs (v2.0) or paths (v1.0) exists
     grep -q "^  root_dirs:" "$CONFIG" 2>/dev/null && exit 0
+    grep -q "^    paths:" "$CONFIG" 2>/dev/null && exit 0
 fi
 
 # Not configured → warn
