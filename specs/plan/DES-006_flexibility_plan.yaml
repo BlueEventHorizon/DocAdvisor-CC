@@ -1,0 +1,95 @@
+# DES-006_flexibility 実装計画書
+
+# === トレーサビリティ ===
+requirements_traceability:
+  - requirement_id: FR-01
+    title: ドキュメント管理
+    design_id: DES-006
+    status: pending
+  - requirement_id: NFR-02
+    title: 設定可能性
+    design_id: DES-006
+    status: pending
+
+design_traceability:
+  - design_id: DES-006
+    title: 柔軟性拡張設計書
+    requirement_ids:
+      - FR-01
+      - NFR-02
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+
+# === タスク一覧 ===
+tasks:
+  # --- セクション1: 用語の統一 ---
+  - task_id: TASK-001
+    title: "Python スクリプト5ファイルの --target → --category リネーム"
+    priority: 90
+    status: completed
+    design_id: DES-006
+    depends_on: []
+    group_id: "GROUP-001 (1/2)"
+    build_check: skip
+    description:
+      - "グループ化理由: Python スクリプトと Markdown ドキュメントの --target を同期リネームしないとオーケストレーターの引数不整合が発生するため"
+      - "create_pending_yaml.py: argparse --target → --category、変数名・docstring 更新"
+      - "merge_toc.py: argparse --target → --category、変数名・docstring 更新"
+      - "write_pending.py: argparse --target → --category、変数名・docstring 更新"
+      - "validate_toc.py: sys.argv パース --target → --category、エラーメッセージ更新"
+      - "create_checksums.py: sys.argv パース --target → --category、エラーメッセージ更新"
+      - "テスト: 各スクリプトが --category 引数で --help を正常出力すること（スモークテスト）"
+    acceptance_criteria: "全5スクリプトが --category を受け付け、--target では動作しないこと"
+    required_reading:
+      - specs/design/DES-006_flexibility.md
+
+  - task_id: TASK-002
+    title: "Markdown ドキュメント4ファイルの --target → --category リネーム"
+    priority: 85
+    status: completed
+    design_id: DES-006
+    depends_on:
+      - TASK-001
+    group_id: "GROUP-001 (2/2)"
+    build_check: on_group_complete
+    description:
+      - "toc_orchestrator.md: コード例・テキスト内の --target を --category に更新（約11箇所）"
+      - "toc-updater.md: パラメータ説明の --target を --category に更新（2箇所）"
+      - "query-rules/SKILL.md: コード例の --target を --category に更新（1箇所）"
+      - "query-specs/SKILL.md: コード例の --target を --category に更新（1箇所）"
+      - "テスト: run_all_tests.sh が全パスすること"
+    acceptance_criteria: "テンプレート内のすべての --target が --category に置換されていること"
+    required_reading:
+      - specs/design/DES-006_flexibility.md
+      - templates/doc-advisor/docs/toc_orchestrator.md
+
+  # --- セクション2: doc_type 拡張 + 仕様書反映 ---
+  - task_id: TASK-003
+    title: "仕様書への反映（REQ-001, DES-004, DES-005）"
+    priority: 60
+    status: pending
+    design_id: DES-006
+    depends_on:
+      - TASK-002
+    group_id: null
+    build_check: per_task
+    description:
+      - "REQ-001: FR-01-5 を「組み込み7種+カスタムタイプ可」に更新"
+      - "REQ-001: 用語定義「カテゴリ」「doc_type」を更新"
+      - "DES-004: doc_type 一覧にカスタムタイプ注記追加、--target → --category 更新"
+      - "DES-005: コンポーネント一覧の --target → --category 更新、validate_toc.py 名更新"
+    acceptance_criteria: "REQ-001 FR-01-5 が「組み込み7種+カスタムタイプ可」に更新、DES-004/005 の --target が --category に更新されていること"
+    required_reading:
+      - specs/design/DES-006_flexibility.md
+      - specs/requirements/REQ-001_doc_advisor.md
+      - specs/design/DES-004_document_model.md
+      - specs/design/DES-005_toc_generation_flow.md
+
+# === 改定履歴 ===
+revision_history:
+  - date: "2026-03-25"
+    content: 初版作成
+  - date: "2026-03-26"
+    content: "セクション1（出力パスの柔軟化）を削除。TASK-001〜003 を削除し、旧 TASK-004〜006 を TASK-001〜003 に採番し直し"

@@ -79,7 +79,7 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3: Run create_pending_yaml.py --target rules"
+echo "Test 3: Run create_pending_yaml.py --category rules"
 echo "=================================================="
 echo ""
 
@@ -89,12 +89,12 @@ echo "Using Python: $PYTHON_CMD"
 echo ""
 
 # Run the script
-if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full; then
+if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --category rules --full; then
     echo ""
-    echo -e "${GREEN}PASS: create_pending_yaml.py --target rules executed successfully${NC}"
+    echo -e "${GREEN}PASS: create_pending_yaml.py --category rules executed successfully${NC}"
 else
     echo ""
-    echo -e "${RED}FAIL: create_pending_yaml.py --target rules failed${NC}"
+    echo -e "${RED}FAIL: create_pending_yaml.py --category rules failed${NC}"
     exit 1
 fi
 
@@ -111,16 +111,16 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 4: Run create_pending_yaml.py --target specs"
+echo "Test 4: Run create_pending_yaml.py --category specs"
 echo "=================================================="
 echo ""
 
-if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full; then
+if $PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --category specs --full; then
     echo ""
-    echo -e "${GREEN}PASS: create_pending_yaml.py --target specs executed successfully${NC}"
+    echo -e "${GREEN}PASS: create_pending_yaml.py --category specs executed successfully${NC}"
 else
     echo ""
-    echo -e "${RED}FAIL: create_pending_yaml.py --target specs failed${NC}"
+    echo -e "${RED}FAIL: create_pending_yaml.py --category specs failed${NC}"
     exit 1
 fi
 

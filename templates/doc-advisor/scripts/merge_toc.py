@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 # doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 """
-{target}_toc.yaml Merge Script (standard library only)
+{category}_toc.yaml Merge Script (standard library only)
 
-Reads all entries from .claude/doc-advisor/toc/{target}/.toc_work/*.yaml,
+Reads all entries from .claude/doc-advisor/toc/{category}/.toc_work/*.yaml,
 removes _meta sections, merges them, and generates
-.claude/doc-advisor/toc/{target}/{target}_toc.yaml.
+.claude/doc-advisor/toc/{category}/{category}_toc.yaml.
 
 Usage:
-    python3 merge_toc.py --target rules [--mode full|incremental]
-    python3 merge_toc.py --target specs [--mode full|incremental]
-    python3 merge_toc.py --target rules --delete-only
+    python3 merge_toc.py --category rules [--mode full|incremental]
+    python3 merge_toc.py --category specs [--mode full|incremental]
+    python3 merge_toc.py --category rules --delete-only
 
 Options:
-    --target       Target category: rules or specs (required)
+    --category     Document category: rules or specs (required)
     --mode         full (default): Generate new, incremental: Differential merge
     --delete-only  Apply deletions without .toc_work/
 """
@@ -49,7 +49,7 @@ OUTPUT_CONFIG = None
 PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
-TARGET = None  # 'rules' or 'specs'
+CATEGORY = None  # 'rules' or 'specs'
 
 
 def parse_args():
@@ -57,8 +57,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Merge pending YAML entries into ToC file'
     )
-    parser.add_argument('--target', required=True, choices=['rules', 'specs'],
-                        help='Target category: rules or specs')
+    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
+                        help='Document category: rules or specs')
     parser.add_argument('--mode', default='full', choices=['full', 'incremental'],
                         help='Merge mode: full (default) or incremental')
     parser.add_argument('--delete-only', action='store_true',
@@ -66,23 +66,23 @@ def parse_args():
     return parser.parse_args()
 
 
-def init_config(target):
+def init_config(category):
     """
     Initialize configuration.
 
     Args:
-        target: 'rules' or 'specs'
+        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success, False on failure
     """
     global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
-    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET
+    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, CATEGORY
 
-    TARGET = target
+    CATEGORY = category
 
     try:
-        CONFIG = load_config(target)
+        CONFIG = load_config(category)
         PROJECT_ROOT = get_project_root()
     except RuntimeError as e:
         print(f"Error: {e}")
@@ -91,7 +91,7 @@ def init_config(target):
         print(f"Error: {e}")
         return False
 
-    default_dir = f'{target}/'
+    default_dir = f'{category}/'
     root_dirs_config = CONFIG.get('root_dirs', [default_dir])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
@@ -102,20 +102,20 @@ def init_config(target):
         name = entry.rstrip('/')
         ROOT_DIRS.append((PROJECT_ROOT / name, name))
 
-    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / target
+    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / category
     TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_dir, PROJECT_ROOT)
-    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', f'{target}_toc.yaml'), first_dir, PROJECT_ROOT)
+    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', f'{category}_toc.yaml'), first_dir, PROJECT_ROOT)
     CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_dir, PROJECT_ROOT)
     OUTPUT_CONFIG = CONFIG.get('output', {})
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
     TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
-    EXCLUDE_PATTERNS = get_system_exclude_patterns(target) + PATTERNS_CONFIG.get('exclude', [])
+    EXCLUDE_PATTERNS = get_system_exclude_patterns(category) + PATTERNS_CONFIG.get('exclude', [])
     return True
 
 
 def load_existing_toc(toc_path):
-    """Load existing {target}_toc.yaml"""
+    """Load existing {category}_toc.yaml"""
     if not toc_path.exists():
         return {}
 
@@ -209,14 +209,14 @@ def write_yaml_output(docs, output_path):
     """
     lines = []
 
-    toc_name = f"{TARGET}_toc.yaml"
-    toc_rel_path = f".claude/doc-advisor/toc/{TARGET}/{toc_name}"
-    header_comment = OUTPUT_CONFIG.get('header_comment', f'Document Search Index for {TARGET}')
-    metadata_name = OUTPUT_CONFIG.get('metadata_name', f'Document Search Index ({TARGET})')
+    toc_name = f"{CATEGORY}_toc.yaml"
+    toc_rel_path = f".claude/doc-advisor/toc/{CATEGORY}/{toc_name}"
+    header_comment = OUTPUT_CONFIG.get('header_comment', f'Document Search Index for {CATEGORY}')
+    metadata_name = OUTPUT_CONFIG.get('metadata_name', f'Document Search Index ({CATEGORY})')
 
     lines.append(f"# {toc_rel_path}")
     lines.append(f"# {header_comment}")
-    lines.append(f"# Auto-generated by /create-{TARGET}-toc - Do not edit directly")
+    lines.append(f"# Auto-generated by /create-{CATEGORY}-toc - Do not edit directly")
     lines.append("")
 
     lines.append("metadata:")
@@ -254,7 +254,7 @@ def write_yaml_output(docs, output_path):
 
 def delete_only_mode():
     """Delete-only mode: Apply deletions without .toc_work/"""
-    toc_name = f"{TARGET}_toc.yaml"
+    toc_name = f"{CATEGORY}_toc.yaml"
     print("Mode: delete-only")
 
     if not OUTPUT_FILE.exists():
@@ -388,10 +388,10 @@ def main():
     args = parse_args()
 
     # Initialize configuration
-    if not init_config(args.target):
+    if not init_config(args.category):
         return 1
 
-    toc_name = f"{TARGET}_toc.yaml"
+    toc_name = f"{CATEGORY}_toc.yaml"
 
     print("=" * 50)
     print(f"{toc_name} Merge Script")

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 """
-Generate pending YAML templates in .claude/doc-advisor/toc/{target}/.toc_work/
+Generate pending YAML templates in .claude/doc-advisor/toc/{category}/.toc_work/
 
 Usage:
-    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target rules [--full]
-    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target specs [--full]
-    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --check
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category rules [--full]
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category specs [--full]
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category rules --check
 
 Options:
-    --target  Target category: rules or specs (required)
-    --full    Process all files (default: changed files only)
-    --check   Check staleness only (no file creation)
+    --category  Target category: rules or specs (required)
+    --full      Process all files (default: changed files only)
+    --check     Check staleness only (no file creation)
 
 Run from: Project root
 """
@@ -34,7 +34,7 @@ TOC_FILE = None
 PATTERNS_CONFIG = None
 TARGET_GLOB = None
 EXCLUDE_PATTERNS = None
-TARGET = None  # 'rules' or 'specs'
+CATEGORY = None  # 'rules' or 'specs'
 DOC_TYPES_MAP = None  # path → doc_type name (from .doc_structure.yaml)
 
 # Pending YAML templates
@@ -81,8 +81,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Generate pending YAML templates for ToC generation'
     )
-    parser.add_argument('--target', required=True, choices=['rules', 'specs'],
-                        help='Target category: rules or specs')
+    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
+                        help='Document category: rules or specs')
     parser.add_argument('--full', action='store_true',
                         help='Process all files (default: changed files only)')
     parser.add_argument('--check', action='store_true',
@@ -90,23 +90,23 @@ def parse_args():
     return parser.parse_args()
 
 
-def init_config(target):
+def init_config(category):
     """
     Initialize configuration.
 
     Args:
-        target: 'rules' or 'specs'
+        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success, False on failure
     """
     global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, CHECKSUMS_FILE
-    global TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, TARGET, DOC_TYPES_MAP
+    global TOC_FILE, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, CATEGORY, DOC_TYPES_MAP
 
-    TARGET = target
+    CATEGORY = category
 
     try:
-        CONFIG = load_config(target)
+        CONFIG = load_config(category)
         PROJECT_ROOT = get_project_root()
     except RuntimeError as e:
         print(f"Error: {e}")
@@ -115,7 +115,7 @@ def init_config(target):
         print(f"Error: {e}")
         return False
 
-    default_dir = f'{target}/'
+    default_dir = f'{category}/'
     root_dirs_config = CONFIG.get('root_dirs', [default_dir])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
@@ -126,14 +126,14 @@ def init_config(target):
         name = entry.rstrip('/')
         ROOT_DIRS.append((PROJECT_ROOT / name, name))
 
-    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / target
+    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / category
     TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_dir, PROJECT_ROOT)
     CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_dir, PROJECT_ROOT)
-    TOC_FILE = resolve_config_path(CONFIG.get('toc_file', f'{target}_toc.yaml'), first_dir, PROJECT_ROOT)
+    TOC_FILE = resolve_config_path(CONFIG.get('toc_file', f'{category}_toc.yaml'), first_dir, PROJECT_ROOT)
     PATTERNS_CONFIG = CONFIG.get('patterns', {})
     TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
     # System patterns (always excluded) + user-defined patterns
-    EXCLUDE_PATTERNS = get_system_exclude_patterns(target) + PATTERNS_CONFIG.get('exclude', [])
+    EXCLUDE_PATTERNS = get_system_exclude_patterns(category) + PATTERNS_CONFIG.get('exclude', [])
     DOC_TYPES_MAP = CONFIG.get('doc_types_map', {})
     return True
 
@@ -150,12 +150,12 @@ def determine_doc_type(root_dir_name):
     if dir_lower in DOC_TYPE_KEYWORDS:
         return DOC_TYPE_KEYWORDS[dir_lower]
     # Default by category
-    return TARGET.rstrip('s') if TARGET else 'unknown'
+    return CATEGORY.rstrip('s') if CATEGORY else 'unknown'
 
 
 def get_pending_template():
-    """Get the pending YAML template for the current target"""
-    if TARGET == 'specs':
+    """Get the pending YAML template for the current category"""
+    if CATEGORY == 'specs':
         return PENDING_TEMPLATE_SPECS
     return PENDING_TEMPLATE_RULES
 
@@ -345,13 +345,13 @@ def main():
     args = parse_args()
 
     # Initialize configuration
-    if not init_config(args.target):
+    if not init_config(args.category):
         return 1
 
     # --check mode: report staleness without creating files
     if args.check:
         if not TOC_FILE.exists():
-            print(f"WARNING: ToC not found. Run /create-{TARGET}-toc to generate it.")
+            print(f"WARNING: ToC not found. Run /create-{CATEGORY}-toc to generate it.")
             return 0
         if not CHECKSUMS_FILE.exists():
             return 0
@@ -383,11 +383,11 @@ def main():
             if deleted_count:
                 parts.append(f"{deleted_count} deleted")
             print(f"WARNING: ToC may be stale ({', '.join(parts)}).")
-            print(f"Consider running /create-{TARGET}-toc to refresh the index.")
+            print(f"Consider running /create-{CATEGORY}-toc to refresh the index.")
         return 0
 
     full_mode = args.full
-    toc_name = f"{TARGET}_toc.yaml"
+    toc_name = f"{CATEGORY}_toc.yaml"
 
     # Force full mode if toc file doesn't exist
     if not TOC_FILE.exists():

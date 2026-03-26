@@ -75,7 +75,7 @@ echo "Test 4-1: Deep nested files (5 levels)"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --category rules --full 2>/dev/null || EXIT_CODE=$?
 
 test_result "create_pending_yaml rules (deep)" "0" "$EXIT_CODE"
 
@@ -117,7 +117,7 @@ echo "Test 4-3: Empty directory handling"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --category specs --full 2>/dev/null || EXIT_CODE=$?
 
 test_result "create_pending_yaml specs (empty dir)" "0" "$EXIT_CODE"
 
@@ -147,7 +147,7 @@ fi
 
 if [[ -n "$SPECS_PENDING" ]]; then
     EXIT_CODE=0
-    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --target specs \
+    $PYTHON_CMD "$SCRIPTS_DIR/write_pending.py" --category specs \
         --entry-file "$SPECS_PENDING" \
         --title "Special: \"quotes\" & ampersand" \
         --purpose "Test YAML escaping for special characters" \
@@ -289,7 +289,7 @@ keywords:
 PENDINGEOF
 
 # Run incremental merge (--mode incremental)
-$PYTHON_CMD .claude/doc-advisor/scripts/merge_toc.py --target specs --mode incremental 2>/dev/null
+$PYTHON_CMD .claude/doc-advisor/scripts/merge_toc.py --category specs --mode incremental 2>/dev/null
 EXIT_CODE=$?
 
 if [[ $EXIT_CODE -eq 0 ]]; then
@@ -311,7 +311,7 @@ if [[ $EXIT_CODE -eq 0 ]]; then
         ((FAIL_COUNT++))
     fi
 else
-    echo -e "${RED}FAIL${NC}: merge_toc.py --target specs failed (exit=$EXIT_CODE)"
+    echo -e "${RED}FAIL${NC}: merge_toc.py --category specs failed (exit=$EXIT_CODE)"
     ((FAIL_COUNT++))
 fi
 echo ""

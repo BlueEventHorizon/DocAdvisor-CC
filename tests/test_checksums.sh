@@ -68,7 +68,7 @@ echo "=================================================="
 rm -f "$RULES_CHECKSUMS"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category rules 2>/dev/null || EXIT_CODE=$?
 
 test_result "create_checksums rules" "0" "$EXIT_CODE"
 
@@ -108,7 +108,7 @@ echo "=================================================="
 rm -f "$SPECS_CHECKSUMS"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target specs 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category specs 2>/dev/null || EXIT_CODE=$?
 
 test_result "create_checksums specs" "0" "$EXIT_CODE"
 
@@ -144,7 +144,7 @@ if [[ -n "$ORIGINAL_HASH" ]]; then
     echo "" >> rules/coding_standards.md
 
     # Regenerate checksums
-    $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || true
+    $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category rules 2>/dev/null || true
 
     # Get new checksum
     NEW_HASH=$(grep "coding_standards" "$RULES_CHECKSUMS" 2>/dev/null | grep -oE '[a-f0-9]{64}' || echo "")
@@ -171,7 +171,7 @@ echo "Test: Invalid target"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target invalid 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category invalid 2>/dev/null || EXIT_CODE=$?
 
 if [[ "$EXIT_CODE" -ne 0 ]]; then
     echo -e "${GREEN}PASS${NC}: Invalid target rejected (exit=$EXIT_CODE)"
@@ -191,11 +191,11 @@ rm -rf .claude/doc-advisor/toc/rules/.toc_work
 rm -f "$RULES_CHECKSUMS"
 
 # First create checksums (needed for incremental detection base)
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category rules 2>/dev/null || true
 
-# Run create_pending_yaml.py --target rules in full mode
+# Run create_pending_yaml.py --category rules in full mode
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --category rules --full 2>/dev/null || EXIT_CODE=$?
 
 PENDING_CHECKSUMS=".claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml"
 
@@ -234,11 +234,11 @@ rm -rf .claude/doc-advisor/toc/specs/.toc_work
 rm -f "$SPECS_CHECKSUMS"
 
 # First create checksums (needed for incremental detection base)
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target specs 2>/dev/null || true
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category specs 2>/dev/null || true
 
-# Run create_pending_yaml.py --target specs in full mode
+# Run create_pending_yaml.py --category specs in full mode
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --category specs --full 2>/dev/null || EXIT_CODE=$?
 
 PENDING_CHECKSUMS_SPECS=".claude/doc-advisor/toc/specs/.toc_work/.toc_checksums_pending.yaml"
 
