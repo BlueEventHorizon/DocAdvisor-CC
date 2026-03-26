@@ -4,14 +4,14 @@
 """
 ToC 検査スクリプト（rules / specs 共通）
 
-生成された {target}_toc.yaml の整合性を検査する。
+生成された {category}_toc.yaml の整合性を検査する。
 
 使用方法:
-    python3 validate_toc.py --target rules|specs [--file PATH]
+    python3 validate_toc.py --category rules|specs [--file PATH]
 
 オプション:
-    --target  検査対象カテゴリ（rules または specs）
-    --file    検査対象ファイル（デフォルト: .claude/doc-advisor/toc/{target}/{target}_toc.yaml）
+    --category  検査対象カテゴリ（rules または specs）
+    --file      検査対象ファイル（デフォルト: .claude/doc-advisor/toc/{category}/{category}_toc.yaml）
 
 検査項目:
     1. ファイル読み込み検査
@@ -26,29 +26,29 @@ from pathlib import Path
 from toc_utils import get_project_root, load_config, resolve_config_path, validate_path_within_base
 
 # Global configuration (initialized in init_config())
-TARGET = None  # 'rules' or 'specs'
+CATEGORY = None  # 'rules' or 'specs'
 CONFIG = None
 PROJECT_ROOT = None
-TARGET_DIR = None
+CATEGORY_DIR = None
 DEFAULT_TOC_FILE = None
 
 
-def init_config(target):
+def init_config(category):
     """
-    Initialize configuration for the given target category.
+    Initialize configuration for the given category.
 
     Args:
-        target: 'rules' or 'specs'
+        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success, False on failure
     """
-    global TARGET, CONFIG, PROJECT_ROOT, TARGET_DIR, DEFAULT_TOC_FILE
+    global CATEGORY, CONFIG, PROJECT_ROOT, CATEGORY_DIR, DEFAULT_TOC_FILE
 
-    TARGET = target
+    CATEGORY = category
 
     try:
-        CONFIG = load_config(target)
+        CONFIG = load_config(category)
         PROJECT_ROOT = get_project_root()
     except RuntimeError as e:
         print(f"Error: {e}")
@@ -57,23 +57,23 @@ def init_config(target):
         print(f"Error: {e}")
         return False
 
-    root_dirs_config = CONFIG.get('root_dirs', [f'{target}/'])
+    root_dirs_config = CONFIG.get('root_dirs', [f'{category}/'])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
-    # root_dirs_config が空の場合は PROJECT_ROOT / target をフォールバックとして使用する
-    TARGET_DIR = (
+    # root_dirs_config が空の場合は PROJECT_ROOT / category をフォールバックとして使用する
+    CATEGORY_DIR = (
         PROJECT_ROOT / root_dirs_config[0].rstrip('/')
         if root_dirs_config
-        else PROJECT_ROOT / target
+        else PROJECT_ROOT / category
     )
     DEFAULT_TOC_FILE = resolve_config_path(
-        CONFIG.get('toc_file', f'{target}_toc.yaml'), TARGET_DIR, PROJECT_ROOT
+        CONFIG.get('toc_file', f'{category}_toc.yaml'), CATEGORY_DIR, PROJECT_ROOT
     )
     return True
 
 
 def load_existing_toc(toc_path):
-    """既存の {target}_toc.yaml を読み込み（docs: セクション形式対応）"""
+    """既存の {category}_toc.yaml を読み込み（docs: セクション形式対応）"""
     if not toc_path.exists():
         return {}
 
@@ -151,7 +151,7 @@ def validate_toc(toc_path):
     - 重複パス検査
     """
     print("=" * 50)
-    print(f"{TARGET}_toc.yaml 検査")
+    print(f"{CATEGORY}_toc.yaml 検査")
     print("=" * 50)
     print(f"対象: {toc_path}")
     print()
@@ -187,7 +187,7 @@ def validate_toc(toc_path):
     # 2. 必須フィールド検査
     # title/purpose/doc_type が必須（文字列）
     # content_details/applicable_tasks/keywords が必須（非空配列）
-    # フォーマット定義: No null, No empty arrays ({TARGET}_toc_format.md)
+    # フォーマット定義: No null, No empty arrays ({CATEGORY}_toc_format.md)
     required_string_fields = ['title', 'purpose', 'doc_type']
     required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
@@ -244,26 +244,26 @@ def validate_toc(toc_path):
 
 
 def main():
-    # --target オプションの処理（必須）
-    if '--target' not in sys.argv:
-        print("エラー: --target rules|specs が必要です", file=sys.stderr)
-        print("使用方法: python3 validate_toc.py --target rules|specs [--file PATH]",
+    # --category オプションの処理（必須）
+    if '--category' not in sys.argv:
+        print("エラー: --category rules|specs が必要です", file=sys.stderr)
+        print("使用方法: python3 validate_toc.py --category rules|specs [--file PATH]",
               file=sys.stderr)
         return 1
 
-    target_idx = sys.argv.index('--target')
-    if target_idx + 1 >= len(sys.argv):
-        print("エラー: --target に値が指定されていません", file=sys.stderr)
+    category_idx = sys.argv.index('--category')
+    if category_idx + 1 >= len(sys.argv):
+        print("エラー: --category に値が指定されていません", file=sys.stderr)
         return 1
 
-    target = sys.argv[target_idx + 1]
-    if target not in ('rules', 'specs'):
-        print(f"エラー: --target は rules または specs を指定してください（指定値: {target}）",
+    category = sys.argv[category_idx + 1]
+    if category not in ('rules', 'specs'):
+        print(f"エラー: --category は rules または specs を指定してください（指定値: {category}）",
               file=sys.stderr)
         return 1
 
     # Initialize configuration
-    if not init_config(target):
+    if not init_config(category):
         return 1
 
     # --file オプションの処理

@@ -1,13 +1,15 @@
-# specs_toc.yaml 用チェックサムファイル
-# 自動生成 - 手動編集禁止
-generated_at: 2026-03-08T13:50:08Z
-file_count: 8
+# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
+# Auto-generated - do not edit
+generated_at: 2026-03-25T07:54:13Z
+file_count: 10
 checksums:
-  specs/design/DES-001_setup_script.md: bb5b5738993d4a781392b4d6ff4757a722db7c6e89871b1acfca44832ee49f2c
-  specs/design/DES-002_config_migration.md: 6f15237e841e1e0ecc938725eea2e2cde8e375f6f1e9d194f79baf768b8d99b0
-  specs/design/DES-003_document_identifier.md: 916f686577967cbee454b1064809704e4338e4c59e5c90e56a95ed11e4af4a6a
-  specs/design/DES-004_document_model.md: 2111a702b833095b14917b0455a756a1d4786ee63efa87e6934c0382bdd0d4f9
-  specs/design/DES-005_toc_generation_flow.md: 49f39ce919af688cb16e8ecb5d236e46e61022b52d5d3e1753ee77dd9bc4d06c
-  specs/plan/PLAN-001_v3.8_implementation.md: 4a7428118e65f3932cf2d52588da5bc8eaaf70cd5bcf0dc8260da7679e3768a3
-  specs/requirements/REQ-001_doc_advisor.md: 452a5274bdbeda5ea9dae57bdba7021bf8432dad921d09c1b4940c3f036b609a
-  specs/requirements/REQ-002_upgrade_v2_to_v3.md: 0bb89d7b85c6a6fb4898d533ef62d9b20b32e51fa01b9af2df39f82ca64fa39b
+  specs/design/DES-001_setup_script.md: aecf77418c8fdb684ba7e48e3e0cfd348a9d96c1241621634c78153d63732bf3
+  specs/design/DES-002_config_migration.md: b0d20ef9571aefb2fb8a2ed535aa4919f6d1e959a4c2efae3f07f90b864c924b
+  specs/design/DES-003_document_identifier.md: 392ac77041e109c5d6f84243ea019a398cae4a6d2aa3d37190e4e350dc8dcc2a
+  specs/design/DES-004_document_model.md: d0f2a4893f0c781d6d24a606259a49d95385a13187461ecd014a6c0cb7d255cc
+  specs/design/DES-005_toc_generation_flow.md: ba5e9977a0e2be9decec7a7114e3b034639fe75326c39c1d26390a91662516b2
+  specs/design/DES-006_flexibility.md: cdd1b369ca26f507129af7bfbcf028096c757df240dc56f31b0c03d8b55e2a5a
+  specs/plan/PLAN-001_v3.8_implementation.md: fab3caaadaeb1b81b150318f692f43bab5ce44ac8df4a54f0df5c80c8d576c19
+  specs/requirements/REQ-001_doc_advisor.md: 4637f0eb71ddf19b673d38a53f9cc64a18e1c8fcacb0cbf0a6fca7d924903a56
+  specs/requirements/REQ-002_upgrade_v2_to_v3.md: 512d73ed1076c631270f2bec5a0abce12260857f68b9cc15ef85723d05f894df
+  specs/requirements/REQ-003_versioned_migration.md: 86952b9ecd656eecf2b8b47020d19c3e2ee274af39e92f995ba55b2ca030e3ad

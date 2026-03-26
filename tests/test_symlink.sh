@@ -93,7 +93,7 @@ RULES_CHECKSUMS=".claude/doc-advisor/toc/rules/.toc_checksums.yaml"
 rm -f "$RULES_CHECKSUMS"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category rules 2>&1 || EXIT_CODE=$?
 
 test_result "create_checksums rules exit code" "0" "$EXIT_CODE"
 
@@ -117,7 +117,7 @@ SPECS_CHECKSUMS=".claude/doc-advisor/toc/specs/.toc_checksums.yaml"
 rm -f "$SPECS_CHECKSUMS"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target specs 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category specs 2>&1 || EXIT_CODE=$?
 
 test_result "create_checksums specs exit code" "0" "$EXIT_CODE"
 
@@ -134,13 +134,13 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 3: create_pending_yaml.py --target rules with symlinks"
+echo "Test 3: create_pending_yaml.py --category rules with symlinks"
 echo "=================================================="
 
 rm -rf ".claude/doc-advisor/toc/rules/.toc_work"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target rules --full 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --category rules --full 2>&1 || EXIT_CODE=$?
 
 test_result "create_pending_yaml rules exit code" "0" "$EXIT_CODE"
 
@@ -159,13 +159,13 @@ fi
 echo ""
 
 echo "=================================================="
-echo "Test 4: create_pending_yaml.py --target specs with symlinks"
+echo "Test 4: create_pending_yaml.py --category specs with symlinks"
 echo "=================================================="
 
 rm -rf ".claude/doc-advisor/toc/specs/.toc_work"
 
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --target specs --full 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/create_pending_yaml.py" --category specs --full 2>&1 || EXIT_CODE=$?
 
 test_result "create_pending_yaml specs exit code" "0" "$EXIT_CODE"
 
@@ -193,7 +193,7 @@ ln -sf "$TEST_PROJECT/rules/loop_test" "$TEST_PROJECT/rules/loop_test/self_loop"
 
 # This should not hang or crash
 EXIT_CODE=0
-timeout 30 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1 || EXIT_CODE=$?
+timeout 30 $PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category rules 2>&1 || EXIT_CODE=$?
 
 # Exit code 124 means timeout
 if [[ $EXIT_CODE -eq 124 ]]; then
@@ -219,7 +219,7 @@ echo "=================================================="
 ln -sf "$EXTERNAL_DIR/external_rules" "$TEST_PROJECT/rules/linked_rules_dup"
 
 rm -f "$RULES_CHECKSUMS"
-$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --target rules 2>&1
+$PYTHON_CMD "$SCRIPTS_DIR/create_checksums.py" --category rules 2>&1
 
 # Count occurrences of external_rule.md
 COUNT=$(grep -c "external_rule.md" "$RULES_CHECKSUMS" 2>/dev/null || echo "0")
@@ -263,7 +263,7 @@ EOF
 
 # validate_toc.py should accept symlinked paths without ValueError
 EXIT_CODE=0
-$PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --target rules 2>&1 || EXIT_CODE=$?
+$PYTHON_CMD "$SCRIPTS_DIR/validate_toc.py" --category rules 2>&1 || EXIT_CODE=$?
 test_result "Test 7 - validate_toc accepts symlinked paths in ToC" "0" "$EXIT_CODE"
 
 # Cleanup test ToC

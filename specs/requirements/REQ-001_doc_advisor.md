@@ -22,7 +22,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | FR-01-2 | 各カテゴリは1つ以上のルートディレクトリを設定できる                                                            |
 | FR-01-3 | ルートディレクトリ配下のサブディレクトリ構造は自由とする                                                       |
 | FR-01-4 | 除外パターンにより、スキャン対象から特定のディレクトリを除外できる                                             |
-| FR-01-5 | システムは `doc_type` でドキュメントを分類する。固定7種: rule, requirement, design, plan, api, reference, spec |
+| FR-01-5 | システムは `doc_type` でドキュメントを分類する。組み込み7種（rule, requirement, design, plan, api, reference, spec）+ カスタムタイプ可 |
 | FR-01-6 | `doc_type` とスキャンパスの対応は `.doc_structure.yaml` に `doc_types_map` として記述される                    |
 | FR-01-7 | ToC の各エントリにはファイルパスから判定した `doc_type` フィールドを自動付与する                               |
 
@@ -110,9 +110,9 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 
 | 用語                | 定義                                                                                                                                  |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| カテゴリ            | ドキュメントの大分類。`rule`（開発ルール）と `spec`（プロジェクト仕様）の2種類                                                        |
+| カテゴリ            | ドキュメントの大分類。`rule`（開発ルール）と `spec`（プロジェクト仕様）の2種類。スクリプト CLI では `--category` 引数で指定する         |
 | ルートディレクトリ  | 各カテゴリのスキャン起点となるディレクトリ。複数設定可能                                                                              |
-| doc_type            | ドキュメントの分類タイプ。固定7種: rule, requirement, design, plan, api, reference, spec                                              |
+| doc_type            | ドキュメントの分類タイプ。組み込み7種（rule, requirement, design, plan, api, reference, spec）+ カスタムタイプ可                      |
 | .doc_structure.yaml | Doc Advisor がランタイムで直接参照する文書構造設定ファイル。forge プラグインまたは `/setup-doc-structure` で作成する                         |
 | ToC                 | Table of Contents - ドキュメントの検索インデックスファイル                                                                            |
 | Skill               | Claude Code のスラッシュコマンドとして登録される機能単位                                                                              |

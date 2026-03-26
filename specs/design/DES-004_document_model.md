@@ -222,6 +222,13 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 | specs | reference | 補助文書（調査メモ、用語集） |
 | specs | spec | デフォルト（上記に該当しない仕様文書） |
 
+> **Note**: 上記は組み込みタイプである。`doc_types_map` に任意の識別子文字列を指定することでカスタムタイプも使用可能（例: `adr`）。
+>
+> **カスタムタイプの仕様**:
+> - `validate_toc.py` は `doc_type` を非空文字列としてのみ検証し、固定リストへの照合は行わない
+> - 検証ポリシー: フォーマット制約は設けない。タイポ検出はプロジェクトオーナーの責任とする
+> - 下流への影響: 検索スキル（`/query-rules`, `/query-specs`）は ToC 全件を AI が解釈する方式であり、カスタム doc_type の追加による動作影響はない
+
 #### ランタイム設定のマージ
 
 `toc_utils.py` の `load_config()` は以下の順序で設定を構築する:

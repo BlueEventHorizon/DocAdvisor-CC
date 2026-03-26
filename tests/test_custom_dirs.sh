@@ -122,7 +122,7 @@ PYTHON_CMD=python3
 echo "Using Python: $PYTHON_CMD"
 
 EXIT_CODE=0
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --category rules --full 2>/dev/null || EXIT_CODE=$?
 
 test_result "create_pending_yaml rules (custom)" "0" "$EXIT_CODE"
 
@@ -150,7 +150,7 @@ echo "Test 3-4: Run create_pending_yaml specs with custom dirs"
 echo "=================================================="
 
 EXIT_CODE=0
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || EXIT_CODE=$?
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --category specs --full 2>/dev/null || EXIT_CODE=$?
 
 test_result "create_pending_yaml specs (custom)" "0" "$EXIT_CODE"
 
@@ -204,7 +204,7 @@ open('.doc_structure.yaml', 'w').write(content)
 
 # Regenerate
 rm -rf .claude/doc-advisor/toc/specs/.toc_work
-$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --target specs --full 2>/dev/null || true
+$PYTHON_CMD .claude/doc-advisor/scripts/create_pending_yaml.py --category specs --full 2>/dev/null || true
 
 # Check that archive files are NOT included
 if ls .claude/doc-advisor/toc/specs/.toc_work/*archive*.yaml 1>/dev/null 2>&1; then

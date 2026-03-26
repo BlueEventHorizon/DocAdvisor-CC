@@ -8,7 +8,7 @@ Writes analysis results from subagent to pending YAML,
 changing status to completed.
 
 Usage:
-    python3 write_pending.py --target rules \
+    python3 write_pending.py --category rules \
       --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
       --title "Title" \
       --purpose "Purpose" \
@@ -17,7 +17,7 @@ Usage:
       --keywords "kw1 ||| kw2 ||| kw3 ||| kw4 ||| kw5"
 
 Error mode:
-    python3 write_pending.py --target rules \
+    python3 write_pending.py --category rules \
       --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
       --error --error-message "Source file not found"
 
@@ -48,8 +48,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Write analysis results to pending YAML'
     )
-    parser.add_argument('--target', required=True, choices=['rules', 'specs'],
-                        help='Target category: rules or specs')
+    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
+                        help='Document category: rules or specs')
     parser.add_argument('--entry-file', required=True,
                         help='Target entry YAML file path')
 
@@ -93,7 +93,7 @@ def validate_array(name, items, min_count):
     return True
 
 
-def write_error_yaml(filepath, meta, error_message, target):
+def write_error_yaml(filepath, meta, error_message, category):
     """
     Write error status to entry YAML file
 
@@ -101,7 +101,7 @@ def write_error_yaml(filepath, meta, error_message, target):
         filepath: Output file path
         meta: _meta section dict (source_file, doc_type preserved)
         error_message: Error description
-        target: 'rules' or 'specs'
+        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success
@@ -137,7 +137,7 @@ def write_error_yaml(filepath, meta, error_message, target):
         return False
 
 
-def write_entry_yaml(filepath, meta, entry, target):
+def write_entry_yaml(filepath, meta, entry, category):
     """
     Write entry YAML file
 
@@ -145,7 +145,7 @@ def write_entry_yaml(filepath, meta, entry, target):
         filepath: Output file path
         meta: _meta section dict
         entry: Entry data dict
-        target: 'rules' or 'specs'
+        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success
@@ -187,7 +187,7 @@ def write_entry_yaml(filepath, meta, entry, target):
 def main():
     args = parse_args()
 
-    target = args.target
+    category = args.category
     entry_file = Path(args.entry_file)
 
     # Path traversal check (CWE-22)
@@ -225,7 +225,7 @@ def main():
         if not args.error_message:
             print("Error: --error-message is required with --error")
             return 2
-        if not write_error_yaml(entry_file, meta, args.error_message, target):
+        if not write_error_yaml(entry_file, meta, args.error_message, category):
             return 4
         print(f"Entry error: {entry_file}")
         print(f"  source_file: {meta['source_file']}")
@@ -281,7 +281,7 @@ def main():
         'keywords': keywords
     }
     # Write
-    if not write_entry_yaml(entry_file, updated_meta, entry, target):
+    if not write_entry_yaml(entry_file, updated_meta, entry, category):
         return 4
 
     # Success message

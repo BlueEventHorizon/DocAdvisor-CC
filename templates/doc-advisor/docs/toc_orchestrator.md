@@ -1,6 +1,6 @@
 ---
 name: toc_orchestrator
-description: Orchestrator workflow for {target}_toc.yaml generation
+description: Orchestrator workflow for {category}_toc.yaml generation
 applicable_when:
   - Executing /create-rules-toc or /create-specs-toc skill
   - Coordinating ToC generation process
@@ -9,9 +9,9 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 # ToC Orchestrator Workflow
 
-Orchestrator workflow to generate/update `.claude/doc-advisor/toc/{target}/{target}_toc.yaml`.
+Orchestrator workflow to generate/update `.claude/doc-advisor/toc/{category}/{category}_toc.yaml`.
 
-> **Note**: `{target}` is either `rules` or `specs`, determined by the invoking SKILL.
+> **Note**: `{category}` is either `rules` or `specs`, determined by the invoking SKILL.
 
 ## Options
 
@@ -42,7 +42,7 @@ Read the following before processing:
 
 Before Phase 1, verify that document directories are configured:
 
-1. The skill's Pre-check step runs `check_config.sh {target}` which verifies
+1. The skill's Pre-check step runs `check_config.sh {category}` which verifies
    that `root_dirs` is set for the target category in `.doc_structure.yaml`
 2. If `check_config.sh` outputs a warning, stop and direct the user to run
    `/setup-doc-structure` first
@@ -53,7 +53,7 @@ Note: `.doc_structure.yaml` is referenced at runtime by load_config() (FR-08). `
 ### Phase 1: Initialization
 
 ````
-1. Check if .claude/doc-advisor/toc/{target}/.toc_work/ exists
+1. Check if .claude/doc-advisor/toc/{category}/.toc_work/ exists
     ↓
 [If exists] → Continue mode (jump to Phase 2)
     ↓
@@ -61,7 +61,7 @@ Note: `.doc_structure.yaml` is referenced at runtime by load_config() (FR-08). `
     ↓
 2. Mode determination
     - --full option → full mode
-    - {target}_toc.yaml doesn't exist → full mode
+    - {category}_toc.yaml doesn't exist → full mode
     - Otherwise → incremental mode
     ↓
 3. Create .toc_work/ directory
@@ -69,10 +69,10 @@ Note: `.doc_structure.yaml` is referenced at runtime by load_config() (FR-08). `
 4. Identify target files and generate pending YAML templates
     ```bash
     # Full mode
-    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target} --full
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category {category} --full
 
     # Incremental mode
-    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
+    python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category {category}
     ```
     ↓
 5. Determine format document
@@ -108,14 +108,14 @@ Note: `.doc_structure.yaml` is referenced at runtime by load_config() (FR-08). `
 Use `ls .toc_work/*.yaml` or `while read` loops instead.
 
 ```
-1. Identify pending status files from .claude/doc-advisor/toc/{target}/.toc_work/*.yaml
+1. Identify pending status files from .claude/doc-advisor/toc/{category}/.toc_work/*.yaml
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
 3. Use max_workers = 5 (default defined in toc_utils.py)
     CRITICAL: Launch up to N Task tool calls in a SINGLE assistant message.
     Do NOT launch them one at a time in separate messages — this defeats parallelism.
-    Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/{filename}.yaml, format_doc: {format_doc}")
+    Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/{filename}.yaml, format_doc: {format_doc}")
     ↓
 4. Wait for all N tasks to complete
     ↓
@@ -130,8 +130,8 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
     - All completed/error → Proceed to merge
     ↓
 2. Merge processing
-    - full: Generate new {target}_toc.yaml from .toc_work/*.yaml
-    - incremental: Combine existing {target}_toc.yaml + .toc_work/*.yaml + handle deletions
+    - full: Generate new {category}_toc.yaml from .toc_work/*.yaml
+    - incremental: Combine existing {category}_toc.yaml + .toc_work/*.yaml + handle deletions
     - Note: Skip error status files (output warning)
     ↓
 3. Run validation → **Check return value**
@@ -140,7 +140,7 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
     ↓
 4. Update checksums **only on validation success**
     ↓
-5. Cleanup (delete .claude/doc-advisor/toc/{target}/.toc_work/)
+5. Cleanup (delete .claude/doc-advisor/toc/{category}/.toc_work/)
     ↓
 6. Report completion
     - List error files with their error_message (from YAML _meta)
@@ -153,14 +153,14 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
 
 ## Pending YAML Template Generation
 
-Use the script to generate `.claude/doc-advisor/toc/{target}/.toc_work/{filename}.yaml` for each target file.
+Use the script to generate `.claude/doc-advisor/toc/{category}/.toc_work/{filename}.yaml` for each target file.
 
 ```bash
 # Full mode (all files)
-python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target} --full
+python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category {category} --full
 
 # Incremental mode (changed files only)
-python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target {target}
+python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category {category}
 ```
 
 The script handles:
@@ -177,7 +177,7 @@ The script handles:
 
 | Condition                            | Action                                                                      |
 | ------------------------------------ | --------------------------------------------------------------------------- |
-| `--full` + `.toc_work/` exists       | Bash: `rm -rf .claude/doc-advisor/toc/{target}/.toc_work` → Start full mode |
+| `--full` + `.toc_work/` exists       | Bash: `rm -rf .claude/doc-advisor/toc/{category}/.toc_work` → Start full mode |
 | `.toc_work/` exists + pending remain | Resume from pending (to Phase 2)                                            |
 | `.toc_work/` exists + all completed  | Go directly to merge phase (Phase 3)                                        |
 
@@ -188,14 +188,14 @@ The script handles:
 ### Step 1: Check Checksum File
 
 ```bash
-test -f .claude/doc-advisor/toc/{target}/.toc_checksums.yaml && echo "EXISTS" || echo "NOT_EXISTS"
+test -f .claude/doc-advisor/toc/{category}/.toc_checksums.yaml && echo "EXISTS" || echo "NOT_EXISTS"
 ```
 
 - If not exists → Fallback to full mode
 
 ### Step 2-3: Detect Changes
 
-The `create_pending_yaml.py --target {target}` script handles:
+The `create_pending_yaml.py --category {category}` script handles:
 
 1. Reading current file list and computing hashes
 2. Comparing with `.toc_checksums.yaml`
@@ -221,7 +221,7 @@ The `create_pending_yaml.py --target {target}` script handles:
 **If N=0 and M=0**:
 
 ```
-✅ No changes - {target}_toc.yaml is up to date
+✅ No changes - {category}_toc.yaml is up to date
 ```
 
 End processing (no need to create .toc_work/)
@@ -242,11 +242,11 @@ End processing (no need to create .toc_work/)
 ```
 # Launch 5 in parallel (filenames are SHA256 hashes of source paths)
 # format_doc is determined in Phase 1 step 5 (compact for 100+ files, full otherwise)
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/a1b2c3d4e5f67890.yaml, format_doc: {format_doc}")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/1234567890abcdef.yaml, format_doc: {format_doc}")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/fedcba0987654321.yaml, format_doc: {format_doc}")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/0123456789abcdef.yaml, format_doc: {format_doc}")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/abcdef0123456789.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/a1b2c3d4e5f67890.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/1234567890abcdef.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/fedcba0987654321.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/0123456789abcdef.yaml, format_doc: {format_doc}")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/abcdef0123456789.yaml, format_doc: {format_doc}")
 ```
 
 ---
@@ -257,53 +257,53 @@ Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/
 
 ```bash
 # 1. Merge
-python3 .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode full
+python3 .claude/doc-advisor/scripts/merge_toc.py --category {category} --mode full
 
 # 2. Validate (check return value)
-python3 .claude/doc-advisor/scripts/validate_toc.py --target {target}
+python3 .claude/doc-advisor/scripts/validate_toc.py --category {category}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
 #    Use Phase 1 snapshot instead of recalculating current hashes.
 #    This ensures files modified during Phase 2 will be re-processed next time.
-cp .claude/doc-advisor/toc/{target}/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/{target}/.toc_checksums.yaml
+cp .claude/doc-advisor/toc/{category}/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/{category}/.toc_checksums.yaml
 
 # 4. Cleanup
-rm -rf .claude/doc-advisor/toc/{target}/.toc_work
+rm -rf .claude/doc-advisor/toc/{category}/.toc_work
 ```
 
 ### Incremental Mode
 
 ```bash
 # 1. Merge
-python3 .claude/doc-advisor/scripts/merge_toc.py --target {target} --mode incremental
+python3 .claude/doc-advisor/scripts/merge_toc.py --category {category} --mode incremental
 
 # 2. Validate (check return value)
-python3 .claude/doc-advisor/scripts/validate_toc.py --target {target}
+python3 .claude/doc-advisor/scripts/validate_toc.py --category {category}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-cp .claude/doc-advisor/toc/{target}/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/{target}/.toc_checksums.yaml
+cp .claude/doc-advisor/toc/{category}/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/{category}/.toc_checksums.yaml
 
 # 4. Cleanup
-rm -rf .claude/doc-advisor/toc/{target}/.toc_work
+rm -rf .claude/doc-advisor/toc/{category}/.toc_work
 ```
 
 ### Delete-only Mode (N=0 and M>0)
 
 ```bash
 # 1. Delete only (no .toc_work/ needed)
-python3 .claude/doc-advisor/scripts/merge_toc.py --target {target} --delete-only
+python3 .claude/doc-advisor/scripts/merge_toc.py --category {category} --delete-only
 
 # 2. Validate (check return value)
-python3 .claude/doc-advisor/scripts/validate_toc.py --target {target}
+python3 .claude/doc-advisor/scripts/validate_toc.py --category {category}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .claude/doc-advisor/scripts/create_checksums.py --target {target}
+python3 .claude/doc-advisor/scripts/create_checksums.py --category {category}
 ```
 
 ---
@@ -354,7 +354,7 @@ When encountering unexpected errors (e.g., sandbox restrictions, permission erro
 ## Completion Report
 
 ```
-✅ {target}_toc.yaml has been updated
+✅ {category}_toc.yaml has been updated
 
 [Summary]
 - Mode: {full | incremental | continue}
@@ -368,5 +368,5 @@ When encountering unexpected errors (e.g., sandbox restrictions, permission erro
 → To retry: fix the source files and run incremental mode.
 
 [Cleanup]
-- Deleted .claude/doc-advisor/toc/{target}/.toc_work/
+- Deleted .claude/doc-advisor/toc/{category}/.toc_work/
 ```

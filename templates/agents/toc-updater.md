@@ -1,6 +1,6 @@
 ---
 name: toc-updater
-description: Specialized agent that generates ToC entries for a single document. Processes individual YAML files in .claude/doc-advisor/toc/{target}/.toc_work/.
+description: Specialized agent that generates ToC entries for a single document. Processes individual YAML files in .claude/doc-advisor/toc/{category}/.toc_work/.
 model: {{AGENT_MODEL}}
 color: orange
 tools: Read, Bash
@@ -9,9 +9,9 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 ## Overview
 
-Processes a single document (`.md` file) and completes the corresponding entry YAML in `.claude/doc-advisor/toc/{target}/.toc_work/`.
+Processes a single document (`.md` file) and completes the corresponding entry YAML in `.claude/doc-advisor/toc/{category}/.toc_work/`.
 
-**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-{target}-toc command) via parallel invocation.
+**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (create-{category}-toc command) via parallel invocation.
 
 ## EXECUTION RULES
 
@@ -23,8 +23,8 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 
 | Parameter    | Required | Description                                                                                          |
 | ------------ | -------- | ---------------------------------------------------------------------------------------------------- |
-| `target`     | Yes      | Target category: `rules` or `specs`                                                                  |
-| `entry_file` | Yes      | Path to the entry YAML file to process (e.g., `.claude/doc-advisor/toc/{target}/.toc_work/xxx.yaml`) |
+| `category`   | Yes      | Target category: `rules` or `specs`                                                                  |
+| `entry_file` | Yes      | Path to the entry YAML file to process (e.g., `.claude/doc-advisor/toc/{category}/.toc_work/xxx.yaml`) |
 | `format_doc` | No       | Path to format definition file (default: `.claude/doc-advisor/docs/toc_format.md`)                   |
 
 ## Required Reference Documents [MANDATORY]
@@ -42,7 +42,7 @@ Read the following before processing:
 
 ```bash
 python3 .claude/doc-advisor/scripts/write_pending.py \
-  --target {target} \
+  --category {category} \
   --entry-file "{entry_file}" \
   --title "{extracted title}" \
   --purpose "{extracted purpose}" \
@@ -63,7 +63,7 @@ If any step fails (file not found, empty file, read error, etc.):
 
 ```bash
 python3 .claude/doc-advisor/scripts/write_pending.py \
-  --target {target} \
+  --category {category} \
   --entry-file "{entry_file}" \
   --error --error-message "{brief error description}"
 ```

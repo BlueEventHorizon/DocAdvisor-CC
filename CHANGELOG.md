@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [5.1.0] - 2026-03-26
+
+### Changed
+- **CLI argument rename**: `--target` → `--category` across all Python scripts (5 files), Markdown templates (4 files), and test scripts (8 files) to align with REQ-001 terminology
+- **Custom doc_type support**: `doc_types_map` now officially supports custom type identifiers (e.g., `adr`) in addition to built-in 7 types. No code changes required — `validate_toc.py` already accepts any non-empty string
+- **Version identifier**: Updated from `5.0` to `5.1` across all managed files
+
+### Docs
+- Updated REQ-001 (FR-01-5, terminology definitions), DES-004 (doc_type list with custom type spec), DES-005 (component list with --category, validate_toc.py name fix)
+
+---
 ## [5.0.0] - 2026-03-15
 
 ### Added

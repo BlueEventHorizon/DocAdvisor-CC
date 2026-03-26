@@ -33,7 +33,7 @@ bash .claude/doc-advisor/scripts/check_config.sh rules
 ## Staleness Check
 
 ```bash
-python3 .claude/doc-advisor/scripts/create_pending_yaml.py --target rules --check
+python3 .claude/doc-advisor/scripts/create_pending_yaml.py --category rules --check
 ```
 
 - **WARNING output present** → Inform user of the warning message, then proceed to Procedure
