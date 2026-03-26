@@ -192,9 +192,9 @@ chmod +x *.sh
 | 17   | classify_dirs.py installed from template                      |
 | 18   | v3.9 set_root_dirs.py legacy cleanup                          |
 | 22   | v3.9 full legacy cleanup (all removed files)                  |
-| 23   | check_config.sh installed with exec permission (T-011)        |
+| 23   | check_doc_structure.sh installed with exec permission (T-011)        |
 | 24   | Skill Pre-check sections (T-012)                              |
-| 25   | check_config.sh behavior (FR-08) incl. specs & cross-category |
+| 25   | check_doc_structure.sh behavior (FR-08) incl. specs & cross-category |
 | 27   | validate_rules_toc.py abnormal input handling                 |
 | 28   | root_dirs: [] does not crash (IndexError guard)               |
 | 29   | write_pending.py --error keeps status: pending (not error)    |

@@ -206,7 +206,7 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 | T-008 | advisor agent 削除（v3.7）              | rules-advisor.md, specs-advisor.md が削除される                     |
 | T-009 | query-\* skill インストール             | query-rules/SKILL.md, query-specs/SKILL.md が存在する               |
 | T-010 | setup-config skill インストール（v4.0） | setup-config/SKILL.md が存在する                                    |
-| T-011 | check_config.sh コピー（v4.0）          | scripts/check_config.sh が存在し実行権限がある                      |
+| T-011 | check_doc_structure.sh コピー（v4.0）          | scripts/check_doc_structure.sh が存在し実行権限がある                      |
 | T-012 | スキル Pre-check（v4.0）                | create-_-toc, query-_ の SKILL.md に Pre-check セクションが含まれる |
 
 **テストスクリプト**: `tests/test_setup_upgrade.sh`
@@ -236,16 +236,16 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 
 **変更内容**:
 
-- `check_config.sh` を `templates/doc-advisor/scripts/` に追加
+- `check_doc_structure.sh` を `templates/doc-advisor/scripts/` に追加
 - 各スキル（create-_-toc, query-_）の SKILL.md 先頭に Pre-check ステップを追加
-- Pre-check は `check_config.sh` を実行し、出力があれば `/setup-config` を先に実行させる
+- Pre-check は `check_doc_structure.sh` を実行し、出力があれば `/setup-config` を先に実行させる
 
 **受入条件**:
 
-- [ ] setup.sh 実行後に `scripts/check_config.sh` が存在し実行権限がある
-- [ ] 対象カテゴリの `root_dirs` が `config.yaml` に設定済みの場合、`check_config.sh` は何も出力しない（`.doc_structure.yaml` がある場合は setup.sh が取り込み済みのため `root_dirs` は設定済み）
+- [ ] setup.sh 実行後に `scripts/check_doc_structure.sh` が存在し実行権限がある
+- [ ] 対象カテゴリの `root_dirs` が `config.yaml` に設定済みの場合、`check_doc_structure.sh` は何も出力しない（`.doc_structure.yaml` がある場合は setup.sh が取り込み済みのため `root_dirs` は設定済み）
 - [ ] 未設定時のみ `/setup-config` を案内する `[ACTION REQUIRED]` メッセージが出力される
-- [ ] `check_config.sh` はカテゴリ引数（rules/specs）を受け付け、対象カテゴリ単位で検証する
+- [ ] `check_doc_structure.sh` はカテゴリ引数（rules/specs）を受け付け、対象カテゴリ単位で検証する
 - [ ] 4 スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の SKILL.md に Pre-check セクションがある
 
 ---

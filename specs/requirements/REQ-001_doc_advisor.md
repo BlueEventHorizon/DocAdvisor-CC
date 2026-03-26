@@ -65,7 +65,7 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FR-06-1 | `setup.sh` は `.doc_structure.yaml` が存在しない場合、警告を表示し `/setup-doc-structure` の実行を案内する（エラー終了しない）                                                 |
 | FR-06-2 | `setup.sh` はテンプレートコピー・プレースホルダー置換を行う。`.doc_structure.yaml` がなければ作成を案内する。AI によるディレクトリ分類は行わない                        |
-| FR-06-3 | `setup.sh` は `check_config.sh` をテンプレートとしてコピーする（スキル Pre-check で使用）                                                                               |
+| FR-06-3 | `setup.sh` は `check_doc_structure.sh` をテンプレートとしてコピーする（スキル Pre-check で使用）                                                                               |
 
 ### FR-07: ディレクトリ分類（ターゲットプロジェクト側）
 
@@ -73,8 +73,8 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | FR-07-1 | `/setup-doc-structure` スキルは `classify_dirs.py` でプロジェクトをスキャンし、AI が `classification_rules.md` に基づいてディレクトリを分類する |
 | FR-07-2 | `/setup-doc-structure` スキルはユーザー確認後に `.doc_structure.yaml` を作成・更新する                                                           |
-| FR-07-3 | 各スキル（create-_-toc, query-_）の先頭で `check_config.sh` を実行し、`.doc_structure.yaml` の対象カテゴリの `root_dirs` 設定状態を検査する |
-| FR-07-4 | `check_config.sh` は未設定時のみ警告メッセージを出力し、`/setup-doc-structure` を先に実行させる（設定済みなら出力なし）                         |
+| FR-07-3 | 各スキル（create-_-toc, query-_）の先頭で `check_doc_structure.sh` を実行し、`.doc_structure.yaml` の対象カテゴリの `root_dirs` 設定状態を検査する |
+| FR-07-4 | `check_doc_structure.sh` は未設定時のみ警告メッセージを出力し、`/setup-doc-structure` を先に実行させる（設定済みなら出力なし）                         |
 
 ### FR-08: ランタイム設定原則
 
@@ -83,8 +83,8 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | FR-08-1 | `.doc_structure.yaml`（文書構造）とコードデフォルト（Doc Advisor 内部設定、`toc_utils.py` で定義）がランタイム設定を構成する                                                             |
 | FR-08-2 | `.doc_structure.yaml` はランタイムで直接参照する。セットアップ時のみの参照ではない                                                                                                      |
 | FR-08-3 | `.doc_structure.yaml` の有効条件: 対象カテゴリ（rules または specs）の `root_dirs` が記載されていること                                                                                  |
-| FR-08-4 | `check_config.sh` はスキル起動時に `.doc_structure.yaml` の `root_dirs` 設定を検証する。未設定の場合は警告を出力し `/setup-doc-structure` の実行を促す                                          |
-| FR-08-5 | `check_config.sh` の検証を通過した場合、後段スクリプトは root_dirs が有効であることを前提として動作してよい（二重検証は不要）                                                            |
+| FR-08-4 | `check_doc_structure.sh` はスキル起動時に `.doc_structure.yaml` の `root_dirs` 設定を検証する。未設定の場合は警告を出力し `/setup-doc-structure` の実行を促す                                          |
+| FR-08-5 | `check_doc_structure.sh` の検証を通過した場合、後段スクリプトは root_dirs が有効であることを前提として動作してよい（二重検証は不要）                                                            |
 | FR-08-6 | `.doc_structure.yaml` は先頭に `# doc_structure_version: 3.0` コメントを含む。Doc Advisor はこのバージョンを参照して互換性を判断する                                                      |
 
 ## 非機能要件
@@ -117,5 +117,5 @@ Doc Advisor は、プロジェクトのドキュメントを自動的にイン�
 | ToC                 | Table of Contents - ドキュメントの検索インデックスファイル                                                                            |
 | Skill               | Claude Code のスラッシュコマンドとして登録される機能単位                                                                              |
 | Agent               | Claude Code のサブエージェントとして内部的に起動されるワーカー                                                                        |
-| Pre-check           | スキル実行前に `check_config.sh` を呼び出し、設定状態を検証する仕組み                                                                 |
+| Pre-check           | スキル実行前に `check_doc_structure.sh` を呼び出し、設定状態を検証する仕組み                                                                 |
 | doc_structure_version | `.doc_structure.yaml` の形式バージョン。コメント形式（`# doc_structure_version: 3.0`）で記録。forge プラグインと Doc Advisor で共通    |

@@ -1,10 +1,10 @@
 #!/bin/bash
-# Doc Advisor config check: verify document directories are configured.
+# Doc Advisor doc_structure check: verify document directories are configured.
 # Called from skill Pre-check steps. If not configured, outputs a warning
 # that tells Claude to run /setup-doc-structure first.
 # Exit 0 with no output = directories are configured (OK).
 #
-# Usage: bash check_config.sh [rules|specs]
+# Usage: bash check_doc_structure.sh [rules|specs]
 #   With argument: check specific category's root_dirs
 #   Without argument: check if ANY root_dirs is set (backward compatibility)
 #
@@ -23,7 +23,7 @@ CATEGORY="${1:-}"
 }
 
 if [[ -n "$CATEGORY" ]]; then
-    # Category-specific check: look for root_dirs (v2.0) or paths (v1.0) within the target section
+    # Category-specific check: look for root_dirs (v2.0) or paths (v1.0) within the category section
     in_section=$(awk -v cat="$CATEGORY" '
         /^(rules|specs|common):/ { sub(/:.*/, ""); section = $0 }
         section == cat && /^  root_dirs:/ { found=1; exit }

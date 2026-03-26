@@ -33,7 +33,7 @@ Generate/update specs ToC (Table of Contents) for AI-searchable document index.
 Run the configuration check:
 
 ```bash
-bash .claude/doc-advisor/scripts/check_config.sh specs
+bash .claude/doc-advisor/scripts/check_doc_structure.sh specs
 ```
 
 - **No output** → Proceed to Execution Flow

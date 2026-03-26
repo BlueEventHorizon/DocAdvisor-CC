@@ -89,7 +89,7 @@ flowchart TD
 ### 設計思想
 
 - **`.doc_structure.yaml` + コードデフォルトがランタイム設定**: `.doc_structure.yaml` はランタイムで直接参照する
-- **入口集約**: check_config.sh を通過すれば後段スクリプトは二重検証不要
+- **入口集約**: check_doc_structure.sh を通過すれば後段スクリプトは二重検証不要
 - **ソフトゲート**: AI への指示として機能（スキル Pre-check で呼び出される）
 
 ### .doc_structure.yaml 確立フロー
@@ -107,13 +107,13 @@ flowchart TD
     E --> F[setup.sh 終了]
 ```
 
-> `.doc_structure.yaml` が存在すれば、doc-structure プラグインが分析済みの結果である。setup.sh は内容の妥当性を判定せず、そのまま使用する。root_dirs の有効性検証は setup.sh の責務ではなく、check_config.sh（スキル起動時）の責務である。
+> `.doc_structure.yaml` が存在すれば、doc-structure プラグインが分析済みの結果である。setup.sh は内容の妥当性を判定せず、そのまま使用する。root_dirs の有効性検証は setup.sh の責務ではなく、check_doc_structure.sh（スキル起動時）の責務である。
 
-#### 経路 B: /setup-doc-structure（check_config.sh の警告を契機に AI が実行）
+#### 経路 B: /setup-doc-structure（check_doc_structure.sh の警告を契機に AI が実行）
 
 ```mermaid
 flowchart TD
-    H[スキル起動] --> I[check_config.sh 実行]
+    H[スキル起動] --> I[check_doc_structure.sh 実行]
     I --> J{root_dirs 設定済み?}
     J -->|Yes| K[スキル本体へ]
     J -->|No| L["警告メッセージ出力"]
@@ -125,15 +125,15 @@ flowchart TD
     Q --> R[.doc_structure.yaml 有効]
 ```
 
-**重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_config.sh が警告を出力し、AI がそれを読み取って `/setup-doc-structure` の実行を判断する（自動実行ではなく、AI の判断による実行）。
+**重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_doc_structure.sh が警告を出力し、AI がそれを読み取って `/setup-doc-structure` の実行を判断する（自動実行ではなく、AI の判断による実行）。
 
-### check_config.sh 検証フロー
+### check_doc_structure.sh 検証フロー
 
 スキル起動時に `.doc_structure.yaml` の状態を検証する:
 
 ```mermaid
 flowchart TD
-    A[check_config.sh 実行] --> B{".doc_structure.yaml 存在?"}
+    A[check_doc_structure.sh 実行] --> B{".doc_structure.yaml 存在?"}
     B -->|No| C[警告出力<br>/setup-doc-structure の実行を促す]
     B -->|Yes| D{root_dirs 設定あり?}
     D -->|Yes| E[exit 0<br>設定 OK]

@@ -42,11 +42,11 @@ Read the following before processing:
 
 Before Phase 1, verify that document directories are configured:
 
-1. The skill's Pre-check step runs `check_config.sh {category}` which verifies
-   that `root_dirs` is set for the target category in `.doc_structure.yaml`
-2. If `check_config.sh` outputs a warning, stop and direct the user to run
+1. The skill's Pre-check step runs `check_doc_structure.sh {category}` which verifies
+   that `root_dirs` is set for the given category in `.doc_structure.yaml`
+2. If `check_doc_structure.sh` outputs a warning, stop and direct the user to run
    `/setup-doc-structure` first
-3. Once `check_config.sh` passes (no output), proceed to Phase 1
+3. Once `check_doc_structure.sh` passes (no output), proceed to Phase 1
 
 Note: `.doc_structure.yaml` is referenced at runtime by load_config() (FR-08). `root_dirs` must be configured in `.doc_structure.yaml` via `/setup-doc-structure` or forge plugin.
 

@@ -485,7 +485,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 23: check_config.sh installed with exec permission (T-011)"
+echo "Test 23: check_doc_structure.sh installed with exec permission (T-011)"
 echo "=================================================="
 
 setup_test_project
@@ -493,9 +493,9 @@ setup_test_project
 # Run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: check_config.sh exists and is executable
-test_result "check_config.sh exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh" ]] && echo 0 || echo 1)"
-test_result "check_config.sh is executable" "0" "$([[ -x "$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh" ]] && echo 0 || echo 1)"
+# Verify: check_doc_structure.sh exists and is executable
+test_result "check_doc_structure.sh exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh" ]] && echo 0 || echo 1)"
+test_result "check_doc_structure.sh is executable" "0" "$([[ -x "$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
@@ -503,11 +503,11 @@ echo "=================================================="
 echo "Test 24: Skill Pre-check sections (T-012)"
 echo "=================================================="
 
-# Verify: all 4 skills have Pre-check section referencing check_config.sh
+# Verify: all 4 skills have Pre-check section referencing check_doc_structure.sh
 ALL_PRECHECK_OK=true
 for SKILL_NAME in create-rules-toc create-specs-toc query-rules query-specs; do
     SKILL_FILE="$TEST_PROJECT/.claude/skills/$SKILL_NAME/SKILL.md"
-    if grep -q "Pre-check" "$SKILL_FILE" 2>/dev/null && grep -q "check_config.sh" "$SKILL_FILE" 2>/dev/null; then
+    if grep -q "Pre-check" "$SKILL_FILE" 2>/dev/null && grep -q "check_doc_structure.sh" "$SKILL_FILE" 2>/dev/null; then
         echo -e "${GREEN}PASS${NC}: $SKILL_NAME has Pre-check"
         ((PASS_COUNT++))
     else
@@ -520,7 +520,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 25: check_config.sh behavior (FR-08)"
+echo "Test 25: check_doc_structure.sh behavior (FR-08)"
 echo "=================================================="
 
 setup_test_project
@@ -528,7 +528,7 @@ setup_test_project
 # Run setup (.doc_structure.yaml has root_dirs)
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_config.sh"
+CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh"
 
 # Case 1: root_dirs set in .doc_structure.yaml → no output
 OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)

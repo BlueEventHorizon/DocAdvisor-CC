@@ -147,7 +147,7 @@ TARGET_DIR/
 │       ├── scripts/                 # Python/Shell スクリプト
 │       │   ├── toc_utils.py
 │       │   ├── classify_dirs.py         # ディレクトリスキャナー
-│       │   ├── check_config.sh          # スキル Pre-check スクリプト
+│       │   ├── check_doc_structure.sh          # スキル Pre-check スクリプト
 │       │   ├── create_checksums.py
 │       │   ├── create_pending_yaml.py   # --target rules|specs
 │       │   ├── write_pending.py         # --target rules|specs
@@ -257,7 +257,7 @@ v3.8 でディレクトリ選択機能を廃止。`config.yaml` の `root_dirs` 
 | `setup_dirs.sh` 廃止              | `/setup-config` スキルで完全に代替                                                              |
 | `--skip-doc-structure` フラグ廃止 | setup.sh はディレクトリ分類を行わないため不要                                                   |
 | `setup-config` スキル復活         | テンプレートとして `templates/skills/setup-config/SKILL.md` を配置。AI 駆動でディレクトリを分類 |
-| スキル Pre-check 導入             | `check_config.sh` を各スキルの先頭で呼び出し、未設定時は `/setup-config` を先に実行させる       |
+| スキル Pre-check 導入             | `check_doc_structure.sh` を各スキルの先頭で呼び出し、未設定時は `/setup-config` を先に実行させる       |
 
 ---
 
@@ -336,9 +336,9 @@ v5.0 で config.yaml を廃止。`.doc_structure.yaml` + コードデフォル�
 
 ### 概要
 
-各スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の先頭で `check_config.sh` を実行し、ドキュメントディレクトリが未設定の場合は `/setup-doc-structure` を先に実行させる。
+各スキル（create-rules-toc, create-specs-toc, query-rules, query-specs）の先頭で `check_doc_structure.sh` を実行し、ドキュメントディレクトリが未設定の場合は `/setup-doc-structure` を先に実行させる。
 
-### check_config.sh のチェック順序
+### check_doc_structure.sh のチェック順序
 
 1. `.doc_structure.yaml` が存在しない → 警告メッセージを出力（`/setup-doc-structure` の実行を促す）
 2. `.doc_structure.yaml` に `root_dirs:` が設定済み → 即 exit 0（出力なし = OK）
@@ -349,7 +349,7 @@ v5.0 で config.yaml を廃止。`.doc_structure.yaml` + コードデフォル�
 ```markdown
 ## Pre-check (MANDATORY - Run first)
 
-bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
+bash .claude/doc-advisor/scripts/check_doc_structure.sh {rules|specs}
 
 - No output → Proceed
 - Output present → STOP. Run /setup-doc-structure first, then restart this skill
@@ -391,7 +391,7 @@ bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 
 ### .doc_structure.yaml に root_dirs が未設定の場合
 
-スキルの Pre-check（check_config.sh）が未設定を検出し、`/setup-doc-structure` の実行を指示する:
+スキルの Pre-check（check_doc_structure.sh）が未設定を検出し、`/setup-doc-structure` の実行を指示する:
 
 1. Claude Code を起動
 2. `/create-rules-toc --full` を実行 → Pre-check が `/setup-doc-structure` の実行を指示
@@ -407,7 +407,7 @@ bash .claude/doc-advisor/scripts/check_config.sh {rules|specs}
 - v3.8 統合による旧ファイル（per-category scripts/agents/docs）は無条件削除される
 - setup.sh はテンプレートコピー・変数置換を行う。AI によるディレクトリ分類は行わない
 - `.doc_structure.yaml` がない場合は `/setup-doc-structure` スキルで作成する
-- 各スキルの Pre-check で `check_config.sh` を呼び出し、未設定時は `/setup-doc-structure` を先に実行させる
+- 各スキルの Pre-check で `check_doc_structure.sh` を呼び出し、未設定時は `/setup-doc-structure` を先に実行させる
 
 ## 関連ドキュメント
 

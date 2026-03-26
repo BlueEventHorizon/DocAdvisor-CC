@@ -25,7 +25,7 @@ Analyze task content and return a list of required specification document paths.
 Run the configuration check:
 
 ```bash
-bash .claude/doc-advisor/scripts/check_config.sh specs
+bash .claude/doc-advisor/scripts/check_doc_structure.sh specs
 ```
 
 - **No output** → Proceed to Staleness Check
