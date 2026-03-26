@@ -1,6 +1,6 @@
 ---
 name: toc_format
-description: Format definition for {target}_toc.yaml (Single Source of Truth)
+description: Format definition for {category}_toc.yaml (Single Source of Truth)
 applicable_when:
   - Creating or updating ToC entries
   - Validating rules_toc.yaml or specs_toc.yaml structure
@@ -11,7 +11,7 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 ## Purpose
 
-`.claude/doc-advisor/toc/{target}/{target}_toc.yaml` is the **single source of truth** for the subagent to identify documents needed for tasks.
+`.claude/doc-advisor/toc/{category}/{category}_toc.yaml` is the **single source of truth** for the subagent to identify documents needed for tasks.
 
 The quality of this file determines task execution success. **Missing information is not acceptable.**
 
@@ -50,7 +50,7 @@ Structure definition for work files used in individual entry file method.
 ### File Layout
 
 ```
-.claude/doc-advisor/toc/{target}/.toc_work/   # Work directory (.gitignore target)
+.claude/doc-advisor/toc/{category}/.toc_work/   # Work directory (.gitignore target)
 ├── {sha256_hash_16chars}.yaml
 └── ... (for each target file)
 ```
@@ -75,13 +75,13 @@ Hash-based naming avoids filename length limits, case-insensitive collisions, an
 
 ```yaml
 _meta:
-  source_file: {target}/path/to/document.md    # Path from project root
+  source_file: {category}/path/to/document.md    # Path from project root
   doc_type: requirement                        # Document type from .doc_structure.yaml
   status: pending                               # pending | completed | error
   error_message: null                            # Error details (only when status: error)
   updated_at: null                              # Completion time (ISO 8601 format)
 
-# Below: {target}_toc.yaml entry format (key uses source_file value)
+# Below: {category}_toc.yaml entry format (key uses source_file value)
 title: null
 purpose: null
 content_details: []

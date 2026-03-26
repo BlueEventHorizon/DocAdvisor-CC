@@ -1,6 +1,6 @@
 ---
 name: toc_update_workflow
-description: "{target}_toc.yaml update workflow (individual entry file method)"
+description: "{category}_toc.yaml update workflow (individual entry file method)"
 applicable_when:
   - Running as toc-updater Agent
   - Executing /create-rules-toc or /create-specs-toc
@@ -10,11 +10,11 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 # ToC Update Workflow
 
-> **Note**: `{target}` is either `rules` or `specs`, determined by the invoking SKILL.
+> **Note**: `{category}` is either `rules` or `specs`, determined by the invoking SKILL.
 
 ## Overview
 
-Workflow for updating `.claude/doc-advisor/toc/{target}/{target}_toc.yaml`. Uses **individual entry file method**, processing each document with independent subagents.
+Workflow for updating `.claude/doc-advisor/toc/{category}/{category}_toc.yaml`. Uses **individual entry file method**, processing each document with independent subagents.
 
 ## Architecture
 
@@ -28,12 +28,12 @@ Workflow for updating `.claude/doc-advisor/toc/{target}/{target}_toc.yaml`. Uses
 ### Directory Structure
 
 ```
-.claude/doc-advisor/toc/{target}/
-├── {target}_toc.yaml            # Final artifact (after merge)
+.claude/doc-advisor/toc/{category}/
+├── {category}_toc.yaml            # Final artifact (after merge)
 ├── .toc_checksums.yaml          # Change detection checksums
 └── .toc_work/                   # Work directory (.gitignore target)
-    ├── {target}_subdir_file1.yaml
-    ├── {target}_subdir_file2.yaml
+    ├── {category}_subdir_file1.yaml
+    ├── {category}_subdir_file2.yaml
     └── ... (for each target file)
 ```
 
@@ -52,7 +52,7 @@ Workflow for updating `.claude/doc-advisor/toc/{target}/{target}_toc.yaml`. Uses
 ## Workflow Overview
 
 ```
-/create-{target}-toc execution
+/create-{category}-toc execution
     ↓
 Phase 1: Initialization (Orchestrator)
     ↓
@@ -70,7 +70,7 @@ Cleanup
 ### Step 1.1: Check .toc_work/ status
 
 ```bash
-test -d .claude/doc-advisor/toc/{target}/.toc_work && echo "EXISTS" || echo "NOT_EXISTS"
+test -d .claude/doc-advisor/toc/{category}/.toc_work && echo "EXISTS" || echo "NOT_EXISTS"
 ```
 
 ### Step 1.2: Mode determination and branching
@@ -79,8 +79,8 @@ test -d .claude/doc-advisor/toc/{target}/.toc_work && echo "EXISTS" || echo "NOT
 | ---------------------------------------------------------- | ----------------------------------------------- |
 | `--full` option specified                                  | Delete .toc_work/ → New processing in full mode |
 | .toc_work/ exists                                          | Continue mode (process existing pending YAMLs)  |
-| .toc_work/ doesn't exist + {target}_toc.yaml doesn't exist | New processing in full mode                     |
-| .toc_work/ doesn't exist + {target}_toc.yaml exists        | Incremental mode                                |
+| .toc_work/ doesn't exist + {category}_toc.yaml doesn't exist | New processing in full mode                     |
+| .toc_work/ doesn't exist + {category}_toc.yaml exists        | Incremental mode                                |
 
 ### Step 1.3: Identify target files
 
@@ -97,7 +97,7 @@ Generate templates in `.toc_work/` for each target file.
 
 ### Step 2.1: Identify pending YAMLs
 
-Read `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` and identify files with `_meta.status: pending`
+Read `.claude/doc-advisor/toc/{category}/.toc_work/*.yaml` and identify files with `_meta.status: pending`
 
 ### Step 2.2: Launch subagents in parallel
 
@@ -105,8 +105,8 @@ Read `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` and identify files with
 
 ```
 # Orchestrator calls multiple Task tools in one message
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/xxx.yaml")
-Task(subagent_type: toc-updater, prompt: "target: {target}, entry_file: .claude/doc-advisor/toc/{target}/.toc_work/yyy.yaml")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/xxx.yaml")
+Task(subagent_type: toc-updater, prompt: "category: {category}, entry_file: .claude/doc-advisor/toc/{category}/.toc_work/yyy.yaml")
 ... (up to max_workers simultaneous)
 ```
 
@@ -151,21 +151,21 @@ Verify each `.toc_work/*.yaml` meets:
 1. Read all `.toc_work/*.yaml`
 2. Exclude `_meta` and convert to `docs` section
 3. Set `metadata` (generated_at, file_count)
-4. Write to `{target}_toc.yaml`
+4. Write to `{category}_toc.yaml`
 
 #### incremental mode
 
-1. Read existing `{target}_toc.yaml`
+1. Read existing `{category}_toc.yaml`
 2. Delete entries recorded in `.toc_checksums.yaml` but file doesn't exist
 3. Overwrite/add entries from `.toc_work/*.yaml` (exclude `_meta`)
 4. Update `metadata.generated_at`, `metadata.file_count`
-5. Write to `{target}_toc.yaml`
+5. Write to `{category}_toc.yaml`
 6. Update checksums: `cp .toc_work/.toc_checksums_pending.yaml .toc_checksums.yaml`
 
 ### Step 3.3: Cleanup
 
 ```bash
-rm -rf .claude/doc-advisor/toc/{target}/.toc_work
+rm -rf .claude/doc-advisor/toc/{category}/.toc_work
 ```
 
 ---

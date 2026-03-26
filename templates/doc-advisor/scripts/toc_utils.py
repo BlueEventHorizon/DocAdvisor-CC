@@ -150,7 +150,7 @@ def find_config_file():
     )
 
 
-def load_config(target=None):
+def load_config(category=None):
     """
     Load .doc_structure.yaml and merge with internal defaults.
 
@@ -158,7 +158,7 @@ def load_config(target=None):
     Internal defaults provide Doc Advisor settings (toc_file, checksums_file, work_dir, output, common).
 
     Args:
-        target: 'rules' or 'specs'. If specified, returns only that section
+        category: 'rules' or 'specs'. If specified, returns only that section
 
     Returns:
         dict: Configuration dictionary
@@ -168,8 +168,8 @@ def load_config(target=None):
     try:
         config_path = find_config_file()
     except FileNotFoundError:
-        if target:
-            return defaults.get(target, {})
+        if category:
+            return defaults.get(category, {})
         return defaults
 
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -191,8 +191,8 @@ def load_config(target=None):
             if 'root_dir' in sec and 'root_dirs' not in sec:
                 sec['root_dirs'] = [sec.pop('root_dir')]
 
-    if target:
-        return config.get(target, {})
+    if category:
+        return config.get(category, {})
     return config
 
 
