@@ -16,4 +16,5 @@ specs:
     documents/: spec
   patterns:
     target_glob: "**/*.md"
-    exclude: []
+    exclude:
+      - archive
