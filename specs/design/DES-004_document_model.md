@@ -222,6 +222,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 | specs | reference | 補助文書（調査メモ、用語集） |
 | specs | spec | デフォルト（上記に該当しない仕様文書） |
 
+> **Note**: 上記は組み込みタイプである。`doc_types_map` に任意の識別子文字列を指定することでカスタムタイプも使用可能（例: `adr`）。詳細は DES-006 参照。
+
 #### ランタイム設定のマージ
 
 `toc_utils.py` の `load_config()` は以下の順序で設定を構築する:

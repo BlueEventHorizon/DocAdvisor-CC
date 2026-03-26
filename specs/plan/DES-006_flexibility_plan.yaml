@@ -5,11 +5,11 @@ requirements_traceability:
   - requirement_id: FR-01
     title: ドキュメント管理
     design_id: DES-006
-    status: pending
+    status: completed
   - requirement_id: NFR-02
     title: 設定可能性
     design_id: DES-006
-    status: pending
+    status: completed
 
 design_traceability:
   - design_id: DES-006
@@ -69,7 +69,7 @@ tasks:
   - task_id: TASK-003
     title: "仕様書への反映（REQ-001, DES-004, DES-005）"
     priority: 60
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-002

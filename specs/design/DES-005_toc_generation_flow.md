@@ -20,12 +20,12 @@
 | コンポーネント     | 役割                  | 実装                                                      |
 | ------------------ | --------------------- | --------------------------------------------------------- |
 | Orchestrator       | 全体フロー制御        | `skills/create-*-toc/SKILL.md`                            |
-| Subagent           | 個別ファイル処理      | `agents/toc-updater.md`（`--target rules\|specs` で切替） |
+| Subagent           | 個別ファイル処理      | `agents/toc-updater.md`（`--category rules\|specs` で切替） |
 | Checksum Generator | ハッシュ計算          | `create_checksums.py`                                     |
-| Pending Generator  | pending YAML 生成     | `create_pending_yaml.py --target rules\|specs`            |
-| Writer             | pending YAML 書き込み | `write_pending.py --target rules\|specs`                  |
-| Merger             | エントリ統合          | `merge_toc.py --target rules\|specs`                      |
-| Validator          | 出力検証              | `validate_rules_toc.py` / `validate_specs_toc.py`         |
+| Pending Generator  | pending YAML 生成     | `create_pending_yaml.py --category rules\|specs`            |
+| Writer             | pending YAML 書き込み | `write_pending.py --category rules\|specs`                  |
+| Merger             | エントリ統合          | `merge_toc.py --category rules\|specs`                      |
+| Validator          | 出力検証              | `validate_toc.py`                                         |
 
 > **前提条件**: `.doc_structure.yaml` はプロジェクトルートに配置される文書構造の SSOT である。全スクリプトは `load_config()`（toc_utils.py）を経由して `.doc_structure.yaml` を読み込み、コードデフォルト（toc_file, checksums_file, work_dir, output, common）とマージした設定を使用する。
 
@@ -436,7 +436,7 @@ docs:
 
 ```mermaid
 flowchart TD
-    A[validate_specs_toc.py 実行] --> B[YAML 読み込み]
+    A[validate_toc.py 実行] --> B[YAML 読み込み]
     B --> C{構文エラー?}
     C -->|Yes| Z[exit 1]
     C -->|No| D[metadata 検証]
@@ -574,7 +574,7 @@ flowchart TD
 | -------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `query-rules`, `query-specs`           | **Skill** (`context: fork`) | ユーザー呼び出し (`/query-*`)、Claude 自動トリガー、隔離実行が必要                                     |
 | `create-rules-toc`, `create-specs-toc` | **Skill** (fork なし)       | ユーザー呼び出し (`/create-*-toc`) が必要。agent を並列起動するため fork 不可                          |
-| `toc-updater`                          | **Agent**                   | ツール制限 (`Read, Bash` のみ)、並列起動、system prompt の確実性が必要。`--target rules\|specs` で分岐 |
+| `toc-updater`                          | **Agent**                   | ツール制限 (`Read, Bash` のみ)、並列起動、system prompt の確実性が必要。`--category rules\|specs` で分岐 |
 
 ### 重要な制約: fork と subagent の関係
 
