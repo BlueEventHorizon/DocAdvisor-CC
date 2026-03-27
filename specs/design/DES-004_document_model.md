@@ -303,7 +303,7 @@ rules:
 
   output:
     header_comment: "Development documentation search index for query-rules skill"
-    metadata_name: "Development Documentation Search Index"
+    metadata_name: "Development Document Search Index"
 
 specs:
   root_dirs:
@@ -322,8 +322,8 @@ specs:
   # - /info/
 
   output:
-    header_comment: "Project specification search index for query-specs skill"
-    metadata_name: "Project Specification Search Index"
+    header_comment: "Project specification document search index for query-specs skill"
+    metadata_name: "Project Specification Document Search Index"
 
 common:
   parallel:

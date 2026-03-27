@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 # Synced from: bw-cc-plugins/plugins/doc-structure/scripts/classify_dirs.py
 """
 ディレクトリスキャンスクリプト（.doc_structure.yaml 生成用）

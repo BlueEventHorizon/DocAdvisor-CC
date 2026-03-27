@@ -21,11 +21,11 @@
 | ------------------ | --------------------- | --------------------------------------------------------- |
 | Orchestrator       | 全体フロー制御        | `skills/create-*-toc/SKILL.md`                            |
 | Subagent           | 個別ファイル処理      | `agents/toc-updater.md`（`--category rules\|specs` で切替） |
-| Checksum Generator | ハッシュ計算          | `create_checksums.py`                                     |
+| Checksum Generator | ハッシュ計算          | `create_checksums.py --category rules\|specs`               |
 | Pending Generator  | pending YAML 生成     | `create_pending_yaml.py --category rules\|specs`            |
 | Writer             | pending YAML 書き込み | `write_pending.py --category rules\|specs`                  |
 | Merger             | エントリ統合          | `merge_toc.py --category rules\|specs`                      |
-| Validator          | 出力検証              | `validate_toc.py`                                         |
+| Validator          | 出力検証              | `validate_toc.py --category rules\|specs`                   |
 
 > **前提条件**: `.doc_structure.yaml` はプロジェクトルートに配置される文書構造の SSOT である。全スクリプトは `load_config()`（toc_utils.py）を経由して `.doc_structure.yaml` を読み込み、コードデフォルト（toc_file, checksums_file, work_dir, output, common）とマージした設定を使用する。
 

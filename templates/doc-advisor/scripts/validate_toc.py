@@ -23,7 +23,7 @@ ToC 検査スクリプト（rules / specs 共通）
 import sys
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, resolve_config_path, validate_path_within_base
+from toc_utils import get_project_root, load_config, resolve_config_path, validate_path_within_base, expand_root_dir_globs
 
 # Global configuration (initialized in init_config())
 CATEGORY = None  # 'rules' or 'specs'
@@ -60,6 +60,8 @@ def init_config(category):
     root_dirs_config = CONFIG.get('root_dirs', [f'{category}/'])
     if isinstance(root_dirs_config, str):
         root_dirs_config = [root_dirs_config]
+    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
+    root_dirs_config = expand_root_dir_globs(root_dirs_config, PROJECT_ROOT)
     # root_dirs_config が空の場合は PROJECT_ROOT / category をフォールバックとして使用する
     CATEGORY_DIR = (
         PROJECT_ROOT / root_dirs_config[0].rstrip('/')
@@ -124,7 +126,11 @@ def load_existing_toc(toc_path):
                     key, _, val = stripped.partition(':')
                     key = key.strip()
                     val = val.strip().strip('"\'')
-                    if val:
+                    if val == '[]':
+                        # Inline empty array (e.g., "keywords: []")
+                        current_list = []
+                        current_entry[key] = current_list
+                    elif val:
                         current_entry[key] = val
                     else:
                         current_list = []
@@ -210,7 +216,7 @@ def validate_toc(toc_path):
         errors.extend(field_errors)
 
     # 3. ファイル参照検査
-    # キーはプロジェクトルートからの相対パス（例: {target}/core/doc.md）
+    # キーはプロジェクトルートからの相対パス（例: {category}/core/doc.md）
     file_errors = []
     for file_path in docs.keys():
         try:

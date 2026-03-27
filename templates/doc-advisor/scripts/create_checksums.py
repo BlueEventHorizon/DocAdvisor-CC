@@ -13,11 +13,78 @@ rules/ または specs/ 配下の全 .md ファイルの SHA-256 ハッシュを
 """
 
 import sys
+import argparse
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
 from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path, expand_root_dir_globs
+
+# Global configuration (initialized in init_config())
+CATEGORY = None  # 'rules' or 'specs'
+CONFIG = None
+PROJECT_ROOT = None
+ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
+CHECKSUMS_FILE = None
+PATTERNS_CONFIG = None
+TARGET_GLOB = None
+EXCLUDE_PATTERNS = None
+
+
+def parse_args():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description='Generate .toc_checksums.yaml for incremental mode detection'
+    )
+    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
+                        help='Document category: rules or specs')
+    return parser.parse_args()
+
+
+def init_config(category):
+    """
+    Initialize configuration.
+
+    Args:
+        category: 'rules' or 'specs'
+
+    Returns:
+        bool: True on success, False on failure
+    """
+    global CATEGORY, CONFIG, PROJECT_ROOT, ROOT_DIRS, CHECKSUMS_FILE
+    global PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS
+
+    CATEGORY = category
+
+    try:
+        CONFIG = load_config(category)
+        PROJECT_ROOT = get_project_root()
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        return False
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        return False
+
+    default_dir = f'{category}/'
+    root_dirs_config = CONFIG.get('root_dirs', [default_dir])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
+    root_dirs_config = expand_root_dir_globs(root_dirs_config, PROJECT_ROOT)
+    ROOT_DIRS = []
+    for entry in root_dirs_config:
+        name = entry.rstrip('/')
+        ROOT_DIRS.append((PROJECT_ROOT / name, name))
+
+    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / category
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'),
+                                          first_dir, PROJECT_ROOT)
+    PATTERNS_CONFIG = CONFIG.get('patterns', {})
+    TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
+    # System patterns (always excluded) + user-defined patterns
+    EXCLUDE_PATTERNS = get_system_exclude_patterns(category) + PATTERNS_CONFIG.get('exclude', [])
+    return True
 
 
 def calculate_file_hash(filepath):
@@ -38,17 +105,8 @@ def calculate_file_hash(filepath):
         return None
 
 
-def find_md_files_rules(root_dir, exclude_patterns, target_glob="**/*.md"):
-    """rules/ 配下の全 .md ファイルを検索（シンボリックリンク対応）"""
-    md_files = []
-    for filepath in rglob_follow_symlinks(root_dir, target_glob):
-        if not should_exclude(filepath, root_dir, exclude_patterns):
-            md_files.append(filepath)
-    return sorted(md_files)
-
-
-def find_md_files_specs(root_dir, exclude_patterns, target_glob):
-    """specs/ 配下の .md ファイルを検索（シンボリックリンク対応）"""
+def find_md_files(root_dir, exclude_patterns, target_glob="**/*.md"):
+    """指定ディレクトリ配下の全 .md ファイルを検索（シンボリックリンク対応）"""
     md_files = []
     for filepath in rglob_follow_symlinks(root_dir, target_glob):
         if not should_exclude(filepath, root_dir, exclude_patterns):
@@ -84,65 +142,27 @@ def write_checksums_yaml(checksums, output_path, category):
 
 
 def main():
-    # オプション解析
-    if '--category' not in sys.argv:
-        print("エラー: --category オプションが必要です（rules または specs）")
-        print("使用方法: python3 create_checksums.py --category rules")
-        print("         python3 create_checksums.py --category specs")
-        return 1
+    args = parse_args()
 
-    idx = sys.argv.index('--category')
-    if idx + 1 >= len(sys.argv):
-        print("エラー: --category の値が指定されていません")
-        return 1
-
-    category = sys.argv[idx + 1]
-    if category not in ('rules', 'specs'):
-        print(f"エラー: --category は 'rules' または 'specs' を指定してください（指定: {category}）")
+    # Initialize configuration
+    if not init_config(args.category):
         return 1
 
     print("=" * 50)
-    print(f".toc_checksums.yaml 生成スクリプト（{category}）")
+    print(f".toc_checksums.yaml 生成スクリプト（{CATEGORY}）")
     print("=" * 50)
-
-    # 設定読み込み
-    config = load_config(category)
-    try:
-        project_root = get_project_root()
-    except RuntimeError as e:
-        print(f"エラー: {e}")
-        return 1
-
-    root_dirs_config = config.get('root_dirs', [f'{category}/'])
-    if isinstance(root_dirs_config, str):
-        root_dirs_config = [root_dirs_config]
-    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
-    root_dirs_config = expand_root_dir_globs(root_dirs_config, project_root)
-    # root_dirs_config が空の場合は project_root / category をフォールバックとして使用する
-    first_root_dir = project_root / root_dirs_config[0].rstrip('/') if root_dirs_config else project_root / category
-    output_file = resolve_config_path(config.get('checksums_file', '.toc_checksums.yaml'),
-                                       first_root_dir, project_root)
-    patterns_config = config.get('patterns', {})
-    target_glob = patterns_config.get('target_glob', '**/*.md')
-    # System patterns (always excluded) + user-defined patterns
-    exclude_patterns = get_system_exclude_patterns(category) + patterns_config.get('exclude', [])
 
     # Ensure output directory exists
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+    CHECKSUMS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     # 対象ファイル検索（複数 root_dirs 対応）
     md_files = []
     root_dir_map = {}  # filepath → (root_dir, root_dir_name)
-    for root_dir_entry in root_dirs_config:
-        root_dir_name = root_dir_entry.rstrip('/')
-        root_dir = project_root / root_dir_name
+    for root_dir, root_dir_name in ROOT_DIRS:
         if not root_dir.exists():
             print(f"警告: {root_dir} が存在しません、スキップします")
             continue
-        if category == 'rules':
-            files = find_md_files_rules(root_dir, exclude_patterns, target_glob)
-        else:
-            files = find_md_files_specs(root_dir, exclude_patterns, target_glob)
+        files = find_md_files(root_dir, EXCLUDE_PATTERNS, TARGET_GLOB)
         for f in files:
             root_dir_map[f] = (root_dir, root_dir_name)
         md_files.extend(files)
@@ -178,10 +198,10 @@ def main():
         return 1
 
     # 出力
-    if not write_checksums_yaml(checksums, output_file, category):
+    if not write_checksums_yaml(checksums, CHECKSUMS_FILE, CATEGORY):
         return 1
 
-    print(f"\n✅ 生成完了: {output_file}")
+    print(f"\n✅ 生成完了: {CHECKSUMS_FILE}")
     print(f"   - ファイル数: {len(checksums)}")
 
     return 0
