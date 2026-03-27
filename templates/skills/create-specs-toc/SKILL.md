@@ -43,7 +43,7 @@ bash .claude/doc-advisor/scripts/check_doc_structure.sh specs
 
 1. Read `.claude/doc-advisor/docs/toc_orchestrator.md` for orchestrator workflow
 2. Read `.claude/doc-advisor/docs/toc_format.md` for format definition
-3. Execute the full orchestrator workflow as described in the document, with **target = specs**
+3. Execute the full orchestrator workflow as described in the document, with **category = specs**
    - If `$0` = `--full`: Execute in **full mode** (rebuild entire ToC)
    - Otherwise: Execute in **incremental mode** (process changes only)
 
