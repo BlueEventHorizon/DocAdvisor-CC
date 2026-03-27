@@ -10,7 +10,7 @@ description: |
   - Before starting implementation work
 context: fork
 agent: general-purpose
-model: {{AGENT_MODEL}}
+model: haiku
 user-invocable: true
 argument-hint: "[task description]"
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}

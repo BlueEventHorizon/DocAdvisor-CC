@@ -68,12 +68,13 @@ else
     echo -e "${GREEN}PASS: python3 hardcoded in toc_orchestrator.md${NC}"
 fi
 
-# Check AGENT_MODEL substitution (in toc_orchestrator docs)
-if grep -q "{{AGENT_MODEL}}" .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null; then
-    echo -e "${RED}FAIL: AGENT_MODEL not substituted${NC}"
+# Check no {{...}} placeholders remain in installed files
+if grep -rq '{{[A-Z_]*}}' .claude/ 2>/dev/null; then
+    echo -e "${RED}FAIL: Unsubstituted placeholder found in .claude/${NC}"
+    grep -r '{{[A-Z_]*}}' .claude/ 2>/dev/null
     exit 1
 else
-    echo -e "${GREEN}PASS: AGENT_MODEL substituted${NC}"
+    echo -e "${GREEN}PASS: No unsubstituted placeholders in .claude/${NC}"
 fi
 
 echo ""

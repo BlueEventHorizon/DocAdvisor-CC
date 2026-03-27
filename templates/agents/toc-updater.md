@@ -1,7 +1,7 @@
 ---
 name: toc-updater
 description: Specialized agent that generates ToC entries for a single document. Processes individual YAML files in .claude/doc-advisor/toc/{category}/.toc_work/.
-model: {{AGENT_MODEL}}
+model: haiku
 color: orange
 tools: Read, Bash
 doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}

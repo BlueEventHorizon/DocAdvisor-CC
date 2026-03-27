@@ -24,24 +24,9 @@ display_path() { printf '%s' "${1/#$HOME/\~}"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 
-# Agent model (opus, sonnet, haiku, inherit)
-DEFAULT_AGENT_MODEL="opus"
-
-# Load previous settings if available (safe key=value parser, no source)
-_load_last_setup() {
-    local file="$1"
-    while IFS= read -r line; do
-        # Skip comments and empty lines
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "${line// /}" ]] && continue
-        # Only accept KEY="value" or KEY=value where KEY is a known variable
-        if [[ "$line" =~ ^LAST_AGENT_MODEL=\"?([a-z]+)\"?$ ]]; then
-            DEFAULT_AGENT_MODEL="${BASH_REMATCH[1]}"
-        fi
-    done < "$file"
-}
+# Load previous settings if available (reserved for future use)
 if [[ -f "$LAST_SETUP_FILE" ]]; then
-    _load_last_setup "$LAST_SETUP_FILE"
+    : # No settings to load currently
 fi
 
 # Parse arguments
@@ -150,31 +135,10 @@ else
 fi
 echo ""
 
-# =============================================================================
-# Agent model selection
-# =============================================================================
-
-echo "Configure agent model (opus, sonnet, haiku, inherit):"
-read -p "  Agent model [${DEFAULT_AGENT_MODEL}]: " AGENT_MODEL
-AGENT_MODEL="${AGENT_MODEL:-$DEFAULT_AGENT_MODEL}"
-
-# Validate agent model
-case "$AGENT_MODEL" in
-    opus|sonnet|haiku|inherit)
-        ;;
-    *)
-        printf "${RED}Warning: Unknown model '$AGENT_MODEL'. Using 'opus' as default.${NC}\n"
-        AGENT_MODEL="opus"
-        ;;
-esac
-
 # python3 works correctly via Claude Code's shell wrapper (wrapSafeChainCommand
 # resolves to the pyenv-managed interpreter). No full-path detection needed.
 PYTHON_CMD="python3"
 
-echo ""
-echo "Configuration:"
-printf "  AGENT_MODEL: ${BLUE}${AGENT_MODEL}${NC}\n"
 echo ""
 
 # Create directories
@@ -364,14 +328,12 @@ copy_and_substitute() {
 
     [[ -f "$src" ]] || return 0
 
-    local esc_model esc_version
-    esc_model=$(_sed_escape "${AGENT_MODEL}")
+    local esc_version
     esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
 
     # Generate substituted content
     local new_content
-    new_content=$(sed -e "s|{{AGENT_MODEL}}|${esc_model}|g" \
-        -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
+    new_content=$(sed -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
         "$src")
 
     # If target file exists, compare content excluding version identifier line
@@ -481,10 +443,9 @@ echo "    agents/            # Worker agents (toc-updater)"
 echo "    skills/            # Skills (query-*, create-*-toc)"
 echo "    doc-advisor/       # Docs, scripts, ToC files"
 
-# Save settings for next run
+# Save settings for next run (reserved for future use)
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
-LAST_AGENT_MODEL="${AGENT_MODEL}"
 EOF
 
 echo ""
