@@ -13,7 +13,7 @@ Doc Advisor は、Claude Code 向けのドキュメント検索基盤ツール�
 ### アーキテクチャ
 
 ```
-DocAdvisor-CC/
+DocAdvisor/
 ├── templates/          ← コピー元テンプレート（修正対象はここ）
 │   ├── doc-advisor/    ← docs, scripts
 │   ├── agents/         ← ワーカーエージェント定義

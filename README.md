@@ -116,11 +116,11 @@ Otherwise, run the classification skill:
 
 ## Configuration
 
-Config file: `.claude/doc-advisor/config.yaml`
+Config file: `.doc_structure.yaml` (project root)
 
-- Customize `rules` / `specs` root directories and doc_type directory names
+- Customize `rules` / `specs` root directories and doc_type mappings
 - Add user-defined exclude patterns as needed
-- System files (`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`) are always excluded
+- Doc Advisor internal settings (toc paths, parallelism) are built-in defaults
 
 ## Documentation
 
