@@ -124,32 +124,35 @@ cd DocAdvisor-CC
 これにより、必要なファイルがプロジェクトにコピーされます：
 
 ```
-your-project/.claude/
-├── agents/            # ワーカーエージェント（toc-updater）
-├── skills/
-│   ├── query-rules/
-│   │   └── SKILL.md   # rules ドキュメント検索スキル
-│   ├── query-specs/
-│   │   └── SKILL.md   # specs ドキュメント検索スキル
-│   ├── create-rules-toc/
-│   │   └── SKILL.md   # rules ToC 生成スキル
-│   └── create-specs-toc/
-│       └── SKILL.md   # specs ToC 生成スキル
-└── doc-advisor/       # すべてのリソースとランタイム出力
-    ├── config.yaml
-    ├── docs/
-    ├── scripts/
-    └── toc/           # ToC ファイル
+your-project/
+├── .doc_structure.yaml              # ドキュメント構造設定
+└── .claude/
+    ├── agents/            # ワーカーエージェント（toc-updater）
+    ├── skills/
+    │   ├── setup-doc-structure/
+    │   │   └── SKILL.md   # ドキュメントディレクトリ自動分類スキル
+    │   ├── query-rules/
+    │   │   └── SKILL.md   # rules ドキュメント検索スキル
+    │   ├── query-specs/
+    │   │   └── SKILL.md   # specs ドキュメント検索スキル
+    │   ├── create-rules-toc/
+    │   │   └── SKILL.md   # rules ToC 生成スキル
+    │   └── create-specs-toc/
+    │       └── SKILL.md   # specs ToC 生成スキル
+    └── doc-advisor/       # すべてのリソースとランタイム出力
+        ├── docs/
+        ├── scripts/
+        └── toc/           # ToC ファイル
 ```
 
-セットアップは対話形式で以下を聞いてきます：
+ターゲットプロジェクトに `.doc_structure.yaml` があれば、ドキュメントディレクトリは自動設定されます。
+なければ、セットアップ後に Claude Code で `/setup-doc-structure` を実行してください。
 
-- Rules ディレクトリ（デフォルト: `rules/`）
-- Specs ディレクトリ（デフォルト: `specs/`）
-- Requirements サブディレクトリ名（デフォルト: `requirements`）
-- Design サブディレクトリ名（デフォルト: `design`）
-- Plan サブディレクトリ名（デフォルト: `plan`）
-- Agent model（デフォルト: `opus`、`opus/sonnet/haiku/inherit`）
+セットアップ後にエージェントモデルを変更する場合：
+
+```bash
+bash .claude/doc-advisor/scripts/change_agent_model.sh <haiku|sonnet|opus|inherit>
+```
 
 ### 3. Claude Code を起動
 
@@ -217,7 +220,7 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 
 スクリプトは以下の設定ファイルを使用します：
 
-- `.claude/doc-advisor/config.yaml`
+- `.doc_structure.yaml`（プロジェクトルート）
 
 ### ToC 生成フロー
 
@@ -260,12 +263,13 @@ make setup TARGET=/path/to/your-project  # ターゲット指定
 ### テンプレートリポジトリ
 
 ```
-DocAdvisor-CC/
+DocAdvisor/
 ├── templates/
 │   ├── agents/                 # ワーカーエージェントテンプレート
-│   │   ├── rules-toc-updater.md
-│   │   └── specs-toc-updater.md
+│   │   └── toc-updater.md
 │   ├── skills/
+│   │   ├── setup-doc-structure/
+│   │   │   └── SKILL.md        # ドキュメントディレクトリ自動分類スキル
 │   │   ├── query-rules/
 │   │   │   └── SKILL.md        # rules ドキュメント検索スキル
 │   │   ├── query-specs/
@@ -275,7 +279,6 @@ DocAdvisor-CC/
 │   │   └── create-specs-toc/
 │   │       └── SKILL.md        # specs ToC 生成スキル
 │   └── doc-advisor/            # ToC 生成リソース
-│       ├── config.yaml         # 設定テンプレート
 │       ├── docs/               # オーケストレータ、フォーマット、ワークフロー文書
 │       └── scripts/            # Python スクリプト
 ├── setup.sh                    # プロジェクトセットアップスクリプト
@@ -287,11 +290,13 @@ DocAdvisor-CC/
 
 ```
 your-project/
+├── .doc_structure.yaml         # ドキュメント構造設定
 ├── .claude/
 │   ├── agents/
-│   │   ├── rules-toc-updater.md
-│   │   └── specs-toc-updater.md
+│   │   └── toc-updater.md
 │   ├── skills/
+│   │   ├── setup-doc-structure/
+│   │   │   └── SKILL.md        # ドキュメントディレクトリ自動分類スキル
 │   │   ├── query-rules/
 │   │   │   └── SKILL.md        # rules ドキュメント検索スキル
 │   │   ├── query-specs/
@@ -301,7 +306,6 @@ your-project/
 │   │   └── create-specs-toc/
 │   │       └── SKILL.md        # specs ToC 生成スキル
 │   └── doc-advisor/            # すべてのリソースとランタイム出力
-│       ├── config.yaml         # 設定
 │       ├── docs/               # オーケストレータ、フォーマット、ワークフロー文書
 │       ├── scripts/            # Python スクリプト
 │       └── toc/                # ランタイム出力
@@ -324,66 +328,43 @@ your-project/
 
 ### プロジェクト設定
 
-`.claude/doc-advisor/config.yaml` にあります：
+プロジェクトルートの `.doc_structure.yaml` で管理します：
 
 ```yaml
-# === rules 設定 ===
-rules:
-  root_dir: rules
-  toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
-  work_dir: .claude/doc-advisor/toc/rules/.toc_work/
+# doc_structure_version: 3.0
 
+rules:
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
   patterns:
     target_glob: "**/*.md"
-    exclude:
-  # - reference    # 必要に応じてコメント解除
-  # - archive
+    exclude: []
 
-  output:
-    header_comment: "Development documentation search index for rules-advisor subagent"
-    metadata_name: "Development Documentation Search Index"
-
-# === specs 設定 ===
 specs:
-  root_dir: specs
-  toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
-  work_dir: .claude/doc-advisor/toc/specs/.toc_work/
-
+  root_dirs:
+    - specs/
+  doc_types_map:
+    specs/requirements/: requirement
+    specs/design/: design
+    specs/plan/: plan
   patterns:
-    target_dirs:
-      requirement: requirements
-      design: design
-    exclude:
-      - plan # 作業中に全文読むため、検索不要
-  # - reference
-  # - /info/
-
-  output:
-    header_comment: "Requirements and design document search index for specs-advisor subagent"
-    metadata_name: "Requirements and Design Document Search Index"
-
-# === 共通設定 ===
-common:
-  parallel:
-    max_workers: 5
-    fallback_to_serial: true
+    target_glob: "**/*.md"
+    exclude: []
 ```
 
-> **注**: システムファイル（`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`）は自動的に除外されるため、設定に記載する必要はありません。
+Doc Advisor 内部設定（ToC パス・チェックサムパス・作業ディレクトリ・並列数）はコードデフォルトで管理されており、このファイルには含まれません。
+
+> **注**: システムファイル（`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`）は自動的に除外されます。
 > **注**: 除外パターンはディレクトリパスに対して判定されます（ファイル名は対象外）。
 
 ### 設定のカスタマイズ
 
-プロジェクト設定ファイルを直接編集するか、セットアップを再実行：
+Claude Code で `/setup-doc-structure` を実行して自動検出・更新するか、直接編集：
 
 ```bash
-# 対話形式で再セットアップ
-./setup.sh /path/to/your-project
-
-# または直接編集
-nano /path/to/your-project/.claude/doc-advisor/config.yaml
+nano /path/to/your-project/.doc_structure.yaml
 ```
 
 ## 処理モード
@@ -444,14 +425,14 @@ ls -la /path/to/your-project/.claude/agents/
 - `.claude/skills/doc-advisor/`（削除、分割されたスキルに置き換え）
 - `.claude/doc-advisor/docs/`（テンプレートから再作成）
 
-**インストール**（v3.7+ 構造）:
+**インストール**（v3.8+ 構造）:
 
-- `.claude/agents/`（rules-toc-updater, specs-toc-updater）
+- `.claude/agents/toc-updater.md`（統合ワーカーエージェント）
+- `.claude/skills/setup-doc-structure/SKILL.md`（ドキュメントディレクトリ自動分類）
 - `.claude/skills/query-rules/SKILL.md`（rules ドキュメント検索）
 - `.claude/skills/query-specs/SKILL.md`（specs ドキュメント検索）
 - `.claude/skills/create-rules-toc/SKILL.md`（rules ToC 生成）
 - `.claude/skills/create-specs-toc/SKILL.md`（specs ToC 生成）
-- `.claude/doc-advisor/config.yaml`
 - `.claude/doc-advisor/docs/`
 - `.claude/doc-advisor/scripts/`
 - `.claude/doc-advisor/toc/rules/`（ToC 出力）
@@ -461,13 +442,6 @@ ls -la /path/to/your-project/.claude/agents/
 
 - `.claude/commands/your-custom-command.md`（他のコマンド）
 - `.claude/agents/your-custom-agent.md`（doc-advisor 以外のエージェント）
-
-**config.yaml の処理**:
-
-- `.claude/doc-advisor/config.yaml` が既に存在する場合、以下を選択：
-  - `[o]` 上書き（config.yaml.bak にバックアップ）
-  - `[s]` スキップ（既存設定を保持）
-  - `[m]` 手動マージ（セットアップ後に差分表示）
 
 ### アップグレード後
 

@@ -114,11 +114,11 @@ claude
 
 ## 設定
 
-設定ファイル: `.claude/doc-advisor/config.yaml`
+設定ファイル: `.doc_structure.yaml`（プロジェクトルート）
 
-- `rules` / `specs` のルートディレクトリや doc_type ディレクトリ名を変更可能
+- `rules` / `specs` のルートディレクトリや doc_type マッピングを変更可能
 - 除外パターンはユーザー定義で追加可能
-- システムファイル（`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`）は自動除外
+- Doc Advisor 内部設定（ToC パス・並列数）はコードデフォルトで管理
 
 ## ドキュメント
 

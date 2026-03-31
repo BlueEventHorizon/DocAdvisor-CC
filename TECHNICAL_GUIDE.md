@@ -124,32 +124,35 @@ cd DocAdvisor-CC
 This copies all necessary files to your project:
 
 ```
-your-project/.claude/
-├── agents/            # Worker agents (toc-updater)
-├── skills/
-│   ├── query-rules/
-│   │   └── SKILL.md   # rules document search skill
-│   ├── query-specs/
-│   │   └── SKILL.md   # specs document search skill
-│   ├── create-rules-toc/
-│   │   └── SKILL.md   # rules ToC generation skill
-│   └── create-specs-toc/
-│       └── SKILL.md   # specs ToC generation skill
-└── doc-advisor/       # All resources and runtime output
-    ├── config.yaml
-    ├── docs/
-    ├── scripts/
-    └── toc/           # ToC files
+your-project/
+├── .doc_structure.yaml              # Document structure configuration
+└── .claude/
+    ├── agents/            # Worker agents (toc-updater)
+    ├── skills/
+    │   ├── setup-doc-structure/
+    │   │   └── SKILL.md   # document directory auto-classification skill
+    │   ├── query-rules/
+    │   │   └── SKILL.md   # rules document search skill
+    │   ├── query-specs/
+    │   │   └── SKILL.md   # specs document search skill
+    │   ├── create-rules-toc/
+    │   │   └── SKILL.md   # rules ToC generation skill
+    │   └── create-specs-toc/
+    │       └── SKILL.md   # specs ToC generation skill
+    └── doc-advisor/       # All resources and runtime output
+        ├── docs/
+        ├── scripts/
+        └── toc/           # ToC files
 ```
 
-Setup will interactively ask for:
+If `.doc_structure.yaml` is found in the target project, document directories are auto-configured.
+Otherwise, run `/setup-doc-structure` in Claude Code after setup to configure directories.
 
-- Rules directory (default: `rules/`)
-- Specs directory (default: `specs/`)
-- Requirements subdirectory name (default: `requirements`)
-- Design subdirectory name (default: `design`)
-- Plan subdirectory name (default: `plan`)
-- Agent model (default: `opus`, options: `opus/sonnet/haiku/inherit`)
+To change the agent model after setup:
+
+```bash
+bash .claude/doc-advisor/scripts/change_agent_model.sh <haiku|sonnet|opus|inherit>
+```
 
 ### 3. Launch Claude Code
 
@@ -217,7 +220,7 @@ When receiving a work task, follow this flow:
 
 The scripts use the following configuration file:
 
-- `.claude/doc-advisor/config.yaml`
+- `.doc_structure.yaml` (project root)
 
 ### ToC Generation Flow
 
@@ -260,11 +263,13 @@ The scripts use the following configuration file:
 ### Template Repository
 
 ```
-DocAdvisor-CC/
+DocAdvisor/
 ├── templates/
 │   ├── agents/                 # Worker agent templates
 │   │   └── toc-updater.md
 │   ├── skills/
+│   │   ├── setup-doc-structure/
+│   │   │   └── SKILL.md        # document directory auto-classification skill
 │   │   ├── query-rules/
 │   │   │   └── SKILL.md        # rules document search skill
 │   │   ├── query-specs/
@@ -274,7 +279,6 @@ DocAdvisor-CC/
 │   │   └── create-specs-toc/
 │   │       └── SKILL.md        # specs ToC generation skill
 │   └── doc-advisor/            # ToC generation resources
-│       ├── config.yaml         # Configuration template
 │       ├── docs/               # Orchestrator, format, workflow docs
 │       └── scripts/            # Python scripts
 ├── setup.sh                    # Project setup script
@@ -301,7 +305,6 @@ your-project/
 │   │   └── create-specs-toc/
 │   │       └── SKILL.md        # specs ToC generation skill
 │   └── doc-advisor/            # All resources and runtime output
-│       ├── config.yaml         # Configuration
 │       ├── docs/               # Orchestrator, format, workflow docs
 │       ├── scripts/            # Python scripts
 │       └── toc/                # Runtime output
@@ -313,6 +316,7 @@ your-project/
 │               ├── specs_toc.yaml
 │               ├── .toc_checksums.yaml
 │               └── .toc_work/
+├── .doc_structure.yaml         # Document structure configuration
 ├── rules/                      # Rules documentation (configurable)
 │   └── *.md                    # Documentation files
 └── specs/                      # Specs documentation (configurable)
@@ -324,66 +328,43 @@ your-project/
 
 ### Project Configuration
 
-Located at `.claude/doc-advisor/config.yaml`:
+Located at `.doc_structure.yaml` in the project root:
 
 ```yaml
-# === rules configuration ===
-rules:
-  root_dir: rules
-  toc_file: .claude/doc-advisor/toc/rules/rules_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/rules/.toc_checksums.yaml
-  work_dir: .claude/doc-advisor/toc/rules/.toc_work/
+# doc_structure_version: 3.0
 
+rules:
+  root_dirs:
+    - rules/
+  doc_types_map:
+    rules/: rule
   patterns:
     target_glob: "**/*.md"
-    exclude:
-  # - reference    # Uncomment to exclude
-  # - archive
+    exclude: []
 
-  output:
-    header_comment: "Development documentation search index for rules-advisor subagent"
-    metadata_name: "Development Documentation Search Index"
-
-# === specs configuration ===
 specs:
-  root_dir: specs
-  toc_file: .claude/doc-advisor/toc/specs/specs_toc.yaml
-  checksums_file: .claude/doc-advisor/toc/specs/.toc_checksums.yaml
-  work_dir: .claude/doc-advisor/toc/specs/.toc_work/
-
+  root_dirs:
+    - specs/
+  doc_types_map:
+    specs/requirements/: requirement
+    specs/design/: design
+    specs/plan/: plan
   patterns:
-    target_dirs:
-      requirement: requirements
-      design: design
-    exclude:
-      - plan # Read in full during work, no search needed
-  # - reference
-  # - /info/
-
-  output:
-    header_comment: "Requirements and design document search index for specs-advisor subagent"
-    metadata_name: "Requirements and Design Document Search Index"
-
-# === common configuration ===
-common:
-  parallel:
-    max_workers: 5
-    fallback_to_serial: true
+    target_glob: "**/*.md"
+    exclude: []
 ```
 
-> **Note**: System files (`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`) are automatically excluded and do not need to be listed in config.
+Doc Advisor internal settings (toc file paths, checksums paths, work dirs, parallelism) are managed as built-in code defaults and do not appear in this file.
+
+> **Note**: System files (`.toc_work/`, `*_toc.yaml`, `.toc_checksums.yaml`) are automatically excluded.
 > **Note**: Exclude patterns are matched against directory paths only (filenames are not matched).
 
 ### Customizing Configuration
 
-Edit the project config file directly, or re-run setup:
+Run `/setup-doc-structure` in Claude Code to auto-detect and update `.doc_structure.yaml`, or edit it directly:
 
 ```bash
-# Re-run setup interactively
-./setup.sh /path/to/your-project
-
-# Or edit directly
-nano /path/to/your-project/.claude/doc-advisor/config.yaml
+nano /path/to/your-project/.doc_structure.yaml
 ```
 
 ## Processing Modes
@@ -452,7 +433,6 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 - `.claude/skills/query-specs/SKILL.md` (specs document search)
 - `.claude/skills/create-rules-toc/SKILL.md` (rules ToC generation)
 - `.claude/skills/create-specs-toc/SKILL.md` (specs ToC generation)
-- `.claude/doc-advisor/config.yaml`
 - `.claude/doc-advisor/docs/`
 - `.claude/doc-advisor/scripts/`
 - `.claude/doc-advisor/toc/rules/` (ToC output)
@@ -462,13 +442,6 @@ If you were using the plugin mode (`--plugin-dir`), run setup.sh to upgrade:
 
 - `.claude/commands/your-custom-command.md` (any other commands)
 - `.claude/agents/your-custom-agent.md` (any non-doc-advisor agents)
-
-**config.yaml handling**:
-
-- If `.claude/doc-advisor/config.yaml` exists, you'll be prompted:
-  - `[o]` Overwrite (backup to config.yaml.bak)
-  - `[s]` Skip (keep existing config)
-  - `[m]` Merge manually (show diff after setup)
 
 ### After upgrade
 
