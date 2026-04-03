@@ -17,6 +17,11 @@ import unicodedata
 from pathlib import Path
 
 
+class ConfigNotReadyError(RuntimeError):
+    """Raised when .doc_structure.yaml is missing or not configured for a category."""
+    pass
+
+
 # System files that are always excluded (not configurable)
 SYSTEM_EXCLUDE_PATTERNS_RULES = ['.toc_work', 'rules_toc.yaml', '.toc_checksums.yaml']
 SYSTEM_EXCLUDE_PATTERNS_SPECS = ['.toc_work', 'specs_toc.yaml', '.toc_checksums.yaml']
@@ -194,6 +199,72 @@ def load_config(category=None):
     if category:
         return config.get(category, {})
     return config
+
+
+def init_common_config(category):
+    """
+    Common configuration initialization for all scripts.
+
+    Loads config, resolves project root, expands root_dirs,
+    and validates that document directories are configured.
+
+    Args:
+        category: 'rules' or 'specs'
+
+    Returns:
+        dict: Common configuration with keys:
+            - config: load_config() result
+            - project_root: Project root Path
+            - root_dirs: [(root_dir_path, root_dir_name), ...] list
+            - first_dir: First root_dir (fallback)
+            - patterns_config: patterns section dict
+            - target_glob: Target glob pattern
+            - exclude_patterns: Exclude pattern list
+
+    Raises:
+        ConfigNotReadyError: When .doc_structure.yaml is missing or not configured
+        RuntimeError: When project root is not found
+    """
+    config = load_config(category)
+    project_root = get_project_root()
+
+    default_dir = f'{category}/'
+    root_dirs_config = config.get('root_dirs', [default_dir])
+    if isinstance(root_dirs_config, str):
+        root_dirs_config = [root_dirs_config]
+
+    # デフォルト設定のまま（.doc_structure.yaml 未設定）かつデフォルトディレクトリが存在しない場合は
+    # セットアップが必要と判断する
+    if root_dirs_config == [default_dir]:
+        default_path = project_root / default_dir.rstrip('/')
+        if not default_path.is_dir():
+            raise ConfigNotReadyError(
+                f"Document directories not configured for '{category}'. "
+                f"Run /setup-doc-structure to configure."
+            )
+
+    root_dirs_config = expand_root_dir_globs(root_dirs_config, project_root)
+
+    root_dirs = []
+    for entry in root_dirs_config:
+        name = entry.rstrip('/')
+        root_dirs.append((project_root / name, name))
+
+    first_dir = root_dirs[0][0] if root_dirs else project_root / category
+
+    patterns_config = config.get('patterns', {})
+    target_glob = patterns_config.get('target_glob', '**/*.md')
+    exclude_patterns = get_system_exclude_patterns(category) + patterns_config.get('exclude', [])
+
+    return {
+        'config': config,
+        'project_root': project_root,
+        'root_dirs': root_dirs,
+        'first_dir': first_dir,
+        'patterns_config': patterns_config,
+        'target_glob': target_glob,
+        'exclude_patterns': exclude_patterns,
+    }
 
 
 def _migrate_v1_to_v2(parsed):

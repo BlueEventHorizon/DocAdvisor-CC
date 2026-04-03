@@ -40,15 +40,11 @@ Read the following before processing:
 
 ### Pre-check: Document Structure Verification
 
-Before Phase 1, verify that document directories are configured:
-
-1. The skill's Pre-check step runs `check_doc_structure.sh {category}` which verifies
-   that `root_dirs` is set for the given category in `.doc_structure.yaml`
-2. If `check_doc_structure.sh` outputs a warning, stop and direct the user to run
-   `/setup-doc-structure` first
-3. Once `check_doc_structure.sh` passes (no output), proceed to Phase 1
-
-Note: `.doc_structure.yaml` is referenced at runtime by load_config() (FR-08). `root_dirs` must be configured in `.doc_structure.yaml` via `/setup-doc-structure` or forge plugin.
+Configuration validation is handled automatically by the Python scripts.
+When `.doc_structure.yaml` is missing or `root_dirs` is not configured for the
+requested category, scripts output `{"status": "config_required", ...}` JSON and
+return a non-zero exit code. The SKILL.md Error Handling section handles this by
+asking the user to run `/setup-doc-structure`.
 
 ### Phase 1: Initialization
 

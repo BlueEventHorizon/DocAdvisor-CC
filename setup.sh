@@ -304,6 +304,12 @@ if [[ -d "$OLD_SETUP_CONFIG" ]]; then
     printf "${GREEN}Removed legacy: skills/setup-config/ (renamed to setup-doc-structure/)${NC}\n"
     LEGACY_CLEANED=1
 fi
+# Remove legacy check_doc_structure.sh (pre-check moved into Python scripts)
+if [[ -f "${DOC_ADVISOR_DIR}/scripts/check_doc_structure.sh" ]]; then
+    rm -f "${DOC_ADVISOR_DIR}/scripts/check_doc_structure.sh"
+    printf "${GREEN}Removed legacy: scripts/check_doc_structure.sh${NC}\n"
+    LEGACY_CLEANED=1
+fi
 
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
