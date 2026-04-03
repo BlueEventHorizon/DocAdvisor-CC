@@ -18,7 +18,20 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, should_exclude, resolve_config_path, get_system_exclude_patterns, rglob_follow_symlinks, normalize_path, expand_root_dir_globs
+import json
+
+from toc_utils import (
+    ConfigNotReadyError,
+    get_project_root,
+    init_common_config,
+    load_config,
+    should_exclude,
+    resolve_config_path,
+    get_system_exclude_patterns,
+    rglob_follow_symlinks,
+    normalize_path,
+    expand_root_dir_globs,
+)
 
 # Global configuration (initialized in init_config())
 CATEGORY = None  # 'rules' or 'specs'
@@ -57,33 +70,24 @@ def init_config(category):
     CATEGORY = category
 
     try:
-        CONFIG = load_config(category)
-        PROJECT_ROOT = get_project_root()
+        common = init_common_config(category)
+    except ConfigNotReadyError as e:
+        print(json.dumps({"status": "config_required", "message": str(e)}))
+        return False
     except RuntimeError as e:
         print(f"Error: {e}")
         return False
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        return False
 
-    default_dir = f'{category}/'
-    root_dirs_config = CONFIG.get('root_dirs', [default_dir])
-    if isinstance(root_dirs_config, str):
-        root_dirs_config = [root_dirs_config]
-    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
-    root_dirs_config = expand_root_dir_globs(root_dirs_config, PROJECT_ROOT)
-    ROOT_DIRS = []
-    for entry in root_dirs_config:
-        name = entry.rstrip('/')
-        ROOT_DIRS.append((PROJECT_ROOT / name, name))
+    CONFIG = common['config']
+    PROJECT_ROOT = common['project_root']
+    ROOT_DIRS = common['root_dirs']
+    first_dir = common['first_dir']
+    PATTERNS_CONFIG = common['patterns_config']
+    TARGET_GLOB = common['target_glob']
+    EXCLUDE_PATTERNS = common['exclude_patterns']
 
-    first_dir = ROOT_DIRS[0][0] if ROOT_DIRS else PROJECT_ROOT / category
     CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'),
                                           first_dir, PROJECT_ROOT)
-    PATTERNS_CONFIG = CONFIG.get('patterns', {})
-    TARGET_GLOB = PATTERNS_CONFIG.get('target_glob', '**/*.md')
-    # System patterns (always excluded) + user-defined patterns
-    EXCLUDE_PATTERNS = get_system_exclude_patterns(category) + PATTERNS_CONFIG.get('exclude', [])
     return True
 
 

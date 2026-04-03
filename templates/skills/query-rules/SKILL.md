@@ -19,17 +19,6 @@ doc-advisor-version-xK9XmQ: {{DOC_ADVISOR_VERSION}}
 
 Analyze task content and return a list of required development document paths.
 
-## Pre-check (MANDATORY - Run first)
-
-Run the configuration check:
-
-```bash
-bash .claude/doc-advisor/scripts/check_doc_structure.sh rules
-```
-
-- **No output** → Proceed to Staleness Check
-- **Output present** → STOP. Run `/setup-doc-structure` skill first to configure document directories, then restart this skill
-
 ## Staleness Check
 
 ```bash
@@ -67,6 +56,13 @@ Required documents:
 - rules/workflow/xxx/xxx.md
 - rules/format/xxx.md
 ```
+
+## Error Handling
+
+If a script outputs `{"status": "config_required", ...}`, use AskUserQuestion to ask the user:
+- "Document directories are not configured. Run /setup-doc-structure to configure?"
+  - Yes → invoke `/setup-doc-structure`, then restart this skill
+  - No → abort
 
 ## Notes
 

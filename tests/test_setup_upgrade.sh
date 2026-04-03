@@ -485,7 +485,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 23: check_doc_structure.sh installed with exec permission (T-011)"
+echo "Test 23: check_doc_structure.sh removed (legacy cleanup)"
 echo "=================================================="
 
 setup_test_project
@@ -493,91 +493,63 @@ setup_test_project
 # Run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: check_doc_structure.sh exists and is executable
-test_result "check_doc_structure.sh exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh" ]] && echo 0 || echo 1)"
-test_result "check_doc_structure.sh is executable" "0" "$([[ -x "$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh" ]] && echo 0 || echo 1)"
+# Verify: check_doc_structure.sh does NOT exist (removed as legacy)
+test_result "check_doc_structure.sh not present" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 24: Skill Pre-check sections (T-012)"
+echo "Test 24: Skill Error Handling sections (replaces Pre-check)"
 echo "=================================================="
 
-# Verify: all 4 skills have Pre-check section referencing check_doc_structure.sh
-ALL_PRECHECK_OK=true
+# Verify: all 4 skills have Error Handling section and NO check_doc_structure.sh reference
+ALL_ERROR_HANDLING_OK=true
 for SKILL_NAME in create-rules-toc create-specs-toc query-rules query-specs; do
     SKILL_FILE="$TEST_PROJECT/.claude/skills/$SKILL_NAME/SKILL.md"
-    if grep -q "Pre-check" "$SKILL_FILE" 2>/dev/null && grep -q "check_doc_structure.sh" "$SKILL_FILE" 2>/dev/null; then
-        echo -e "${GREEN}PASS${NC}: $SKILL_NAME has Pre-check"
+    if grep -q "config_required" "$SKILL_FILE" 2>/dev/null && ! grep -q "check_doc_structure.sh" "$SKILL_FILE" 2>/dev/null; then
+        echo -e "${GREEN}PASS${NC}: $SKILL_NAME has Error Handling, no check_doc_structure.sh"
         ((PASS_COUNT++))
     else
-        echo -e "${RED}FAIL${NC}: $SKILL_NAME missing Pre-check"
+        echo -e "${RED}FAIL${NC}: $SKILL_NAME Error Handling check failed"
         ((FAIL_COUNT++))
-        ALL_PRECHECK_OK=false
+        ALL_ERROR_HANDLING_OK=false
     fi
 done
 echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 25: check_doc_structure.sh behavior (FR-08)"
+echo "Test 25: ConfigNotReadyError in Python scripts (FR-08)"
 echo "=================================================="
 
 setup_test_project
 
-# Run setup (.doc_structure.yaml has root_dirs)
+# Run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-CHECK_SCRIPT="$TEST_PROJECT/.claude/doc-advisor/scripts/check_doc_structure.sh"
+SCRIPTS_DIR_25="$TEST_PROJECT/.claude/doc-advisor/scripts"
 
-# Case 1: root_dirs set in .doc_structure.yaml → no output
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" 2>/dev/null)
-test_result "No output when root_dirs set (no category arg)" "" "$OUTPUT"
-
-# Case 2: Category-specific check → no output for configured category
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
-test_result "No output for 'rules' when configured" "" "$OUTPUT"
-
-# Case 2b: specs category check → no output when configured
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" specs 2>/dev/null)
-test_result "No output for 'specs' when configured" "" "$OUTPUT"
-
-# Case 3: Remove .doc_structure.yaml → ACTION REQUIRED
+# Remove .doc_structure.yaml and default directory to trigger ConfigNotReadyError
 rm -f "$TEST_PROJECT/.doc_structure.yaml"
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
-if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]]; then
-    echo -e "${GREEN}PASS${NC}: ACTION REQUIRED when .doc_structure.yaml missing"
+rm -rf "$TEST_PROJECT/rules"
+
+# create_pending_yaml.py should output config_required JSON
+OUTPUT=$(cd "$TEST_PROJECT" && /opt/homebrew/bin/python3 "$SCRIPTS_DIR_25/create_pending_yaml.py" --category rules 2>/dev/null)
+if echo "$OUTPUT" | grep -q '"status": "config_required"'; then
+    echo -e "${GREEN}PASS${NC}: create_pending_yaml.py outputs config_required when not configured"
     ((PASS_COUNT++))
 else
-    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED message, got: $OUTPUT"
+    echo -e "${RED}FAIL${NC}: Expected config_required JSON, got: $OUTPUT"
     ((FAIL_COUNT++))
 fi
 
-# Case 4: Restore .doc_structure.yaml with only rules (no specs)
-cat > "$TEST_PROJECT/.doc_structure.yaml" << 'DOCEOF'
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - rules/
-  doc_types_map:
-    rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-DOCEOF
-
-# rules should pass
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" rules 2>/dev/null)
-test_result "Cross-category: 'rules' OK when only rules configured" "" "$OUTPUT"
-
-# specs should fail
-OUTPUT=$(cd "$TEST_PROJECT" && bash "$CHECK_SCRIPT" specs 2>/dev/null)
-if [[ "$OUTPUT" == *"ACTION REQUIRED"* ]] && [[ "$OUTPUT" == *"specs"* ]]; then
-    echo -e "${GREEN}PASS${NC}: Cross-category: 'specs' ACTION REQUIRED when only rules configured"
+# create_checksums.py should output config_required JSON
+OUTPUT=$(cd "$TEST_PROJECT" && /opt/homebrew/bin/python3 "$SCRIPTS_DIR_25/create_checksums.py" --category rules 2>/dev/null)
+if echo "$OUTPUT" | grep -q '"status": "config_required"'; then
+    echo -e "${GREEN}PASS${NC}: create_checksums.py outputs config_required when not configured"
     ((PASS_COUNT++))
 else
-    echo -e "${RED}FAIL${NC}: Expected ACTION REQUIRED for specs, got: $OUTPUT"
+    echo -e "${RED}FAIL${NC}: Expected config_required JSON, got: $OUTPUT"
     ((FAIL_COUNT++))
 fi
 echo ""
