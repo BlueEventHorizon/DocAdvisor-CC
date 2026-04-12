@@ -61,6 +61,13 @@ target-project/.claude/              インストール先（実体ファイル�
 - **品質最優先**: 複雑な正規表現での一括置換禁止、手抜きしない
 - **外部仕様は必ず確認**: Claude Code プラグイン仕様など外部システムの仕様は、実装前に公式ドキュメントで確認すること
 
+## setup.sh / シェルスクリプト開発ルール
+
+- **`sed -i` は macOS/Linux 非互換** — `awk` + `mv` を使用すること
+  - macOS は `sed -i ''`、Linux は `sed -i` で動作が異なる
+  - 代替: `awk '{gsub(/old/, "new")} 1' file > file.tmp && mv file.tmp file`
+- **zsh 環境での heredoc** — `/bin/bash -c` でラップすること
+
 ## Claude Code 仕様に関する作業 [必須]
 
 Claude Code の仕様（commands, agents, skills, hooks, settings 等）に関わる作業を行う場合は、**必ず `claude-code-guide` エージェントを使用して最新の仕様を取得し、深く理解してから作業すること**。

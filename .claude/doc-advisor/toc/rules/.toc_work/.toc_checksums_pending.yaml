@@ -1,6 +1,6 @@
-# rules_toc.yaml checksum file
+# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
 # Auto-generated - do not edit
-generated_at: 2026-04-12T05:49:28Z
+generated_at: 2026-04-12T05:49:14Z
 file_count: 2
 checksums:
   rules/cli_output_formatting.md: 0136a2118c9e73169ddd91e1fb9d1a0bcfca85c698fa2587b9b0330db27a6fcf
