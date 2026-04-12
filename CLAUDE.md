@@ -7,24 +7,27 @@
 Doc Advisor は、Claude Code 向けのドキュメント検索基盤ツール。
 プロジェクトのドキュメント（`.md`）を解析し、AI が検索可能な ToC（Table of Contents）YAML インデックスを自動生成する。
 
-**このリポジトリの役割**: テンプレートとセットアップスクリプトを提供するインストーラー。
-`templates/` 配下にコピー元テンプレート（プレースホルダー `{{...}}` 付き）があり、`setup.sh` でターゲットプロジェクトの `.claude/` 配下にコピー・変数置換される。
+**このリポジトリの役割**: bw-cc-plugins の doc-advisor プラグインを仲介し、ターゲットプロジェクトにインストールする。
+`setup.sh --source` で bw-cc-plugins から直接読み取り、パス変換を行ってコピーする。bw-cc-plugins は**読み取り専用**（修正禁止）。
 
 ### アーキテクチャ
 
 ```
-DocAdvisor/
-├── templates/          ← コピー元テンプレート（修正対象はここ）
-│   ├── doc-advisor/    ← docs, scripts
-│   ├── agents/         ← ワーカーエージェント定義
-│   └── skills/         ← スキル定義
-├── setup.sh            ← インストーラー（テンプレート → ターゲットへコピー・置換）
+bw-cc-plugins/plugins/doc-advisor/ ─┐
+bw-cc-plugins/plugins/forge/       ─┤ ソース（読み取り専用）
+                                     ↓
+DocAdvisor/                          setup.sh --source で読み取り + 変換
+├── setup.sh            ← インストーラー（ソース → 変換 → ターゲットへコピー）
 ├── tests/              ← テスト用プロジェクト群（検証はここで行う）
 ├── specs/              ← Doc Advisor 自体の仕様書
 └── rules/              ← Doc Advisor 自体の開発ルール
+                                     ↓
+target-project/.claude/              インストール先（実体ファイル）
 ```
 
-**`.claude/` について**: 本プロジェクト自体の開発用に、現行バージョンの Doc Advisor がインストールされている。修正対象ではない。テンプレートの修正は必ず `templates/` に対して行う。
+**変換内容**: `${CLAUDE_PLUGIN_ROOT}/` → `.claude/doc-advisor/`、`/doc-advisor:` → `/`、`/forge:setup-doc-structure` → `/setup-doc-structure`
+
+**`.claude/` について**: 本プロジェクト自体の開発用に、Doc Advisor がインストールされている。修正対象ではない。
 
 ## 必読ドキュメント
 
@@ -46,7 +49,7 @@ DocAdvisor/
 | rules/**/*.md     | 日本語 |
 | specs/**/*.md     | 日本語 |
 | README.md         | 英語   |
-| templates/**/*.md | 英語   |
+| setup.sh          | 英語   |
 | その他            | 英語   |
 
 ## 開発ルール [必須]
@@ -82,26 +85,27 @@ git config user.name
 
 ## 主要ファイル
 
-### テンプレート（setup.sh で対象プロジェクトにコピーされる）
+### ソース（bw-cc-plugins、読み取り専用）
 
-| ファイル                                              | 役割                                       |
-| ----------------------------------------------------- | ------------------------------------------ |
-| `templates/doc-advisor/docs/*_toc_format.md`          | ToC スキーマ定義（Single Source of Truth） |
-| `templates/doc-advisor/docs/*_toc_update_workflow.md` | ToC 更新の詳細ワークフロー                 |
-| `templates/doc-advisor/docs/*_orchestrator.md`        | オーケストレーター手順                     |
-| `templates/doc-advisor/scripts/`                      | Python スクリプト群                        |
-| `templates/skills/query-{rules,specs}/SKILL.md`       | ドキュメント検索スキル                     |
-| `templates/skills/create-{rules,specs}-toc/SKILL.md`  | ToC 生成スキル                             |
-| `templates/agents/`                                   | ワーカーエージェント（toc-updater）        |
+setup.sh が以下のソースから読み取り、変換してターゲットにコピーする:
+
+| ソース | 内容 |
+| ------ | ---- |
+| `bw-cc-plugins/plugins/doc-advisor/agents/` | toc-updater エージェント |
+| `bw-cc-plugins/plugins/doc-advisor/skills/` | query-*, create-*-toc, create-code-index, query-code |
+| `bw-cc-plugins/plugins/doc-advisor/docs/` | ToC フォーマット、ワークフロー定義 |
+| `bw-cc-plugins/plugins/doc-advisor/scripts/` | Python スクリプト群（Embedding, コードインデックス含む） |
+| `bw-cc-plugins/plugins/forge/skills/setup-doc-structure/` | 初期設定スキル |
+| `bw-cc-plugins/plugins/forge/scripts/doc_structure/` | ディレクトリ分類スクリプト |
 
 ### プロジェクト固有
 
-| ファイル              | 役割                                             |
-| --------------------- | ------------------------------------------------ |
-| `setup.sh`            | ターゲットプロジェクトへのセットアップスクリプト |
-| `specs/requirements/` | Doc Advisor 自体の要件定義書                     |
-| `specs/design/`       | Doc Advisor 自体の設計書                         |
-| `rules/`              | 開発ルール文書                                   |
+| ファイル | 役割 |
+| -------- | ---- |
+| `setup.sh` | ソース → 変換 → ターゲットへのインストーラー |
+| `specs/requirements/` | Doc Advisor 自体の要件定義書 |
+| `specs/design/` | Doc Advisor 自体の設計書 |
+| `rules/` | 開発ルール文書 |
 
 ## 禁止事項
 

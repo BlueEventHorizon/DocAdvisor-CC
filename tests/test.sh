@@ -53,28 +53,43 @@ echo -e "${GREEN}Setup completed.${NC}"
 echo ""
 
 echo "=================================================="
-echo "Test 2: Verify variable substitution"
+echo "Test 2: Verify sed transformations from source"
 echo "=================================================="
 echo ""
 
-# Check python3 is hardcoded and {{PYTHON_PATH}} placeholder is gone
-if grep -q "{{PYTHON_PATH}}" .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null; then
-    echo -e "${RED}FAIL: {{PYTHON_PATH}} placeholder not removed${NC}"
-    exit 1
-elif ! grep -q "python3" .claude/doc-advisor/docs/toc_orchestrator.md 2>/dev/null; then
-    echo -e "${RED}FAIL: python3 not found in toc_orchestrator.md${NC}"
+# Check: ${CLAUDE_PLUGIN_ROOT}/ must not remain in any installed file
+if grep -rq '\${CLAUDE_PLUGIN_ROOT}/' .claude/ 2>/dev/null; then
+    echo -e "${RED}FAIL: \${CLAUDE_PLUGIN_ROOT}/ reference remains in .claude/${NC}"
+    grep -r '\${CLAUDE_PLUGIN_ROOT}/' .claude/ 2>/dev/null
     exit 1
 else
-    echo -e "${GREEN}PASS: python3 hardcoded in toc_orchestrator.md${NC}"
+    echo -e "${GREEN}PASS: No \${CLAUDE_PLUGIN_ROOT}/ references in .claude/${NC}"
 fi
 
-# Check no {{...}} placeholders remain in installed files
-if grep -rq '{{[A-Z_]*}}' .claude/ 2>/dev/null; then
-    echo -e "${RED}FAIL: Unsubstituted placeholder found in .claude/${NC}"
-    grep -r '{{[A-Z_]*}}' .claude/ 2>/dev/null
+# Check: /doc-advisor: prefix must not remain (should be converted to /)
+if grep -rq '/doc-advisor:' .claude/ 2>/dev/null; then
+    echo -e "${RED}FAIL: /doc-advisor: prefix remains in .claude/${NC}"
+    grep -r '/doc-advisor:' .claude/ 2>/dev/null
     exit 1
 else
-    echo -e "${GREEN}PASS: No unsubstituted placeholders in .claude/${NC}"
+    echo -e "${GREEN}PASS: No /doc-advisor: prefixes in .claude/${NC}"
+fi
+
+# Check: /forge:setup-doc-structure must not remain
+if grep -rq '/forge:setup-doc-structure' .claude/ 2>/dev/null; then
+    echo -e "${RED}FAIL: /forge:setup-doc-structure remains in .claude/${NC}"
+    grep -r '/forge:setup-doc-structure' .claude/ 2>/dev/null
+    exit 1
+else
+    echo -e "${GREEN}PASS: No /forge:setup-doc-structure references in .claude/${NC}"
+fi
+
+# Check: .claude/doc-advisor/ path references exist (proof that substitution happened)
+if grep -rq '\.claude/doc-advisor/' .claude/skills/ .claude/agents/ .claude/doc-advisor/docs/ 2>/dev/null; then
+    echo -e "${GREEN}PASS: .claude/doc-advisor/ references found (substitution applied)${NC}"
+else
+    echo -e "${RED}FAIL: No .claude/doc-advisor/ references found — substitution may not have run${NC}"
+    exit 1
 fi
 
 echo ""

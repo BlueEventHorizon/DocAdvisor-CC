@@ -1,12 +1,16 @@
 #!/bin/bash
 # Doc Advisor Setup Script
 #
-# Copies all templates to target project and creates configuration
+# Reads doc-advisor files from bw-cc-plugins (read-only source) and installs
+# transformed files to the target project. Acts as an intermediary to avoid
+# maintaining duplicate code.
 #
 # Usage:
-#   ./setup.sh TARGET_DIR    # Setup for specified project
-#   ./setup.sh               # Interactive mode (prompts for directory)
-#   ./setup.sh -h, --help    # Show help
+#   ./setup.sh TARGET_DIR                       # Use submodule as source (default)
+#   ./setup.sh --source SOURCE_DIR TARGET_DIR   # Use custom source
+#   ./setup.sh -h, --help                       # Show help
+#
+# SOURCE_DIR: Path to bw-cc-plugins/plugins/doc-advisor/ (default: ./bw-cc-plugins/...)
 
 set -e
 
@@ -20,7 +24,7 @@ NC='\033[0m' # No Color
 # Format path for display: replace $HOME with ~
 display_path() { printf '%s' "${1/#$HOME/\~}"; }
 
-# Get script directory (plugin root)
+# Get script directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAST_SETUP_FILE="${SCRIPT_DIR}/.last_setup"
 
@@ -31,6 +35,7 @@ fi
 
 # Parse arguments
 TARGET_DIR=""
+SOURCE_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,18 +43,33 @@ while [[ $# -gt 0 ]]; do
             echo "Doc Advisor Setup Script"
             echo ""
             echo "Usage:"
-            echo "  ./setup.sh TARGET_DIR    # Setup for specified project"
-            echo "  ./setup.sh               # Interactive mode (prompts for directory)"
-            echo "  ./setup.sh -h, --help    # Show help"
+            echo "  ./setup.sh TARGET_DIR                       # Use submodule as source"
+            echo "  ./setup.sh --source SOURCE_DIR TARGET_DIR   # Use custom source"
+            echo "  ./setup.sh -h, --help                       # Show help"
+            echo ""
+            echo "SOURCE_DIR: Path to bw-cc-plugins/plugins/doc-advisor/"
+            echo "            Default: ./bw-cc-plugins/plugins/doc-advisor/ (git submodule)"
+            echo "TARGET_DIR: Path to target project"
             echo ""
             echo "This script creates:"
             echo "  TARGET_DIR/.claude/agents/         # Worker agents (toc-updater)"
             echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
-            echo "  TARGET_DIR/.claude/doc-advisor/    # Config, docs, scripts, ToC files"
+            echo "  TARGET_DIR/.claude/doc-advisor/    # Docs, scripts, ToC files"
             echo ""
-            echo "If .doc_structure.yaml exists, it is used as document structure configuration."
-            echo "Otherwise, run /setup-doc-structure after setup to create .doc_structure.yaml."
+            echo "Transformations applied during copy:"
+            echo '  ${CLAUDE_PLUGIN_ROOT}/  →  .claude/doc-advisor/'
+            echo "  /doc-advisor:xxx        →  /xxx"
+            echo "  /forge:setup-doc-structure → /setup-doc-structure"
             exit 0
+            ;;
+        --source)
+            shift
+            if [[ $# -eq 0 ]]; then
+                echo "Error: --source requires a path argument"
+                exit 1
+            fi
+            SOURCE_DIR="$1"
+            shift
             ;;
         -*)
             echo "Error: Unknown option: $1"
@@ -68,6 +88,70 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Default to submodule path if --source not specified
+if [[ -z "$SOURCE_DIR" ]]; then
+    SOURCE_DIR="${SCRIPT_DIR}/bw-cc-plugins/plugins/doc-advisor"
+    if [[ ! -d "$SOURCE_DIR" ]]; then
+        echo "Error: --source not specified and submodule not found at: bw-cc-plugins/"
+        echo "  Either specify --source or initialize the submodule:"
+        echo "    git submodule update --init"
+        echo ""
+        echo "Usage: ./setup.sh [--source SOURCE_DIR] TARGET_DIR"
+        exit 1
+    fi
+fi
+
+# Expand ~ and resolve source path
+SOURCE_DIR="${SOURCE_DIR/#\~/$HOME}"
+SOURCE_DIR="$(cd "$SOURCE_DIR" 2>/dev/null && pwd)" || {
+    echo "Error: Source directory does not exist: $SOURCE_DIR"
+    exit 1
+}
+
+# Validate source: must contain .claude-plugin/plugin.json
+if [[ ! -f "${SOURCE_DIR}/.claude-plugin/plugin.json" ]]; then
+    printf "${RED}Error: Invalid source directory: $(display_path "$SOURCE_DIR")${NC}\n"
+    echo "Expected: .claude-plugin/plugin.json not found"
+    echo "Source should be: /path/to/bw-cc-plugins/plugins/doc-advisor"
+    exit 1
+fi
+
+# Derive forge source path (sibling plugin directory)
+SOURCE_FORGE="$(dirname "$SOURCE_DIR")/forge"
+
+# Read source version from plugin.json
+SOURCE_VERSION=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" \
+    "${SOURCE_DIR}/.claude-plugin/plugin.json" 2>/dev/null) || {
+    printf "${RED}Error: Failed to read version from plugin.json${NC}\n"
+    exit 1
+}
+
+# Known compatible versions (update when transformation logic changes)
+KNOWN_VERSIONS=("0.2.1")
+VERSION_KNOWN=false
+for kv in "${KNOWN_VERSIONS[@]}"; do
+    if [[ "$SOURCE_VERSION" == "$kv" ]]; then
+        VERSION_KNOWN=true
+        break
+    fi
+done
+
+if [[ "$VERSION_KNOWN" != "true" ]]; then
+    printf "${YELLOW}Warning: Source version ${SOURCE_VERSION} is not in known list (${KNOWN_VERSIONS[*]})${NC}\n"
+    printf "${YELLOW}Transformation logic may not be compatible. Proceed with caution.${NC}\n"
+    echo ""
+fi
+
+# Check forge source availability
+HAS_FORGE=false
+if [[ -d "$SOURCE_FORGE" ]] && [[ -f "${SOURCE_FORGE}/skills/setup-doc-structure/SKILL.md" ]]; then
+    HAS_FORGE=true
+else
+    printf "${YELLOW}Warning: Forge plugin not found at $(display_path "$SOURCE_FORGE")${NC}\n"
+    printf "${YELLOW}  setup-doc-structure skill will not be installed${NC}\n"
+    echo ""
+fi
 
 # Interactive prompt if not specified
 if [[ -z "$TARGET_DIR" ]]; then
@@ -103,7 +187,11 @@ printf "${GREEN}==========================================${NC}\n"
 printf "${GREEN}Doc Advisor Setup${NC}\n"
 printf "${GREEN}==========================================${NC}\n"
 echo ""
-echo "Target project: $(display_path "${TARGET_DIR}")"
+echo "Source:  $(display_path "${SOURCE_DIR}") (v${SOURCE_VERSION})"
+if [[ "$HAS_FORGE" == "true" ]]; then
+    echo "Forge:   $(display_path "${SOURCE_FORGE}") (available)"
+fi
+echo "Target:  $(display_path "${TARGET_DIR}")"
 echo ""
 
 # =============================================================================
@@ -133,12 +221,6 @@ else
         exit 0
     fi
 fi
-echo ""
-
-# python3 works correctly via Claude Code's shell wrapper (wrapSafeChainCommand
-# resolves to the pyenv-managed interpreter). No full-path detection needed.
-PYTHON_CMD="python3"
-
 echo ""
 
 # Create directories
@@ -220,12 +302,15 @@ if [[ -d "${SKILLS_DIR}/doc-advisor/scripts" ]]; then
     LEGACY_CLEANED=1
 fi
 
-# v3.0 moved docs to doc-advisor/ - clean old docs directory if it exists with outdated files
-# (scripts and config are handled by the copy process, only docs/ needs explicit cleanup)
+# v3.0 moved docs to doc-advisor/ - clean if legacy files exist
+# Only remove if docs contain files with old version markers (not from current source install)
 if [[ -d "${DOC_ADVISOR_DIR}/docs" ]]; then
-    rm -rf "${DOC_ADVISOR_DIR}/docs"
-    printf "${GREEN}Removed legacy: doc-advisor/docs/${NC}\n"
-    LEGACY_CLEANED=1
+    if ls "${DOC_ADVISOR_DIR}/docs/"*.md &>/dev/null && \
+       grep -ql 'doc-advisor-version-xK9XmQ:' "${DOC_ADVISOR_DIR}/docs/"*.md 2>/dev/null; then
+        rm -rf "${DOC_ADVISOR_DIR}/docs"
+        printf "${GREEN}Removed legacy: doc-advisor/docs/ (had old version markers)${NC}\n"
+        LEGACY_CLEANED=1
+    fi
 fi
 
 # v3.0 unified skill → v3.1 split skills (create-rules-toc, create-specs-toc)
@@ -311,6 +396,28 @@ if [[ -f "${DOC_ADVISOR_DIR}/scripts/check_doc_structure.sh" ]]; then
     LEGACY_CLEANED=1
 fi
 
+# v0.2.1: index skills integrated into query-* (4 skills removed)
+for old_skill in "create-rules-index" "create-specs-index" "query-rules-index" "query-specs-index"; do
+    if [[ -d "${SKILLS_DIR}/${old_skill}" ]]; then
+        rm -rf "${SKILLS_DIR}/${old_skill}"
+        printf "${GREEN}Removed legacy: skills/${old_skill}/ (integrated into query-*)${NC}\n"
+        LEGACY_CLEANED=1
+    fi
+done
+
+# Legacy template-mode files (no longer generated from templates/)
+if [[ -f "${DOC_ADVISOR_DIR}/scripts/change_agent_model.sh" ]]; then
+    rm -f "${DOC_ADVISOR_DIR}/scripts/change_agent_model.sh"
+    printf "${GREEN}Removed legacy: scripts/change_agent_model.sh${NC}\n"
+    LEGACY_CLEANED=1
+fi
+# Remove old classification_rules.md from doc-advisor/docs/ (moved to skills/setup-doc-structure/)
+if [[ -f "${DOC_ADVISOR_DIR}/docs/classification_rules.md" ]]; then
+    rm -f "${DOC_ADVISOR_DIR}/docs/classification_rules.md"
+    printf "${GREEN}Removed legacy: docs/classification_rules.md (moved to skills/)${NC}\n"
+    LEGACY_CLEANED=1
+fi
+
 if [[ $LEGACY_CLEANED -eq 1 ]]; then
     echo ""
 fi
@@ -321,34 +428,31 @@ mkdir -p "${DOC_ADVISOR_DIR}/toc/specs"    # ToC/checksums for specs
 mkdir -p "${AGENTS_DIR}"
 mkdir -p "${SKILLS_DIR}"
 
-# Function to escape a value for use in sed replacement string (| delimiter)
-# Escapes: \ → \\, & → \&, | → \|
-_sed_escape() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/&/\\&/g; s/|/\\|/g'
-}
-
 # Function to copy and substitute variables in a file
+# Applies transformations: plugin paths → template paths, skill name prefixes
 copy_and_substitute() {
     local src="$1"
     local dst="$2"
 
     [[ -f "$src" ]] || return 0
 
-    local esc_version
-    esc_version=$(_sed_escape "${DOC_ADVISOR_VERSION}")
-
-    # Generate substituted content
+    # Generate substituted content with all transformations:
+    # 1. ${CLAUDE_PLUGIN_ROOT}/ → .claude/doc-advisor/
+    # 2. /doc-advisor:xxx → /xxx (remove plugin namespace prefix)
+    # 3. /forge:setup-doc-structure → /setup-doc-structure
     local new_content
-    new_content=$(sed -e "s|{{DOC_ADVISOR_VERSION}}|${esc_version}|g" \
+    new_content=$(sed \
+        -e 's|\${CLAUDE_PLUGIN_ROOT}/|.claude/doc-advisor/|g' \
+        -e 's|/doc-advisor:|/|g' \
+        -e 's|/forge:setup-doc-structure|/setup-doc-structure|g' \
         "$src")
 
-    # If target file exists, compare content excluding version identifier line
+    # If target file exists, compare content to skip unchanged files
     if [[ -f "$dst" ]]; then
-        local new_stripped old_stripped
-        new_stripped=$(printf '%s\n' "$new_content" | grep -v 'doc-advisor-version-xK9XmQ:' || true)
-        old_stripped=$(grep -v 'doc-advisor-version-xK9XmQ:' "$dst" || true)
+        local old_content
+        old_content=$(cat "$dst")
 
-        if [[ "$new_stripped" = "$old_stripped" ]]; then
+        if [[ "$new_content" = "$old_content" ]]; then
             printf "${BLUE}    Skipped (unchanged): %s${NC}\n" "$(basename "$dst")"
             return 0
         fi
@@ -358,8 +462,9 @@ copy_and_substitute() {
 }
 
 # Function to copy directory recursively with variable substitution
+# Excludes __pycache__/, *.pyc, .DS_Store
 copy_dir_with_substitution() {
-    local src_dir="$1"
+    local src_dir="${1%/}"  # Strip trailing slash for correct path matching
     local dst_dir="$2"
 
     if [[ ! -d "$src_dir" ]]; then
@@ -370,8 +475,13 @@ copy_dir_with_substitution() {
     # Create destination directory
     mkdir -p "$dst_dir"
 
-    # Copy files with substitution
-    find "$src_dir" -type f \( -name "*.md" -o -name "*.yaml" -o -name "*.py" -o -name "*.sh" \) | while read -r src_file; do
+    # Copy files with substitution (exclude __pycache__, .pyc, .DS_Store)
+    find "$src_dir" -type f \
+        \( -name "*.md" -o -name "*.yaml" -o -name "*.py" -o -name "*.sh" \) \
+        -not -path "*/__pycache__/*" \
+        -not -name "*.pyc" \
+        -not -name ".DS_Store" \
+        | while read -r src_file; do
         # Get relative path from source directory
         rel_path="${src_file#$src_dir/}"
         dst_file="${dst_dir}/${rel_path}"
@@ -392,15 +502,17 @@ copy_dir_with_substitution() {
     find "$dst_dir" -name "*.sh" -type f -exec chmod +x {} \;
 }
 
-echo "Copying templates..."
+echo "Copying from source (v${SOURCE_VERSION})..."
 echo ""
 
-# Copy agents (overwrite only - preserve user's custom agents)
+# =============================================================================
+# Phase A: Copy from doc-advisor plugin source
+# =============================================================================
+
+# A1: Agents (overwrite only - preserve user's custom agents)
 echo "  agents/ ..."
 if [[ -d "${AGENTS_DIR}" ]]; then
-    # doc-advisor managed agents (will be overwritten)
     MANAGED_AGENTS="toc-updater.md"
-    # Check for non-managed agents and notify user
     for agent in "${AGENTS_DIR}"/*.md; do
         [[ -e "$agent" ]] || continue
         name=$(basename "$agent")
@@ -409,49 +521,75 @@ if [[ -d "${AGENTS_DIR}" ]]; then
         fi
     done
 fi
-copy_dir_with_substitution "${SCRIPT_DIR}/templates/agents" "${AGENTS_DIR}"
+copy_dir_with_substitution "${SOURCE_DIR}/agents" "${AGENTS_DIR}"
 
-# Copy skills
-echo "  skills/create-rules-toc/ ..."
-mkdir -p "${SKILLS_DIR}/create-rules-toc"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-rules-toc/SKILL.md" "${SKILLS_DIR}/create-rules-toc/SKILL.md"
+# A2: Skills from doc-advisor (all skill directories under skills/)
+for skill_dir in "${SOURCE_DIR}/skills"/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill_name=$(basename "$skill_dir")
+    echo "  skills/${skill_name}/ ..."
+    copy_dir_with_substitution "$skill_dir" "${SKILLS_DIR}/${skill_name}"
+done
 
-echo "  skills/create-specs-toc/ ..."
-mkdir -p "${SKILLS_DIR}/create-specs-toc"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/create-specs-toc/SKILL.md" "${SKILLS_DIR}/create-specs-toc/SKILL.md"
+# A3: Docs
+echo "  doc-advisor/docs/ ..."
+copy_dir_with_substitution "${SOURCE_DIR}/docs" "${DOC_ADVISOR_DIR}/docs"
 
-echo "  skills/query-rules/ ..."
-mkdir -p "${SKILLS_DIR}/query-rules"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-rules/SKILL.md" "${SKILLS_DIR}/query-rules/SKILL.md"
+# A4: Scripts
+echo "  doc-advisor/scripts/ ..."
+copy_dir_with_substitution "${SOURCE_DIR}/scripts" "${DOC_ADVISOR_DIR}/scripts"
 
-echo "  skills/query-specs/ ..."
-mkdir -p "${SKILLS_DIR}/query-specs"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/query-specs/SKILL.md" "${SKILLS_DIR}/query-specs/SKILL.md"
+# =============================================================================
+# Phase B: Copy from forge plugin source (setup-doc-structure)
+# =============================================================================
 
-echo "  skills/setup-doc-structure/ ..."
-mkdir -p "${SKILLS_DIR}/setup-doc-structure"
-copy_and_substitute "${SCRIPT_DIR}/templates/skills/setup-doc-structure/SKILL.md" "${SKILLS_DIR}/setup-doc-structure/SKILL.md"
+if [[ "$HAS_FORGE" == "true" ]]; then
+    echo ""
+    echo "  [forge] skills/setup-doc-structure/ ..."
+    copy_dir_with_substitution "${SOURCE_FORGE}/skills/setup-doc-structure" "${SKILLS_DIR}/setup-doc-structure"
 
-# Copy doc-advisor resources (docs, scripts)
-echo "  doc-advisor/ ..."
+    echo "  [forge] doc-advisor/scripts/doc_structure/ ..."
+    # Copy forge's doc_structure scripts (classify, check, migrate)
+    FORGE_DOC_SCRIPTS="${SOURCE_FORGE}/scripts/doc_structure"
+    if [[ -d "$FORGE_DOC_SCRIPTS" ]]; then
+        copy_dir_with_substitution "$FORGE_DOC_SCRIPTS" "${DOC_ADVISOR_DIR}/scripts/doc_structure"
+    fi
 
-# Copy templates/doc-advisor/ to .claude/doc-advisor/
-copy_dir_with_substitution "${SCRIPT_DIR}/templates/doc-advisor" "${DOC_ADVISOR_DIR}"
+    # Copy doc_structure_format.md if it exists
+    if [[ -f "${SOURCE_FORGE}/docs/doc_structure_format.md" ]]; then
+        echo "  [forge] doc-advisor/docs/doc_structure_format.md ..."
+        copy_and_substitute "${SOURCE_FORGE}/docs/doc_structure_format.md" "${DOC_ADVISOR_DIR}/docs/doc_structure_format.md"
+    fi
+fi
+
+# =============================================================================
+# Record source version
+# =============================================================================
+cat > "${DOC_ADVISOR_DIR}/.source_version" << EOF
+# Auto-generated by setup.sh — do not edit
+source_plugin: doc-advisor
+source_plugin_version: ${SOURCE_VERSION}
+installed_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+source_path: ${SOURCE_DIR}
+EOF
 
 echo ""
 printf "${GREEN}==========================================${NC}\n"
 printf "${GREEN}Setup Complete${NC}\n"
 printf "${GREEN}==========================================${NC}\n"
 echo ""
+echo "Source version: v${SOURCE_VERSION}"
+echo ""
 echo "Files created at:"
 echo "  ${CLAUDE_DIR}/"
 echo "    agents/            # Worker agents (toc-updater)"
-echo "    skills/            # Skills (query-*, create-*-toc)"
+echo "    skills/            # Skills (query-*, create-*-toc, setup-doc-structure)"
 echo "    doc-advisor/       # Docs, scripts, ToC files"
 
 # Save settings for next run (reserved for future use)
 cat > "$LAST_SETUP_FILE" << EOF
 # Last setup settings (auto-generated)
+SOURCE_DIR=${SOURCE_DIR}
 EOF
 
 echo ""

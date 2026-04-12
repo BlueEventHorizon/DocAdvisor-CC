@@ -422,7 +422,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 17: classify_dirs.py installed from template"
+echo "Test 17: classify_dirs.py installed from forge source"
 echo "=================================================="
 
 setup_test_project
@@ -430,9 +430,9 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: classify_dirs.py and classification_rules.md exist (REQ-002-07 AC)
-test_result "classify_dirs.py installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
-test_result "classification_rules.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/docs/classification_rules.md" ]] && echo 1 || echo 0)"
+# Verify: classify_dirs.py in doc_structure/ subdir, classification_rules.md in skills/ (from forge)
+test_result "classify_dirs.py installed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/doc_structure/classify_dirs.py" ]] && echo 1 || echo 0)"
+test_result "classification_rules.md installed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/setup-doc-structure/classification_rules.md" ]] && echo 1 || echo 0)"
 echo ""
 
 # ==================================================
@@ -479,7 +479,7 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 # Verify all legacy files cleaned up
 test_result "setup-doc-structure/ exists after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/setup-doc-structure" ]] && echo 1 || echo 0)"
 test_result "classify-docs/ removed after upgrade" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/classify-docs" ]] && echo 0 || echo 1)"
-test_result "classify_dirs.py exists after upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/classify_dirs.py" ]] && echo 1 || echo 0)"
+test_result "classify_dirs.py exists after upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/doc_structure/classify_dirs.py" ]] && echo 1 || echo 0)"
 test_result "set_root_dirs.py removed in upgrade" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/set_root_dirs.py" ]] && echo 0 || echo 1)"
 echo ""
 
@@ -835,7 +835,7 @@ echo ""
 
 # ==================================================
 echo "=================================================="
-echo "Test 32: Smart copy - changed files are updated"
+echo "Test 32: Smart copy - modified target is overwritten on re-install"
 echo "=================================================="
 
 setup_test_project
@@ -843,24 +843,23 @@ setup_test_project
 # First install
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Modify a template file to simulate content change
-ORIG_TEMPLATE="$PROJECT_ROOT/templates/skills/query-rules/SKILL.md"
-ORIG_CONTENT=$(cat "$ORIG_TEMPLATE")
-echo "# Smart copy test marker" >> "$ORIG_TEMPLATE"
+# Record original content
+SKILL_FILE="$TEST_PROJECT/.claude/skills/query-rules/SKILL.md"
+ORIGINAL_CONTENT=$(cat "$SKILL_FILE")
 
-# Run setup again
+# Tamper with installed file (simulate manual edit by user)
+echo "# USER MODIFICATION MARKER" >> "$SKILL_FILE"
+
+# Re-install from same source → modified file should be overwritten
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Verify: modified template was copied
-MARKER_FOUND=$(grep -c "Smart copy test marker" "$TEST_PROJECT/.claude/skills/query-rules/SKILL.md" 2>/dev/null || echo 0)
-test_result "Smart copy: changed file is updated" "1" "$MARKER_FOUND"
+# Verify: marker is gone (file was overwritten with source content)
+MARKER_FOUND=$(grep -c "USER MODIFICATION MARKER" "$SKILL_FILE" 2>/dev/null || true)
+test_result "Smart copy: modified target overwritten" "0" "$MARKER_FOUND"
 
-# Verify: unchanged file was NOT overwritten (version stays the same)
-UTILS_VERSION=$(grep 'doc-advisor-version-xK9XmQ:' "$TEST_PROJECT/.claude/doc-advisor/scripts/toc_utils.py" | awk '{print $NF}')
-test_result "Smart copy: unchanged file keeps its version" "$CURRENT_VERSION" "$UTILS_VERSION"
-
-# Restore original template
-printf '%s\n' "$ORIG_CONTENT" > "$ORIG_TEMPLATE"
+# Verify: content matches original (restored from source)
+RESTORED_CONTENT=$(cat "$SKILL_FILE")
+test_result "Smart copy: content restored to source" "0" "$([[ "$ORIGINAL_CONTENT" = "$RESTORED_CONTENT" ]] && echo 0 || echo 1)"
 echo ""
 
 # ==================================================
@@ -881,6 +880,278 @@ echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
 # Verify: file is re-created
 test_result "Smart copy: deleted file re-created" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/validate_toc.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 40: .source_version file created with correct content"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+SOURCE_VERSION_FILE="$TEST_PROJECT/.claude/doc-advisor/.source_version"
+
+# File must exist
+test_result ".source_version file exists" "0" "$([[ -f "$SOURCE_VERSION_FILE" ]] && echo 0 || echo 1)"
+
+# Must contain source_plugin_version
+if grep -q "source_plugin_version:" "$SOURCE_VERSION_FILE" 2>/dev/null; then
+    echo -e "${GREEN}PASS${NC}: .source_version contains source_plugin_version"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: .source_version missing source_plugin_version"
+    ((FAIL_COUNT++))
+fi
+
+# Must contain installed_at timestamp
+if grep -q "installed_at:" "$SOURCE_VERSION_FILE" 2>/dev/null; then
+    echo -e "${GREEN}PASS${NC}: .source_version contains installed_at"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: .source_version missing installed_at"
+    ((FAIL_COUNT++))
+fi
+
+# Must contain source_path
+if grep -q "source_path:" "$SOURCE_VERSION_FILE" 2>/dev/null; then
+    echo -e "${GREEN}PASS${NC}: .source_version contains source_path"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: .source_version missing source_path"
+    ((FAIL_COUNT++))
+fi
+
+# Version must match plugin.json
+EXPECTED_VERSION=$(/opt/homebrew/bin/python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" \
+    "$PROJECT_ROOT/bw-cc-plugins/plugins/doc-advisor/.claude-plugin/plugin.json" 2>/dev/null)
+RECORDED_VERSION=$(grep "source_plugin_version:" "$SOURCE_VERSION_FILE" | awk '{print $2}')
+test_result ".source_version version matches plugin.json" "$EXPECTED_VERSION" "$RECORDED_VERSION"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 41: sed transformations applied correctly"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Transformation 1: ${CLAUDE_PLUGIN_ROOT}/ must not remain
+PLUGIN_ROOT_COUNT=$(grep -r '\${CLAUDE_PLUGIN_ROOT}/' "$TEST_PROJECT/.claude/" 2>/dev/null | wc -l | tr -d ' ')
+test_result "No \${CLAUDE_PLUGIN_ROOT}/ in installed files" "0" "$PLUGIN_ROOT_COUNT"
+
+# Transformation 2: /doc-advisor: prefix must not remain
+DOC_ADVISOR_PREFIX_COUNT=$(grep -r '/doc-advisor:' "$TEST_PROJECT/.claude/" 2>/dev/null | wc -l | tr -d ' ')
+test_result "No /doc-advisor: prefix in installed files" "0" "$DOC_ADVISOR_PREFIX_COUNT"
+
+# Transformation 3: /forge:setup-doc-structure must not remain
+FORGE_PREFIX_COUNT=$(grep -r '/forge:setup-doc-structure' "$TEST_PROJECT/.claude/" 2>/dev/null | wc -l | tr -d ' ')
+test_result "No /forge:setup-doc-structure in installed files" "0" "$FORGE_PREFIX_COUNT"
+
+# Positive check: .claude/doc-advisor/ references should exist (substitution applied)
+SUBSTITUTED_COUNT=$(grep -r '\.claude/doc-advisor/' "$TEST_PROJECT/.claude/skills/" "$TEST_PROJECT/.claude/agents/" "$TEST_PROJECT/.claude/doc-advisor/docs/" 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$SUBSTITUTED_COUNT" -gt 0 ]]; then
+    echo -e "${GREEN}PASS${NC}: .claude/doc-advisor/ references found ($SUBSTITUTED_COUNT occurrences)"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No .claude/doc-advisor/ references — substitution may not have run"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 42: --source argument with custom path"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup with explicit --source
+echo "opus" | "$PROJECT_ROOT/setup.sh" --source "$PROJECT_ROOT/bw-cc-plugins/plugins/doc-advisor" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: same result as default (skills installed, source_version recorded)
+test_result "--source: query-rules installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/query-rules/SKILL.md" ]] && echo 0 || echo 1)"
+test_result "--source: .source_version exists" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/.source_version" ]] && echo 0 || echo 1)"
+
+# Verify source_path in .source_version reflects the custom path
+RECORDED_PATH=$(grep "source_path:" "$TEST_PROJECT/.claude/doc-advisor/.source_version" | sed 's/source_path: //')
+if [[ "$RECORDED_PATH" == *"bw-cc-plugins/plugins/doc-advisor"* ]]; then
+    echo -e "${GREEN}PASS${NC}: --source: source_path recorded correctly"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: --source: source_path not recorded (got: $RECORDED_PATH)"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 43: Invalid --source directory fails"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup with nonexistent source directory
+INVALID_OUTPUT=$(echo "opus" | "$PROJECT_ROOT/setup.sh" --source "/nonexistent/path" "$TEST_PROJECT" 2>&1)
+INVALID_EXIT=$?
+
+test_result "Invalid --source exits with error" "1" "$([[ $INVALID_EXIT -ne 0 ]] && echo 1 || echo 0)"
+
+# Run setup with a valid directory but no plugin.json
+INVALID_OUTPUT2=$(echo "opus" | "$PROJECT_ROOT/setup.sh" --source "$PROJECT_ROOT" "$TEST_PROJECT" 2>&1)
+INVALID_EXIT2=$?
+
+test_result "Missing plugin.json exits with error" "1" "$([[ $INVALID_EXIT2 -ne 0 ]] && echo 1 || echo 0)"
+if echo "$INVALID_OUTPUT2" | grep -q "plugin.json"; then
+    echo -e "${GREEN}PASS${NC}: Error message mentions plugin.json"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: Error message should mention plugin.json"
+    ((FAIL_COUNT++))
+fi
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 44: Forge detection - setup-doc-structure installed when forge available"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup (forge should be auto-detected from sibling directory)
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: setup-doc-structure from forge is installed
+test_result "Forge: setup-doc-structure/SKILL.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/setup-doc-structure/SKILL.md" ]] && echo 0 || echo 1)"
+test_result "Forge: classification_rules.md installed" "0" "$([[ -f "$TEST_PROJECT/.claude/skills/setup-doc-structure/classification_rules.md" ]] && echo 0 || echo 1)"
+test_result "Forge: doc_structure/ scripts installed" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/doc_structure/classify_dirs.py" ]] && echo 0 || echo 1)"
+test_result "Forge: check_doc_structure.py installed" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/doc_structure/check_doc_structure.py" ]] && echo 0 || echo 1)"
+test_result "Forge: migrate_doc_structure.py installed" "0" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/doc_structure/migrate_doc_structure.py" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 45: Forge absent - setup-doc-structure skipped gracefully"
+echo "=================================================="
+
+setup_test_project
+
+# Create a temporary source directory without forge sibling
+TEMP_SOURCE=$(mktemp -d "${TEST_PROJECT}/temp_source.XXXXXX")
+cp -R "$PROJECT_ROOT/bw-cc-plugins/plugins/doc-advisor/." "$TEMP_SOURCE/"
+
+# Run setup with isolated source (no forge sibling)
+FORGE_OUTPUT=$(echo "opus" | "$PROJECT_ROOT/setup.sh" --source "$TEMP_SOURCE" "$TEST_PROJECT" 2>&1)
+
+# Verify: setup-doc-structure NOT installed (no forge)
+test_result "No forge: setup-doc-structure not installed" "1" "$([[ -f "$TEST_PROJECT/.claude/skills/setup-doc-structure/SKILL.md" ]] && echo 0 || echo 1)"
+
+# Verify: warning message about forge
+if echo "$FORGE_OUTPUT" | grep -q "Forge plugin not found"; then
+    echo -e "${GREEN}PASS${NC}: Forge absence warning displayed"
+    ((PASS_COUNT++))
+else
+    echo -e "${RED}FAIL${NC}: No forge absence warning in output"
+    ((FAIL_COUNT++))
+fi
+
+# Cleanup temp source
+rm -rf "$TEMP_SOURCE"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 46: v0.2.1 legacy index skills removed"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create legacy index skills (existed before v0.2.1)
+for old_skill in create-rules-index create-specs-index query-rules-index query-specs-index; do
+    mkdir -p "$TEST_PROJECT/.claude/skills/$old_skill"
+    echo "# Legacy index skill" > "$TEST_PROJECT/.claude/skills/$old_skill/SKILL.md"
+done
+
+# Run setup again
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: all 4 legacy index skills removed
+test_result "create-rules-index removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/create-rules-index" ]] && echo 0 || echo 1)"
+test_result "create-specs-index removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/create-specs-index" ]] && echo 0 || echo 1)"
+test_result "query-rules-index removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/query-rules-index" ]] && echo 0 || echo 1)"
+test_result "query-specs-index removed" "1" "$([[ -d "$TEST_PROJECT/.claude/skills/query-specs-index" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 47: change_agent_model.sh legacy cleanup"
+echo "=================================================="
+
+setup_test_project
+
+# First install
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Create legacy file
+echo "#!/bin/bash" > "$TEST_PROJECT/.claude/doc-advisor/scripts/change_agent_model.sh"
+
+# Run setup again
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Verify: removed
+test_result "change_agent_model.sh removed" "1" "$([[ -f "$TEST_PROJECT/.claude/doc-advisor/scripts/change_agent_model.sh" ]] && echo 0 || echo 1)"
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 48: Dynamic skill discovery (all source skills installed)"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Get skill list from source
+SOURCE_SKILLS_DIR="$PROJECT_ROOT/bw-cc-plugins/plugins/doc-advisor/skills"
+ALL_SKILLS_OK=true
+for skill_dir in "$SOURCE_SKILLS_DIR"/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill_name=$(basename "$skill_dir")
+    if [[ -d "$TEST_PROJECT/.claude/skills/$skill_name" ]]; then
+        echo -e "${GREEN}PASS${NC}: Skill $skill_name installed"
+        ((PASS_COUNT++))
+    else
+        echo -e "${RED}FAIL${NC}: Skill $skill_name NOT installed"
+        ((FAIL_COUNT++))
+        ALL_SKILLS_OK=false
+    fi
+done
+echo ""
+
+# ==================================================
+echo "=================================================="
+echo "Test 49: __pycache__ excluded from copy"
+echo "=================================================="
+
+setup_test_project
+
+# Run setup
+echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
+
+# Check: no __pycache__ directories or .pyc files in installed output
+PYCACHE_COUNT=$(find "$TEST_PROJECT/.claude" -name "__pycache__" -type d 2>/dev/null | wc -l | tr -d ' ')
+PYC_COUNT=$(find "$TEST_PROJECT/.claude" -name "*.pyc" -type f 2>/dev/null | wc -l | tr -d ' ')
+test_result "No __pycache__/ in installed files" "0" "$PYCACHE_COUNT"
+test_result "No *.pyc in installed files" "0" "$PYC_COUNT"
 echo ""
 
 # ==================================================

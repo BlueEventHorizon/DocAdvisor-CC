@@ -1,0 +1,3 @@
+[submodule "bw-cc-plugins"]
+	path = bw-cc-plugins
+	url = git@github.com:BlueEventHorizon/bw-cc-plugins.git

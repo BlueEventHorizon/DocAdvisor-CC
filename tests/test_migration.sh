@@ -271,7 +271,7 @@ try:
 finally:
     MIGRATIONS.clear()
     MIGRATIONS.update(saved_migrations)
-" 2>&1)
+" 2>/dev/null)
 test_result "Rollback on v2→v3 failure returns original v1 data" "OK" "$RESULT"
 echo ""
 
