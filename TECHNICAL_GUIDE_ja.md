@@ -283,7 +283,8 @@ DocAdvisor/
 │       └── scripts/            # Python スクリプト
 ├── setup.sh                    # プロジェクトセットアップスクリプト
 ├── Makefile                    # ビルド自動化
-└── README.md
+├── README.md                   # 日本語版 README
+└── README_en.md                # 英語版 README
 ```
 
 ### ターゲットプロジェクト構造（セットアップ後）

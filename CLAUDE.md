@@ -35,7 +35,7 @@ target-project/.claude/              インストール先（実体ファイル�
 
 | ドキュメント                 | 内容                                 |
 | ---------------------------- | ------------------------------------ |
-| `README.md` / `README_ja.md` | プロジェクト概要、設計意図、コマンド |
+| `README.md` / `README_en.md` | プロジェクト概要、設計意図、コマンド |
 | `specs/requirements/**/*.md` | 要件定義書（実装の根拠）             |
 
 ## 言語ルール
@@ -44,11 +44,11 @@ target-project/.claude/              インストール先（実体ファイル�
 | ----------------- | ------ |
 | CLAUDE.md         | 日本語 |
 | .claude/**/*.md   | 日本語 |
-| README_ja.md      | 日本語 |
+| README.md         | 日本語 |
 | meta/**/*.md      | 日本語 |
 | rules/**/*.md     | 日本語 |
 | specs/**/*.md     | 日本語 |
-| README.md         | 英語   |
+| README_en.md      | 英語   |
 | setup.sh          | 英語   |
 | その他            | 英語   |
 
