@@ -54,11 +54,13 @@ For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
 
 ## Quick Start
 
-1. Clone the repository
+1. Clone the repository (with submodules)
 
 ```bash
-git clone https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 ```
+
+> If you already cloned without `--recursive`, run `git submodule update --init`.
 
 2. Run setup for your target project
 

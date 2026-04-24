@@ -52,11 +52,13 @@ Doc Advisor の目的は「必要な文書を、短時間で、確実に特定�
 
 ## クイックスタート
 
-1. リポジトリをクローン
+1. リポジトリをクローン（submodule 含む）
 
 ```bash
-git clone https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 ```
+
+> 既存クローンの場合は `git submodule update --init` を実行してください。
 
 2. ターゲットプロジェクトにセットアップ
 

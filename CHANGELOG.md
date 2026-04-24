@@ -9,6 +9,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+## [5.2.0] - 2026-04-25
+
+### Changed
+- **Architecture overhaul**: Abolished `templates/` directory; Doc Advisor now installs by reading sources directly from the `bw-cc-plugins` submodule and applying path/name transforms at install time. The repository becomes a thin installer that mediates between `bw-cc-plugins` (read-only) and target projects.
+  - Added `bw-cc-plugins` as a git submodule — `git clone --recursive` (or `git submodule update --init`) is now required
+  - `setup.sh` rewritten with `--source <path>` argument (default: submodule path); applies three sed transforms during install:
+    - `${CLAUDE_PLUGIN_ROOT}/` → `.claude/doc-advisor/`
+    - `/doc-advisor:` → `/`
+    - `/forge:setup-doc-structure` → `/setup-doc-structure`
+  - Auto-copies `setup-doc-structure` SKILL and `doc_structure/` scripts from the `forge` plugin
+  - Reads source `plugin.json` version, validates against `KNOWN_VERSIONS`, records `.source_version` in target
+- **`check_doc_structure.sh` abolished**: Validation logic merged into Python error handling across `create_checksums.py`, `create_pending_yaml.py`, `merge_toc.py`, `validate_toc.py`, and `toc_utils.py` — eliminates the standalone shell pre-check
+- **`{{AGENT_MODEL}}` placeholder removed**: `toc-updater` agent now hardcodes `haiku`; model switching delegated to a separate `change_agent_model.sh` script
+- **README split**: `README.md` is now Japanese (primary); English version moved to `README_en.md`. `TECHNICAL_GUIDE.md` / `TECHNICAL_GUIDE_ja.md` updated accordingly
+
+### Removed
+- `templates/` directory and all 19 source files (agents, skills, docs, scripts) — now sourced from `bw-cc-plugins`
+- Stale `.claude/` artifacts checked into the repo: legacy commands (`create-pr`, `read-conversation`, `read-docs`, `save-conversation`), unused agents (`task-executor`, old `toc-updater`), obsolete skills (`classify-docs`, `docadvisor-dev`), and superseded `config.yaml{,.bak,.old}` files
+
+### Fixed
+- **Code review findings (12 items)** addressed across docs and scripts:
+  - `validate_toc.py`: stale `{target}` comment, inline `[]` array handling, `expand_root_dir_globs()` call in `init_config()`
+  - `create_checksums.py`: migrated from `sys.argv` to `argparse`, introduced `init_config()` pattern, merged duplicate `find_md_files`
+  - `SKILL.md` (create-rules/specs-toc): residual "target = rules/specs" text
+  - `DES-004` / `DES-005`: output defaults aligned with `_get_default_config()`, `--category` arg added to component list
+  - `classify_dirs.py`: version tag placeholder added
+- **target → category rename**: residual occurrences fixed in `toc_utils.py` and doc templates not covered by 5.1.0
+- **`check_config.sh` → `check_doc_structure.sh`**: rename aligned with the `.doc_structure.yaml` migration (later abolished entirely; see Changed)
+
+### Tests
+- Added Test 40–49 covering: sed transform verification, `--source` argument, source validation, forge detection / absence, `.source_version` recording, v0.2.1 legacy cleanup, dynamic skill detection, `__pycache__` exclusion
+- Fixed pre-existing path mismatches (Test 17/22), removed `templates/` references (Test 32), separated stderr (M-09)
+
+### Migration
+- Existing installations: re-run `./setup.sh <target>` after `git submodule update --init`. The setup script's v0.2.1 legacy cleanup removes obsolete `.claude/doc-advisor/` artifacts from prior versions automatically.
+
+---
 ## [5.1.0] - 2026-03-26
 
 ### Changed
