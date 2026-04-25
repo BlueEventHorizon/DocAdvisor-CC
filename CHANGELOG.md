@@ -11,6 +11,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [5.2.0] - 2026-04-25
 
+### Added
+- **Optional plugins**: `--with-anvil` and `--with-xcode` flags install additional skills alongside doc-advisor.
+  - `--with-anvil`: GitHub commit / create-pr skills from `bw-cc-plugins/plugins/anvil`
+  - `--with-xcode`: iOS/macOS build / test skills from `bw-cc-plugins/plugins/xcode`
+  - Interactive mode (no `TARGET_DIR` argument) prompts `[y/N]` for each optional plugin
+  - Layout: SKILL.md → `.claude/skills/<skill>/`, sub-resources (scripts) → `.claude/<plugin>/`
+  - Transforms: `${CLAUDE_PLUGIN_ROOT}/` → `.claude/<plugin>/`, `/<plugin>:xxx` → `/xxx`
+  - Missing source handled gracefully (warning + skip, core install still succeeds)
+  - Per-plugin `.source_version` file records plugin name, version, and install timestamp
+- **`tests/test_optional_plugins.sh`**: Phase 6 test suite (54 checks) covering default-off behavior, `--with-anvil` only, `--with-xcode` only, both-at-once, transform correctness, executable bit, `.source_version` metadata, and graceful handling of missing plugin sources
+
 ### Changed
 - **Architecture overhaul**: Abolished `templates/` directory; Doc Advisor now installs by reading sources directly from the `bw-cc-plugins` submodule and applying path/name transforms at install time. The repository becomes a thin installer that mediates between `bw-cc-plugins` (read-only) and target projects.
   - Added `bw-cc-plugins` as a git submodule — `git clone --recursive` (or `git submodule update --init`) is now required

@@ -16,6 +16,7 @@ tests/
 ├── test_custom_dirs.sh        # Phase 3: Custom directory names
 ├── test_edge_cases.sh         # Phase 4: Edge cases
 ├── test_setup_upgrade.sh      # Phase 5: Setup upgrade scenarios
+├── test_optional_plugins.sh   # Phase 6: --with-anvil / --with-xcode installation
 ├── test_project/              # Default config test project
 │   ├── rules/
 │   │   └── coding_standards.md
