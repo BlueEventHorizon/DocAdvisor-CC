@@ -36,6 +36,9 @@ fi
 # Parse arguments
 TARGET_DIR=""
 SOURCE_DIR=""
+WITH_ANVIL=false
+WITH_XCODE=false
+OPTIONAL_PLUGINS_SPECIFIED=false  # Track whether CLI flags were used
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -45,20 +48,28 @@ while [[ $# -gt 0 ]]; do
             echo "Usage:"
             echo "  ./setup.sh TARGET_DIR                       # Use submodule as source"
             echo "  ./setup.sh --source SOURCE_DIR TARGET_DIR   # Use custom source"
+            echo "  ./setup.sh --with-anvil TARGET_DIR          # Also install anvil plugin"
+            echo "  ./setup.sh --with-xcode TARGET_DIR          # Also install xcode plugin"
             echo "  ./setup.sh -h, --help                       # Show help"
             echo ""
             echo "SOURCE_DIR: Path to bw-cc-plugins/plugins/doc-advisor/"
             echo "            Default: ./bw-cc-plugins/plugins/doc-advisor/ (git submodule)"
             echo "TARGET_DIR: Path to target project"
             echo ""
+            echo "Optional plugins (opt-in, off by default):"
+            echo "  --with-anvil    anvil: GitHub commit/create-pr skills"
+            echo "  --with-xcode    xcode: iOS/macOS build/test skills"
+            echo ""
             echo "This script creates:"
             echo "  TARGET_DIR/.claude/agents/         # Worker agents (toc-updater)"
             echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Docs, scripts, ToC files"
+            echo "  TARGET_DIR/.claude/anvil/          # (if --with-anvil) anvil scripts"
+            echo "  TARGET_DIR/.claude/xcode/          # (if --with-xcode) xcode scripts"
             echo ""
             echo "Transformations applied during copy:"
-            echo '  ${CLAUDE_PLUGIN_ROOT}/  →  .claude/doc-advisor/'
-            echo "  /doc-advisor:xxx        →  /xxx"
+            echo '  ${CLAUDE_PLUGIN_ROOT}/  →  .claude/<plugin>/'
+            echo "  /<plugin>:xxx           →  /xxx"
             echo "  /forge:setup-doc-structure → /setup-doc-structure"
             exit 0
             ;;
@@ -69,6 +80,16 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             SOURCE_DIR="$1"
+            shift
+            ;;
+        --with-anvil)
+            WITH_ANVIL=true
+            OPTIONAL_PLUGINS_SPECIFIED=true
+            shift
+            ;;
+        --with-xcode)
+            WITH_XCODE=true
+            OPTIONAL_PLUGINS_SPECIFIED=true
             shift
             ;;
         -*)
@@ -153,8 +174,15 @@ else
     echo ""
 fi
 
+# Derive sibling plugin source paths (for optional plugins)
+SOURCE_PLUGINS_ROOT="$(dirname "$SOURCE_DIR")"
+SOURCE_ANVIL="${SOURCE_PLUGINS_ROOT}/anvil"
+SOURCE_XCODE="${SOURCE_PLUGINS_ROOT}/xcode"
+
 # Interactive prompt if not specified
+INTERACTIVE_TARGET_PROMPT=false
 if [[ -z "$TARGET_DIR" ]]; then
+    INTERACTIVE_TARGET_PROMPT=true
     echo "Doc Advisor Setup Script"
     echo ""
     # Default: pwd (except when pwd is DocAdvisor itself)
@@ -176,6 +204,15 @@ if [[ -z "$TARGET_DIR" ]]; then
     fi
 fi
 
+# Interactive prompt for optional plugins (only when TARGET_DIR came from prompt
+# AND no --with-* flag was specified — avoids surprising non-interactive callers)
+if [[ "$INTERACTIVE_TARGET_PROMPT" == "true" && "$OPTIONAL_PLUGINS_SPECIFIED" == "false" ]]; then
+    read -p "Install anvil plugin (commit / create-pr skills)? [y/N]: " _reply
+    [[ "$_reply" =~ ^[Yy] ]] && WITH_ANVIL=true
+    read -p "Install xcode plugin (build / test skills)? [y/N]: " _reply
+    [[ "$_reply" =~ ^[Yy] ]] && WITH_XCODE=true
+fi
+
 # Expand ~ to $HOME (safe alternative to eval)
 TARGET_DIR="${TARGET_DIR/#\~/$HOME}"
 TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || {
@@ -190,6 +227,12 @@ echo ""
 echo "Source:  $(display_path "${SOURCE_DIR}") (v${SOURCE_VERSION})"
 if [[ "$HAS_FORGE" == "true" ]]; then
     echo "Forge:   $(display_path "${SOURCE_FORGE}") (available)"
+fi
+if [[ "$WITH_ANVIL" == "true" ]]; then
+    echo "Anvil:   $(display_path "${SOURCE_ANVIL}") (requested)"
+fi
+if [[ "$WITH_XCODE" == "true" ]]; then
+    echo "Xcode:   $(display_path "${SOURCE_XCODE}") (requested)"
 fi
 echo "Target:  $(display_path "${TARGET_DIR}")"
 echo ""
@@ -563,6 +606,123 @@ if [[ "$HAS_FORGE" == "true" ]]; then
 fi
 
 # =============================================================================
+# Phase C: Optional plugins (--with-anvil / --with-xcode)
+# =============================================================================
+#
+# Layout:
+#   .claude/skills/<skill>/SKILL.md          ← skill entry (Claude Code discovers here)
+#   .claude/<plugin>/skills/<skill>/scripts/ ← skill's sub-resources
+#   .claude/<plugin>/scripts/                ← plugin-level scripts (anvil style)
+#   .claude/<plugin>/.source_version         ← version record
+#
+# Transforms:
+#   ${CLAUDE_PLUGIN_ROOT}/  →  .claude/<plugin>/
+#   /<plugin>:xxx           →  /xxx
+install_optional_plugin() {
+    local plugin_name="$1"
+    local plugin_source="$2"
+
+    if [[ ! -d "$plugin_source" ]]; then
+        printf "${YELLOW}Warning: ${plugin_name} plugin not found at $(display_path "$plugin_source"); skipping${NC}\n"
+        return 1
+    fi
+    if [[ ! -f "${plugin_source}/.claude-plugin/plugin.json" ]]; then
+        printf "${YELLOW}Warning: ${plugin_name} source invalid (no plugin.json); skipping${NC}\n"
+        return 1
+    fi
+
+    local plugin_version
+    plugin_version=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" \
+        "${plugin_source}/.claude-plugin/plugin.json" 2>/dev/null) || plugin_version="unknown"
+
+    local plugin_target_dir="${CLAUDE_DIR}/${plugin_name}"
+    mkdir -p "$plugin_target_dir"
+
+    echo ""
+    echo "  [${plugin_name}] installing (v${plugin_version})..."
+
+    # Plugin-specific sed transform (stdin → stdout)
+    _transform_plugin() {
+        sed \
+            -e "s|\${CLAUDE_PLUGIN_ROOT}/|.claude/${plugin_name}/|g" \
+            -e "s|/${plugin_name}:|/|g"
+    }
+
+    _copy_file_transformed() {
+        local src="$1" dst="$2"
+        mkdir -p "$(dirname "$dst")"
+        case "$src" in
+            *.md|*.py|*.yaml|*.yml|*.sh)
+                _transform_plugin < "$src" > "$dst"
+                ;;
+            *)
+                cp "$src" "$dst"
+                ;;
+        esac
+    }
+
+    # Copy skills: SKILL.md → .claude/skills/<skill>/, rest → .claude/<plugin>/skills/<skill>/
+    if [[ -d "${plugin_source}/skills" ]]; then
+        local skill_dir skill_name f rel dst
+        for skill_dir in "${plugin_source}/skills"/*/; do
+            [[ -d "$skill_dir" ]] || continue
+            skill_name=$(basename "${skill_dir%/}")
+            echo "    skills/${skill_name}/ ..."
+
+            mkdir -p "${SKILLS_DIR}/${skill_name}"
+            if [[ -f "${skill_dir}SKILL.md" ]]; then
+                _transform_plugin < "${skill_dir}SKILL.md" > "${SKILLS_DIR}/${skill_name}/SKILL.md"
+            fi
+
+            # Sub-resources (scripts/, extra docs, etc.) go to .claude/<plugin>/skills/<skill>/
+            while IFS= read -r f; do
+                rel="${f#${skill_dir}}"
+                dst="${plugin_target_dir}/skills/${skill_name}/${rel}"
+                _copy_file_transformed "$f" "$dst"
+            done < <(find "$skill_dir" -mindepth 1 -type f \
+                -not -path "*/__pycache__/*" \
+                -not -name "*.pyc" \
+                -not -name ".DS_Store" \
+                -not -name "SKILL.md")
+        done
+    fi
+
+    # Copy plugin-level scripts/ (anvil style)
+    if [[ -d "${plugin_source}/scripts" ]]; then
+        echo "    scripts/ ..."
+        local f rel dst
+        while IFS= read -r f; do
+            rel="${f#${plugin_source}/scripts/}"
+            dst="${plugin_target_dir}/scripts/${rel}"
+            _copy_file_transformed "$f" "$dst"
+        done < <(find "${plugin_source}/scripts" -type f \
+            -not -path "*/__pycache__/*" \
+            -not -name "*.pyc" \
+            -not -name ".DS_Store")
+    fi
+
+    # Make all shell scripts executable (both tree locations)
+    find "$plugin_target_dir" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+
+    # Record plugin version
+    cat > "${plugin_target_dir}/.source_version" << EOF
+# Auto-generated by setup.sh — do not edit
+source_plugin: ${plugin_name}
+source_plugin_version: ${plugin_version}
+installed_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+source_path: ${plugin_source}
+EOF
+    return 0
+}
+
+if [[ "$WITH_ANVIL" == "true" ]]; then
+    install_optional_plugin "anvil" "$SOURCE_ANVIL" || true
+fi
+if [[ "$WITH_XCODE" == "true" ]]; then
+    install_optional_plugin "xcode" "$SOURCE_XCODE" || true
+fi
+
+# =============================================================================
 # Record source version
 # =============================================================================
 cat > "${DOC_ADVISOR_DIR}/.source_version" << EOF
@@ -585,6 +745,12 @@ echo "  ${CLAUDE_DIR}/"
 echo "    agents/            # Worker agents (toc-updater)"
 echo "    skills/            # Skills (query-*, create-*-toc, setup-doc-structure)"
 echo "    doc-advisor/       # Docs, scripts, ToC files"
+if [[ "$WITH_ANVIL" == "true" && -d "${CLAUDE_DIR}/anvil" ]]; then
+    echo "    anvil/             # Anvil plugin resources (commit, create-pr scripts)"
+fi
+if [[ "$WITH_XCODE" == "true" && -d "${CLAUDE_DIR}/xcode" ]]; then
+    echo "    xcode/             # Xcode plugin resources (build, test scripts)"
+fi
 
 # Save settings for next run (reserved for future use)
 cat > "$LAST_SETUP_FILE" << EOF
