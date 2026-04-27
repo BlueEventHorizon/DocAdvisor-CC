@@ -1120,12 +1120,25 @@ setup_test_project
 # Run setup
 echo "opus" | "$PROJECT_ROOT/setup.sh" "$TEST_PROJECT" > /dev/null 2>&1
 
-# Get skill list from source
+# Get skill list from source. Skills listed in DISABLED_SKILLS are intentionally
+# skipped by setup.sh (currently suspended upstream); assert they are NOT installed.
 SOURCE_SKILLS_DIR="$PROJECT_ROOT/bw-cc-plugins/plugins/doc-advisor/skills"
+DISABLED_SKILLS="create-code-index query-code"
 ALL_SKILLS_OK=true
 for skill_dir in "$SOURCE_SKILLS_DIR"/*/; do
     [[ -d "$skill_dir" ]] || continue
     skill_name=$(basename "$skill_dir")
+    if echo " $DISABLED_SKILLS " | grep -qw "$skill_name"; then
+        if [[ ! -d "$TEST_PROJECT/.claude/skills/$skill_name" ]]; then
+            echo -e "${GREEN}PASS${NC}: Skill $skill_name correctly skipped (disabled)"
+            ((PASS_COUNT++))
+        else
+            echo -e "${RED}FAIL${NC}: Skill $skill_name should be skipped but was installed"
+            ((FAIL_COUNT++))
+            ALL_SKILLS_OK=false
+        fi
+        continue
+    fi
     if [[ -d "$TEST_PROJECT/.claude/skills/$skill_name" ]]; then
         echo -e "${GREEN}PASS${NC}: Skill $skill_name installed"
         ((PASS_COUNT++))

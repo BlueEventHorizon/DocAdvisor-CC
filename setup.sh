@@ -1,4 +1,10 @@
 #!/bin/bash
+# Re-exec under non-POSIX bash if process substitution is unavailable.
+# On macOS, `sh setup.sh` runs bash in POSIX mode (BASH_VERSION is still set
+# but process substitution `< <(...)` is disabled), so we test the feature directly.
+if [ -z "${BASH_VERSION:-}" ] || ! ( eval ': < <(:)' ) 2>/dev/null; then
+    exec bash "$0" "$@"
+fi
 # Doc Advisor Setup Script
 #
 # Reads doc-advisor files from bw-cc-plugins (read-only source) and installs
@@ -448,6 +454,23 @@ for old_skill in "create-rules-index" "create-specs-index" "query-rules-index" "
     fi
 done
 
+# Disabled skills: remove if previously installed
+for disabled_skill in "create-code-index" "query-code"; do
+    if [[ -d "${SKILLS_DIR}/${disabled_skill}" ]]; then
+        rm -rf "${SKILLS_DIR}/${disabled_skill}"
+        printf "${GREEN}Removed disabled: skills/${disabled_skill}/${NC}\n"
+        LEGACY_CLEANED=1
+    fi
+done
+
+# Legacy: doc-structure skill briefly placed under doc-advisor/skills/
+# (relocated to canonical .claude/skills/doc-structure/)
+if [[ -d "${DOC_ADVISOR_DIR}/skills" ]]; then
+    rm -rf "${DOC_ADVISOR_DIR}/skills"
+    printf "${GREEN}Removed legacy: doc-advisor/skills/ (skills moved to .claude/skills/)${NC}\n"
+    LEGACY_CLEANED=1
+fi
+
 # Legacy template-mode files (no longer generated from templates/)
 if [[ -f "${DOC_ADVISOR_DIR}/scripts/change_agent_model.sh" ]]; then
     rm -f "${DOC_ADVISOR_DIR}/scripts/change_agent_model.sh"
@@ -480,14 +503,27 @@ copy_and_substitute() {
     [[ -f "$src" ]] || return 0
 
     # Generate substituted content with all transformations:
-    # 1. ${CLAUDE_PLUGIN_ROOT}/ → .claude/doc-advisor/
-    # 2. /doc-advisor:xxx → /xxx (remove plugin namespace prefix)
-    # 3. /forge:setup-doc-structure → /setup-doc-structure
+    # 1. ${CLAUDE_PLUGIN_ROOT}/skills/ → .claude/skills/   (must run BEFORE rule 2)
+    #    Skills always live under .claude/skills/ (Claude Code convention),
+    #    not under the plugin's directory. Specific rule wins.
+    # 2. ${CLAUDE_PLUGIN_ROOT}/ → .claude/doc-advisor/
+    # 3. /doc-advisor:xxx → /xxx (remove plugin namespace prefix)
+    # 4. /forge:setup-doc-structure → /setup-doc-structure
+    # 5-7. Python path navigation fixes for forge's scripts/doc_structure/*.py
+    #      that import resolve_doc_structure.py from the doc-structure SKILL.
+    #      In forge native layout, the SKILL is a sibling of scripts/ (one level
+    #      below plugin root). After install, the SKILL lives at .claude/skills/
+    #      while the importing scripts live at .claude/doc-advisor/scripts/, so
+    #      we need to walk one more parent to escape doc-advisor/ to .claude/.
     local new_content
     new_content=$(sed \
+        -e 's|\${CLAUDE_PLUGIN_ROOT}/skills/|.claude/skills/|g' \
         -e 's|\${CLAUDE_PLUGIN_ROOT}/|.claude/doc-advisor/|g' \
         -e 's|/doc-advisor:|/|g' \
         -e 's|/forge:setup-doc-structure|/setup-doc-structure|g' \
+        -e "s|parent\.parent\.parent / 'skills' / 'doc-structure'|parent.parent.parent.parent / 'skills' / 'doc-structure'|g" \
+        -e "s|'\\.\\.', '\\.\\.', 'skills', 'doc-structure'|'..', '..', '..', 'skills', 'doc-structure'|g" \
+        -e 's|SCRIPT_DIR\.parent\.parent  |SCRIPT_DIR.parent.parent.parent  |' \
         "$src")
 
     # If target file exists, compare content to skip unchanged files
@@ -567,9 +603,15 @@ fi
 copy_dir_with_substitution "${SOURCE_DIR}/agents" "${AGENTS_DIR}"
 
 # A2: Skills from doc-advisor (all skill directories under skills/)
+# Skills listed in DISABLED_SKILLS are skipped (currently suspended upstream)
+DISABLED_SKILLS="create-code-index query-code"
 for skill_dir in "${SOURCE_DIR}/skills"/*/; do
     [[ -d "$skill_dir" ]] || continue
     skill_name=$(basename "$skill_dir")
+    if echo " $DISABLED_SKILLS " | grep -qw "$skill_name"; then
+        printf "${YELLOW}  skills/${skill_name}/ ... skipped (disabled)${NC}\n"
+        continue
+    fi
     echo "  skills/${skill_name}/ ..."
     copy_dir_with_substitution "$skill_dir" "${SKILLS_DIR}/${skill_name}"
 done
@@ -590,6 +632,16 @@ if [[ "$HAS_FORGE" == "true" ]]; then
     echo ""
     echo "  [forge] skills/setup-doc-structure/ ..."
     copy_dir_with_substitution "${SOURCE_FORGE}/skills/setup-doc-structure" "${SKILLS_DIR}/setup-doc-structure"
+
+    # doc-structure SKILL: contains resolve_doc_structure.py used by forge's
+    # scripts/doc_structure/*.py at runtime. Skills always live under
+    # .claude/skills/ (Claude Code convention), regardless of user-invocable flag.
+    # The Python path-navigation sed rules in copy_and_substitute() rewrite the
+    # importers' parent counts so they reach .claude/ → skills/doc-structure/.
+    if [[ -d "${SOURCE_FORGE}/skills/doc-structure" ]]; then
+        echo "  [forge] skills/doc-structure/ ..."
+        copy_dir_with_substitution "${SOURCE_FORGE}/skills/doc-structure" "${SKILLS_DIR}/doc-structure"
+    fi
 
     echo "  [forge] doc-advisor/scripts/doc_structure/ ..."
     # Copy forge's doc_structure scripts (classify, check, migrate)
