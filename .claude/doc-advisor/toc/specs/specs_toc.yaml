@@ -4,8 +4,8 @@
 
 metadata:
   name: Project Specification Document Search Index
-  generated_at: 2026-04-12T05:13:35Z
-  file_count: 8
+  generated_at: 2026-04-28T00:25:20Z
+  file_count: 9
 
 docs:
   specs/design/DES-001_setup_script.md:
@@ -240,3 +240,28 @@ docs:
       - detected_version
       - MIGRATIONS registry
       - idempotent
+  specs/requirements/REQ-004_setup_resilience.md:
+    doc_type: spec
+    title: "REQ-004: setup.sh forge plugin resilience enhancement specification"
+    purpose: Defines requirements for setup.sh to declare and verify forge plugin assets, enabling tracking of source dependencies and detecting missing/incorrectly transformed files
+    content_details:
+      - Asset declaration list for skills, agents, scripts, and docs
+      - Deterministic verification of install results (environment checks, file existence, syntax, string remnants, disabled skills, source version tracking)
+      - AI supplementary semantic validation (frontmatter consistency, Python lazy import integrity, sed rule logic, undiscovered files)
+      - Fallback support for manual asset lists (FR-04-2 to FR-04-3)
+      - "Future stages: forge manifest integration and Python environment variable support"
+    applicable_tasks:
+      - setup.sh implementation and validation
+      - forge plugin asset tracking during source updates
+      - installation verification for target projects
+      - handling new forge SKILL additions without setup.sh logic modifications
+    keywords:
+      - forge plugin
+      - setup resilience
+      - deterministic verification
+      - asset declaration
+      - manifest
+      - installation validation
+      - source version tracking
+      - sed conversion
+      - DISABLED_SKILLS
