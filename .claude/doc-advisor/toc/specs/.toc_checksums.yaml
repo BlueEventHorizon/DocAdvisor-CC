@@ -1,13 +1,14 @@
 # Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
 # Auto-generated - do not edit
-generated_at: 2026-04-28T00:24:52Z
-file_count: 9
+generated_at: 2026-04-28T03:37:38Z
+file_count: 10
 checksums:
   specs/design/DES-001_setup_script.md: 4129aa64add44e6b44b14cd3beedbc77d4c5b3b003673feb8397f9efabf18e6f
   specs/design/DES-002_config_migration.md: b0d20ef9571aefb2fb8a2ed535aa4919f6d1e959a4c2efae3f07f90b864c924b
   specs/design/DES-003_document_identifier.md: 392ac77041e109c5d6f84243ea019a398cae4a6d2aa3d37190e4e350dc8dcc2a
   specs/design/DES-004_document_model.md: bd9abdcbe4499b91a6a22c7565541c2b2d9c9105bb183018d399c2b3a8cadd65
   specs/design/DES-005_toc_generation_flow.md: 54f4f360ae682a4961864697d1853603e8808f454fe180fe41f16288996ffd3a
+  specs/design/DES-006_setup_resilience.md: ce369503830df6d7ef053e7ef521532865debac3a60c3c0063d673a75bf3a521
   specs/requirements/REQ-001_doc_advisor.md: b159f59da4f67126d46c21ccb7201d4e510d3926c75c1533529a24ac5f030555
   specs/requirements/REQ-002_upgrade_v2_to_v3.md: da2d3b3aa9475de3565d9e093a23d01c30dac24b27852e9fae4036d71b3f1118
   specs/requirements/REQ-003_versioned_migration.md: 86952b9ecd656eecf2b8b47020d19c3e2ee274af39e92f995ba55b2ca030e3ad

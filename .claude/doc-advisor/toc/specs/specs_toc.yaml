@@ -4,8 +4,8 @@
 
 metadata:
   name: Project Specification Document Search Index
-  generated_at: 2026-04-28T00:25:20Z
-  file_count: 9
+  generated_at: 2026-04-28T03:38:06Z
+  file_count: 10
 
 docs:
   specs/design/DES-001_setup_script.md:
@@ -148,6 +148,36 @@ docs:
       - Phase flow control
       - Continuation/Retry mechanism
       - Entry file method
+  specs/design/DES-006_setup_resilience.md:
+    doc_type: spec
+    title: "Setup Resilience Design (DES-006): Strengthening setup.sh forge plugin change tolerance"
+    purpose: Defines how setup.sh imports assets from forge and doc-advisor plugins using declaration lists, implements two-stage validation (deterministic + AI complementary), and ensures resilient plugin integration
+    content_details:
+      - Declaration list architecture (FORGE_*_IMPORTS and DOC_ADVISOR_*_IMPORTS arrays)
+      - Deterministic validation (Python imports, SKILL/agent placement, sed residue, source_version, disabled skills, ToC configuration)
+      - AI complementary verification SKILL (setup-validator)
+      - Use case design (declaration-driven imports, deterministic validation, AI validation)
+      - Module design (install_plugin_imports, write_source_version, test_setup_validation.sh, setup-validator SKILL)
+      - source_commit recording with -dirty suffix and unknown fallback
+      - DISABLED_SKILLS subset relationship for controlled SKILL exclusion
+      - Design decisions and alternatives (A/B/C options documented)
+    applicable_tasks:
+      - setup.sh resilience enhancement design review
+      - import declaration list implementation and management
+      - deterministic validation testing and development
+      - setup-validator AI verification SKILL development
+      - forge plugin integration strategy planning
+      - validation framework architecture design
+    keywords:
+      - setup.sh
+      - forge plugin
+      - declaration list
+      - deterministic validation
+      - source_commit
+      - disabled skills
+      - setup-validator
+      - plugin resilience
+      - import management
   specs/requirements/REQ-001_doc_advisor.md:
     doc_type: spec
     title: Doc Advisor Requirements Specification
