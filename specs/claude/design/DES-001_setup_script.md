@@ -409,6 +409,106 @@ bash .claude/doc-advisor/scripts/check_doc_structure.sh {rules|specs}
 - `.doc_structure.yaml` がない場合は `/setup-doc-structure` スキルで作成する
 - 各スキルの Pre-check で `check_doc_structure.sh` を呼び出し、未設定時は `/setup-doc-structure` を先に実行させる
 
+## ローカルテスト設計
+
+Claude Code 向け `setup.sh` は現状でもローカル project fixture で deterministic test が可能である。Claude Code 実機の slash command / agent 実行確認とは分離し、まず shell で判定できる install 結果を固定する。
+
+### テスト層
+
+| 層 | 対象 | 判定方法 |
+| -- | ---- | -------- |
+| install 構造 | `.claude/skills/`, `.claude/agents/`, `.claude/doc-advisor/` | file existence / absence |
+| 変換結果 | `${CLAUDE_PLUGIN_ROOT}`, `/doc-advisor:`, `/forge:` の残存 | grep absent |
+| Python scripts | doc-advisor / forge 由来 scripts | `python3 -m py_compile` または import check |
+| source 追跡 | `.source_version` | source plugin version / commit / dirty suffix |
+| excluded / disabled | `create-code-index`, `query-code`, optional 未指定 plugin | file absence |
+| scenario | sample rules/specs で ToC script が動く | pending / merge / validate / checksums |
+
+### 推奨 fixture
+
+```text
+tests/
+├── claude_test_project/
+│   ├── README.md
+│   ├── .doc_structure.yaml
+│   └── docs/
+│       ├── rules/coding.md
+│       └── specs/sample/requirements.md
+├── test_setup_validation.sh
+└── test_claude_scenario.sh
+```
+
+既存 `tests/test_project` を使い続けてもよいが、Claude setup の install 検証と ToC scenario を安定させるため、将来的には `tests/claude_test_project` を専用 fixture として切り出す。
+
+### 実行コマンド
+
+```bash
+bash tests/run_all_tests.sh
+bash tests/test_setup_validation.sh
+bash tests/test_claude_scenario.sh
+```
+
+`test_setup_validation.sh` は `setup.sh tests/claude_test_project` を実行し、install 結果の構造検証を行う。`test_claude_scenario.sh` は Claude Code 本体に依存しない script 層のみを検証する。
+
+Claude Code 実機でのみ確認できる項目は deterministic test とは分ける。
+
+| 実機確認項目 | 理由 |
+| ------------ | ---- |
+| `/setup-doc-structure` | AskUserQuestion / Write を含む |
+| `/create-rules-toc --full` | `toc-updater` agent の Task 起動を含む |
+| `/create-specs-toc --full` | 同上 |
+| `/query-rules ...` / `/query-specs ...` | `context: fork` と skill trigger の実行確認が必要 |
+
+## Claude-ready generated set 案
+
+Codex 向けに `codex_skill_set/` を保持する方式は、Claude Code 向けにも段階導入できる。Claude 側では上流 source が既に Claude Code plugin 形式であるため変換量は少ないが、forge の構成変更耐性・事前レビュー・install の再現性に効果がある。
+
+### 目的
+
+- `setup.sh` 実行時の source tree 推測と sed 変換を減らす
+- forge / doc-advisor の取り込み資産を事前生成・レビュー済みにする
+- target project へ壊れた SKILL / agent / script を配るリスクを下げる
+- Codex 用 generated set と Claude 用 generated set の差分を管理できるようにする
+
+### 将来構成
+
+```text
+DocAdvisor/
+├── generated_sets/
+│   ├── claude/
+│   │   ├── skills/
+│   │   ├── agents/
+│   │   ├── doc-advisor/
+│   │   └── manifest.yaml
+│   └── codex/
+│       ├── skills/
+│       ├── resources/
+│       └── manifest.yaml
+├── install_profiles/
+│   ├── claude/
+│   └── codex/
+├── setup.sh
+└── setup_for_codex.sh
+```
+
+### 導入順序
+
+1. 現行 `setup.sh` の deterministic validation を追加する
+2. Codex 側で `codex_skill_set/` 方式を先に実装し、運用を安定させる
+3. Claude 側に `generated_sets/claude/` を追加する
+4. 現行 `setup.sh` の install 結果と `generated_sets/claude/` からの install 結果をテストで比較する
+5. 差分が安定してから、`setup.sh` のコピー元を generated set に切り替える
+
+既存 `setup.sh` は migration / cleanup / optional plugin / `.doc_structure.yaml` 案内を担っているため、generated set 方式へ一度に置き換えてはならない。まずは検証モードとして導入する。
+
+### 受け入れ基準
+
+- `tests/claude_test_project` に対して `setup.sh` が成功する
+- install 後 deterministic validation が PASS する
+- sample rules/specs で ToC 生成 scripts が成功する
+- `setup.sh` 再実行で不要差分が増えない
+- generated set 導入後も既存 migration / cleanup の挙動が変わらない
+
 ## 関連ドキュメント
 
 - `tests/test_setup_upgrade.sh`: アップグレードテスト
