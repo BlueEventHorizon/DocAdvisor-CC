@@ -120,13 +120,14 @@ DocAdvisor/
 │   │   └── forge/
 │   └── manifest.yaml
 ├── codex_install_profiles/
-│   ├── doc-advisor/
-│   │   └── 0.2.2-<commit>-<layout_hash>.yaml
-│   └── forge/
-│       └── 0.0.43-<commit>-<layout_hash>.yaml
+│   └── doc-advisor/
+│       ├── current.yaml
+│       └── 0.2.2-<commit>-<layout_hash>.yaml  # forge supported 資産も同一 profile に固定する
 ├── tests/
+│   ├── codex_test_project/
+│   ├── test_codex_skill_set.sh
 │   ├── test_setup_for_codex.sh
-│   └── test_codex_profile_validation.sh
+│   └── test_codex_scenario.sh
 └── specs/codex/design/
     └── DES-CODEX-001_setup_for_codex.md
 ```
@@ -150,7 +151,7 @@ target/
 
 ### 5.1 profile の役割
 
-profile は、特定の source plugin version / commit / layout と、DocAdvisor 内の Codex-native SKILL セットの対応を固定する YAML である。
+profile は、特定の source plugin version / commit / layout と、DocAdvisor 内の Codex-native SKILL セットの対応を固定する YAML である。初期実装では、Doc Advisor profile が forge の supported 資産（`setup-doc-structure` と `doc_structure` scripts/docs）も同一 source commit / layout hash の中で固定する。
 
 `setup_for_codex.sh` は `codex_skill_set/` にないファイルを install しない。source tree の自動探索は profile 作成補助、Codex セット生成補助、validation にのみ使用する。
 
@@ -510,20 +511,19 @@ source_path: "<absolute source path>"
 
 ## 11. テスト設計
 
-### 11.1 test_codex_profile_validation.sh
+### 11.1 test_codex_skill_set.sh
 
-profile 自体の検証を行う。
+DocAdvisor リポジトリ内の `codex_skill_set/` と `codex_install_profiles/doc-advisor/current.yaml` を検証する。target install 前に失敗を検出することが目的である。
 
-- YAML parse
-- required keys
-- `reviewed: true`
-- source file existence
-- duplicate target path
-- disabled skill と imports の衝突
-- transform rule の必須項目
-- `codex_set_hash` 一致
-- `native_set` と `codex_skill_set/manifest.yaml` の source_ref 一致
-- validation rule の必須項目
+| 検証 | 期待結果 |
+| ---- | -------- |
+| `codex_skill_set/manifest.yaml` と profile | 存在する |
+| disabled skill | `create-code-index` / `query-code` が含まれない |
+| excluded 資産 | `scripts/monitor/` が含まれない |
+| Codex SKILL frontmatter | `name` / `description` を持ち、Claude Code 固有 key を持たない |
+| Claude Code 固有文字列 | `${CLAUDE_PLUGIN_ROOT}` / `/doc-advisor:` / `/forge:` が残らない |
+| Claude Code tool 前提 | `AskUserQuestion` / `Task(subagent_type:` が残らない |
+| Python scripts | `python3 -m py_compile` が通る |
 
 ### 11.2 test_setup_for_codex.sh
 
@@ -535,21 +535,7 @@ profile 自体の検証を行う。
 4. unknown layout fixture で fail closed を確認する
 5. dirty source fixture は profile 設定に従って停止することを確認する
 
-### 11.3 test_codex_skill_set.sh
-
-DocAdvisor リポジトリ内の `codex_skill_set/` 自体を検証する。target install 前に失敗を検出することが目的である。
-
-| 検証 | 期待結果 |
-| ---- | -------- |
-| `codex_skill_set/manifest.yaml` parse | YAML として読める |
-| `manifest.yaml` と profile の `native_set` | source_ref / path が一致する |
-| Codex SKILL frontmatter | 本物の Codex Skill として `$CODEX_HOME/skills` に置ける形式である |
-| Claude Code 固有文字列 | `${CLAUDE_PLUGIN_ROOT}` / `/doc-advisor:` / `/forge:` が残らない |
-| Claude Code tool 前提 | `AskUserQuestion` / `Task(subagent_type:` が残らない |
-| Python scripts | `python3 -m py_compile` が通る |
-| excluded 資産 | `scripts/monitor/` が含まれない |
-
-### 11.3.1 AGENTS.md bridge section
+### 11.3 AGENTS.md bridge section
 
 `setup_for_codex.sh` は target の `AGENTS.md` に管理セクションを追記する。既存 `AGENTS.md` がある場合は、管理セクションのみを置換し、ユーザー記述を保持する。
 
@@ -601,7 +587,7 @@ AI が `query-rules` / `query-specs` を読んで適切に使えるかは、dete
 
 ## 12. forge 対応方針
 
-forge plugin も Codex install の対象に含める。ただし forge は Doc Advisor 本体より責務が広く、単一段階で全 SKILL を Codex 互換化するとリスクが高い。そのため、forge profile は **install tier** を持つ。
+forge plugin も Codex install の対象に含める。ただし forge は Doc Advisor 本体より責務が広く、単一段階で全 SKILL を Codex 互換化するとリスクが高い。そのため、初期実装では Doc Advisor profile 内に forge 資産の **install tier** を持たせる。将来 forge の対応範囲が広がる場合は、forge 専用 profile への分離を再検討する。
 
 | tier | 意味 | install 方針 |
 | ---- | ---- | ------------ |
@@ -637,7 +623,7 @@ forge plugin も Codex install の対象に含める。ただし forge は Doc A
 | `scripts/monitor/` | `excluded` | localhost server、browser open、background process を使う UX 補助機能であり、Doc Advisor / forge の Codex Skill install に必須ではない |
 | `scripts/monitor/templates/` | `excluded` | monitor 本体と一体の UI 資産であり、初期 Codex 版では配布しない |
 
-forge profile は全資産を解析対象に含めるが、`supported` 以外を user skill として install してはならない。`excluded` は未解決の暫定停止ではなく、初期 Codex 版の意図的な scope 外として扱う。
+forge 資産は解析対象に含めるが、`supported` 以外を user skill として install してはならない。`excluded` は未解決の暫定停止ではなく、初期 Codex 版の意図的な scope 外として扱う。
 
 ## 13. forge 対応の問題点
 
@@ -695,7 +681,7 @@ forge 固有の未確定事項は §14 に集約する。本節は Codex install
 | TBD-CODEX-002 | Codex Skill frontmatter の正式許容 key | 実装前 |
 | TBD-CODEX-003 | `toc-updater` agent 相当処理を reference / Python / subagent のどれで扱うか | 初期 profile 作成前 |
 | TBD-CODEX-004 | Codex Skill から bundled resources を参照する推奨パス表現 | 実装前 |
-| TBD-CODEX-005 | forge `setup-doc-structure` の対話処理を Codex でどう表現するか | forge profile 作成前 |
+| TBD-CODEX-005 | forge `setup-doc-structure` の対話処理を Codex でどう表現するか | forge supported 資産の拡張前 |
 | TBD-CODEX-006 | `codex_skill_set/` を project-local install 専用にするか、将来 `$CODEX_HOME/skills` へも配布可能な形にするか | 初期実装前 |
 | TBD-CODEX-007 | `$CODEX_HOME/skills` への global install option を提供するか | project-local bridge 安定後 |
 

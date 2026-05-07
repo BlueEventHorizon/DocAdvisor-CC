@@ -72,6 +72,11 @@ run_test "Phase 5: Setup Upgrade" "test_setup_upgrade.sh"
 # Phase 6: Optional plugins (--with-anvil / --with-xcode)
 run_test "Phase 6: Optional Plugins" "test_optional_plugins.sh"
 
+# Phase 7: Codex project-local bridge
+run_test "Phase 7a: Codex Skill Set" "test_codex_skill_set.sh"
+run_test "Phase 7b: Codex Setup" "test_setup_for_codex.sh"
+run_test "Phase 7c: Codex Scenario" "test_codex_scenario.sh"
+
 # Count results
 PASS_COUNT=0
 FAIL_COUNT=0

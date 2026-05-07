@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Codex project-local bridge installer**: Added `setup_for_codex.sh` to install the reviewed Codex-native Doc Advisor skill set into target projects under `.codex/doc-advisor/`.
+  - Adds an idempotent managed bridge section to target `AGENTS.md`
+  - Preserves target project content outside the managed bridge section
+  - Validates source plugin version, forge version, source commit, layout hash, `codex_skill_set` hash, and `reviewed: true` profile status before install
+  - Records install metadata in `.codex/doc-advisor/.source_version`
+  - Supports `--source`, `--profile`, `--codex-set`, and `--list-profiles`
+- **Codex-native skill set**: Added `codex_skill_set/` with Codex-compatible `SKILL.md` files and bundled resources.
+  - Included skills: `create-rules-toc`, `create-specs-toc`, `query-rules`, `query-specs`, `setup-doc-structure`
+  - Included resources: doc-advisor docs/scripts, `toc-updater` reference, and forge `doc_structure` docs/scripts
+  - Disabled: `create-code-index`, `query-code`
+  - Excluded: forge localhost monitor
+- **Codex install profiles**: Added `codex_install_profiles/doc-advisor/current.yaml` and a versioned profile keyed by source version, source commit, and layout hash.
+- **Codex generation tools**:
+  - `generate_codex_skill_set.sh`: Generates the reviewed Codex-native skill set and profile from read-only `bw-cc-plugins` sources
+  - `analyze_codex_install_profile.sh`: Reports source version, forge version, branch, commit, dirty status, and layout hash
+- **Codex local tests**:
+  - `tests/test_codex_skill_set.sh`
+  - `tests/test_setup_for_codex.sh`
+  - `tests/test_codex_scenario.sh`
+  - `tests/codex_test_project/`
+
+### Changed
+- **README / README_en**: Added Codex quick start, natural-language usage examples, project-local bridge layout, and install profile regeneration guidance.
+- **Full test suite**: Added Phase 7 for Codex skill set, setup, and deterministic local scenario validation.
+- **Codex design spec**: Updated `DES-CODEX-001_setup_for_codex.md` to match the implemented combined Doc Advisor + supported forge profile model.
+
+### Tests
+- `bash tests/run_all_tests.sh` passes all phases, including the new Codex Phase 7 suites.
+
+---
+
 
 
 

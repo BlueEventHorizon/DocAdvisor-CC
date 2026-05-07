@@ -54,6 +54,8 @@ For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
 
 ## Quick Start
 
+### Claude Code
+
 1. Clone the repository (with submodules)
 
 ```bash
@@ -99,7 +101,52 @@ Otherwise, run the classification skill:
 > make setup TARGET=/path/to/your-project
 > ```
 
+### Codex
+
+For Codex, this repository installs the pre-generated and reviewed `codex_skill_set/` into the target project as a project-local bridge.
+It does not write to Codex's global skill directory.
+
+1. Clone the repository (with submodules)
+
+```bash
+git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+```
+
+> If you already cloned without `--recursive`, run `git submodule update --init`.
+
+2. Install the Codex bridge into your target project
+
+```bash
+cd DocAdvisor-CC
+./setup_for_codex.sh /path/to/your-project
+```
+
+3. Launch Codex in the target project
+
+```bash
+cd /path/to/your-project
+codex
+```
+
+4. Available bridge functions
+
+`setup_for_codex.sh` adds a managed Doc Advisor bridge section to the target project's `AGENTS.md`.
+Codex uses that table to find the project-local skills.
+
+| Function | Path |
+| -------- | ---- |
+| rules ToC generation | `.codex/doc-advisor/skills/create-rules-toc/SKILL.md` |
+| specs ToC generation | `.codex/doc-advisor/skills/create-specs-toc/SKILL.md` |
+| rules search | `.codex/doc-advisor/skills/query-rules/SKILL.md` |
+| specs search | `.codex/doc-advisor/skills/query-specs/SKILL.md` |
+| document structure setup | `.codex/doc-advisor/skills/setup-doc-structure/SKILL.md` |
+
+Codex ToC and index outputs are written under `.codex/doc-advisor/toc/` and `.codex/doc-advisor/index/`.
+They are separate from Claude Code's `.claude/` files.
+
 ## Usage
+
+### Claude Code
 
 ### ToC generation commands
 
@@ -116,6 +163,21 @@ Otherwise, run the classification skill:
 ```bash
 /query-rules Identify documents for implementing authentication
 /query-specs Find requirements for screen navigation
+```
+
+### Codex
+
+In Codex, use natural-language requests instead of slash commands.
+Codex will refer to the Doc Advisor bridge section in `AGENTS.md` and the relevant `.codex/doc-advisor/skills/.../SKILL.md` file.
+
+Examples:
+
+```text
+Regenerate the full rules ToC.
+Incrementally update the specs ToC.
+Find the rules needed to implement authentication.
+Find specs related to screen navigation.
+Configure the document structure.
 ```
 
 ## Configuration
@@ -135,7 +197,26 @@ Config file: `.doc_structure.yaml` (project root)
 
 - Python 3 (standard library only)
 - Claude Code
+- Codex (when using the Codex bridge)
 - Bash shell
+
+## Codex Install Profile
+
+`setup_for_codex.sh` installs only when the source version, commit, layout hash, and `codex_skill_set` hash match `codex_install_profiles/doc-advisor/current.yaml`.
+
+When the `bw-cc-plugins` plugin layout or version changes, regenerate and review the Codex skill set and install profile first.
+
+```bash
+./analyze_codex_install_profile.sh
+./generate_codex_skill_set.sh
+./setup_for_codex.sh /path/to/your-project
+```
+
+List available profiles with:
+
+```bash
+./setup_for_codex.sh --list-profiles
+```
 
 ## License
 

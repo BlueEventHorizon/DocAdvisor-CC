@@ -52,6 +52,8 @@ Doc Advisor の目的は「必要な文書を、短時間で、確実に特定�
 
 ## クイックスタート
 
+### Claude Code で使う
+
 1. リポジトリをクローン（submodule 含む）
 
 ```bash
@@ -97,7 +99,52 @@ claude
 > make setup TARGET=/path/to/your-project
 > ```
 
+### Codex で使う
+
+Codex では、DocAdvisor 内で事前生成・レビュー済みの `codex_skill_set/` を target project に project-local bridge としてインストールします。
+Codex の global skill ディレクトリには書き込みません。
+
+1. リポジトリをクローン（submodule 含む）
+
+```bash
+git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+```
+
+> 既存クローンの場合は `git submodule update --init` を実行してください。
+
+2. ターゲットプロジェクトに Codex bridge をセットアップ
+
+```bash
+cd DocAdvisor-CC
+./setup_for_codex.sh /path/to/your-project
+```
+
+3. ターゲットプロジェクトで Codex を起動
+
+```bash
+cd /path/to/your-project
+codex
+```
+
+4. Codex で使える機能
+
+`setup_for_codex.sh` は target project の `AGENTS.md` に Doc Advisor bridge の管理セクションを追加します。
+Codex はその表を手がかりに、次の project-local Skill を参照します。
+
+| 機能 | 参照パス |
+| ---- | -------- |
+| rules ToC 生成 | `.codex/doc-advisor/skills/create-rules-toc/SKILL.md` |
+| specs ToC 生成 | `.codex/doc-advisor/skills/create-specs-toc/SKILL.md` |
+| rules 検索 | `.codex/doc-advisor/skills/query-rules/SKILL.md` |
+| specs 検索 | `.codex/doc-advisor/skills/query-specs/SKILL.md` |
+| ドキュメント構成の初期設定 | `.codex/doc-advisor/skills/setup-doc-structure/SKILL.md` |
+
+Codex 用の ToC / index 出力先は `.codex/doc-advisor/toc/` と `.codex/doc-advisor/index/` です。
+Claude Code 用の `.claude/` とは分離されます。
+
 ## 使い方
+
+### Claude Code
 
 ### ToC 生成コマンド
 
@@ -114,6 +161,21 @@ claude
 ```bash
 /query-rules 認証機能の実装に必要な文書を特定
 /query-specs 画面遷移の要件を特定
+```
+
+### Codex
+
+Codex では slash command ではなく、自然文で依頼します。
+必要に応じて `AGENTS.md` の Doc Advisor bridge セクションと `.codex/doc-advisor/skills/.../SKILL.md` が参照されます。
+
+例:
+
+```text
+rules の ToC を全件再生成してください
+specs の ToC を差分更新してください
+認証機能の実装に必要な rules を特定してください
+画面遷移に関係する specs を探してください
+ドキュメント構成を設定してください
 ```
 
 ## 設定
@@ -133,7 +195,26 @@ claude
 
 - Python 3（標準ライブラリのみ）
 - Claude Code
+- Codex（Codex bridge を使う場合）
 - Bash シェル
+
+## Codex install profile
+
+`setup_for_codex.sh` は、`codex_install_profiles/doc-advisor/current.yaml` に記録された source version / commit / layout hash / `codex_skill_set` hash と一致する場合だけインストールします。
+
+`bw-cc-plugins` の plugin 構成や version が変わった場合は、先に Codex Skill セットと profile を再生成・レビューしてください。
+
+```bash
+./analyze_codex_install_profile.sh
+./generate_codex_skill_set.sh
+./setup_for_codex.sh /path/to/your-project
+```
+
+利用可能な profile は次で確認できます。
+
+```bash
+./setup_for_codex.sh --list-profiles
+```
 
 ## ライセンス
 

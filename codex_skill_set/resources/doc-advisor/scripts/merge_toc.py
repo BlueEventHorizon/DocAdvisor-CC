@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+{category}_toc.yaml Merge Script (doc-advisor plugin, standard library only)
+
+.toc_work/ 配下の pending YAML エントリをマージし、
+.codex/doc-advisor/toc/{category}/{category}_toc.yaml を生成する。
+
+Usage:
+    python3 merge_toc.py --category rules [--mode full|incremental]
+    python3 merge_toc.py --category specs [--mode full|incremental]
+    python3 merge_toc.py --category rules --delete-only
+
+Options:
+    --category     Document category: rules or specs (required)
+    --mode         full (default): Generate new, incremental: Differential merge
+    --delete-only  Apply deletions without .toc_work/
+"""
+
+import json
+import os
+import sys
+import argparse
+import tempfile
+from datetime import datetime, timezone
+
+from toc_utils import (
+    init_common_config,
+    load_entry_file,
+    yaml_escape,
+    backup_existing_file,
+    load_checksums,
+    load_existing_toc,
+    should_exclude,
+    resolve_config_path,
+    rglob_follow_symlinks,
+    normalize_path,
+    ConfigNotReadyError,
+    log,
+)
+
+# Global configuration (initialized in init_config())
+CONFIG = None
+PROJECT_ROOT = None
+ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
+TOC_WORK_DIR = None
+OUTPUT_FILE = None
+CHECKSUMS_FILE = None
+OUTPUT_CONFIG = None
+PATTERNS_CONFIG = None
+TARGET_GLOB = None
+EXCLUDE_PATTERNS = None
+CATEGORY = None  # 'rules' or 'specs'
+
+
+def parse_args():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description='Merge pending YAML entries into ToC file'
+    )
+    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
+                        help='Document category: rules or specs')
+    parser.add_argument('--mode', default='full', choices=['full', 'incremental'],
+                        help='Merge mode: full (default) or incremental')
+    parser.add_argument('--delete-only', action='store_true',
+                        help='Apply deletions without .toc_work/')
+    return parser.parse_args()
+
+
+def init_config(category):
+    """
+    Initialize configuration.
+
+    Args:
+        category: 'rules' or 'specs'
+
+    Returns:
+        bool: True on success, False on failure
+    """
+    global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
+    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, CATEGORY
+
+    CATEGORY = category
+
+    try:
+        common = init_common_config(category)
+    except ConfigNotReadyError as e:
+        print(json.dumps({"status": "config_required", "message": str(e)}))
+        return False
+    except (RuntimeError, FileNotFoundError) as e:
+        log(f"Error: {e}")
+        return False
+
+    CONFIG = common['config']
+    PROJECT_ROOT = common['project_root']
+    ROOT_DIRS = common['root_dirs']
+    PATTERNS_CONFIG = common['patterns_config']
+    TARGET_GLOB = common['target_glob']
+    EXCLUDE_PATTERNS = common['exclude_patterns']
+
+    first_dir = common['first_dir']
+    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_dir, PROJECT_ROOT)
+    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', f'{category}_toc.yaml'), first_dir, PROJECT_ROOT)
+    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_dir, PROJECT_ROOT)
+    OUTPUT_CONFIG = CONFIG.get('output', {})
+    return True
+
+
+def get_existing_files():
+    """Get list of currently existing files across all root_dirs (symlink-aware)"""
+    files = set()
+    for root_dir, root_dir_name in ROOT_DIRS:
+        if not root_dir.exists():
+            continue
+        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
+            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
+                continue
+            rel_path = normalize_path(filepath.relative_to(root_dir))
+            prefixed_path = f"{root_dir_name}/{rel_path}"
+            files.add(prefixed_path)
+    return files
+
+
+def write_yaml_output(docs, output_path, *, category=None, output_config=None):
+    """
+    Write YAML file
+
+    Args:
+        docs: ドキュメントエントリの辞書
+        output_path: 出力先パス
+        category: カテゴリ名（省略時はグローバル変数 CATEGORY にフォールバック）
+        output_config: 出力設定辞書（省略時はグローバル変数 OUTPUT_CONFIG にフォールバック）
+
+    Returns:
+        bool: True on success, False on failure
+    """
+    _category = category if category is not None else CATEGORY
+    _output_config = output_config if output_config is not None else OUTPUT_CONFIG
+
+    lines = []
+
+    toc_name = f"{_category}_toc.yaml"
+    toc_rel_path = f".codex/doc-advisor/toc/{_category}/{toc_name}"
+    header_comment = _output_config.get('header_comment', f'Document Search Index for {_category}')
+    metadata_name = _output_config.get('metadata_name', f'Document Search Index ({_category})')
+
+    lines.append(f"# {toc_rel_path}")
+    lines.append(f"# {header_comment}")
+    lines.append(f"# Auto-generated by Doc Advisor bridge skill create-{_category}-toc - Do not edit directly")
+    lines.append("")
+
+    lines.append("metadata:")
+    lines.append(f"  name: {yaml_escape(metadata_name)}")
+    lines.append(f"  generated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    lines.append(f"  file_count: {len(docs)}")
+    lines.append("")
+
+    lines.append("docs:")
+    for source_file, entry in sorted(docs.items()):
+        lines.append(f"  {yaml_escape(source_file)}:")
+
+        # doc_type first (if available)
+        if 'doc_type' in entry:
+            lines.append(f"    doc_type: {entry['doc_type']}")
+
+        for key in ['title', 'purpose']:
+            if key in entry:
+                lines.append(f"    {key}: {yaml_escape(entry[key])}")
+
+        for key in ['content_details', 'applicable_tasks', 'keywords']:
+            if key in entry and entry[key]:
+                lines.append(f"    {key}:")
+                for item in entry[key]:
+                    lines.append(f"      - {yaml_escape(item)}")
+
+    # 一時ファイルに書き込んでから rename する（書き込み途中の異常でファイルが壊れるのを防止）
+    try:
+        output_dir = output_path.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=str(output_dir), suffix='.tmp', prefix='.toc_')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines) + '\n')
+            os.replace(tmp_path, str(output_path))
+        except BaseException:
+            # 書き込み失敗時は一時ファイルを削除
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+        return True
+    except (IOError, OSError, PermissionError) as e:
+        log(f"Error: Failed to write file: {output_path} - {e}")
+        return False
+
+
+def delete_only_mode():
+    """Delete-only mode: Apply deletions without .toc_work/"""
+    toc_name = f"{CATEGORY}_toc.yaml"
+    log("Mode: delete-only")
+
+    if not OUTPUT_FILE.exists():
+        log(f"Error: {toc_name} does not exist")
+        return False
+
+    # Create backup
+    backup_existing_file(OUTPUT_FILE)
+
+    # Load existing data
+    docs = load_existing_toc(OUTPUT_FILE)
+
+    # Delete entries that exist in checksums but file doesn't exist
+    checksum_files = set(load_checksums(CHECKSUMS_FILE).keys())
+    existing_files = get_existing_files()
+    deleted_files = checksum_files - existing_files
+
+    deleted_count = 0
+    for del_file in deleted_files:
+        if del_file in docs:
+            del docs[del_file]
+            log(f"  Deleted: {del_file}")
+            deleted_count += 1
+
+    # Also delete stale entries in ToC but not in current valid files
+    stale_entries = [p for p in docs if p not in existing_files]
+    for stale in stale_entries:
+        del docs[stale]
+        log(f"  Deleted (stale): {stale}")
+        deleted_count += 1
+
+    if deleted_count == 0:
+        log("No entries to delete")
+        return True
+
+    if not write_yaml_output(docs, OUTPUT_FILE):
+        return False
+
+    log(f"\nDeletion complete: {deleted_count} entries deleted")
+    return True
+
+
+def merge_toc_files(mode='full'):
+    yaml_files = sorted(f for f in TOC_WORK_DIR.glob("*.yaml") if not f.name.startswith('.'))
+
+    if not yaml_files:
+        log(f"Error: No YAML files found in {TOC_WORK_DIR}")
+        return False
+
+    log(f"Target files: {len(yaml_files)}")
+    log(f"Mode: {mode}")
+
+    # Create backup (common to all modes)
+    backup_existing_file(OUTPUT_FILE)
+
+    # Get current valid files (exclude applied)
+    existing_files = get_existing_files()
+
+    # In incremental mode, load existing data
+    if mode == 'incremental':
+        docs = load_existing_toc(OUTPUT_FILE)
+        # Delete entries that exist in checksums but file doesn't exist
+        checksum_files = set(load_checksums(CHECKSUMS_FILE).keys())
+        deleted_files = checksum_files - existing_files
+        for del_file in deleted_files:
+            if del_file in docs:
+                del docs[del_file]
+                log(f"  Deleted: {del_file}")
+    else:
+        docs = {}
+
+    errors = []
+
+    for filepath in yaml_files:
+        filename = filepath.name
+        try:
+            meta, entry = load_entry_file(filepath)
+            source_file = meta.get('source_file')
+            status = meta.get('status')
+
+            if not source_file:
+                errors.append(f"{filename}: Cannot get source_file")
+                continue
+
+            if status != 'completed':
+                errors.append(f"{filename}: Status is not completed ({status})")
+                continue
+
+            # Skip excluded or missing files
+            if source_file not in existing_files:
+                errors.append(f"{filename}: Skipped (excluded or missing: {source_file})")
+                continue
+
+            # Carry doc_type from _meta into entry
+            doc_type = meta.get('doc_type', '')
+            if doc_type:
+                entry['doc_type'] = doc_type
+
+            docs[source_file] = entry
+            log(f"  {source_file}")
+
+        except Exception as e:
+            errors.append(f"{filename}: {e}")
+
+    # Remove stale entries not in current valid files
+    if mode == 'incremental':
+        stale_entries = [p for p in docs if p not in existing_files]
+        for stale in stale_entries:
+            del docs[stale]
+            log(f"  Deleted (stale): {stale}")
+
+    if errors:
+        log("\nWarnings:")
+        for err in errors:
+            log(f"  - {err}")
+
+    if not docs:
+        log("Error: No valid entries")
+        return False
+
+    if not write_yaml_output(docs, OUTPUT_FILE):
+        return False
+
+    log(f"\nGeneration complete: {OUTPUT_FILE}")
+    log(f"   - File count: {len(docs)}")
+
+    return True
+
+
+def main():
+    args = parse_args()
+
+    # Initialize configuration
+    if not init_config(args.category):
+        return 1
+
+    toc_name = f"{CATEGORY}_toc.yaml"
+
+    log("=" * 50)
+    log(f"{toc_name} Merge Script")
+    log("=" * 50)
+
+    if args.delete_only:
+        success = delete_only_mode()
+    else:
+        success = merge_toc_files(args.mode)
+
+    return 0 if success else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
