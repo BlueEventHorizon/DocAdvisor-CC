@@ -10,6 +10,18 @@ metadata:
   short-description: query specs
 ---
 
+## Codex Skill Resource Root
+
+This skill is distributed by the environment-wide Doc Advisor Codex Skill set.
+Resolve `$DOC_ADVISOR_CODEX_ROOT` to `${CODEX_HOME:-~/.codex}/doc-advisor`,
+the directory that contains `install.yaml`.
+
+Run bundled Python scripts with absolute paths under
+`$DOC_ADVISOR_CODEX_ROOT/resources/...` and prefix them with
+`PYTHONDONTWRITEBYTECODE=1` so global resources do not accumulate runtime cache
+files. Project runtime output stays under the current project's
+`.codex/state/doc-advisor/`.
+
 > **【最重要・無限再帰防止】**
 > このファイルは fork されたサブエージェントである **あなた自身への実行指示書** である。
 > 親エージェントから渡された `$ARGUMENTS`（タスク説明）に対して、以下の手順を**あなた自身で実行**せよ。
@@ -34,14 +46,14 @@ metadata:
 
 ## mode = toc
 
-`.codex/doc-advisor/resources/doc-advisor/docs/query_toc_workflow.md` を Read し、`category = specs` として手順に従う。
+`$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/query_toc_workflow.md` を Read し、`category = specs` として手順に従う。
 
 - ToC が存在しない場合: user confirmation で `create-specs-toc` の実行を案内する。**Index にフォールバックしない**
 - 候補あり → Step: 最終判定 へ
 
 ## mode = index
 
-`.codex/doc-advisor/resources/doc-advisor/docs/query_index_workflow.md` を Read し、`category = specs` として手順に従う。
+`$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/query_index_workflow.md` を Read し、`category = specs` として手順に従う。
 
 - Index 構築に失敗した場合（OPENAI_API_KEY 未設定等）: user confirmation でエラー内容を通知する。**ToC にフォールバックしない**
 - 候補あり → Step: 最終判定 へ
@@ -50,13 +62,13 @@ metadata:
 
 ### Step 1: Index 候補生成
 
-`.codex/doc-advisor/resources/doc-advisor/docs/query_index_workflow.md` を Read し、`category = specs` として手順に従う。
+`$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/query_index_workflow.md` を Read し、`category = specs` として手順に従う。
 このとき `search_docs.py` の `--threshold 0.2`（広め）で実行する。
 候補パスを内部保持する。失敗時は Index 候補 = 空。
 
 ### Step 2: ToC 候補生成
 
-`.codex/doc-advisor/resources/doc-advisor/docs/query_toc_workflow.md` を Read し、`category = specs` として手順に従う。
+`$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/query_toc_workflow.md` を Read し、`category = specs` として手順に従う。
 
 ToC ファイルの `metadata.file_count` を確認し、サイズに応じて動作を切り替える:
 

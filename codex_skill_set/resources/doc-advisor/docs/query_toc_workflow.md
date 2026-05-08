@@ -16,7 +16,7 @@ ToC（キーワード/メタデータ）ベースで関連文書の候補パス�
 1. ToC ファイルのパスを決定する:
    - `.doc_structure.yaml` を Read し、`{category}.output_dir` フィールドを確認する
    - `output_dir` が設定されている場合: `{output_dir}/toc/{category}/{category}_toc.yaml`
-   - `output_dir` が未設定の場合（デフォルト）: `.codex/doc-advisor/toc/{category}/{category}_toc.yaml`
+   - `output_dir` が未設定の場合（デフォルト）: `.codex/state/doc-advisor/toc/{category}/{category}_toc.yaml`
 2. `{filter_paths}` が指定されている場合は **Filter Procedure** へ。指定なしの場合は次へ
 3. 決定したパスの ToC ファイルを Read する
    - **ファイルが存在しない場合**: 候補なし（空リスト）として返す。エラーにしない
@@ -32,7 +32,7 @@ ToC が大きく（100 件超）AI が全文を読みきれない場合に呼び
 
 1. 抽出スクリプトを実行する:
    ```bash
-   python3 .codex/doc-advisor/resources/doc-advisor/scripts/filter_toc.py \
+   PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/filter_toc.py \
      --category {category} \
      --paths "{filter_paths}"
    ```

@@ -6,11 +6,11 @@ ToC 検査スクリプト（rules / specs 共通）
 生成された {category}_toc.yaml の整合性を検査する。
 
 使用方法:
-    python3 validate_toc.py --category rules|specs [--file PATH]
+    PYTHONDONTWRITEBYTECODE=1 python3 validate_toc.py --category rules|specs [--file PATH]
 
 オプション:
     --category  検査対象カテゴリ（rules または specs）
-    --file      検査対象ファイル（デフォルト: .codex/doc-advisor/toc/{category}/{category}_toc.yaml）
+    --file      検査対象ファイル（デフォルト: .codex/state/doc-advisor/toc/{category}/{category}_toc.yaml）
 
 検査項目:
     1. ファイル読み込み検査

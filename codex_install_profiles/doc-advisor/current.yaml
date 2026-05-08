@@ -3,7 +3,7 @@
 # Created by: k2moons
 
 profile_schema: 1
-profile_id: 0.2.2-725e87cef898-76775359dd2c
+profile_id: 0.2.2-725e87cef898-da22b0f4e2f2
 source:
   plugin: doc-advisor
   plugin_version: 0.2.2
@@ -11,14 +11,14 @@ source:
   source_branch: develop
   source_commit: 725e87cef898c6c7fb8e5669e1ae4b8e155f9063
   source_dirty_allowed: false
-  layout_hash: 76775359dd2ca67597e215ec39db9dd83bd60711d288ce2f67b369121b4110a5
+  layout_hash: da22b0f4e2f2f93cc3dcdf2a08343950f3249fdf59e7c631480a84227a85d71e
   plugin_json: .claude-plugin/plugin.json
 compatibility:
   codex_skill_schema: 1
-  install_target_kind: project-local-bridge
+  install_target_kind: environment-skill
   generated_by: generate_codex_skill_set.sh
   codex_set_path: codex_skill_set
-  codex_set_hash: c6fa0ef48a398f36ce441c9340fa8f79a8c8e4a1ce668eb9d118b7824f7201e6
+  codex_set_hash: da7e8885f2e70099244ea27b2b57d24de832d5c38e02ebbe045518431a7a166b
   reviewed: true
 native_set:
   skills:
@@ -27,6 +27,9 @@ native_set:
     - skills/query-rules
     - skills/query-specs
     - skills/setup-doc-structure
+    - skills/start-requirements
+    - skills/start-design
+    - skills/start-plan
   resources:
     - resources/doc-advisor
     - resources/forge

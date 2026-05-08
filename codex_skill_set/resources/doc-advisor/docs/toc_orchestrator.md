@@ -8,7 +8,7 @@ applicable_when:
 
 # ToC Orchestrator Workflow
 
-Orchestrator workflow to generate/update `.codex/doc-advisor/toc/{category}/{category}_toc.yaml`.
+Orchestrator workflow to generate/update `.codex/state/doc-advisor/toc/{category}/{category}_toc.yaml`.
 
 > **Note**: `{category}` is either `rules` or `specs`, determined by the invoking SKILL.
 
@@ -30,8 +30,8 @@ Orchestrator workflow to generate/update `.codex/doc-advisor/toc/{category}/{cat
 
 Read the following before processing:
 
-- `.codex/doc-advisor/resources/doc-advisor/docs/toc_format.md` - Format definition and intermediate file schema
-- `.codex/doc-advisor/resources/doc-advisor/docs/toc_update_workflow.md` - Detailed workflow
+- `$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/toc_format.md` - Format definition and intermediate file schema
+- `$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/toc_update_workflow.md` - Detailed workflow
 
 ---
 
@@ -42,7 +42,7 @@ Read the following before processing:
 > **Note**: `init_common_config()` validates that `root_dirs` is configured for the category. If `.doc_structure.yaml` is missing or the category is not configured, scripts output `{"status": "config_required", ...}`. The skill's Error Handling section directs the user to run `setup-doc-structure`.
 
 ````
-1. Check if .codex/doc-advisor/toc/{category}/.toc_work/ exists
+1. Check if .codex/state/doc-advisor/toc/{category}/.toc_work/ exists
     ↓
 [If exists] → Continue mode (jump to Phase 2)
     ↓
@@ -58,10 +58,10 @@ Read the following before processing:
 4. Identify target files and generate pending YAML templates
     ```bash
     # Full mode
-    python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category {category} --full
+    PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category {category} --full
 
     # Incremental mode
-    python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category {category}
+    PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category {category}
     ```
 ````
 
@@ -91,14 +91,14 @@ Read the following before processing:
 Use `ls .toc_work/*.yaml` or `while read` loops instead.
 
 ```
-1. Identify pending status files from .codex/doc-advisor/toc/{category}/.toc_work/*.yaml
+1. Identify pending status files from .codex/state/doc-advisor/toc/{category}/.toc_work/*.yaml
     ↓
 2. If no pending files → Go to Phase 3 (merge)
     ↓
 3. Use max_workers = 5 (default defined in toc_utils.py)
     CRITICAL: Launch up to N Task tool calls in a SINGLE assistant message.
     Do NOT launch them one at a time in separate messages — this defeats parallelism.
-    Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/{filename}.yaml")
+    Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/{filename}.yaml")
     ↓
 4. Wait for all N tasks to complete
     ↓
@@ -123,7 +123,7 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
     ↓
 4. Update checksums **only on validation success**
     ↓
-5. Cleanup (delete .codex/doc-advisor/toc/{category}/.toc_work/)
+5. Cleanup (delete .codex/state/doc-advisor/toc/{category}/.toc_work/)
     ↓
 6. Report completion
     - List pending files with error_message (from YAML _meta) if any
@@ -136,14 +136,14 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
 
 ## Pending YAML Template Generation
 
-Use the script to generate `.codex/doc-advisor/toc/{category}/.toc_work/{filename}.yaml` for each target file.
+Use the script to generate `.codex/state/doc-advisor/toc/{category}/.toc_work/{filename}.yaml` for each target file.
 
 ```bash
 # Full mode (all files)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category {category} --full
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category {category} --full
 
 # Incremental mode (changed files only)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category {category}
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category {category}
 ```
 
 The script handles:
@@ -152,7 +152,7 @@ The script handles:
 2. Filename generation using SHA-256 hash of the source path (e.g., `rules/core/architecture_rule.md` → `a1b2c3d4e5f67890.yaml`)
 3. Template generation with pending status
 
-**Template format**: See "Intermediate File Schema" section in `.codex/doc-advisor/resources/doc-advisor/docs/toc_format.md`
+**Template format**: See "Intermediate File Schema" section in `$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/toc_format.md`
 
 ---
 
@@ -160,7 +160,7 @@ The script handles:
 
 | Condition                            | Action                                                                        |
 | ------------------------------------ | ----------------------------------------------------------------------------- |
-| `--full` + `.toc_work/` exists       | Bash: `rm -rf .codex/doc-advisor/toc/{category}/.toc_work` → Start full mode |
+| `--full` + `.toc_work/` exists       | Bash: `rm -rf .codex/state/doc-advisor/toc/{category}/.toc_work` → Start full mode |
 | `.toc_work/` exists + pending remain | Resume from pending (to Phase 2)                                              |
 | `.toc_work/` exists + all completed  | Go directly to merge phase (Phase 3)                                          |
 
@@ -171,7 +171,7 @@ The script handles:
 ### Step 1: Check Checksum File
 
 ```bash
-test -f .codex/doc-advisor/toc/{category}/.toc_checksums.yaml && echo "EXISTS" || echo "NOT_EXISTS"
+test -f .codex/state/doc-advisor/toc/{category}/.toc_checksums.yaml && echo "EXISTS" || echo "NOT_EXISTS"
 ```
 
 - If not exists → Fallback to full mode
@@ -224,11 +224,11 @@ End processing (no need to create .toc_work/)
 
 ```
 # Launch 5 in parallel (filenames are SHA256 hashes of source paths)
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/a1b2c3d4e5f67890.yaml")
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/1234567890abcdef.yaml")
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/fedcba0987654321.yaml")
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/0123456789abcdef.yaml")
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/abcdef0123456789.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/a1b2c3d4e5f67890.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/1234567890abcdef.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/fedcba0987654321.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/0123456789abcdef.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/abcdef0123456789.yaml")
 ```
 
 ---
@@ -239,53 +239,53 @@ Codex subagent/reference task: toc-updater reference, prompt: "category: {catego
 
 ```bash
 # 1. Merge
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/merge_toc.py --category {category} --mode full
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/merge_toc.py --category {category} --mode full
 
 # 2. Validate (check return value)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/validate_toc.py --category {category}
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/validate_toc.py --category {category}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
 #    Use Phase 1 snapshot instead of recalculating current hashes.
 #    This ensures files modified during Phase 2 will be re-processed next time.
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_checksums.py --category {category} --promote-pending
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_checksums.py --category {category} --promote-pending
 
 # 4. Cleanup
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_checksums.py --category {category} --clean-work-dir
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_checksums.py --category {category} --clean-work-dir
 ```
 
 ### Incremental Mode
 
 ```bash
 # 1. Merge
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/merge_toc.py --category {category} --mode incremental
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/merge_toc.py --category {category} --mode incremental
 
 # 2. Validate (check return value)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/validate_toc.py --category {category}
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/validate_toc.py --category {category}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_checksums.py --category {category} --promote-pending
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_checksums.py --category {category} --promote-pending
 
 # 4. Cleanup
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_checksums.py --category {category} --clean-work-dir
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_checksums.py --category {category} --clean-work-dir
 ```
 
 ### Delete-only Mode (N=0 and M>0)
 
 ```bash
 # 1. Delete only (no .toc_work/ needed)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/merge_toc.py --category {category} --delete-only
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/merge_toc.py --category {category} --delete-only
 
 # 2. Validate (check return value)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/validate_toc.py --category {category}
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/validate_toc.py --category {category}
 # → exit 0: Validation success, proceed
 # → exit 1: Validation failed, restore from backup and abort
 
 # 3. Update checksums (only on validation success)
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_checksums.py --category {category}
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_checksums.py --category {category}
 ```
 
 ---
@@ -350,5 +350,5 @@ When encountering unexpected errors (e.g., sandbox restrictions, permission erro
 → To retry: fix the source files and run incremental mode.
 
 [Cleanup]
-- Deleted .codex/doc-advisor/toc/{category}/.toc_work/
+- Deleted .codex/state/doc-advisor/toc/{category}/.toc_work/
 ```

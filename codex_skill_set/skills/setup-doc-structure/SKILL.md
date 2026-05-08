@@ -8,6 +8,18 @@ metadata:
   short-description: setup doc structure
 ---
 
+## Codex Skill Resource Root
+
+This skill is distributed by the environment-wide Doc Advisor Codex Skill set.
+Resolve `$DOC_ADVISOR_CODEX_ROOT` to `${CODEX_HOME:-~/.codex}/doc-advisor`,
+the directory that contains `install.yaml`.
+
+Run bundled Python scripts with absolute paths under
+`$DOC_ADVISOR_CODEX_ROOT/resources/...` and prefix them with
+`PYTHONDONTWRITEBYTECODE=1` so global resources do not accumulate runtime cache
+files. Project runtime output stays under the current project's
+`.codex/state/doc-advisor/`.
+
 # setup-doc-structure
 
 ## 概要
@@ -25,7 +37,7 @@ metadata:
 ### Step 1: 既存ファイルの確認
 
 ```bash
-python3 .codex/doc-advisor/resources/forge/scripts/doc_structure/check_doc_structure.py
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/forge/scripts/doc_structure/check_doc_structure.py
 ```
 
 JSON 出力に応じて分岐する:
@@ -34,7 +46,7 @@ JSON 出力に応じて分岐する:
 - **`error` あり** → エラー内容をユーザーに報告して終了。
 - **`exists: true`** →
   1. `needs_migration: true` の場合 → user confirmation を使用して「.doc_structure.yaml を v{detected_version} → v{current_version} にマイグレーションしますか？」と確認
-     - Yes → `python3 .codex/doc-advisor/resources/forge/scripts/doc_structure/migrate_doc_structure.py <path>` で変換結果を取得し、Write で書き出す
+     - Yes → `PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/forge/scripts/doc_structure/migrate_doc_structure.py <path>` で変換結果を取得し、Write で書き出す
      - No → 手順 2 へ
   2. `content` を表示し、user confirmation を使用して方針を確認する
      - **更新する** → Step 2 へ（既存の分類結果をベースにスキャン・再分類）
@@ -46,7 +58,7 @@ JSON 出力に応じて分岐する:
 #### 2-1: 自動スキャン
 
 ```bash
-python3 .codex/doc-advisor/resources/forge/scripts/doc_structure/classify_dirs.py
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/forge/scripts/doc_structure/classify_dirs.py
 ```
 
 スキャン結果（JSON）を取得する。`readme_only: true` のディレクトリは分類対象外としてスキップする。
@@ -209,7 +221,7 @@ doc-advisor 固有フィールドはデフォルト値で生成する（Quick re
 
 ## Schema Reference
 
-See: `.codex/doc-advisor/resources/forge/docs/doc_structure_format.md`
+See: `$DOC_ADVISOR_CODEX_ROOT/resources/forge/docs/doc_structure_format.md`
 
 ### Quick reference
 

@@ -133,7 +133,7 @@ def resolve_config_path(config_value, default_base, project_root):
     Multi-component paths (containing '/') are resolved relative to project_root.
     Simple names (no '/') are resolved relative to default_base.
 
-    This supports both default paths (.codex/doc-advisor/...) and
+    This supports both default paths ($DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/...) and
     output_dir-derived paths (plugins/forge/doc-advisor/...) as project-relative,
     while keeping simple fallback names (.toc_work, .toc_checksums.yaml) as
     default_base-relative.
@@ -440,10 +440,10 @@ def _get_default_config():
     return {
         'rules': {
             'root_dirs': ['rules/'],
-            'toc_file': '.codex/doc-advisor/toc/rules/rules_toc.yaml',
-            'checksums_file': '.codex/doc-advisor/toc/rules/.toc_checksums.yaml',
-            'work_dir': '.codex/doc-advisor/toc/rules/.toc_work/',
-            'index_file': '.codex/doc-advisor/index/rules/rules_index.json',
+            'toc_file': '.codex/state/doc-advisor/toc/rules/rules_toc.yaml',
+            'checksums_file': '.codex/state/doc-advisor/toc/rules/.toc_checksums.yaml',
+            'work_dir': '.codex/state/doc-advisor/toc/rules/.toc_work/',
+            'index_file': '.codex/state/doc-advisor/index/rules/rules_index.json',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
@@ -455,10 +455,10 @@ def _get_default_config():
         },
         'specs': {
             'root_dirs': ['specs/'],
-            'toc_file': '.codex/doc-advisor/toc/specs/specs_toc.yaml',
-            'checksums_file': '.codex/doc-advisor/toc/specs/.toc_checksums.yaml',
-            'work_dir': '.codex/doc-advisor/toc/specs/.toc_work/',
-            'index_file': '.codex/doc-advisor/index/specs/specs_index.json',
+            'toc_file': '.codex/state/doc-advisor/toc/specs/specs_toc.yaml',
+            'checksums_file': '.codex/state/doc-advisor/toc/specs/.toc_checksums.yaml',
+            'work_dir': '.codex/state/doc-advisor/toc/specs/.toc_work/',
+            'index_file': '.codex/state/doc-advisor/index/specs/specs_index.json',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
@@ -1305,7 +1305,7 @@ def load_metadata(category, file_path, toc_path=None):
             project_root = get_project_root()
             default_dir = project_root / category
             # ToC ファイルパスを設定から解決
-            toc_file_setting = config.get('toc_file', f'.codex/doc-advisor/toc/{category}/{category}_toc.yaml')
+            toc_file_setting = config.get('toc_file', f'.codex/state/doc-advisor/toc/{category}/{category}_toc.yaml')
             toc_path = resolve_config_path(toc_file_setting, default_dir, project_root)
         except Exception as e:
             print(f"Warning: load_metadata failed for {file_path}: {e}", file=sys.stderr)

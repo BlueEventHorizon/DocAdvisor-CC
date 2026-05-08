@@ -7,7 +7,7 @@
 関連文書を検索する。結果は JSON 形式で標準出力に出力する。
 
 Usage:
-    python3 search_docs.py --category {specs|rules} --query "タスクの説明文" [--threshold 0.3]
+    PYTHONDONTWRITEBYTECODE=1 python3 search_docs.py --category {specs|rules} --query "タスクの説明文" [--threshold 0.3]
 
 Options:
     --category   対象カテゴリ（必須）: specs または rules
@@ -81,7 +81,7 @@ def get_index_path(category, project_root):
         Path: インデックスファイルの絶対パス
     """
     config = load_config(category)
-    default = f'.codex/doc-advisor/index/{category}/{category}_index.json'
+    default = f'.codex/state/doc-advisor/index/{category}/{category}_index.json'
     index_file = config.get('index_file', default)
     return resolve_config_path(index_file, project_root, project_root)
 

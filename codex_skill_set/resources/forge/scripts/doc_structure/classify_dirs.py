@@ -7,8 +7,8 @@
 分類判定（category / doc_type）は行わない。AI が SKILL.md 内のルールに従って判定する。
 
 Usage:
-    python3 classify_dirs.py [project_root]
-    python3 classify_dirs.py [project_root] --skip vendor,dist
+    PYTHONDONTWRITEBYTECODE=1 python3 classify_dirs.py [project_root]
+    PYTHONDONTWRITEBYTECODE=1 python3 classify_dirs.py [project_root] --skip vendor,dist
 
 Created by: k_terada
 """

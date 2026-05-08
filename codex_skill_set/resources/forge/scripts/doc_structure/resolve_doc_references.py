@@ -12,10 +12,10 @@ DocAdvisor（/query-rules, /query-specs）が利用不可の場合のフォー�
 config.yaml 互換形式に変更された。パース処理は resolve_doc_structure.py に委譲している。
 
 使用例:
-    python3 resolve_doc_references.py --type rules
-    python3 resolve_doc_references.py --type specs
-    python3 resolve_doc_references.py --type all
-    python3 resolve_doc_references.py --type rules --project-root /path/to/project
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_references.py --type rules
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_references.py --type specs
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_references.py --type all
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_references.py --type rules --project-root /path/to/project
 """
 
 import argparse

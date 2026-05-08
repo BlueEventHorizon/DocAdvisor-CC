@@ -4,9 +4,9 @@
 COMMON-REQ-001 準拠。テキスト操作による変換（NFR-02: 外部ライブラリ不使用）。
 
 Usage:
-    python3 migrate_doc_structure.py <file_path>            # マイグレーション実行（stdout 出力）
-    python3 migrate_doc_structure.py <file_path> --check    # バージョン情報のみ
-    python3 migrate_doc_structure.py <file_path> --dry-run  # 適用内容を表示
+    PYTHONDONTWRITEBYTECODE=1 python3 migrate_doc_structure.py <file_path>            # マイグレーション実行（stdout 出力）
+    PYTHONDONTWRITEBYTECODE=1 python3 migrate_doc_structure.py <file_path> --check    # バージョン情報のみ
+    PYTHONDONTWRITEBYTECODE=1 python3 migrate_doc_structure.py <file_path> --dry-run  # 適用内容を表示
 """
 
 import json
@@ -121,9 +121,9 @@ def migrate_v1_to_v2(content):
 
         # v2 のデフォルトフィールド
         toc_target = category
-        lines.append(f'  toc_file: .codex/doc-advisor/toc/{toc_target}/{toc_target}_toc.yaml')
-        lines.append(f'  checksums_file: .codex/doc-advisor/toc/{toc_target}/.toc_checksums.yaml')
-        lines.append(f'  work_dir: .codex/doc-advisor/toc/{toc_target}/.toc_work/')
+        lines.append(f'  toc_file: .codex/state/doc-advisor/toc/{toc_target}/{toc_target}_toc.yaml')
+        lines.append(f'  checksums_file: .codex/state/doc-advisor/toc/{toc_target}/.toc_checksums.yaml')
+        lines.append(f'  work_dir: .codex/state/doc-advisor/toc/{toc_target}/.toc_work/')
         lines.append('  patterns:')
         lines.append('    target_glob: "**/*.md"')
         lines.append('    exclude: []')

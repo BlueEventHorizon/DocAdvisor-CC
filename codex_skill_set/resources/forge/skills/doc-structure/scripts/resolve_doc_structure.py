@@ -8,12 +8,12 @@ doc_types_map の逆引き、exclude 適用、.md ファイル収集を行う。
 doc-advisor の toc_utils.py 互換ロジックで実装。
 
 使用例:
-    python3 resolve_doc_structure.py --type rules
-    python3 resolve_doc_structure.py --type specs
-    python3 resolve_doc_structure.py --type all
-    python3 resolve_doc_structure.py --features
-    python3 resolve_doc_structure.py --doc-type design
-    python3 resolve_doc_structure.py --version
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_structure.py --type rules
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_structure.py --type specs
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_structure.py --type all
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_structure.py --features
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_structure.py --doc-type design
+    PYTHONDONTWRITEBYTECODE=1 python3 resolve_doc_structure.py --version
 """
 
 import argparse

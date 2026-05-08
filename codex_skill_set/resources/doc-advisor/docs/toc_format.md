@@ -10,7 +10,7 @@ applicable_when:
 
 ## Purpose
 
-`.codex/doc-advisor/toc/{category}/{category}_toc.yaml` is the **single source of truth** for the subagent to identify documents needed for tasks.
+`.codex/state/doc-advisor/toc/{category}/{category}_toc.yaml` is the **single source of truth** for the subagent to identify documents needed for tasks.
 
 The quality of this file determines task execution success. **Missing information is not acceptable.**
 
@@ -49,7 +49,7 @@ Structure definition for work files used in individual entry file method.
 ### File Layout
 
 ```
-.codex/doc-advisor/toc/{category}/.toc_work/   # Work directory (.gitignore target)
+.codex/state/doc-advisor/toc/{category}/.toc_work/   # Work directory (.gitignore target)
 ├── {sha256_hash_16chars}.yaml
 └── ... (for each target file)
 ```
@@ -221,7 +221,7 @@ docs:
 ### Rules ToC
 
 ```yaml
-# .codex/doc-advisor/toc/rules/rules_toc.yaml
+# .codex/state/doc-advisor/toc/rules/rules_toc.yaml
 
 metadata:
   name: Development Documentation Search Index
@@ -273,7 +273,7 @@ docs:
 ### Specs ToC
 
 ```yaml
-# .codex/doc-advisor/toc/specs/specs_toc.yaml
+# .codex/state/doc-advisor/toc/specs/specs_toc.yaml
 
 metadata:
   name: Project Specification Document Search Index

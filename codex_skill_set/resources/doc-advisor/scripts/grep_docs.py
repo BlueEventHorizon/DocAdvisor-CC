@@ -8,7 +8,7 @@
 標準ライブラリのみ使用。
 
 Usage:
-    python3 grep_docs.py --category {specs|rules} --keyword "doc_structure.yaml"
+    PYTHONDONTWRITEBYTECODE=1 python3 grep_docs.py --category {specs|rules} --keyword "doc_structure.yaml"
 
 Options:
     --category  対象カテゴリ: specs または rules（必須）

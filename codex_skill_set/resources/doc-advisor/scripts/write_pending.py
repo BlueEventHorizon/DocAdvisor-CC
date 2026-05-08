@@ -7,8 +7,8 @@ toc-updater agent の分析結果を pending YAML に書き込み、
 status を completed に更新する。
 
 Usage:
-    python3 write_pending.py --category rules \
-      --entry-file ".codex/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
+    PYTHONDONTWRITEBYTECODE=1 python3 write_pending.py --category rules \
+      --entry-file ".codex/state/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
       --title "Title" \
       --purpose "Purpose" \
       --content-details "item1 ||| item2 ||| item3 ||| item4 ||| item5" \
@@ -16,8 +16,8 @@ Usage:
       --keywords "kw1 ||| kw2 ||| kw3 ||| kw4 ||| kw5"
 
 Error mode:
-    python3 write_pending.py --category rules \
-      --entry-file ".codex/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
+    PYTHONDONTWRITEBYTECODE=1 python3 write_pending.py --category rules \
+      --entry-file ".codex/state/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
       --error --error-message "Source file not found"
 
 Exit codes:

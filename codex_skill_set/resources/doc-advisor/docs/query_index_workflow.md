@@ -15,7 +15,7 @@ Embedding（セマンティック検索）ベースで関連文書の候補パ�
 インデックスを差分更新する（未作成時は自動フルビルド、変更なし時はスキップ）。
 
 ```bash
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/embed_docs.py --category {category}
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/embed_docs.py --category {category}
 ```
 
 - `{"status": "ok", ...}` → Procedure へ
@@ -26,11 +26,11 @@ python3 .codex/doc-advisor/resources/doc-advisor/scripts/embed_docs.py --categor
 
 1. セマンティック検索を実行する:
    ```bash
-   python3 .codex/doc-advisor/resources/doc-advisor/scripts/search_docs.py --category {category} --skip-stale-check --query "{task}"
+   PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/search_docs.py --category {category} --skip-stale-check --query "{task}"
    ```
 2. タスク説明に固有名詞・識別子が含まれる場合は全文検索を補足する:
    ```bash
-   python3 .codex/doc-advisor/resources/doc-advisor/scripts/grep_docs.py --category {category} --keyword "{固有名詞}"
+   PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/grep_docs.py --category {category} --keyword "{固有名詞}"
    ```
 3. 検索結果のパスを候補リストとして保持する
 
@@ -40,7 +40,7 @@ python3 .codex/doc-advisor/resources/doc-advisor/scripts/embed_docs.py --categor
 
 - **"Model mismatch"** → `--full` で再構築を試行:
   ```bash
-  python3 .codex/doc-advisor/resources/doc-advisor/scripts/embed_docs.py --category {category} --full
+  PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/embed_docs.py --category {category} --full
   ```
   成功後、Procedure の Step 1 をリトライ
 - **"API error"** / **"OPENAI_API_KEY not set"** → 候補なし（空リスト）として返す。エラーにしない

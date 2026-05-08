@@ -9,17 +9,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- **Codex project-local bridge installer**: Added `setup_for_codex.sh` to install the reviewed Codex-native Doc Advisor skill set into target projects under `.codex/doc-advisor/`.
-  - Adds an idempotent managed bridge section to target `AGENTS.md`
-  - Preserves target project content outside the managed bridge section
-  - Validates source plugin version, forge version, source commit, layout hash, `codex_skill_set` hash, and `reviewed: true` profile status before install
-  - Records install metadata in `.codex/doc-advisor/.source_version`
-  - Supports `--source`, `--profile`, `--codex-set`, and `--list-profiles`
+- **Codex environment Skill installer**: Added `setup_for_codex.sh` to install the reviewed Codex-native Doc Advisor skill set as ordinary environment-wide Codex Skills under `${CODEX_HOME:-~/.codex}/skills`.
+	  - Installs shared resources under `${CODEX_HOME:-~/.codex}/doc-advisor/resources`
+	  - Supports optional `--project PROJECT_DIR` initialization for `.codex/state/doc-advisor/` and an idempotent managed `AGENTS.md` section
+	  - Preserves target project content outside the managed Doc Advisor section when `--project` is used
+	  - Removes legacy project-local Doc Advisor managed paths when `--project` is used to avoid stale duplicate skills
+	  - Keeps ToC/index runtime state project-local and prevents global resources from accumulating Python cache files during Codex Skill script execution
+	  - Validates source plugin version, forge version, source commit, layout hash, `codex_skill_set` hash, and `reviewed: true` profile status before install
+  - Records project install metadata in `.codex/installs/doc-advisor.yaml` when `--project` is used
+  - Supports `--source`, `--profile`, `--codex-set`, `--codex-home`, `--project`, and `--list-profiles`
 - **Codex-native skill set**: Added `codex_skill_set/` with Codex-compatible `SKILL.md` files and bundled resources.
-  - Included skills: `create-rules-toc`, `create-specs-toc`, `query-rules`, `query-specs`, `setup-doc-structure`
-  - Included resources: doc-advisor docs/scripts, `toc-updater` reference, and forge `doc_structure` docs/scripts
+  - Included Doc Advisor skills: `create-rules-toc`, `create-specs-toc`, `query-rules`, `query-specs`
+  - Included forge setup skill: `setup-doc-structure`
+  - Included forge authoring wrappers: `start-requirements`, `start-design`, `start-plan`
+  - Included resources: doc-advisor docs/scripts, `toc-updater` reference, forge `doc_structure` docs/scripts, forge format/principle docs, requirements workflow docs, and `next-spec-id` helper resources
   - Disabled: `create-code-index`, `query-code`
-  - Excluded: forge localhost monitor
+  - Excluded: forge localhost monitor, review automation, version update, and cleanup
+- **Codex confirmation protocol**: Added `codex_confirmation_protocol.md` for chat-based user confirmation in Codex forge wrappers.
 - **Codex install profiles**: Added `codex_install_profiles/doc-advisor/current.yaml` and a versioned profile keyed by source version, source commit, and layout hash.
 - **Codex generation tools**:
   - `generate_codex_skill_set.sh`: Generates the reviewed Codex-native skill set and profile from read-only `bw-cc-plugins` sources
@@ -31,7 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `tests/codex_test_project/`
 
 ### Changed
-- **README / README_en**: Added Codex quick start, natural-language usage examples, project-local bridge layout, and install profile regeneration guidance.
+- **README / README_en**: Added Codex quick start, natural-language usage examples, environment Skill layout, and install profile regeneration guidance.
+- **Codex design**: Documented the project-local bridge as a non-official migration/experiment pattern and removed its active `AGENTS.md` usage from this project.
 - **Full test suite**: Added Phase 7 for Codex skill set, setup, and deterministic local scenario validation.
 - **Codex design spec**: Updated `DES-CODEX-001_setup_for_codex.md` to match the implemented combined Doc Advisor + supported forge profile model.
 

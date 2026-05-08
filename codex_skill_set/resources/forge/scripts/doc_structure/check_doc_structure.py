@@ -7,7 +7,7 @@ setup-doc-structure スキルの Step 1 で使用する。
 存在確認・バージョン検出・マイグレーション要否を一括で JSON 出力する。
 
 Usage:
-    python3 check_doc_structure.py [project_root]
+    PYTHONDONTWRITEBYTECODE=1 python3 check_doc_structure.py [project_root]
 
 Created by: k_terada
 """

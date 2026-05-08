@@ -1,6 +1,6 @@
 ---
 name: toc-updater
-description: Specialized agent that generates ToC entries for a single document. Processes individual YAML files in .codex/doc-advisor/toc/{category}/.toc_work/.
+description: Specialized agent that generates ToC entries for a single document. Processes individual YAML files in .codex/state/doc-advisor/toc/{category}/.toc_work/.
 model: haiku
 color: orange
 tools: Read, Bash
@@ -8,9 +8,9 @@ tools: Read, Bash
 
 ## Overview
 
-Processes a single document (`.md` file) and completes the corresponding entry YAML in `.codex/doc-advisor/toc/{category}/.toc_work/`.
+Processes a single document (`.md` file) and completes the corresponding entry YAML in `.codex/state/doc-advisor/toc/{category}/.toc_work/`.
 
-**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (Doc Advisor bridge skill create-{category}-toc command) via parallel invocation.
+**Important**: This agent processes only one file. Multiple file processing is managed by the orchestrator (Doc Advisor Skill create-{category}-toc command) via parallel invocation.
 
 ## EXECUTION RULES
 
@@ -23,13 +23,13 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 | Parameter    | Required | Description                                                                                            |
 | ------------ | -------- | ------------------------------------------------------------------------------------------------------ |
 | `category`   | Yes      | Target category: `rules` or `specs`                                                                    |
-| `entry_file` | Yes      | Path to the entry YAML file to process (e.g., `.codex/doc-advisor/toc/{category}/.toc_work/xxx.yaml`) |
+| `entry_file` | Yes      | Path to the entry YAML file to process (e.g., `.codex/state/doc-advisor/toc/{category}/.toc_work/xxx.yaml`) |
 
 ## Required Reference Documents [MANDATORY]
 
 Read the following before processing:
 
-- `.codex/doc-advisor/resources/doc-advisor/docs/toc_format.md` - Format definition file
+- `$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/toc_format.md` - Format definition file
 
 ## Procedure
 
@@ -39,7 +39,7 @@ Read the following before processing:
 4. Call the write script to save the completed entry:
 
 ```bash
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/write_pending.py \
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/write_pending.py \
   --category {category} \
   --entry-file "{entry_file}" \
   --title "{extracted title}" \
@@ -60,7 +60,7 @@ If any step fails (file not found, empty file, read error, etc.):
 1. Write error information to the entry YAML (status remains `pending`):
 
 ```bash
-python3 .codex/doc-advisor/resources/doc-advisor/scripts/write_pending.py \
+PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/write_pending.py \
   --category {category} \
   --entry-file "{entry_file}" \
   --error --error-message "{brief error description}"

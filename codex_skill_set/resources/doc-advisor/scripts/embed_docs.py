@@ -8,7 +8,7 @@ Embedding インデックス構築スクリプト (doc-advisor plugin)
 staleness check の3モードに対応。
 
 Usage:
-    python3 embed_docs.py --category {specs|rules} [--full] [--check]
+    PYTHONDONTWRITEBYTECODE=1 python3 embed_docs.py --category {specs|rules} [--full] [--check]
 
 Options:
     --category  対象カテゴリ（必須）: specs または rules
@@ -80,7 +80,7 @@ def get_index_path(category, project_root):
     未設定の場合はデフォルトパスにフォールバックする。
     """
     config = load_config(category)
-    default = f'.codex/doc-advisor/index/{category}/{category}_index.json'
+    default = f'.codex/state/doc-advisor/index/{category}/{category}_index.json'
     index_file = config.get('index_file', default)
     return resolve_config_path(index_file, project_root, project_root)
 

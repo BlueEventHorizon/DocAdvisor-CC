@@ -1,0 +1,8 @@
+# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
+# Auto-generated - do not edit
+generated_at: 2026-05-08T06:23:55Z
+file_count: 3
+checksums:
+  specs/claude/design/DES-001_setup_script.md: 6934f881c86102dfa41f2d07c20bd869ae7764d787e32e01ba288c4fb0d9c199
+  specs/claude/requirements/REQ-004_setup_resilience.md: 02098956f60b91a3cfb8b48f1b1c33e93eba1a7c1459c5e41d78dab6f5909dc0
+  specs/codex/design/DES-CODEX-001_setup_for_codex.md: f0b934e0cad206195f5d88404e576458edc94a63e2c5e73b93c6d86dbe66ea60

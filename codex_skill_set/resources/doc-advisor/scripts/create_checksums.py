@@ -7,8 +7,8 @@ rules/ または specs/ 配下の全 .md ファイルの SHA-256 ハッシュを
 .toc_checksums.yaml に保存する。incremental モード判定に使用。
 
 使用方法:
-    python3 create_checksums.py --category rules
-    python3 create_checksums.py --category specs
+    PYTHONDONTWRITEBYTECODE=1 python3 create_checksums.py --category rules
+    PYTHONDONTWRITEBYTECODE=1 python3 create_checksums.py --category specs
 """
 
 import json

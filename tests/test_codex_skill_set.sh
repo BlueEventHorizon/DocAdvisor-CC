@@ -37,7 +37,10 @@ check "codex_skill_set exists" "[[ -d '$SET_DIR/skills' && -d '$SET_DIR/resource
 check "profile exists" "[[ -f '$PROFILE' ]]"
 check "disabled code-index skills are absent" "[[ ! -d '$SET_DIR/skills/create-code-index' && ! -d '$SET_DIR/skills/query-code' ]]"
 check "forge monitor is excluded" "[[ ! -d '$SET_DIR/resources/forge/scripts/monitor' ]]"
-check "no Claude plugin placeholders remain" "! grep -R -n -E '\\\$\\{CLAUDE_PLUGIN_ROOT\\}|/doc-advisor:|/forge:|AskUserQuestion|Task\\(subagent_type:' '$SET_DIR' >/dev/null 2>&1"
+check "forge authoring wrapper skills exist" "[[ -f '$SET_DIR/skills/start-requirements/SKILL.md' && -f '$SET_DIR/skills/start-design/SKILL.md' && -f '$SET_DIR/skills/start-plan/SKILL.md' ]]"
+check "forge confirmation protocol exists" "[[ -f '$SET_DIR/resources/forge/docs/codex_confirmation_protocol.md' ]]"
+check "no Claude/plugin placeholders remain" "! grep -R -n -E '\\\$\\{CLAUDE_PLUGIN_ROOT\\}|DOC_ADVISOR_PLUGIN_ROOT|/doc-advisor:|/forge:|AskUserQuestion|Task\\(subagent_type:' '$SET_DIR' >/dev/null 2>&1"
+check "no project-local resource references remain" "! grep -R -n -E '\\.codex/resources/|\\.codex/skills/' '$SET_DIR/skills' '$SET_DIR/resources' >/dev/null 2>&1"
 
 python3 - "$SET_DIR" <<'PY'
 import sys

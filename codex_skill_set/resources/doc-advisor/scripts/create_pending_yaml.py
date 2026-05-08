@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate pending YAML templates in .codex/doc-advisor/toc/{category}/.toc_work/
+Generate pending YAML templates in .codex/state/doc-advisor/toc/{category}/.toc_work/
 (doc-advisor plugin)
 
 Usage:
-    python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category rules [--full]
-    python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category specs [--full]
-    python3 .codex/doc-advisor/resources/doc-advisor/scripts/create_pending_yaml.py --category rules --check
+    PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category rules [--full]
+    PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category specs [--full]
+    PYTHONDONTWRITEBYTECODE=1 python3 $DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/scripts/create_pending_yaml.py --category rules --check
 
 Options:
     --category  Target category: rules or specs (required)
@@ -293,7 +293,7 @@ def main():
     # --check mode: report staleness without creating files
     if args.check:
         if not TOC_FILE.exists():
-            log(f"WARNING: ToC not found. Run Doc Advisor bridge skill create-{CATEGORY}-toc to generate it.")
+            log(f"WARNING: ToC not found. Run Doc Advisor Skill create-{CATEGORY}-toc to generate it.")
             return 0
         if not CHECKSUMS_FILE.exists():
             return 0
@@ -325,7 +325,7 @@ def main():
             if deleted_count:
                 parts.append(f"{deleted_count} deleted")
             log(f"WARNING: ToC may be stale ({', '.join(parts)}).")
-            log(f"Consider running Doc Advisor bridge skill create-{CATEGORY}-toc to refresh the index.")
+            log(f"Consider running Doc Advisor Skill create-{CATEGORY}-toc to refresh the index.")
         return 0
 
     full_mode = args.full

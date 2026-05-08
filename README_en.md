@@ -103,8 +103,8 @@ Otherwise, run the classification skill:
 
 ### Codex
 
-For Codex, this repository installs the pre-generated and reviewed `codex_skill_set/` into the target project as a project-local bridge.
-It does not write to Codex's global skill directory.
+For Codex, this repository installs the pre-generated and reviewed `codex_skill_set/` as ordinary environment-wide Codex Skills.
+Target project runtime state and `AGENTS.md` are initialized only when requested.
 
 1. Clone the repository (with submodules)
 
@@ -114,35 +114,58 @@ git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
 
 > If you already cloned without `--recursive`, run `git submodule update --init`.
 
-2. Install the Codex bridge into your target project
+2. Install the Codex Skills into your environment
 
 ```bash
 cd DocAdvisor-CC
-./setup_for_codex.sh /path/to/your-project
+./setup_for_codex.sh
 ```
 
+By default this writes:
+
+```text
+~/.codex/skills/
+~/.codex/doc-advisor/resources/
+~/.codex/doc-advisor/install.yaml
+```
+
+To also initialize project runtime state and `AGENTS.md`:
+
+```bash
+./setup_for_codex.sh --project /path/to/your-project
+```
+
+`--project` does not create project-local `.codex/skills/` or `.codex/resources/`. If old project-local Doc Advisor managed files already exist, the managed legacy paths are removed to avoid duplicate stale skills.
+The project-local bridge pattern, where `AGENTS.md` points Codex at project-local `.codex/skills/`, is not an official Codex Skill install. It is documented as a migration and experiment pattern in `specs/codex/design/DES-CODEX-001_setup_for_codex.md`.
+Legacy files from the previous plugin approach, such as `~/plugins/doc-advisor/` or `~/.agents/plugins/marketplace.json`, are not removed automatically. Disable or delete them separately if needed.
+
 3. Launch Codex in the target project
+
+Restart Codex if the new or updated Skills are not visible in the current session.
 
 ```bash
 cd /path/to/your-project
 codex
 ```
 
-4. Available bridge functions
+4. Available functions
 
-`setup_for_codex.sh` adds a managed Doc Advisor bridge section to the target project's `AGENTS.md`.
-Codex uses that table to find the project-local skills.
+Codex reads these installed environment Skills.
 
-| Function | Path |
-| -------- | ---- |
-| rules ToC generation | `.codex/doc-advisor/skills/create-rules-toc/SKILL.md` |
-| specs ToC generation | `.codex/doc-advisor/skills/create-specs-toc/SKILL.md` |
-| rules search | `.codex/doc-advisor/skills/query-rules/SKILL.md` |
-| specs search | `.codex/doc-advisor/skills/query-specs/SKILL.md` |
-| document structure setup | `.codex/doc-advisor/skills/setup-doc-structure/SKILL.md` |
+| Function | Skill |
+| -------- | ----- |
+| rules ToC generation | `create-rules-toc` |
+| specs ToC generation | `create-specs-toc` |
+| rules search | `query-rules` |
+| specs search | `query-specs` |
+| document structure setup | `setup-doc-structure` |
+| requirements authoring | `start-requirements` |
+| design authoring | `start-design` |
+| plan authoring | `start-plan` |
 
-Codex ToC and index outputs are written under `.codex/doc-advisor/toc/` and `.codex/doc-advisor/index/`.
+Codex ToC and index outputs are written under `.codex/state/doc-advisor/toc/` and `.codex/state/doc-advisor/index/`.
 They are separate from Claude Code's `.claude/` files.
+The forge authoring wrappers use a chat-based confirmation protocol instead of a dedicated UI tool. When a file creation, overwrite, or decision branch needs approval, Codex presents choices and waits for the user's reply.
 
 ## Usage
 
@@ -168,7 +191,7 @@ They are separate from Claude Code's `.claude/` files.
 ### Codex
 
 In Codex, use natural-language requests instead of slash commands.
-Codex will refer to the Doc Advisor bridge section in `AGENTS.md` and the relevant `.codex/doc-advisor/skills/.../SKILL.md` file.
+Codex will refer to the installed Doc Advisor Skills and, when `--project` was used, the Doc Advisor section in `AGENTS.md`.
 
 Examples:
 
@@ -178,6 +201,9 @@ Incrementally update the specs ToC.
 Find the rules needed to implement authentication.
 Find specs related to screen navigation.
 Configure the document structure.
+Create requirements for the login feature.
+Create a design document for the login feature.
+Create an implementation plan for the login feature.
 ```
 
 ## Configuration
@@ -197,7 +223,7 @@ Config file: `.doc_structure.yaml` (project root)
 
 - Python 3 (standard library only)
 - Claude Code
-- Codex (when using the Codex bridge)
+- Codex (when using the Codex Skills)
 - Bash shell
 
 ## Codex Install Profile
@@ -209,7 +235,7 @@ When the `bw-cc-plugins` plugin layout or version changes, regenerate and review
 ```bash
 ./analyze_codex_install_profile.sh
 ./generate_codex_skill_set.sh
-./setup_for_codex.sh /path/to/your-project
+./setup_for_codex.sh
 ```
 
 List available profiles with:

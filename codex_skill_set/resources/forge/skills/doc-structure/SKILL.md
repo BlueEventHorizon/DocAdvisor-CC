@@ -7,6 +7,18 @@ metadata:
   short-description: doc structure
 ---
 
+## Codex Skill Resource Root
+
+This skill is distributed by the environment-wide Doc Advisor Codex Skill set.
+Resolve `$DOC_ADVISOR_CODEX_ROOT` to `${CODEX_HOME:-~/.codex}/doc-advisor`,
+the directory that contains `install.yaml`.
+
+Run bundled Python scripts with absolute paths under
+`$DOC_ADVISOR_CODEX_ROOT/resources/...` and prefix them with
+`PYTHONDONTWRITEBYTECODE=1` so global resources do not accumulate runtime cache
+files. Project runtime output stays under the current project's
+`.codex/state/doc-advisor/`.
+
 # doc-structure スキル
 
 ## 概要
@@ -19,32 +31,32 @@ doc-advisor がこのスキルをまるごとコピーして使える自己完�
 
 ## スクリプト
 
-`.codex/doc-advisor/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py`
+`$DOC_ADVISOR_CODEX_ROOT/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py`
 
 ### CLI インターフェース
 
 ```bash
-SCRIPT=".codex/doc-advisor/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py"
+SCRIPT="$DOC_ADVISOR_CODEX_ROOT/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py"
 
 # カテゴリ別のファイル一覧
-python3 "$SCRIPT" --type rules
-python3 "$SCRIPT" --type specs
-python3 "$SCRIPT" --type all
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type rules
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type specs
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type all
 
 # Feature 一覧（specs の glob パターンから抽出）
-python3 "$SCRIPT" --features
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --features
 
 # 特定 doc_type のファイル一覧
-python3 "$SCRIPT" --doc-type design
-python3 "$SCRIPT" --doc-type design --category specs
-python3 "$SCRIPT" --doc-type rule --category rules
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --doc-type design
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --doc-type design --category specs
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --doc-type rule --category rules
 
 # バージョン情報
-python3 "$SCRIPT" --version
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --version
 
 # プロジェクトルート・ファイルパスの指定
-python3 "$SCRIPT" --type all --project-root /path/to/project
-python3 "$SCRIPT" --type all --doc-structure /path/to/.doc_structure.yaml
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type all --project-root /path/to/project
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type all --doc-structure /path/to/.doc_structure.yaml
 ```
 
 ### 出力形式（JSON）
@@ -104,8 +116,8 @@ python3 "$SCRIPT" --type all --doc-structure /path/to/.doc_structure.yaml
 ### パターン 1: Bash でスクリプトを直接呼び出す
 
 ```bash
-SCRIPT=".codex/doc-advisor/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py"
-RESULT=$(python3 "$SCRIPT" --type all)
+SCRIPT="$DOC_ADVISOR_CODEX_ROOT/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py"
+RESULT=$(PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type all)
 ```
 
 JSON 出力を受け取り、必要なフィールドを利用する。

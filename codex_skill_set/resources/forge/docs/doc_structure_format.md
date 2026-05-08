@@ -239,16 +239,16 @@ specs:
 `doc-structure` スキルの `resolve_doc_structure.py` を使用する:
 
 ```bash
-SCRIPT=".codex/doc-advisor/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py"
+SCRIPT="$DOC_ADVISOR_CODEX_ROOT/resources/forge/skills/doc-structure/scripts/resolve_doc_structure.py"
 
 # 全ファイル一覧
-python3 "$SCRIPT" --type all
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --type all
 
 # Feature 一覧
-python3 "$SCRIPT" --features
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --features
 
 # 特定 doc_type のファイル
-python3 "$SCRIPT" --doc-type design
+PYTHONDONTWRITEBYTECODE=1 python3 "$SCRIPT" --doc-type design
 ```
 
 ### Python スクリプトから（同一プラグイン内）

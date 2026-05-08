@@ -13,7 +13,7 @@ applicable_when:
 
 ## Overview
 
-Workflow for updating `.codex/doc-advisor/toc/{category}/{category}_toc.yaml`. Uses **individual entry file method**, processing each document with independent subagents.
+Workflow for updating `.codex/state/doc-advisor/toc/{category}/{category}_toc.yaml`. Uses **individual entry file method**, processing each document with independent subagents.
 
 ## Architecture
 
@@ -27,7 +27,7 @@ Workflow for updating `.codex/doc-advisor/toc/{category}/{category}_toc.yaml`. U
 ### Directory Structure
 
 ```
-.codex/doc-advisor/toc/{category}/
+.codex/state/doc-advisor/toc/{category}/
 ├── {category}_toc.yaml            # Final artifact (after merge)
 ├── .toc_checksums.yaml          # Change detection checksums
 └── .toc_work/                   # Work directory (.gitignore target)
@@ -51,7 +51,7 @@ Workflow for updating `.codex/doc-advisor/toc/{category}/{category}_toc.yaml`. U
 ## Workflow Overview
 
 ```
-Doc Advisor bridge skill create-{category}-toc execution
+Doc Advisor Skill create-{category}-toc execution
     ↓
 Phase 1: Initialization (Orchestrator)
     ↓
@@ -69,7 +69,7 @@ Cleanup
 ### Step 1.1: Check .toc_work/ status
 
 ```bash
-test -d .codex/doc-advisor/toc/{category}/.toc_work && echo "EXISTS" || echo "NOT_EXISTS"
+test -d .codex/state/doc-advisor/toc/{category}/.toc_work && echo "EXISTS" || echo "NOT_EXISTS"
 ```
 
 ### Step 1.2: Mode determination and branching
@@ -96,7 +96,7 @@ Generate templates in `.toc_work/` for each target file.
 
 ### Step 2.1: Identify pending YAMLs
 
-Read `.codex/doc-advisor/toc/{category}/.toc_work/*.yaml` and identify files with `_meta.status: pending`
+Read `.codex/state/doc-advisor/toc/{category}/.toc_work/*.yaml` and identify files with `_meta.status: pending`
 
 ### Step 2.2: Launch subagents in parallel
 
@@ -104,8 +104,8 @@ Read `.codex/doc-advisor/toc/{category}/.toc_work/*.yaml` and identify files wit
 
 ```
 # Orchestrator calls multiple Task tools in one message
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/xxx.yaml")
-Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/doc-advisor/toc/{category}/.toc_work/yyy.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/xxx.yaml")
+Codex subagent/reference task: toc-updater reference, prompt: "category: {category}, entry_file: .codex/state/doc-advisor/toc/{category}/.toc_work/yyy.yaml")
 ... (up to max_workers simultaneous)
 ```
 
@@ -164,7 +164,7 @@ Verify each `.toc_work/*.yaml` meets:
 ### Step 3.3: Cleanup
 
 ```bash
-rm -rf .codex/doc-advisor/toc/{category}/.toc_work
+rm -rf .codex/state/doc-advisor/toc/{category}/.toc_work
 ```
 
 ---

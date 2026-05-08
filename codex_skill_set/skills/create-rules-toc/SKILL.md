@@ -11,6 +11,18 @@ metadata:
   short-description: create rules toc
 ---
 
+## Codex Skill Resource Root
+
+This skill is distributed by the environment-wide Doc Advisor Codex Skill set.
+Resolve `$DOC_ADVISOR_CODEX_ROOT` to `${CODEX_HOME:-~/.codex}/doc-advisor`,
+the directory that contains `install.yaml`.
+
+Run bundled Python scripts with absolute paths under
+`$DOC_ADVISOR_CODEX_ROOT/resources/...` and prefix them with
+`PYTHONDONTWRITEBYTECODE=1` so global resources do not accumulate runtime cache
+files. Project runtime output stays under the current project's
+`.codex/state/doc-advisor/`.
+
 # create-rules-toc
 
 Generate/update rules ToC (Table of Contents) for AI-searchable document index.
@@ -28,8 +40,8 @@ create-rules-toc [--full]
 
 ## Execution Flow
 
-1. Read `.codex/doc-advisor/resources/doc-advisor/docs/toc_orchestrator.md` for orchestrator workflow
-2. Read `.codex/doc-advisor/resources/doc-advisor/docs/toc_format.md` for format definition
+1. Read `$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/toc_orchestrator.md` for orchestrator workflow
+2. Read `$DOC_ADVISOR_CODEX_ROOT/resources/doc-advisor/docs/toc_format.md` for format definition
 3. Execute the full orchestrator workflow as described in the document, with **category = rules**
    - If `$0` = `--full`: Execute in **full mode** (rebuild entire ToC)
    - Otherwise: Execute in **incremental mode** (process changes only)

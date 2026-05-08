@@ -22,7 +22,7 @@ notes:
 
 ## 1. 概要
 
-`setup_for_codex.sh` は、DocAdvisor リポジトリ内に保持する Codex-native SKILL セットを、target project に project-local bridge として install するためのスクリプトである。
+`setup_for_codex.sh` は、DocAdvisor リポジトリ内に保持する Codex-native SKILL セットを、環境全体で使う通常の Codex Skill として install するためのスクリプトである。必要な場合のみ `--project` で target project の runtime state と `AGENTS.md` を初期化する。
 
 Codex-native SKILL セットは、`bw-cc-plugins` に含まれる Claude Code plugin 形式の Doc Advisor / forge 資産を元に、DocAdvisor 側で事前変換・レビューして保持する。`${CLAUDE_PLUGIN_ROOT}`、`/doc-advisor:*`、`/forge:*`、Claude Code 固有 frontmatter などは、この保存済み Codex セット内では変換済みでなければならない。
 
@@ -31,7 +31,7 @@ Codex-native SKILL セットは、`bw-cc-plugins` に含まれる Claude Code pl
 採用方針:
 
 1. **事前解析必須**: plugin version / commit / layout ごとに解析を行い、install profile を生成する
-2. **Codex-native 正本 install**: `codex_skill_set/` は本物の Codex Skill 形式で作成・検証し、`setup_for_codex.sh` はその内容を project-local bridge として配置する
+2. **Codex-native 正本 install**: `codex_skill_set/` は本物の Codex Skill 形式で作成・検証し、`setup_for_codex.sh` はその内容を `${CODEX_HOME:-~/.codex}/skills` に通常 Skill として配置する
 3. **未知構成で停止**: 対応 profile が存在しない version / commit / layout では install を失敗させる
 4. **生成と install の分離**: Claude plugin から Codex SKILL への変換は事前生成・レビュー時に行い、install 時には原則として変換しない
 5. **bw-cc-plugins 読み取り専用**: source plugin 側には manifest 追加・修正を行わない
@@ -47,7 +47,7 @@ Codex-native SKILL セットは、`bw-cc-plugins` に含まれる Claude Code pl
 | 既存 Claude setup 非干渉 | `setup.sh` と `.claude/` 向け install 動作は変更しない |
 | 変換残骸ゼロ | `${CLAUDE_PLUGIN_ROOT}` や `/doc-advisor:` など Claude Code 固有文字列を Codex セットと install 結果に残さない |
 | 人間レビュー前提 | Codex セット生成は補助自動化するが、採用前に人間レビューして commit する |
-| Skill と bridge を分離する | `codex_skill_set/` は本物の Codex Skill 形式で保ち、初期 install は Codex の home-global discovery に依存しない project-local bridge とする |
+| Skill と project state を分離する | `codex_skill_set/` は環境全体の Codex Skill として保ち、ToC/index などの runtime output だけを project 側 `.codex/state/doc-advisor/` に置く |
 
 ## 3. アーキテクチャ
 
@@ -75,12 +75,16 @@ flowchart TD
         VALIDATE[post-install validation]
     end
 
-    subgraph Target[target project]
-        AGENTS[AGENTS.md bridge section]
-        LOCAL[.codex/doc-advisor/]
-        SKILLS[project-local skill copies]
-        RES[project-local resources]
-        META[.source_version]
+    subgraph Environment[Codex user environment]
+        SKILLS[~/.codex/skills/]
+        RES[~/.codex/doc-advisor/resources/]
+        EMETA[~/.codex/doc-advisor/install.yaml]
+    end
+
+    subgraph Target[target project optional]
+        AGENTS[AGENTS.md Skill note]
+        STATE[.codex/state/doc-advisor/]
+        META[.codex/installs/doc-advisor.yaml]
     end
 
     Source --> AP
@@ -93,11 +97,12 @@ flowchart TD
     Source --> SETUP
     SETUP --> LOAD --> MATCH --> COPY --> VALIDATE
     NATIVE --> COPY
-    COPY --> AGENTS
-    COPY --> LOCAL
     COPY --> SKILLS
     COPY --> RES
-    COPY --> META
+    COPY --> EMETA
+    SETUP --> AGENTS
+    SETUP --> STATE
+    SETUP --> META
 ```
 
 ## 4. ディレクトリ構成
@@ -114,7 +119,10 @@ DocAdvisor/
 │   │   ├── create-specs-toc/
 │   │   ├── query-rules/
 │   │   ├── query-specs/
-│   │   └── setup-doc-structure/
+│   │   ├── setup-doc-structure/
+│   │   ├── start-requirements/
+│   │   ├── start-design/
+│   │   └── start-plan/
 │   ├── resources/
 │   │   ├── doc-advisor/
 │   │   └── forge/
@@ -132,20 +140,100 @@ DocAdvisor/
     └── DES-CODEX-001_setup_for_codex.md
 ```
 
-`codex_skill_set/` 自体は Codex の標準 Skill 形式で保持する。一方、`setup_for_codex.sh` の初期 install は project-local bridge とする。
+`codex_skill_set/` 自体は通常の Codex Skill 形式で保持する。`setup_for_codex.sh` は `${CODEX_HOME:-~/.codex}/skills/` に Skill を配置し、共有 resource を `${CODEX_HOME:-~/.codex}/doc-advisor/resources/` に配置する。personal marketplace entry は作成しない。
 
-target project 側の初期 install 先:
+environment 側の install 先:
+
+```text
+${CODEX_HOME:-~/.codex}/
+├── skills/
+│   ├── create-rules-toc/
+│   ├── create-specs-toc/
+│   ├── query-rules/
+│   ├── query-specs/
+│   ├── setup-doc-structure/
+│   ├── start-requirements/
+│   ├── start-design/
+│   └── start-plan/
+└── doc-advisor/
+    ├── resources/
+    │   ├── doc-advisor/
+    │   └── forge/
+    ├── manifest.yaml
+    └── install.yaml
+```
+
+`--project TARGET` 指定時のみ target project 側に作成する:
 
 ```text
 target/
-├── AGENTS.md                         # Doc Advisor / forge bridge section を追記
-└── .codex/doc-advisor/
-    ├── skills/                       # codex_skill_set/skills の project-local copy
-    ├── resources/                    # codex_skill_set/resources の project-local copy
-    └── .source_version
+├── AGENTS.md                         # Doc Advisor Skill section を追記
+└── .codex/
+    ├── state/doc-advisor/
+    │   ├── toc/
+    │   └── index/
+    └── installs/doc-advisor.yaml
 ```
 
-`$CODEX_HOME/skills` への本物の Codex Skill install は初期スコープ外とし、将来 `--install-global-skills` などの明示 opt-in として検討する。
+project 側には Skill 本体や共有 resource をコピーしない。
+
+global 側の `${CODEX_HOME:-~/.codex}/doc-advisor/` は、install metadata と共有 resources/scripts の置き場である。ToC / index / `.toc_work` / checksum / embedding index などの runtime state は置かない。bundled Python scripts を実行する場合は `PYTHONDONTWRITEBYTECODE=1` を付け、global resources 配下に `__pycache__/` や `*.pyc` を残さない。
+
+### 4.1 project-local bridge pattern
+
+project-local bridge は、Codex の正式な Skill install 機構ではない。`AGENTS.md` の project instruction として「特定の要求では project 内の `SKILL.md` 風ファイルを読む」と明示し、Codex に通常の文書参照として従わせる互換パターンである。
+
+この方式は以下の構成を取る。
+
+```text
+target/
+├── AGENTS.md
+└── .codex/
+    ├── skills/
+    │   ├── create-rules-toc/SKILL.md
+    │   ├── create-specs-toc/SKILL.md
+    │   ├── query-rules/SKILL.md
+    │   └── ...
+    ├── resources/
+    │   ├── doc-advisor/
+    │   └── forge/
+    └── state/doc-advisor/
+        ├── toc/
+        └── index/
+```
+
+`AGENTS.md` には、機能・典型 trigger・参照先 path の表を置く。
+
+```markdown
+| Function | Typical trigger | Path |
+| --- | --- | --- |
+| specs ToC update | requirements/design/plan documents changed | `.codex/skills/create-specs-toc/SKILL.md` |
+| specs query | the user asks about requirements/designs/plans | `.codex/skills/query-specs/SKILL.md` |
+```
+
+この方式の価値:
+
+- project 単位で有効化でき、`${CODEX_HOME:-~/.codex}` を変更せずに試験できる
+- repo に Skill 相当の手順と resources を同梱できる
+- Claude Code plugin 由来の SKILL を Codex 向けに段階移行しやすい
+- local fixture / sandbox test で、environment-wide install なしに install 結果を観察できる
+
+この方式の制約:
+
+- Codex の正式な Skill discovery 対象ではない
+- `$SkillName` としての発火や Skill 一覧表示は保証されない
+- 実行品質は `AGENTS.md` の指示遵守に依存する
+- environment-wide Skill と同名で併用すると、同じ Skill が二重に見える、または参照元が曖昧になる
+- project 内に `.codex/skills/` と `.codex/resources/` を持つため、runtime state と配布物の境界が曖昧になりやすい
+- Codex 本体の将来仕様変更に対して互換性を保証できない
+
+運用ルール:
+
+1. 標準 install 方式としては採用しない
+2. production / normal setup は environment-wide Skill install を使う
+3. project-local bridge を使う場合は、同名 environment Skill を無効化するか、bridge 側 skill 名を明示的に prefix する
+4. bridge は migration / local experiment / fallback のための documented pattern として扱う
+5. `setup_for_codex.sh --project` は legacy bridge の管理対象 `.codex/skills/` / `.codex/resources/` を削除し、通常 Skill install と project runtime state の分離を維持する
 
 ## 5. install profile 設計
 
@@ -170,7 +258,7 @@ source:
 
 compatibility:
   codex_skill_schema: 1
-  install_target_kind: project-local-bridge
+  install_target_kind: environment-skill
   generated_by: analyze_codex_install_profile.sh
   codex_set_path: "codex_skill_set"
   codex_set_hash: "<deterministic hash of codex_skill_set>"
@@ -194,6 +282,18 @@ native_set:
       kind: user_skill
       source_ref: "forge:skills/setup-doc-structure"
       install_tier: supported
+    - path: "skills/start-requirements"
+      kind: codex_wrapper_skill
+      source_ref: "forge:skills/start-requirements"
+      install_tier: supported
+    - path: "skills/start-design"
+      kind: codex_wrapper_skill
+      source_ref: "forge:skills/start-design"
+      install_tier: supported
+    - path: "skills/start-plan"
+      kind: codex_wrapper_skill
+      source_ref: "forge:skills/start-plan"
+      install_tier: supported
   agents:
     - path: "resources/doc-advisor/agents/toc-updater.md"
       kind: codex_reference
@@ -211,6 +311,14 @@ native_set:
       source_ref: "doc-advisor:docs/query_index_workflow.md"
     - path: "resources/forge/docs/doc_structure_format.md"
       source_ref: "forge:docs/doc_structure_format.md"
+    - path: "resources/forge/docs/codex_confirmation_protocol.md"
+      source_ref: "doc-advisor:generated"
+    - path: "resources/forge/docs/requirement_format.md"
+      source_ref: "forge:docs/requirement_format.md"
+    - path: "resources/forge/docs/design_format.md"
+      source_ref: "forge:docs/design_format.md"
+    - path: "resources/forge/docs/plan_format.md"
+      source_ref: "forge:docs/plan_format.md"
   scripts:
     - path: "resources/doc-advisor/scripts/create_pending_yaml.py"
       source_ref: "doc-advisor:scripts/create_pending_yaml.py"
@@ -237,6 +345,9 @@ native_set:
     - path: "resources/forge/scripts/doc_structure"
       source_ref: "forge:scripts/doc_structure"
       install_tier: supported
+    - path: "resources/forge/skills/next-spec-id/scripts/scan_spec_ids.py"
+      source_ref: "forge:skills/next-spec-id/scripts/scan_spec_ids.py"
+      install_tier: reference-only
 
 disabled_skills:
   - create-code-index
@@ -285,9 +396,9 @@ validation:
   python_compile:
     - "resources/doc-advisor/scripts"
     - "resources/forge/scripts/doc_structure"
-  bridge:
-    agents_md_section: "Doc Advisor / forge Bridge"
-    project_local_root: ".codex/doc-advisor"
+  project_initializer:
+    agents_md_section: "Doc Advisor / forge Codex Skills"
+    project_state_root: ".codex/state/doc-advisor"
 ```
 
 ### 5.3 layout hash
@@ -371,18 +482,23 @@ hash 対象外:
 ### 7.1 setup_for_codex.sh の引数
 
 ```bash
-./setup_for_codex.sh TARGET_DIR
-./setup_for_codex.sh --source SOURCE_PLUGIN_ROOT TARGET_DIR
-./setup_for_codex.sh --profile PROFILE_PATH TARGET_DIR
+./setup_for_codex.sh
+./setup_for_codex.sh --project TARGET_DIR
+./setup_for_codex.sh --codex-home CODEX_HOME_DIR
+./setup_for_codex.sh --source SOURCE_PLUGIN_ROOT
+./setup_for_codex.sh --profile PROFILE_PATH
+./setup_for_codex.sh --codex-set CODEX_SET_DIR
 ./setup_for_codex.sh --list-profiles
 ./setup_for_codex.sh --help
 ```
 
 | 引数 | 説明 |
 | ---- | ---- |
-| `TARGET_DIR` | install 先 project root |
+| `--project` | runtime state と AGENTS.md を初期化する project root |
+| `--codex-home` | Codex home。省略時は `${CODEX_HOME:-~/.codex}` |
 | `--source` | `bw-cc-plugins/plugins/doc-advisor` など source plugin root |
 | `--profile` | 明示 profile。指定時も source 照合は省略しない |
+| `--codex-set` | install 正本の Codex-native Skill set。省略時は `codex_skill_set/` |
 | `--list-profiles` | 利用可能な profile 一覧を表示 |
 
 ### 7.2 正常フロー
@@ -395,13 +511,14 @@ hash 対象外:
 6. profile の `reviewed: true` を確認する
 7. `plugin_version` / `source_commit` / `layout_hash` を照合する
 8. DocAdvisor 内の `codex_skill_set/` の `codex_set_hash` を照合する
-9. target project の `.codex/doc-advisor/` を作成する
-10. `codex_skill_set/` から profile の `native_set` に列挙されたファイルだけを `.codex/doc-advisor/` へコピーする
-11. install-time 変換は行わない
-12. `AGENTS.md` に Doc Advisor / forge bridge section を追記または更新する
-13. `.source_version` を書く
-14. post-install validation を実行する
-15. 次の操作を表示する
+9. `${CODEX_HOME:-~/.codex}/skills/` に allowlist の Skill を作成または更新する
+10. `${CODEX_HOME:-~/.codex}/doc-advisor/resources/` に共有 resource を作成または更新する
+11. install-time 本文変換は行わない
+12. `--project` 指定時のみ `.codex/state/doc-advisor/` と `.codex/installs/doc-advisor.yaml` を作成する
+13. `--project` 指定時のみ legacy project-local bridge の管理対象 `.codex/skills/*` / `.codex/resources/doc-advisor` / `.codex/resources/forge` / `.codex/doc-advisor` を削除する
+14. `--project` 指定時のみ `AGENTS.md` に Doc Advisor Skill section を追記または更新する
+15. post-install validation を実行する
+16. 必要に応じて Codex restart が必要であることを表示する
 
 ### 7.3 停止条件
 
@@ -480,34 +597,32 @@ Claude Code SKILL frontmatter から Codex 非対応キーを除去する。
 | V6 | profile の `require_files` が全て存在する | FAIL |
 | V7 | disabled skills が install されていない | FAIL |
 | V8 | Python scripts が `python3 -m py_compile` できる | FAIL |
-| V9 | `.source_version` が source version / commit / layout hash / codex_set_hash を記録している | FAIL |
+| V9 | `${CODEX_HOME:-~/.codex}/skills/` と `${CODEX_HOME:-~/.codex}/doc-advisor/resources/` に install されている | FAIL |
 | V10 | profile の `native_set` にない file が install されていない | FAIL |
 | V11 | `codex_skill_set/manifest.yaml` と profile の source_ref が一致する | FAIL |
-| V12 | `AGENTS.md` に bridge section が存在し、主要機能表がある | FAIL |
-| V13 | project-local root が `.codex/doc-advisor/` に限定される | FAIL |
+| V12 | `--project` 指定時に `AGENTS.md` に Skill section が存在し、主要機能表がある | FAIL |
+| V13 | project-local `.codex/skills/` / `.codex/resources/` / legacy `.codex/doc-advisor/` が作成されず、既存の管理対象 legacy path は削除される | FAIL |
 
 validation は全項目を実行し、最後に集計する。途中 FAIL で即停止しない。
 
-## 10. `.source_version`
+## 10. install metadata
 
-Codex install では、resource root に `.source_version` を生成する。
+Codex Skill install では、environment 側の metadata を `${CODEX_HOME:-~/.codex}/doc-advisor/install.yaml` に生成する。`--project` 指定時のみ、project 側にも `.codex/installs/doc-advisor.yaml` を生成する。
 
 ```yaml
 # Auto-generated by setup_for_codex.sh - do not edit
 target_runtime: codex
-source_plugin: doc-advisor
-source_plugin_version: 0.2.2
+doc_advisor_version: 0.2.2
+forge_version: 0.0.43
 source_commit: "<commit>"
-source_dirty: false
 layout_hash: "<layout_hash>"
 codex_set_hash: "<codex_set_hash>"
-profile_path: "codex_install_profiles/doc-advisor/0.2.2-<commit>-<layout_hash>.yaml"
-profile_schema: 1
-installed_at: "2026-05-07T00:00:00Z"
-source_path: "<absolute source path>"
+install_target_kind: environment-skill
 ```
 
-初期 project-local bridge install では、`.source_version` は `target/.codex/doc-advisor/.source_version` に配置する。
+environment Skill install では、Skill は Codex home の `skills/` に置き、共有 resource は Codex home の `doc-advisor/resources/` に置く。runtime state は project 側 `.codex/state/doc-advisor/` に置く。project-local `.codex/skills/` と `.codex/resources/` は作成しない。
+
+global resource root は runtime output を持たない。post-install validation と scenario test は、`${CODEX_HOME:-~/.codex}/doc-advisor/` 直下に `state/`、`toc/`、`index/` が作成されないこと、resources 配下に `__pycache__/` / `*.pyc` が残らないことを検査する。
 
 ## 11. テスト設計
 
@@ -520,6 +635,8 @@ DocAdvisor リポジトリ内の `codex_skill_set/` と `codex_install_profiles/
 | `codex_skill_set/manifest.yaml` と profile | 存在する |
 | disabled skill | `create-code-index` / `query-code` が含まれない |
 | excluded 資産 | `scripts/monitor/` が含まれない |
+| forge authoring wrapper | `start-requirements` / `start-design` / `start-plan` が存在する |
+| confirmation protocol | `resources/forge/docs/codex_confirmation_protocol.md` が存在する |
 | Codex SKILL frontmatter | `name` / `description` を持ち、Claude Code 固有 key を持たない |
 | Claude Code 固有文字列 | `${CLAUDE_PLUGIN_ROOT}` / `/doc-advisor:` / `/forge:` が残らない |
 | Claude Code tool 前提 | `AskUserQuestion` / `Task(subagent_type:` が残らない |
@@ -535,9 +652,9 @@ DocAdvisor リポジトリ内の `codex_skill_set/` と `codex_install_profiles/
 4. unknown layout fixture で fail closed を確認する
 5. dirty source fixture は profile 設定に従って停止することを確認する
 
-### 11.3 AGENTS.md bridge section
+### 11.3 AGENTS.md managed section
 
-`setup_for_codex.sh` は target の `AGENTS.md` に管理セクションを追記する。既存 `AGENTS.md` がある場合は、管理セクションのみを置換し、ユーザー記述を保持する。
+`setup_for_codex.sh --project` は target の `AGENTS.md` に管理セクションを追記する。既存 `AGENTS.md` がある場合は、管理セクションのみを置換し、ユーザー記述を保持する。
 
 管理セクションには最低限以下の表を含める。
 
@@ -545,7 +662,7 @@ DocAdvisor リポジトリ内の `codex_skill_set/` と `codex_install_profiles/
 | -- | ---- |
 | 機能 | Codex で利用する機能名 |
 | トリガー | いつ参照・実行すべきか |
-| 参照パス | `.codex/doc-advisor/skills/.../SKILL.md` など |
+| Skill | `create-rules-toc` など plugin skill 名 |
 | Codex での実行 | Claude Code 前提をどう読み替えるか |
 
 必須行:
@@ -577,10 +694,10 @@ tests/
 
 | シナリオ | 検証 |
 | -------- | ---- |
-| `.doc_structure.yaml` あり | setup 後に `.codex/doc-advisor` 配下の scripts から rules / specs root が読める |
+| `.doc_structure.yaml` あり | setup 後に `${CODEX_HOME:-~/.codex}/doc-advisor/resources/doc-advisor` 配下の scripts から rules / specs root が読める |
 | rules/specs sample あり | pending YAML 生成 script が成功する |
 | ToC 生成 script | merge / validate / checksums 更新が成功する |
-| 再実行 | `.codex/doc-advisor/` と AGENTS.md 管理セクションが冪等で、不要差分が増えない |
+| 再実行 | `.codex/` 管理対象と AGENTS.md 管理セクションが冪等で、不要差分が増えない |
 | excluded | monitor が target に入らない |
 
 AI が `query-rules` / `query-specs` を読んで適切に使えるかは、deterministic test とは分けて手動または半自動確認にする。
@@ -604,6 +721,11 @@ forge plugin も Codex install の対象に含める。ただし forge は Doc A
 | `skills/doc-structure` | `supported` 候補 | `resolve_doc_structure.py` を共有実行資産として使う |
 | `scripts/doc_structure/` | `supported` 候補 | `.doc_structure.yaml` 検査・分類・migration に必要 |
 | `docs/doc_structure_format.md` | `supported` 候補 | `.doc_structure.yaml` schema 参照に必要 |
+| `skills/start-requirements` | `supported` 候補 | Codex wrapper として要件定義書作成の目的に絞って再包装する。review / commit / monitor は自動実行しない |
+| `skills/start-design` | `supported` 候補 | Codex wrapper として設計書作成の目的に絞って再包装する。Agent 収集は `query-*` と通常探索へ落とす |
+| `skills/start-plan` | `supported` 候補 | Codex wrapper として計画書作成の目的に絞って再包装する。実装開始は含めない |
+| `docs/codex_confirmation_protocol.md` | `supported` 候補 | `AskUserQuestion` の目的をチャット上の確認プロトコルで満たすための共通ルール |
+| `skills/next-spec-id/scripts/scan_spec_ids.py` | `reference-only` 候補 | plan wrapper が必要時に task ID 採番補助として使う |
 | `skills/query-forge-rules` | `reference-only` 候補 | forge 自体の ToC を参照する内部検索。Codex fork / agent 前提の変換が必要 |
 
 初期 blocked 候補:
@@ -611,7 +733,7 @@ forge plugin も Codex install の対象に含める。ただし forge は Doc A
 | forge 資産 | 初期 tier | 主な理由 |
 | ---------- | --------- | -------- |
 | `skills/review` / `reviewer` / `evaluator` / `fixer` / `present-findings` | `blocked` | session 管理、review engine、内部 worker SKILL、Codex CLI 起動、書き込み操作が絡む |
-| `skills/start-requirements` / `start-design` / `start-plan` / `start-implement` / `start-uxui-design` | `blocked` | 複数 phase・Agent・AskUserQuestion・session/monitor 前提が強い |
+| `skills/start-implement` / `start-uxui-design` | `blocked` | 複数 phase・Agent・session/monitor 前提が強い。実装・UXUI 外部資産も絡む |
 | `skills/update-version` / `setup-version-config` | `blocked` | version file 更新、git 操作、auto commit 前提がある |
 | `skills/clean-rules` | `blocked` | 削除・再構築・commit 確認を含むため安全境界の確定が必要 |
 | `skills/help` | `blocked` | Claude slash command 組み立てと AskUserQuestion 前提が強い |
@@ -633,7 +755,7 @@ forge 資産は解析対象に含めるが、`supported` 以外を user skill �
 | F-P02 | `Agent` / `Task` / fork context 前提がある | Codex Skill としての orchestration 境界が不明 | worker 相当は初期 blocked。個別設計後に supported 昇格 |
 | F-P03 | `${CLAUDE_PLUGIN_ROOT}` 参照が docs / skills / scripts に広く存在する | resource root 変換漏れで runtime file not found になる | forge plugin 用 resource root を profile に定義し、残存 grep を必須化 |
 | F-P04 | `/forge:*` と `/doc-advisor:*` の相互呼び出しが多い | Codex Skill 参照へ単純置換できない箇所がある | 呼び出し型を `skill-reference` / `instruction-only` / `blocked` に分類する |
-| F-P05 | `.claude/.temp` を session / monitor の作業領域として使う | Codex project-local install で `.claude` を作るべきか未確定 | 初期 supported では session 系を除外し、将来 `CODEX_FORGE_TEMP_ROOT` を検討 |
+| F-P05 | `.claude/.temp` を session / monitor の作業領域として使う | Codex project-local install で `.claude` を作るべきか未確定 | 初期 authoring wrapper では session 系を自動実行しない。将来 `CODEX_FORGE_TEMP_ROOT` を検討 |
 | F-P06 | `run_review_engine.sh` が `codex exec` を起動する | Codex 実行中に Codex CLI を再帰起動する可能性がある | review 系は初期 blocked。明示的 opt-in 設計が必要 |
 | F-P07 | monitor が localhost server / browser open / background process を使う | install 後検証や sandbox 環境で不安定 | monitor は初期 `excluded`。必須機能ではないため Codex 初期版から外す |
 | F-P08 | version 更新系が git / auto commit / ファイル書き換えを扱う | install 先 project で破壊的変更リスクがある | 初期 blocked。権限・確認モデルを別途設計 |
@@ -648,7 +770,7 @@ forge 資産は解析対象に含めるが、`supported` 以外を user skill �
 | -- | ---- | -------------- |
 | TBD-FORGE-001 | forge の install 対象を `setup-doc-structure` 周辺だけに限定するか、将来的な全 SKILL 対応を同一 script で扱うか | 初期実装前 |
 | TBD-FORGE-002 | `.claude/.temp` 相当の Codex 用 session root をどこに置くか | session 系 supported 化前 |
-| TBD-FORGE-003 | `AskUserQuestion` を Codex の通常確認文に落とす標準変換ルール | `setup-doc-structure` 対応前 |
+| TBD-FORGE-003 | `AskUserQuestion` を Codex の通常確認文に落とす標準変換ルール | 初期実装では `codex_confirmation_protocol.md` を採用。専用 UI が必要になった時点で再検討 |
 | TBD-FORGE-004 | `Agent` / worker SKILL を Codex subagent・reference 手順・Python 化のどれに寄せるか | start/review 系対応前 |
 | TBD-FORGE-005 | `codex exec` を内部から呼ぶ review engine を許容するか | review 系対応前 |
 | TBD-FORGE-006 | 将来 monitor を optional capability として別 profile に切り出すか | monitor 再検討時 |
@@ -658,14 +780,14 @@ forge 資産は解析対象に含めるが、`supported` 以外を user skill �
 ## 15. 実装順序
 
 1. Codex Skill frontmatter の正式許容 key を確認する
-2. project-local bridge の `AGENTS.md` 管理セクション形式を確定する
+2. environment Skill と `AGENTS.md` 管理セクション形式を確定する
 3. profile schema を実装する
 4. profile に `native_set`、`codex_set_hash`、`install_tier`、capability 表現を追加する
 5. `analyze_codex_install_profile.sh` を追加する
 6. `generate_codex_skill_set.sh` を追加する
 7. 現在の `doc-advisor` profile と Codex-native SKILL セットを生成し、人間レビュー後に commit する
 8. forge は `setup-doc-structure` 周辺のみを supported 候補として Codex-native 化し、他は blocked / reference-only / excluded に分類する
-9. `setup_for_codex.sh` を Codex-native set の project-local bridge installer として実装する
+9. `setup_for_codex.sh` を Codex-native set の environment Skill installer として実装する
 10. post-install validation を実装する
 11. `tests/codex_test_project` と deterministic scenario tests を追加する
 12. tests を `tests/run_all_tests.sh` に統合する
@@ -677,22 +799,21 @@ forge 固有の未確定事項は §14 に集約する。本節は Codex install
 
 | ID | 内容 | 解決タイミング |
 | -- | ---- | -------------- |
-| TBD-CODEX-001 | Codex の project-local Skill discovery path | global install option 検討時 |
+| TBD-CODEX-001 | Codex home の Skill discovery / cache の挙動差分 | Skill install 検証時 |
 | TBD-CODEX-002 | Codex Skill frontmatter の正式許容 key | 実装前 |
 | TBD-CODEX-003 | `toc-updater` agent 相当処理を reference / Python / subagent のどれで扱うか | 初期 profile 作成前 |
 | TBD-CODEX-004 | Codex Skill から bundled resources を参照する推奨パス表現 | 実装前 |
 | TBD-CODEX-005 | forge `setup-doc-structure` の対話処理を Codex でどう表現するか | forge supported 資産の拡張前 |
-| TBD-CODEX-006 | `codex_skill_set/` を project-local install 専用にするか、将来 `$CODEX_HOME/skills` へも配布可能な形にするか | 初期実装前 |
-| TBD-CODEX-007 | `$CODEX_HOME/skills` への global install option を提供するか | project-local bridge 安定後 |
+| TBD-CODEX-006 | `codex_skill_set/` を通常 Skill 配布正本にする場合の resource root 表現をさらに簡素化できるか | Skill install 安定後 |
 
 ## 17. 受け入れ基準
 
-- `setup_for_codex.sh TARGET_DIR` が対応 profile のある source に対してのみ成功する
+- `setup_for_codex.sh` が対応 profile のある source に対してのみ成功する
 - 未対応 version / commit / layout hash では install しない
 - `setup_for_codex.sh` は `bw-cc-plugins` から直接 SKILL 本文を変換コピーしない
-- `setup_for_codex.sh` は DocAdvisor 内の `codex_skill_set/` から `.codex/doc-advisor/` へ project-local bridge として install する
+- `setup_for_codex.sh` は DocAdvisor 内の `codex_skill_set/` から `${CODEX_HOME:-~/.codex}/skills/` と `${CODEX_HOME:-~/.codex}/doc-advisor/resources/` へ通常 Skill として install する
 - `codex_skill_set/` と profile の `codex_set_hash` が一致しない場合 install しない
-- target の `AGENTS.md` に Doc Advisor / forge bridge section が作成・更新される
+- `--project` 指定時、target の `AGENTS.md` に Doc Advisor Skill section が作成・更新される
 - `codex_skill_set/` 自体は本物の Codex Skill 形式として validation を通過する
 - install 結果の Codex Skill frontmatter が validation を通過する
 - install 結果に Claude Code 固有の未変換文字列が残らない
@@ -701,7 +822,7 @@ forge 固有の未確定事項は §14 に集約する。本節は Codex install
 - forge の `excluded` tier 資産、特に `scripts/monitor/` が install 結果に混入しない
 - `tests/codex_test_project` に対する setup / deterministic scenario test が PASS する
 - Codex 本体の判断に依存しない範囲で ToC 生成 scripts が sample rules/specs に対して成功する
-- `setup_for_codex.sh` を同じ target に再実行しても不要差分が増えない
-- `.source_version` に source version / commit / layout hash / codex_set_hash / profile path が記録される
+- `setup_for_codex.sh` を同じ environment / target に再実行しても不要差分が増えない
+- environment metadata と、`--project` 指定時の `.codex/installs/doc-advisor.yaml` に source version / commit / layout hash / codex_set_hash / profile path が記録される
 - bw-cc-plugins に変更が発生しない
 - 既存 `setup.sh` の Claude Code 向け install 動作に差分がない
