@@ -37,6 +37,7 @@ target-project/.claude/              インストール先（実体ファイル�
 | ---------------------------- | ------------------------------------ |
 | `README.md` / `README_en.md` | プロジェクト概要、設計意図、コマンド |
 | `specs/requirements/**/*.md` | 要件定義書（実装の根拠）             |
+| `specs/test/TST-001_doc_db_functional_test.md` | doc-db 機能テスト仕様書 |
 
 ## 言語ルール
 
@@ -84,6 +85,77 @@ git -C bw-cc-plugins branch --show-current
 - **小さく試してから展開**: 1つを完成させてから次へ進む
 - **品質最優先**: 複雑な正規表現での一括置換禁止、手抜きしない
 - **外部仕様は必ず確認**: Claude Code プラグイン仕様など外部システムの仕様は、実装前に公式ドキュメントで確認すること
+
+## bw-cc-plugins のバグ発見時 [必須]
+
+bw-cc-plugins は**読み取り専用**であり、このリポジトリから直接修正してはいけない。
+バグを発見した場合は、以下の手順で修正依頼書を作成し、ユーザーに報告すること。
+
+### 手順
+
+1. `specs/bug-reports/` 配下に修正依頼書を作成する
+2. ファイル名: `BR-<連番3桁>_<簡潔な概要>.md`（例: `BR-001_cross_plugin_ref_transform.md`）
+3. 連番は既存ファイルから自動採番する
+
+### 修正依頼書テンプレート
+
+```markdown
+# BR-<ID>: <タイトル>
+
+## 対象プラグイン
+
+<プラグイン名（例: doc-db, anvil, forge, doc-advisor）>
+
+## 対象ファイル
+
+- `plugins/<plugin>/path/to/file`
+
+## 現象
+
+<バグの具体的な内容>
+
+## 再現手順
+
+1. <手順>
+
+## 期待される動作
+
+<正しい動作>
+
+## 実際の動作
+
+<バグの動作>
+
+## 暫定対処（setup.sh 側）
+
+<setup.sh で行った回避策があれば記載。なければ「なし」>
+
+## 提案する修正
+
+<bw-cc-plugins 側での修正案>
+```
+
+### 注意
+
+- bw-cc-plugins を直接修正しないこと（読み取り専用）
+- setup.sh で回避可能な場合は回避策を先に実装し、修正依頼書にも記録する
+- ユーザーに報告し、bw-cc-plugins 管理 AI への伝達を依頼する
+
+## doc-db 機能テスト [必須]
+
+doc-db プラグインの機能テストは `specs/test/TST-001_doc_db_functional_test.md` に従って実施すること。
+
+### テスト実行の前提
+
+- `OPENAI_API_KEY` が設定されていること（Embedding/Rerank テストに必要）
+- `setup.sh --with-doc-db` でインストール済みであること
+
+### API キーの方針
+
+doc-db は現在 `OPENAI_API_KEY` を使用しているが、汎用キーは権限が強すぎるため、
+将来的に制約を高めた **`OPENAI_API_BWCC_KEY`** を定義予定。
+必要な権限（`/v1/embeddings`, `/v1/chat/completions`）は bw-cc-plugins 側の AI と協議して決定する。
+移行後はテスト仕様書と関連スクリプトの環境変数名を更新すること。
 
 ## setup.sh / シェルスクリプト開発ルール
 
