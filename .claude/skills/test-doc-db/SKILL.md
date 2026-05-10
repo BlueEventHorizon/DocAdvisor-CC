@@ -10,6 +10,7 @@ disable-model-invocation: true
 # /test-doc-db
 
 TST-001 テスト仕様書（`specs/test/TST-001_doc_db_functional_test.md`）に基づき doc-db の機能テストを実行する。
+テスト環境設計は `specs/test/DES-TST-001_test_environment_design.md` を参照。
 
 ## 引数
 
@@ -27,11 +28,7 @@ bw-cc-plugins ソースから直接インポートするため、事前インス
 ### Layer 2
 
 DocAdvisor 本体に doc-db がインストール済みであること。
-未インストールの場合、ユーザーに確認してからインストールする:
-
-```bash
-bash setup.sh --source bw-cc-plugins/plugins/doc-advisor --with-doc-db .
-```
+`init_fixtures.sh setup` で自動インストール + store を行う。
 
 ## Layer 1: 自動テスト（API キー不要）
 
@@ -39,7 +36,7 @@ tempdir + Embedding モックで完全再現可能なテスト。
 
 ```bash
 cd <project_root>
-python3 -m unittest tests.doc_db.test_doc_db_installed -v
+python3 -m unittest test_claude_skills.doc_db.test_doc_db_installed -v
 ```
 
 ### 結果の判定
@@ -49,47 +46,46 @@ python3 -m unittest tests.doc_db.test_doc_db_installed -v
 
 ## Layer 2: 手動テスト（API キー必須）
 
-store/restore パターンで `.doc_structure.yaml` をテスト用に差し替え、
+`init_fixtures.sh` でテスト環境を準備し、
 DocAdvisor 本体にインストールされた `.claude/doc-db/scripts/` を使って
-テスト専用ドキュメント（`tests/fixtures/doc_db/`）に対してスクリプトを実行する。
+テスト専用ドキュメント（`test_claude_skills/fixtures/`）に対してスクリプトを実行する。
 
 ### 前提チェック
 
 ```bash
-# 1. OPENAI_API_KEY
+# OPENAI_API_KEY
 python3 -c "import os; k=os.environ.get('OPENAI_API_KEY',''); print('OK' if k else 'NOT SET')"
 # → NOT SET の場合、ユーザーに設定を依頼し中断
 
-# 2. doc-db インストール確認
-ls .claude/doc-db/scripts/build_index.py
-# → 存在しない場合、インストールを提案
+# テスト環境の状態確認
+bash test_claude_skills/init_fixtures.sh status
 ```
 
 ### テスト実行手順
 
 プロジェクトルートから全て実行する。
 
-#### Step 1: store（.doc_structure.yaml を退避）
+#### Step 1: テスト環境セットアップ
 
 ```bash
-cp .doc_structure.yaml .doc_structure.yaml.bak
-cp tests/fixtures/doc_db_test_doc_structure.yaml .doc_structure.yaml
+bash test_claude_skills/init_fixtures.sh setup
 ```
 
-> これにより doc-db のスクリプトは `tests/fixtures/doc_db/` 配下のテスト専用
-> ドキュメントを参照するようになる。プロジェクト実体のドキュメントには一切触れない。
+> プラグイン未インストールならインストールし、.doc_structure.yaml を
+> テスト用テンプレートに差し替える。スクリプトは `test_claude_skills/fixtures/` 配下の
+> テスト専用ドキュメントを参照するようになる。
 
 #### Step 2: grep テスト（API キー不要）
 
 ```bash
 python3 .claude/doc-db/scripts/grep_docs.py --category rules --keyword "MARKER_TEST_RULE"
-# → tests/fixtures/doc_db/rules/test_rule.md がヒット
+# → test_claude_skills/fixtures/rules/test_rule.md がヒット
 
 python3 .claude/doc-db/scripts/grep_docs.py --category specs --keyword "MARKER_TEST_REQ"
-# → tests/fixtures/doc_db/specs/requirements/test_req.md がヒット
+# → test_claude_skills/fixtures/specs/requirements/test_req.md がヒット
 
 python3 .claude/doc-db/scripts/grep_docs.py --category specs --keyword "MARKER_TEST_DES" --doc-type design
-# → tests/fixtures/doc_db/specs/design/test_des.md のみヒット
+# → test_claude_skills/fixtures/specs/design/test_des.md のみヒット
 ```
 
 #### Step 3: build テスト（API キー必須）
@@ -128,17 +124,14 @@ python3 .claude/doc-db/scripts/search_index.py --category specs --query "session
 # → requirement のチャンクのみ
 ```
 
-#### Step 5: restore + クリーンアップ
+#### Step 5: リセット
 
 ```bash
-# .doc_structure.yaml を復元
-mv .doc_structure.yaml.bak .doc_structure.yaml
-
-# ビルド成果物を削除
-rm -rf .claude/doc-db/index
+bash test_claude_skills/init_fixtures.sh reset
 ```
 
-> 復元忘れ防止: restore が完了するまでテスト完了と報告しない。
+> .doc_structure.yaml を復元し、ビルド成果物を削除する。
+> reset が完了するまでテスト完了と報告しない。
 
 ## 結果報告
 
@@ -155,7 +148,7 @@ rm -rf .claude/doc-db/index
 - 失敗: （あれば詳細）
 
 ### Layer 2（手動テスト）
-- store/restore: 正常完了
+- init_fixtures: setup/reset 正常完了
 - 結果: 全ステップ PASS / 一部 FAIL
 - 失敗: （あれば詳細）
 ```

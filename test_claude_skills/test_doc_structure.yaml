@@ -1,0 +1,23 @@
+# doc_structure_version: 3.0
+# Test environment template - copied to project root during store
+# See: specs/test/DES-TST-001_test_environment_design.md
+
+rules:
+  root_dirs:
+    - test_claude_skills/fixtures/rules/
+  doc_types_map:
+    test_claude_skills/fixtures/rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
+specs:
+  root_dirs:
+    - test_claude_skills/fixtures/specs/requirements/
+    - test_claude_skills/fixtures/specs/design/
+  doc_types_map:
+    test_claude_skills/fixtures/specs/requirements/: requirement
+    test_claude_skills/fixtures/specs/design/: design
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []

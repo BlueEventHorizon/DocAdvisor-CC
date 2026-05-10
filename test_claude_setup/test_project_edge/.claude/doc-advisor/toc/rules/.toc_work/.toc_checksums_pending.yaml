@@ -1,0 +1,7 @@
+# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
+# Auto-generated - do not edit
+generated_at: 2026-05-09T03:26:17Z
+file_count: 2
+checksums:
+  rules/a/b/c/d/e/deep_rule.md: 20265e75ce3b7ddccdacd0addb8ff6fe6ea356392bb5a2cd5e5d539b610b0e32
+  rules/日本語ルール.md: a7591be551d79285851fd41d47f30606b53d3a1f02143919c98952939da5a596

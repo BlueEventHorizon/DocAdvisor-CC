@@ -3,7 +3,7 @@
 > Created by k2moons
 > 作成日: 2026-05-09
 > 最終更新: 2026-05-09
-> ステータス: 第4版
+> ステータス: 第5版
 
 ## 概要
 
@@ -11,7 +11,7 @@ doc-db プラグインの機能テスト仕様書。
 `setup.sh` によるインストール後、doc-db の主要スクリプト（`grep_docs.py`, `build_index.py`, `search_index.py`）が正しく動作することを検証する。
 
 **対象**: doc-db プラグインの「インストール後のスクリプト動作」を検証する。
-`setup.sh` 自体のインストールテストは `tests/test_optional_plugins.sh` が担当する。
+`setup.sh` 自体のインストールテストは `test_claude_setup/test_optional_plugins.sh` が担当する。
 
 ### テスト構成
 
@@ -19,21 +19,24 @@ doc-db プラグインの機能テスト仕様書。
 
 | 層 | 方式 | API キー | 再現性 | 実行場所 |
 | --- | --- | --- | --- | --- |
-| **Layer 1: 自動テスト** | Python unittest + Embedding モック | 不要 | 完全再現 | `tests/doc_db/` |
+| **Layer 1: 自動テスト** | Python unittest + Embedding モック | 不要 | 完全再現 | `test_claude_skills/doc_db/` |
 | **Layer 2: 手動テスト** | CLI 実行 + 実 API + store/restore | 必須 | API 応答に依存 | DocAdvisor 本体（store/restore で保護） |
 
 ### 技法: store/restore パターン
 
 `.doc_structure.yaml` を差し替えて、プロジェクト自身の rules/specs ではなく**テスト専用のドキュメント**を対象にする技法を使用する。
-この技法は `bw-cc-plugins/.claude/skills/update-forge-toc/scripts/swap_doc_config.py` に実装されている。
+この技法は `bw-cc-plugins/.claude/skills/update-forge-toc/scripts/swap_doc_config.py` に由来し、
+`test_claude_skills/init_fixtures.sh` で自動化されている。
 
-```
---store:  元の .doc_structure.yaml をバックアップ → テスト用に差し替え
---restore: バックアップから復元
+```bash
+bash test_claude_skills/init_fixtures.sh setup    # インストール + store
+bash test_claude_skills/init_fixtures.sh reset    # restore + clean
 ```
 
 自動テスト（Layer 1）では `tempfile.TemporaryDirectory()` に `.doc_structure.yaml` とテスト用ドキュメントを動的生成するため、store/restore は不要。
 手動テスト（Layer 2）で既存プロジェクト上で実行する場合に、この技法を使用する。
+
+テスト環境の詳細設計は `DES-TST-001_test_environment_design.md` を参照。
 
 ## 前提条件
 
@@ -67,7 +70,7 @@ doc-db プラグインの機能テスト仕様書。
 bash setup.sh --source bw-cc-plugins/plugins/doc-advisor --with-doc-db TARGET_DIR
 
 # 例: test_project にインストール
-bash setup.sh --source bw-cc-plugins/plugins/doc-advisor --with-doc-db tests/test_project
+bash setup.sh --source bw-cc-plugins/plugins/doc-advisor --with-doc-db test_claude_setup/test_project
 
 # 例: DocAdvisor 本体にインストール
 bash setup.sh --source bw-cc-plugins/plugins/doc-advisor --with-doc-db .
@@ -93,7 +96,7 @@ bw-cc-plugins のテストパターン（`tests/doc_db/test_integration.py` 等�
 ### テストファイル配置
 
 ```
-tests/doc_db/
+test_claude_skills/doc_db/
 ├── __init__.py
 ├── test_doc_db_installed.py      ← Layer 1 自動テスト（本仕様の対象）
 └── conftest.py                   ← 共通フィクスチャ（必要に応じて追加）
@@ -101,7 +104,7 @@ tests/doc_db/
 
 > bw-cc-plugins 内の `tests/doc_db/` はプラグインソースから直接インポートする。
 > 本テストは **setup.sh でインストールされた後のスクリプト** を対象とし、
-> `tests/test_project/.claude/doc-db/scripts/` からインポートする。
+> `test_claude_setup/test_project/.claude/doc-db/scripts/` からインポートする。
 
 ### L1-1: テスト用プロジェクト構成
 
@@ -224,7 +227,7 @@ cd /path/to/DocAdvisor
 
 # Layer 1 自動テスト実行（API キー不要）
 # bw-cc-plugins ソースから直接インポートするため、setup.sh の事前実行は不要
-python3 -m unittest tests.doc_db.test_doc_db_installed -v
+python3 -m unittest test_claude_skills.doc_db.test_doc_db_installed -v
 ```
 
 ---
@@ -240,34 +243,29 @@ Embedding の品質（ベクトルの意味的精度）や Rerank の実動作�
 
 ### テスト用リソース
 
-#### テスト専用 `.doc_structure.yaml`
+#### テスト用テンプレート
+
+`test_claude_skills/test_doc_structure.yaml` — store 時にプロジェクトルートにコピーされる。
 
 ```yaml
-# tests/fixtures/doc_db_test_doc_structure.yaml
 rules:
   root_dirs:
-    - tests/fixtures/doc_db/rules/
+    - test_claude_skills/fixtures/rules/
   doc_types_map:
-    tests/fixtures/doc_db/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
+    test_claude_skills/fixtures/rules/: rule
 specs:
   root_dirs:
-    - tests/fixtures/doc_db/specs/requirements/
-    - tests/fixtures/doc_db/specs/design/
+    - test_claude_skills/fixtures/specs/requirements/
+    - test_claude_skills/fixtures/specs/design/
   doc_types_map:
-    tests/fixtures/doc_db/specs/requirements/: requirement
-    tests/fixtures/doc_db/specs/design/: design
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
+    test_claude_skills/fixtures/specs/requirements/: requirement
+    test_claude_skills/fixtures/specs/design/: design
 ```
 
 #### テスト用ドキュメント
 
 ```
-tests/fixtures/doc_db/
+test_claude_skills/fixtures/
 ├── rules/
 │   └── test_rule.md        ← MARKER_TEST_RULE_001, MARKER_TEST_RULE_002
 └── specs/
@@ -279,7 +277,7 @@ tests/fixtures/doc_db/
 
 各ファイルに一意なマーカー文字列を含む。検索結果の正確な照合に使用する。
 
-### L2-0: 前提チェック
+### L2-0: テスト環境セットアップ
 
 ```bash
 cd /path/to/DocAdvisor
@@ -288,30 +286,23 @@ cd /path/to/DocAdvisor
 python3 -c "import os; k=os.environ.get('OPENAI_API_KEY',''); print('OK' if k else 'NOT SET')"
 # → NOT SET の場合、中断
 
-# doc-db インストール確認（未インストールならインストール）
-ls .claude/doc-db/scripts/build_index.py 2>/dev/null || \
-  bash setup.sh --source bw-cc-plugins/plugins/doc-advisor --with-doc-db .
+# プラグインインストール + store（未インストールならインストールも実行）
+bash test_claude_skills/init_fixtures.sh setup
 ```
 
-### L2-1: store（.doc_structure.yaml を退避・差し替え）
-
-```bash
-cp .doc_structure.yaml .doc_structure.yaml.bak
-cp tests/fixtures/doc_db_test_doc_structure.yaml .doc_structure.yaml
-```
-
-> これによりスクリプトは `tests/fixtures/doc_db/` 配下のテスト専用ドキュメントを参照する。
+> `init_fixtures.sh setup` は doc-db のインストール確認、.doc_structure.yaml の
+> バックアップ・差し替えを自動で行う。
 
 ### L2-2: grep テスト（API キー不要）
 
 ```bash
 # rules 検索
 python3 .claude/doc-db/scripts/grep_docs.py --category rules --keyword "MARKER_TEST_RULE"
-# → tests/fixtures/doc_db/rules/test_rule.md がヒット
+# → test_claude_skills/fixtures/rules/test_rule.md がヒット
 
 # specs 検索
 python3 .claude/doc-db/scripts/grep_docs.py --category specs --keyword "MARKER_TEST_REQ"
-# → tests/fixtures/doc_db/specs/requirements/test_req.md がヒット
+# → test_claude_skills/fixtures/specs/requirements/test_req.md がヒット
 
 # doc_type フィルタ
 python3 .claude/doc-db/scripts/grep_docs.py --category specs --keyword "MARKER_TEST_DES" --doc-type design
@@ -374,18 +365,15 @@ python3 .claude/doc-db/scripts/search_index.py --category specs --query "session
 # → requirement のチャンクのみ
 ```
 
-### L2-5: restore + クリーンアップ
+### L2-5: リセット
 
 ```bash
-# .doc_structure.yaml を復元（最優先）
-mv .doc_structure.yaml.bak .doc_structure.yaml
-
-# ビルド成果物を削除
-rm -rf .claude/doc-db/index
+bash test_claude_skills/init_fixtures.sh reset
 ```
 
-**確認**: `git diff .doc_structure.yaml` で差分がないこと。
-
+> restore（.doc_structure.yaml 復元）+ clean（ビルド成果物削除）を実行する。
+> `git diff .doc_structure.yaml` で差分がないことも自動確認される。
+>
 > doc-db プラグイン自体（scripts, skills）は再テストに備えて残す。
 > 完全削除が必要な場合: `rm -rf .claude/doc-db .claude/skills/build-index .claude/skills/query`
 
@@ -413,12 +401,11 @@ rm -rf .claude/doc-db/index
 
 | テストID | 内容 | 結果 | 備考 |
 | --- | --- | --- | --- |
-| L2-0 | 前提チェック | PASS/FAIL | |
-| L2-1 | store | PASS/FAIL | .doc_structure.yaml 退避 |
+| L2-0 | init_fixtures.sh setup | PASS/FAIL | |
 | L2-2 | grep テスト | PASS/FAIL | |
 | L2-3 | build テスト | PASS/FAIL | |
 | L2-4 | search テスト | PASS/FAIL | |
-| L2-5 | restore + クリーンアップ | PASS/FAIL | git diff で差分なし確認 |
+| L2-5 | init_fixtures.sh reset | PASS/FAIL | git diff で差分なし確認 |
 ```
 
 ---
@@ -446,4 +433,4 @@ rm -rf .claude/doc-db/index
 | `tests/doc_db/test_search_index.py` | L1-3-11 〜 L1-3-17 | tempdir + Embedding/Rerank モック |
 | `tests/doc_db/test_grep_docs.py` | L1-3-02 〜 L1-3-05 | tempdir + CLAUDE_PROJECT_DIR 設定 |
 | `tests/doc_db/test_integration.py` | L1-3-15, L1-3-08 | E2E シナリオ（モック環境） |
-| `.claude/skills/update-forge-toc/scripts/swap_doc_config.py` | Layer 2 store/restore | .doc_structure.yaml 差し替え |
+| `.claude/skills/update-forge-toc/scripts/swap_doc_config.py` | `test_claude_skills/init_fixtures.sh` | .doc_structure.yaml 差し替え |
