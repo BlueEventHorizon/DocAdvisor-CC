@@ -1,0 +1,63 @@
+name: Bug Report
+description: 不具合を報告する
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 不具合の説明
+      description: 何が起きたかを簡潔に説明してください。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 不具合を再現するための手順を記載してください。
+      placeholder: |
+        1. '...' を実行
+        2. '...' を入力
+        3. エラーが発生
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待される動作
+      description: 本来どのように動作すべきかを説明してください。
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作
+      description: 期待と異なる実際の動作を説明してください。
+    validations:
+      required: true
+  - type: textarea
+    id: error-output
+    attributes:
+      label: エラー出力 / ログ
+      description: エラーメッセージやスタックトレースがあれば貼り付けてください。
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: 環境情報
+      description: 不具合が発生した環境を記載してください。
+      placeholder: |
+        - OS:
+        - バージョン:
+        - ランタイム / 言語バージョン:
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: スクリーンショット、関連 Issue、その他の参考情報があれば記載してください。
+    validations:
+      required: false

@@ -1,0 +1,8 @@
+# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
+# Auto-generated - do not edit
+generated_at: 2026-05-09T03:26:18Z
+file_count: 3
+checksums:
+  specs/main/requirements/new_file.md: 45bb11b614b3769ccfd246216fb55ea81dde2a59b47a99b0483c7f061d285f0f
+  specs/main/requirements/special_chars.md: 9a1041e32dacd48093b7ec72ee145deb7155787e3c4b8b721e86f8c2ced7adf1
+  specs/main/requirements/日本語ドキュメント.md: 376054da6fe4748c130ac398e81ed0d09c62174fef6d438e77a3fc8d474a376d

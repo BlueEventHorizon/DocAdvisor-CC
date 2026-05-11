@@ -52,6 +52,8 @@ Doc Advisor の目的は「必要な文書を、短時間で、確実に特定�
 
 ## クイックスタート
 
+### Claude Code で使う
+
 1. リポジトリをクローン（submodule 含む）
 
 ```bash
@@ -97,7 +99,75 @@ claude
 > make setup TARGET=/path/to/your-project
 > ```
 
+### Codex で使う
+
+Codex では、DocAdvisor 内で事前生成・レビュー済みの `codex_skill_set/` を、環境全体で使う通常の Codex Skill としてインストールします。
+必要な場合だけ target project の `.codex/state/doc-advisor/` と `AGENTS.md` を初期化します。
+
+1. リポジトリをクローン（submodule 含む）
+
+```bash
+git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+```
+
+> 既存クローンの場合は `git submodule update --init` を実行してください。
+
+2. Codex Skill を環境全体へインストール
+
+```bash
+cd DocAdvisor-CC
+./setup_for_codex.sh
+```
+
+デフォルトでは次に配置されます。
+
+```text
+~/.codex/skills/
+~/.codex/doc-advisor/resources/
+~/.codex/doc-advisor/install.yaml
+```
+
+特定 project の runtime state と `AGENTS.md` も初期化する場合:
+
+```bash
+./setup_for_codex.sh --project /path/to/your-project
+```
+
+`--project` は project-local な `.codex/skills/` や `.codex/resources/` を作成しません。既存の古い project-local Doc Advisor 管理ファイルがある場合は、重複 Skill を避けるため管理対象だけ削除します。
+`AGENTS.md` で project 内の `.codex/skills/` を参照させる project-local bridge は正式な Codex Skill install ではありません。移行・実験用の方式として、詳細は `specs/codex/design/DES-CODEX-001_setup_for_codex.md` に記録しています。
+以前の plugin 方式で作成した `~/plugins/doc-advisor/` や `~/.agents/plugins/marketplace.json` は自動削除しません。必要なら別途無効化・削除してください。
+
+3. ターゲットプロジェクトで Codex を起動
+
+新しい Skill が現在の Codex session に見えない場合は、Codex を再起動してください。
+
+```bash
+cd /path/to/your-project
+codex
+```
+
+4. Codex で使える機能
+
+Codex は環境にインストールされた次の Skill を参照します。
+
+| 機能 | Skill |
+| ---- | ----- |
+| rules ToC 生成 | `create-rules-toc` |
+| specs ToC 生成 | `create-specs-toc` |
+| rules 検索 | `query-rules` |
+| specs 検索 | `query-specs` |
+| ドキュメント構成の初期設定 | `setup-doc-structure` |
+| 要件定義書作成 | `start-requirements` |
+| 設計書作成 | `start-design` |
+| 計画書作成 | `start-plan` |
+
+Codex 用の ToC / index 出力先は `.codex/state/doc-advisor/toc/` と `.codex/state/doc-advisor/index/` です。
+Claude Code 用の `.claude/` とは分離されます。
+forge の文書作成系 wrapper は、専用 UI ではなくチャット上の確認プロトコルを使います。ファイル作成・上書き・判断分岐が必要な場合は、Codex が選択肢を提示してユーザーの返答を待つ運用です。
+
 ## 使い方
+
+### Claude Code
 
 ### ToC 生成コマンド
 
@@ -114,6 +184,24 @@ claude
 ```bash
 /query-rules 認証機能の実装に必要な文書を特定
 /query-specs 画面遷移の要件を特定
+```
+
+### Codex
+
+Codex では slash command ではなく、自然文で依頼します。
+必要に応じて環境にインストールされた Doc Advisor Skill と、`--project` で追加した `AGENTS.md` の Doc Advisor セクションが参照されます。
+
+例:
+
+```text
+rules の ToC を全件再生成してください
+specs の ToC を差分更新してください
+認証機能の実装に必要な rules を特定してください
+画面遷移に関係する specs を探してください
+ドキュメント構成を設定してください
+ログイン機能の要件定義書を作成してください
+ログイン機能の設計書を作成してください
+ログイン機能の実装計画を作成してください
 ```
 
 ## 設定
@@ -133,7 +221,26 @@ claude
 
 - Python 3（標準ライブラリのみ）
 - Claude Code
+- Codex（Codex Skill を使う場合）
 - Bash シェル
+
+## Codex install profile
+
+`setup_for_codex.sh` は、`codex_install_profiles/doc-advisor/current.yaml` に記録された source version / commit / layout hash / `codex_skill_set` hash と一致する場合だけインストールします。
+
+`bw-cc-plugins` の plugin 構成や version が変わった場合は、先に Codex Skill セットと profile を再生成・レビューしてください。
+
+```bash
+./analyze_codex_install_profile.sh
+./generate_codex_skill_set.sh
+./setup_for_codex.sh
+```
+
+利用可能な profile は次で確認できます。
+
+```bash
+./setup_for_codex.sh --list-profiles
+```
 
 ## ライセンス
 

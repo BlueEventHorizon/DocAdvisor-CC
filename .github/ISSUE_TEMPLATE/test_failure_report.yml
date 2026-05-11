@@ -1,0 +1,53 @@
+name: Test / CI Failure
+description: テスト失敗や CI の不具合を報告する
+title: "[Test]: "
+labels: ["bug", "test", "triage"]
+body:
+  - type: dropdown
+    id: failure-type
+    attributes:
+      label: 失敗の種類
+      options:
+        - ユニットテスト
+        - 結合テスト / E2E テスト
+        - CI ワークフロー
+        - リンター / フォーマッター
+        - その他
+    validations:
+      required: true
+  - type: input
+    id: test-target
+    attributes:
+      label: 失敗したテスト / ジョブ
+      description: テストモジュール名、CI ジョブ名、ワークフロー名などを記載してください。
+      placeholder: "例）tests.module.test_xxx / CI: build.yml"
+    validations:
+      required: true
+  - type: textarea
+    id: error-output
+    attributes:
+      label: エラー出力
+      description: テスト実行時のエラーメッセージやログを貼り付けてください。
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 発生状況
+      description: |
+        いつ・どのような状況で失敗が発生したか記載してください。
+        （例：特定のコミット以降、特定の OS のみ、ランダムに発生 等）
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: 環境情報
+      description: テスト実行環境の情報を記載してください。
+      placeholder: |
+        - OS:
+        - ランタイムバージョン:
+        - コミット / ブランチ:
+    validations:
+      required: false

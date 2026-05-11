@@ -7,22 +7,32 @@
 Doc Advisor は、Claude Code 向けのドキュメント検索基盤ツール。
 プロジェクトのドキュメント（`.md`）を解析し、AI が検索可能な ToC（Table of Contents）YAML インデックスを自動生成する。
 
-**このリポジトリの役割**: bw-cc-plugins の doc-advisor プラグインを仲介し、ターゲットプロジェクトにインストールする。
+**このリポジトリの役割**:
+
+1. bw-cc-plugins のプラグインを仲介し、ターゲットプロジェクトにインストールする
+2. bw-cc-plugins のプレリリース品質ゲートとして、リリース前の機能・品質テストを実施する
+
 `setup.sh --source` で bw-cc-plugins から直接読み取り、パス変換を行ってコピーする。bw-cc-plugins は**読み取り専用**（修正禁止）。
 
 ### アーキテクチャ
 
 ```
-bw-cc-plugins/plugins/doc-advisor/ ─┐
-bw-cc-plugins/plugins/forge/       ─┤ ソース（読み取り専用）
-                                     ↓
-DocAdvisor/                          setup.sh --source で読み取り + 変換
-├── setup.sh            ← インストーラー（ソース → 変換 → ターゲットへコピー）
-├── tests/              ← テスト用プロジェクト群（検証はここで行う）
-├── specs/              ← Doc Advisor 自体の仕様書
-└── rules/              ← Doc Advisor 自体の開発ルール
-                                     ↓
-target-project/.claude/              インストール先（実体ファイル）
+bw-cc-plugins (develop)             プレリリース（読み取り専用）
+├── plugins/doc-advisor/ ─┐
+├── plugins/doc-db/      ─┤
+├── plugins/forge/       ─┤
+└── tests/               ─┤ L0: ユニットテスト実行
+                           ↓
+DocAdvisor/                プレリリーステスト + インストーラー
+├── setup.sh               ← インストーラー（ソース → 変換 → ターゲットへコピー）
+├── test_claude_setup/     ← setup.sh インストールテスト
+├── test_codex/            ← Codex 環境テスト
+├── test_claude_skills/    ← L1: 自動テスト / L2: 機能テスト
+├── specs/                 ← Doc Advisor 自体の仕様書 + テスト仕様書
+└── rules/                 ← Doc Advisor 自体の開発ルール
+                           ↓ テスト合格 → bw-cc-plugins main にリリース
+                           ↓
+target-project/.claude/    インストール先（実体ファイル）
 ```
 
 **変換内容**: `${CLAUDE_PLUGIN_ROOT}/` → `.claude/doc-advisor/`、`/doc-advisor:` → `/`、`/forge:setup-doc-structure` → `/setup-doc-structure`
@@ -37,6 +47,7 @@ target-project/.claude/              インストール先（実体ファイル�
 | ---------------------------- | ------------------------------------ |
 | `README.md` / `README_en.md` | プロジェクト概要、設計意図、コマンド |
 | `specs/requirements/**/*.md` | 要件定義書（実装の根拠）             |
+| `specs/test/TST-001_doc_db_functional_test.md` | doc-db 機能テスト仕様書 |
 
 ## 言語ルール
 
@@ -58,7 +69,9 @@ target-project/.claude/              インストール先（実体ファイル�
 
 ### bw-cc-plugins submodule のブランチ確認
 
-`bw-cc-plugins` submodule のブランチは **通常は `main`**。実験用に `develop` 等の他ブランチに切り替わっていることがある。気付かずに作業すると、安定版ではなく実験版のソースを target にインストールしてしまう恐れがある。
+`bw-cc-plugins` submodule のブランチは **通常は `main`**（リリース済み安定版）。
+`develop` の場合はプレリリーステスト対象を意味する。
+気付かずに作業すると、安定版ではなく未リリース版のソースを target にインストールしてしまう恐れがある。
 
 確認コマンド:
 
@@ -84,6 +97,154 @@ git -C bw-cc-plugins branch --show-current
 - **小さく試してから展開**: 1つを完成させてから次へ進む
 - **品質最優先**: 複雑な正規表現での一括置換禁止、手抜きしない
 - **外部仕様は必ず確認**: Claude Code プラグイン仕様など外部システムの仕様は、実装前に公式ドキュメントで確認すること
+
+## bw-cc-plugins のバグ発見時 [必須]
+
+bw-cc-plugins は**読み取り専用**であり、このリポジトリから直接修正してはいけない。
+バグを発見した場合は、以下の手順で修正依頼書を作成し、ユーザーに報告すること。
+
+### 手順
+
+1. `specs/bug-reports/` 配下に修正依頼書を作成する
+2. ファイル名: `BR-<連番3桁>_<簡潔な概要>.md`（例: `BR-001_cross_plugin_ref_transform.md`）
+3. 連番は既存ファイルから自動採番する
+
+### 修正依頼書テンプレート
+
+```markdown
+# BR-<ID>: <タイトル>
+
+## 対象プラグイン
+
+<プラグイン名（例: doc-db, anvil, forge, doc-advisor）>
+
+## 対象ファイル
+
+- `plugins/<plugin>/path/to/file`
+
+## 現象
+
+<バグの具体的な内容>
+
+## 再現手順
+
+1. <手順>
+
+## 期待される動作
+
+<正しい動作>
+
+## 実際の動作
+
+<バグの動作>
+
+## 暫定対処（setup.sh 側）
+
+<setup.sh で行った回避策があれば記載。なければ「なし」>
+
+## 提案する修正
+
+<bw-cc-plugins 側での修正案>
+```
+
+### 注意
+
+- bw-cc-plugins を直接修正しないこと（読み取り専用）
+- setup.sh で回避可能な場合は回避策を先に実装し、修正依頼書にも記録する
+- ユーザーに報告し、bw-cc-plugins 管理 AI への伝達を依頼する
+
+## bw-cc-plugins プレリリーステスト [必須]
+
+### このリポジトリのテスト上の役割
+
+bw-cc-plugins は `main` にリリースしないと一般のターゲットプロジェクトでテストできない。
+しかしテストしていないものをリリースすべきではない。
+**このジレンマを解消するのが DocAdvisor の役割である。**
+
+DocAdvisor は bw-cc-plugins の `develop` ブランチを submodule として参照できるため、
+リリース前の機能・品質テストを実施する唯一の場所となる。
+この AI は、bw-cc-plugins の**プレリリース品質ゲート**として機能する責務を持つ。
+
+```
+bw-cc-plugins (develop)
+  ↓ submodule
+DocAdvisor ← ここでプレリリーステストを実施
+  ↓ テスト合格
+bw-cc-plugins (main) ← リリース
+  ↓ setup.sh
+target-project ← 一般ユーザーが利用
+```
+
+### テスト方式
+
+DocAdvisor 本体を「テスト用ターゲットプロジェクト」として使用する。
+`setup.sh` でプラグインをインストールし、store/restore パターンで
+`.doc_structure.yaml` をテスト用フィクスチャに差し替えて、
+インストール済みスクリプト・スキルをテスト専用ドキュメントに対して実行する。
+
+```
+DocAdvisor/
+├── .claude/
+│   ├── doc-advisor/scripts/   ← setup.sh でインストール済み
+│   ├── doc-db/scripts/        ← setup.sh でインストール済み
+│   └── skills/                ← setup.sh でインストール済み
+├── .doc_structure.yaml        ← store/restore でテスト用に差し替え
+├── test_claude_skills/
+│   ├── fixtures/              ← テスト専用ドキュメント（仮想プロジェクトの文書）
+│   │   ├── rules/
+│   │   └── specs/
+│   ├── test_doc_structure.yaml ← store 時にルートにコピーするテンプレート
+│   └── init_fixtures.sh       ← テスト環境の初期化スクリプト
+```
+
+テスト環境の詳細設計: `specs/test/DES-TST-001_test_environment_design.md`
+
+bw-cc-plugins の内部テスト（`bw-cc-plugins/tests/`）は bw-cc-plugins 自身の開発環境で実行するものであり、
+DocAdvisor の責務ではない。DocAdvisor は**インストール後の成果物が正しく動作するか**を検証する。
+
+### テスト層
+
+| 層 | 内容 | API キー |
+| --- | --- | --- |
+| **L1: 自動テスト** | tempdir + API モックで再現可能なテスト（`test_claude_skills/`） | 不要 |
+| **L2: 機能テスト** | store/restore + インストール済みスクリプトで実 API 実行 | 必須 |
+| **L3: 品質テスト** | ゴールデンセットで recall/precision を測定・比較 | 必須 |
+
+全層とも DocAdvisor 本体で実行する。テスト対象はインストール済みの `.claude/` 配下のスクリプト。
+
+### プラグイン別テスト仕様
+
+| プラグイン | テスト仕様書 | テストスキル | フィクスチャ |
+| --- | --- | --- | --- |
+| doc-db | `specs/test/TST-001_doc_db_functional_test.md` | `/test-doc-db` | `test_claude_skills/fixtures/` |
+
+今後、他のプラグイン（doc-advisor, forge 等）のテスト仕様書・スキル・フィクスチャも同様に追加する。
+
+### L3: 品質テスト
+
+ゴールデンセットを用いた検索品質の定量評価。
+bw-cc-plugins 側の要件定義書に準拠する:
+
+- **NFR-004**: recall が doc-advisor の ToC/Embedding 方式と同等以上
+- **FNC-007**: precision/recall/false negative を測定しレポート生成
+
+現状: `evaluate.py` は未実装（テスト骨格のみ）。ゴールデンセットも未作成。
+bw-cc-plugins 側で実装され次第、DocAdvisor でプレリリーステストとして実行する。
+
+### テスト実行のタイミング
+
+以下の場合にプレリリーステストを実施する:
+
+1. bw-cc-plugins の `develop` ブランチが更新されたとき
+2. ユーザーからリリース前テストを指示されたとき
+3. 新しいプラグインや機能が追加されたとき
+
+### API キーの方針
+
+doc-db は現在 `OPENAI_API_KEY` を使用しているが、汎用キーは権限が強すぎるため、
+将来的に制約を高めた **`OPENAI_API_BWCC_KEY`** を定義予定。
+必要な権限（`/v1/embeddings`, `/v1/chat/completions`）は bw-cc-plugins 側の AI と協議して決定する。
+移行後はテスト仕様書と関連スクリプトの環境変数名を更新すること。
 
 ## setup.sh / シェルスクリプト開発ルール
 

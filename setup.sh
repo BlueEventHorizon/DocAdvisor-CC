@@ -43,6 +43,7 @@ fi
 TARGET_DIR=""
 SOURCE_DIR=""
 WITH_ANVIL=false
+WITH_DOC_DB=false
 WITH_XCODE=false
 OPTIONAL_PLUGINS_SPECIFIED=false  # Track whether CLI flags were used
 
@@ -55,6 +56,7 @@ while [[ $# -gt 0 ]]; do
             echo "  ./setup.sh TARGET_DIR                       # Use submodule as source"
             echo "  ./setup.sh --source SOURCE_DIR TARGET_DIR   # Use custom source"
             echo "  ./setup.sh --with-anvil TARGET_DIR          # Also install anvil plugin"
+            echo "  ./setup.sh --with-doc-db TARGET_DIR         # Also install doc-db plugin"
             echo "  ./setup.sh --with-xcode TARGET_DIR          # Also install xcode plugin"
             echo "  ./setup.sh -h, --help                       # Show help"
             echo ""
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Optional plugins (opt-in, off by default):"
             echo "  --with-anvil    anvil: GitHub commit/create-pr skills"
+            echo "  --with-doc-db   doc-db: chunk-level hybrid search (Embedding + Lexical + Rerank)"
             echo "  --with-xcode    xcode: iOS/macOS build/test skills"
             echo ""
             echo "This script creates:"
@@ -71,6 +74,7 @@ while [[ $# -gt 0 ]]; do
             echo "  TARGET_DIR/.claude/skills/         # Skills (query-*, create-*-toc)"
             echo "  TARGET_DIR/.claude/doc-advisor/    # Docs, scripts, ToC files"
             echo "  TARGET_DIR/.claude/anvil/          # (if --with-anvil) anvil scripts"
+            echo "  TARGET_DIR/.claude/doc-db/         # (if --with-doc-db) doc-db scripts"
             echo "  TARGET_DIR/.claude/xcode/          # (if --with-xcode) xcode scripts"
             echo ""
             echo "Transformations applied during copy:"
@@ -90,6 +94,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --with-anvil)
             WITH_ANVIL=true
+            OPTIONAL_PLUGINS_SPECIFIED=true
+            shift
+            ;;
+        --with-doc-db)
+            WITH_DOC_DB=true
             OPTIONAL_PLUGINS_SPECIFIED=true
             shift
             ;;
@@ -155,7 +164,7 @@ SOURCE_VERSION=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))
 }
 
 # Known compatible versions (update when transformation logic changes)
-KNOWN_VERSIONS=("0.2.1")
+KNOWN_VERSIONS=("0.2.1" "0.2.3")
 VERSION_KNOWN=false
 for kv in "${KNOWN_VERSIONS[@]}"; do
     if [[ "$SOURCE_VERSION" == "$kv" ]]; then
@@ -183,6 +192,7 @@ fi
 # Derive sibling plugin source paths (for optional plugins)
 SOURCE_PLUGINS_ROOT="$(dirname "$SOURCE_DIR")"
 SOURCE_ANVIL="${SOURCE_PLUGINS_ROOT}/anvil"
+SOURCE_DOC_DB="${SOURCE_PLUGINS_ROOT}/doc-db"
 SOURCE_XCODE="${SOURCE_PLUGINS_ROOT}/xcode"
 
 # Interactive prompt if not specified
@@ -215,6 +225,8 @@ fi
 if [[ "$INTERACTIVE_TARGET_PROMPT" == "true" && "$OPTIONAL_PLUGINS_SPECIFIED" == "false" ]]; then
     read -p "Install anvil plugin (commit / create-pr skills)? [y/N]: " _reply
     [[ "$_reply" =~ ^[Yy] ]] && WITH_ANVIL=true
+    read -p "Install doc-db plugin (chunk-level hybrid search)? [y/N]: " _reply
+    [[ "$_reply" =~ ^[Yy] ]] && WITH_DOC_DB=true
     read -p "Install xcode plugin (build / test skills)? [y/N]: " _reply
     [[ "$_reply" =~ ^[Yy] ]] && WITH_XCODE=true
 fi
@@ -236,6 +248,9 @@ if [[ "$HAS_FORGE" == "true" ]]; then
 fi
 if [[ "$WITH_ANVIL" == "true" ]]; then
     echo "Anvil:   $(display_path "${SOURCE_ANVIL}") (requested)"
+fi
+if [[ "$WITH_DOC_DB" == "true" ]]; then
+    echo "Doc-DB:  $(display_path "${SOURCE_DOC_DB}") (requested)"
 fi
 if [[ "$WITH_XCODE" == "true" ]]; then
     echo "Xcode:   $(display_path "${SOURCE_XCODE}") (requested)"
@@ -697,7 +712,9 @@ install_optional_plugin() {
     _transform_plugin() {
         sed \
             -e "s|\${CLAUDE_PLUGIN_ROOT}/|.claude/${plugin_name}/|g" \
-            -e "s|/${plugin_name}:|/|g"
+            -e "s|/${plugin_name}:|/|g" \
+            -e 's|/forge:setup-doc-structure|/setup-doc-structure|g' \
+            -e 's|/doc-advisor:|/|g'
     }
 
     _copy_file_transformed() {
@@ -770,6 +787,9 @@ EOF
 if [[ "$WITH_ANVIL" == "true" ]]; then
     install_optional_plugin "anvil" "$SOURCE_ANVIL" || true
 fi
+if [[ "$WITH_DOC_DB" == "true" ]]; then
+    install_optional_plugin "doc-db" "$SOURCE_DOC_DB" || true
+fi
 if [[ "$WITH_XCODE" == "true" ]]; then
     install_optional_plugin "xcode" "$SOURCE_XCODE" || true
 fi
@@ -799,6 +819,9 @@ echo "    skills/            # Skills (query-*, create-*-toc, setup-doc-structur
 echo "    doc-advisor/       # Docs, scripts, ToC files"
 if [[ "$WITH_ANVIL" == "true" && -d "${CLAUDE_DIR}/anvil" ]]; then
     echo "    anvil/             # Anvil plugin resources (commit, create-pr scripts)"
+fi
+if [[ "$WITH_DOC_DB" == "true" && -d "${CLAUDE_DIR}/doc-db" ]]; then
+    echo "    doc-db/            # Doc-DB plugin resources (hybrid search scripts)"
 fi
 if [[ "$WITH_XCODE" == "true" && -d "${CLAUDE_DIR}/xcode" ]]; then
     echo "    xcode/             # Xcode plugin resources (build, test scripts)"
