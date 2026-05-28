@@ -1,6 +1,6 @@
 # FNC-001 コンテキスト外検索 要件定義書
 
-> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスや他プラグイン（forge / anvil / doc-db）への参照は現状と異なる場合がある。
+> **歴史的記録（doc-advisor 単独プラグイン化前 + Embedding 機能削除前のスナップショット）**: 本文書は (1) `bw-cc-plugins` マーケットプレイス時代の `plugins/doc-advisor/` 構造、および (2) doc-advisor に含まれていた Embedding 検索（`--toc` / `--index` / `auto` モード、`search_docs.py` / `embed_docs.py` / OpenAI API key 連携）を前提としている。これらは現在の doc-advisor から削除済み（Embedding は Issue #13 で廃止、今後 query-docs プラグイン側で実装予定: bw-cc-plugins#77）。過去設計の参照用として保持。
 
 ## 概要
 

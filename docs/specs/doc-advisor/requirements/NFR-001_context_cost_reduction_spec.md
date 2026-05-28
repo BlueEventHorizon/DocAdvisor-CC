@@ -1,5 +1,7 @@
 # NFR-001 コンテキストコスト削減 要件定義書
 
+> **歴史的記録（Embedding 機能削除前のスナップショット）**: 本文書は doc-advisor に Embedding 検索 (`--toc` / `--index` / `auto` モード、`search_docs.py`、OpenAI API key 連携) が含まれていた時代に執筆された。Embedding は Issue #13 で doc-advisor から削除済み（今後 query-docs プラグインへ移行: bw-cc-plugins#77）。`--toc` / `--index` モードの言及や `OPENAI_API_DOCDB_KEY` / `OPENAI_API_KEY` への参照は現状の doc-advisor では無効。過去設計の参照用として保持。
+
 ## 概要
 
 文書検索時に AI のコンテキストウィンドウに読み込まれるデータ量を削減する。現行の ToC YAML 全量読み込みを不要にする。

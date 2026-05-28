@@ -9,7 +9,7 @@
 
 テスト方針:
 - tmpdir に仮文書を配置し、CLAUDE_PROJECT_DIR 環境変数でルートを指定
-- OPENAI_API_KEY 不要（grep_docs.py はローカル検索のみ）
+- grep_docs.py はローカル検索のみ（外部 API なし）
 - 既存テスト test_create_pending.py のパターンを踏襲
 """
 

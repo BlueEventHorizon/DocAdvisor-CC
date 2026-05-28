@@ -1,5 +1,7 @@
 # REQ-001: Doc Advisor 要件定義書
 
+> **歴史的記録（doc-advisor 単独プラグイン化前 + Embedding 機能削除前のスナップショット）**: 本文書は (1) `bw-cc-plugins` マーケットプレイス時代の `plugins/doc-advisor/` 構造、および (2) doc-advisor に含まれていた Embedding 検索（`--toc` / `--index` / `auto` の 3 モード、FR-05-1 / FR-05-6 等）を前提としている。Embedding は Issue #13 で doc-advisor から削除済み（今後 query-docs プラグインへ移行: bw-cc-plugins#77）。現状の `query-rules` / `query-specs` は ToC のみのシンプルな単一フローで動作する。過去設計の参照用として保持。
+
 ## 概要
 
 Doc Advisor は、プロジェクトのドキュメントを自動的にインデックス化し、AI エージェントが必要な文書を素早く特定できるようにするツールである。
