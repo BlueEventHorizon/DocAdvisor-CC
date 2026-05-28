@@ -4,35 +4,42 @@ AI-searchable document index (ToC) generator for Claude Code. Extracts AI metada
 
 ## Skill Details
 
+### setup-doc-structure
+
+```
+/doc-advisor:setup-doc-structure [--update]
+```
+
+| Argument   | Description                                                                   |
+| ---------- | ----------------------------------------------------------------------------- |
+| (none)     | Scan the project and interactively generate / overwrite `.doc_structure.yaml` |
+| `--update` | Add only directories not yet listed in the existing `root_dirs`               |
+
+Discover document directories under the project, classify them as rules / specs, and write `.doc_structure.yaml` to the project root after user confirmation. Required as a prerequisite before running the other skills.
+
 ### query-rules
 
 ```
-/doc-advisor:query-rules [--toc|--index] task description
+/doc-advisor:query-rules task description
 ```
 
 | Argument           | Description                                                 |
 | ------------------ | ----------------------------------------------------------- |
-| `--toc`            | Force ToC (keyword) search only                             |
-| `--index`          | Force Embedding (semantic) search only                      |
-| (none)             | Hybrid auto-select (default)                                |
 | `task description` | Description of the task to find relevant rule documents for |
 
-Search document indexes to identify rule documents (coding standards, architecture rules, workflow guides) relevant to a task. Default hybrid mode combines ToC keyword search and Embedding semantic search, returning the union of both results.
+Search the ToC (keyword / metadata index) to identify rule documents (coding standards, architecture rules, workflow guides) relevant to a task. Returns a list of matching paths only — the calling agent decides how to read them.
 
 ### query-specs
 
 ```
-/doc-advisor:query-specs [--toc|--index] task description
+/doc-advisor:query-specs task description
 ```
 
 | Argument           | Description                                                 |
 | ------------------ | ----------------------------------------------------------- |
-| `--toc`            | Force ToC (keyword) search only                             |
-| `--index`          | Force Embedding (semantic) search only                      |
-| (none)             | Hybrid auto-select (default)                                |
 | `task description` | Description of the task to find relevant spec documents for |
 
-Search document indexes to identify specification documents (requirements, design docs) relevant to a task. Default hybrid mode combines ToC keyword search and Embedding semantic search.
+Search the ToC to identify specification documents (requirements, design docs) relevant to a task. Returns a list of matching paths only.
 
 ### create-rules-toc
 
