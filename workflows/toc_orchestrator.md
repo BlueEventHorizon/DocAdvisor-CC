@@ -39,7 +39,7 @@ Read the following before processing:
 
 ### Phase 1: Initialization
 
-> **Note**: `init_common_config()` validates that `root_dirs` is configured for the category. If `.doc_structure.yaml` is missing or the category is not configured, scripts output `{"status": "config_required", ...}`. The skill's Error Handling section directs the user to run `/forge:setup-doc-structure`.
+> **Note**: `init_common_config()` validates that `root_dirs` is configured for the category. If `.doc_structure.yaml` is missing or the category is not configured, scripts output `{"status": "config_required", ...}`. The skill's Error Handling section directs the user to run `/doc-advisor:setup-doc-structure` (or to create `.doc_structure.yaml` manually using the minimal example in `README.md`).
 
 ````
 1. Check if .claude/doc-advisor/toc/{category}/.toc_work/ exists

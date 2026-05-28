@@ -1,41 +1,33 @@
 # Document Structure Guide
 
-`.doc_structure.yaml` is a project-level configuration file that declares where documents live and what types they are. It serves as the shared foundation for both forge and doc-advisor.
+`.doc_structure.yaml` is a project-level configuration file that declares where documents live and what types they are. `doc-advisor` skills (`query-rules` / `query-specs` / `create-rules-toc` / `create-specs-toc`) read this file.
 
 ## Feature
 
-forge can optionally manage documents per **Feature** — a grouped unit of related specifications for development. Features are not required; forge works without them.
-
-| Development Pattern     | How Features are used                                                        |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| Incremental development | Separate new capabilities from the existing main spec as individual Features |
-| Agile development       | Develop and deliver per Feature in each iteration                            |
-| Small projects          | Treat the entire project as a single Feature                                 |
-
-When using Features, each one shares a common directory structure:
+When you split specifications into **Feature units** under `docs/specs/{feature}/...`, give each Feature the same directory structure:
 
 ```
-specs/
-  {feature}/
-    requirements/   # Requirements documents
-    design/         # Design documents
-    plan/           # Implementation plan
+docs/
+  specs/
+    {feature}/
+      requirements/   # Requirements documents
+      design/         # Design documents
+      plan/           # Implementation plan
 ```
+
+Feature splitting is optional. A small project can treat the whole repository as a single Feature.
 
 ## .doc_structure.yaml
 
 ### Purpose
 
-A file that declares where documents live and what types they are. The following tools share it:
-
-- **forge** — Resolve review targets, detect Feature directories, locate document output paths
-- **doc-advisor** — Determine ToC scan targets and doc_type classification
+A file that declares where documents live and what types they are. `doc-advisor` reads it to discover files to scan and to assign each file a `doc_type`.
 
 Place it at the project root (same level as `.git/`).
 
 ### Schema Overview
 
-Organized into two categories: `rules` and `specs`.
+Two top-level categories: `rules` and `specs`.
 
 ```yaml
 # .doc_structure.yaml
@@ -54,11 +46,11 @@ specs:
   root_dirs:
     - "docs/specs/*/design/"
     - "docs/specs/*/plan/"
-    - "docs/specs/*/requirement/"
+    - "docs/specs/*/requirements/"
   doc_types_map:
     "docs/specs/*/design/": design
     "docs/specs/*/plan/": plan
-    "docs/specs/*/requirement/": requirement
+    "docs/specs/*/requirements/": requirement
   patterns:
     target_glob: "**/*.md"
     exclude: []
@@ -71,6 +63,8 @@ specs:
 | `patterns.target_glob` | File search pattern (default: `**/*.md`)                                                                    |
 | `patterns.exclude`     | Directory names to exclude (matches at any depth in the path)                                               |
 
+> **YAML note**: When a `doc_types_map` key contains `*` or `**`, **quote it** as `"..."`. Quoting glob entries in `root_dirs` is also safer.
+
 ### Configuration Examples
 
 #### Simple (No Features)
@@ -80,11 +74,11 @@ specs:
   root_dirs:
     - docs/specs/design/
     - docs/specs/plan/
-    - docs/specs/requirement/
+    - docs/specs/requirements/
   doc_types_map:
     docs/specs/design/: design
     docs/specs/plan/: plan
-    docs/specs/requirement/: requirement
+    docs/specs/requirements/: requirement
 ```
 
 #### Feature-Based
@@ -94,14 +88,14 @@ specs:
   root_dirs:
     - "docs/specs/*/design/"
     - "docs/specs/*/plan/"
-    - "docs/specs/*/requirement/"
+    - "docs/specs/*/requirements/"
   doc_types_map:
     "docs/specs/*/design/": design
     "docs/specs/*/plan/": plan
-    "docs/specs/*/requirement/": requirement
+    "docs/specs/*/requirements/": requirement
 ```
 
-No `.doc_structure.yaml` changes needed when adding a Feature. Just create the `docs/specs/payment/design/` directory and it is detected automatically.
+No `.doc_structure.yaml` changes are needed when you add a Feature. Just create the `docs/specs/payment/design/` directory and it is detected automatically.
 
 #### Nested Features (Sub-Features)
 
@@ -117,28 +111,28 @@ specs:
     "docs/specs/**/requirements/": requirement
 ```
 
-Both `docs/specs/forge/design/` and `docs/specs/forge/review-PR/design/` are detected automatically.
+Both `docs/specs/auth/design/` and `docs/specs/auth/social-login/design/` are detected automatically.
 
-## /forge:setup-doc-structure
+## /doc-advisor:setup-doc-structure
 
 ```
-/forge:setup-doc-structure
+/doc-advisor:setup-doc-structure [--update]
 ```
-
-No arguments.
 
 ### What it does
 
-- Scans the project and interactively generates or updates `.doc_structure.yaml`
-- Auto-detects existing Feature directories and configures them as glob patterns
-- Proposes a recommended structure (specs / rules / reference / adr) and creates missing directories with `.gitkeep`
+- Scans the project and **interactively** generates or updates `.doc_structure.yaml`
+- Discovers existing directories and classifies them as rules / specs
+- Writes `.doc_structure.yaml` after user confirmation
+
+With `--update`, it only adds directories not yet listed in `root_dirs` of the existing `.doc_structure.yaml`.
 
 ### When to run
 
-- First time using forge / doc-advisor in a project
+- First time using `doc-advisor` in a project
 - After major changes to the directory structure
-- After manually adding a Feature
+- After manually adding a new Feature
 
-## Schema Reference
+### Writing it by hand
 
-For the full format specification, see [doc_structure_format.md](../../plugins/forge/docs/doc_structure_format.md).
+You can also create `.doc_structure.yaml` manually at the project root using the schema and examples above.

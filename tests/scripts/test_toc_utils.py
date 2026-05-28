@@ -464,6 +464,92 @@ class TestLoadConfig(unittest.TestCase):
         config = toc_utils.load_config(category='rules')
         self.assertIn('draft', config.get('patterns', {}).get('exclude', []))
 
+    def test_load_config_quoted_doc_types_map_keys(self):
+        """README / ガイドが推奨する quoted glob key (\"docs/specs/**/design/\") が
+        正しく unquote されて doc_types_map に格納されること。
+
+        Regression: parser が key 側の quote を strip せず、その結果 quote 付きの
+        path pattern が glob 展開対象となり doc_types_map が空になっていたバグ。
+        """
+        yaml_with_quoted_keys = """\
+# doc_structure_version: 3.0
+
+rules:
+  root_dirs:
+    - docs/rules/
+  doc_types_map:
+    docs/rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
+specs:
+  root_dirs:
+    - "docs/specs/**/design/"
+    - "docs/specs/**/requirements/"
+  doc_types_map:
+    "docs/specs/**/design/": design
+    "docs/specs/**/requirements/": requirement
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+"""
+        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
+            f.write(yaml_with_quoted_keys)
+        config = toc_utils.load_config(category='specs')
+        doc_types_map = config.get('doc_types_map', {})
+        self.assertIn('docs/specs/**/design/', doc_types_map)
+        self.assertIn('docs/specs/**/requirements/', doc_types_map)
+        self.assertEqual(doc_types_map['docs/specs/**/design/'], 'design')
+        self.assertEqual(doc_types_map['docs/specs/**/requirements/'], 'requirement')
+        # Ensure no key still has surrounding quotes
+        for key in doc_types_map.keys():
+            self.assertFalse(key.startswith('"'), f"key still has quote: {key!r}")
+            self.assertFalse(key.startswith("'"), f"key still has quote: {key!r}")
+
+    def test_load_config_quoted_keys_glob_expansion_works(self):
+        """quoted glob key → 実ディレクトリ走査で expand_doc_types_map が正しく動く"""
+        # 実在するディレクトリを作成
+        for feature in ('payment', 'auth'):
+            (Path(self.tmpdir) / 'docs' / 'specs' / feature / 'design').mkdir(parents=True)
+            (Path(self.tmpdir) / 'docs' / 'specs' / feature / 'requirements').mkdir(parents=True)
+
+        yaml_with_quoted_keys = """\
+# doc_structure_version: 3.0
+
+specs:
+  root_dirs:
+    - "docs/specs/*/design/"
+    - "docs/specs/*/requirements/"
+  doc_types_map:
+    "docs/specs/*/design/": design
+    "docs/specs/*/requirements/": requirement
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+
+rules:
+  root_dirs:
+    - docs/rules/
+  doc_types_map:
+    docs/rules/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []
+"""
+        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
+            f.write(yaml_with_quoted_keys)
+        config = toc_utils.load_config(category='specs')
+        expanded = toc_utils.expand_doc_types_map(
+            config.get('doc_types_map', {}),
+            Path(self.tmpdir),
+        )
+        # quoted pattern が unquote されて glob 展開され、各 feature が doc_type 付きで現れる
+        self.assertEqual(expanded.get('docs/specs/payment/design/'), 'design')
+        self.assertEqual(expanded.get('docs/specs/auth/design/'), 'design')
+        self.assertEqual(expanded.get('docs/specs/payment/requirements/'), 'requirement')
+        self.assertEqual(expanded.get('docs/specs/auth/requirements/'), 'requirement')
+
 
 # ===========================================================================
 # get_project_root テスト

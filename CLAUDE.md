@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> **Scope**: このファイルは **doc-advisor 自体を開発するためのリポジトリガイド** であり、エンドユーザの実行時コンテキストには **ロードされない**。プラグイン利用者は本ファイルを参照しない（インストール先には配布されるが Claude Code が plugin context として読み込まない）。
+>
+> エンドユーザ向けの動作仕様は [`skills/*/SKILL.md`](skills/) / [`workflows/`](workflows/) / [`formats/`](formats/) / [`README.md`](README.md) に置く。本ファイルにランタイム前提の指示を書かないこと。
+
+This file provides guidance to Claude Code (claude.ai/code) when working on **this repository's source code**.
 
 ## Project Overview
 

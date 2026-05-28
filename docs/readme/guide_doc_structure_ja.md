@@ -1,41 +1,33 @@
 # 文書構造ガイド
 
-`.doc_structure.yaml` はプロジェクトのドキュメント配置場所と種別を宣言する設定ファイルで、forge と doc-advisor の共通基盤として機能する。
+`.doc_structure.yaml` はプロジェクトのドキュメント配置場所と種別を宣言する設定ファイルで、`doc-advisor` の各スキル（`query-rules` / `query-specs` / `create-rules-toc` / `create-specs-toc`）が参照する。
 
 ## Feature（フィーチャー）
 
-forge は **Feature（フィーチャー）** 単位で文書を管理することもできる。Feature とは、関連する仕様をグループ化した開発単位。Feature なしでも動作する。
-
-| 開発パターン                           | Feature の使い方                                                |
-| -------------------------------------- | --------------------------------------------------------------- |
-| [追加開発](guide_sdd_ja.md#6-追加開発) | 既存のメイン仕様に後から追加する機能群を Feature として分割する |
-| アジャイル開発                         | イテレーションごとに Feature 単位で開発・デリバリーする         |
-| 小規模プロジェクト                     | プロジェクト全体を1つの Feature として扱ってもよい              |
-
-Feature を使う場合、各 Feature は共通のディレクトリ構造で管理する:
+`docs/specs/{feature}/...` のように **Feature 単位** で仕様を分割管理する場合、各 Feature は共通のディレクトリ構造を持たせる:
 
 ```
-specs/
-  {feature}/
-    requirements/   # 要件定義書
-    design/         # 設計書
-    plan/           # 計画書
+docs/
+  specs/
+    {feature}/
+      requirements/   # 要件定義書
+      design/         # 設計書
+      plan/           # 計画書
 ```
+
+Feature 単位の分割は必須ではない。プロジェクト全体を 1 つの Feature として扱ってもよい。
 
 ## .doc_structure.yaml
 
 ### 役割
 
-プロジェクトのドキュメント配置場所と種別を宣言するファイル。以下のツールが共通で参照する:
-
-- **forge** — レビュー対象の解決、Feature ディレクトリ検出、ドキュメント作成先の特定
-- **doc-advisor** — ToC 生成のスキャン対象・doc_type 判定
+プロジェクトのドキュメント配置場所と種別を宣言する。`doc-advisor` のスキルはこのファイルを読み、対象ファイルの探索と doc_type 判定に使う。
 
 プロジェクトルート（`.git/` と同階層）に配置する。
 
 ### スキーマ概要
 
-`rules` と `specs` の2カテゴリで構成される。
+`rules` と `specs` の 2 カテゴリで構成される。
 
 ```yaml
 # .doc_structure.yaml
@@ -54,11 +46,11 @@ specs:
   root_dirs:
     - "docs/specs/*/design/"
     - "docs/specs/*/plan/"
-    - "docs/specs/*/requirement/"
+    - "docs/specs/*/requirements/"
   doc_types_map:
     "docs/specs/*/design/": design
     "docs/specs/*/plan/": plan
-    "docs/specs/*/requirement/": requirement
+    "docs/specs/*/requirements/": requirement
   patterns:
     target_glob: "**/*.md"
     exclude: []
@@ -71,6 +63,8 @@ specs:
 | `patterns.target_glob` | ファイル検索パターン（デフォルト: `**/*.md`）                                                            |
 | `patterns.exclude`     | 除外するディレクトリ名（パス内の任意の深さでマッチ）                                                     |
 
+> **YAML 注意**: `doc_types_map` のキーが `*` や `**` を含む場合は `"..."` で **必ず quote** する。`root_dirs` 側の glob entry も quote が安全。
+
 ### 設定例
 
 #### シンプル構成（Feature なし）
@@ -80,11 +74,11 @@ specs:
   root_dirs:
     - docs/specs/design/
     - docs/specs/plan/
-    - docs/specs/requirement/
+    - docs/specs/requirements/
   doc_types_map:
     docs/specs/design/: design
     docs/specs/plan/: plan
-    docs/specs/requirement/: requirement
+    docs/specs/requirements/: requirement
 ```
 
 #### Feature ベース構成
@@ -94,11 +88,11 @@ specs:
   root_dirs:
     - "docs/specs/*/design/"
     - "docs/specs/*/plan/"
-    - "docs/specs/*/requirement/"
+    - "docs/specs/*/requirements/"
   doc_types_map:
     "docs/specs/*/design/": design
     "docs/specs/*/plan/": plan
-    "docs/specs/*/requirement/": requirement
+    "docs/specs/*/requirements/": requirement
 ```
 
 Feature 追加時に `.doc_structure.yaml` の変更は不要。`docs/specs/payment/design/` ディレクトリを作成するだけで自動的に検出される。
@@ -117,28 +111,28 @@ specs:
     "docs/specs/**/requirements/": requirement
 ```
 
-`docs/specs/forge/design/` と `docs/specs/forge/review-PR/design/` の両方が自動検出される。
+`docs/specs/auth/design/` と `docs/specs/auth/social-login/design/` の両方が自動検出される。
 
-## /forge:setup-doc-structure
+## /doc-advisor:setup-doc-structure
 
 ```
-/forge:setup-doc-structure
+/doc-advisor:setup-doc-structure [--update]
 ```
-
-引数なし。
 
 ### 何をするか
 
-- プロジェクトをスキャンして `.doc_structure.yaml` を対話的に生成・更新する
-- 既存 Feature ディレクトリを自動検出し glob パターンで設定する
-- 推奨構成（specs / rules / reference / adr）を提示し、不足ディレクトリを `.gitkeep` 付きで作成する
+- プロジェクトをスキャンして `.doc_structure.yaml` を **対話的に** 生成または更新する
+- 既存ディレクトリを発見し、rules / specs に分類する
+- ユーザの確認を経て `.doc_structure.yaml` を Write する
+
+`--update` を指定した場合、既存 `.doc_structure.yaml` の `root_dirs` に未登録のディレクトリのみ追加する。
 
 ### いつ実行するか
 
-- プロジェクトで forge / doc-advisor を初めて使うとき
+- プロジェクトで `doc-advisor` を初めて使うとき
 - ディレクトリ構造を大きく変更したとき
-- Feature を手動で追加したとき
+- 新しい Feature を手動で追加したとき
 
-## スキーマ仕様リファレンス
+### 手動で書く場合
 
-詳細なフォーマット仕様は [doc_structure_format.md](../../plugins/forge/docs/doc_structure_format.md) を参照。
+スキルを使わず手動で配置することもできる。上記スキーマと例を参考に、プロジェクトルートに `.doc_structure.yaml` を作成する。

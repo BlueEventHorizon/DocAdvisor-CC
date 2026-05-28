@@ -62,4 +62,4 @@ Update the specs search index (ToC) after modifying, creating, or deleting spec 
 
 ## Requirements
 
-- `.doc_structure.yaml` in project root (generate with `/forge:setup-doc-structure`) — see [Document Structure Guide](guide_doc_structure.md)
+- `.doc_structure.yaml` in project root (generate with `/doc-advisor:setup-doc-structure` or write it by hand) — see [Document Structure Guide](guide_doc_structure.md)

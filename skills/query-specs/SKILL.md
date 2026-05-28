@@ -131,4 +131,4 @@ Required documents:
 ## Error Handling
 
 スクリプトが `{"status": "config_required", ...}` を出力した場合:
-AskUserQuestion で `/forge:setup-doc-structure` の実行を案内する
+AskUserQuestion で `/doc-advisor:setup-doc-structure` の実行を案内する（または `.doc_structure.yaml` を手動配置するよう案内。最小例は README.md を参照）

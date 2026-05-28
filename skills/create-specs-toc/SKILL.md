@@ -39,8 +39,9 @@ Generate/update specs ToC (Table of Contents) for AI-searchable document index.
 
 If a script outputs `{"status": "config_required", ...}`, use AskUserQuestion to ask the user:
 
-- "Document directories are not configured. Run /forge:setup-doc-structure to configure?"
-  - Yes → invoke `/forge:setup-doc-structure`, then restart this skill
+- "Document directories are not configured. Run /doc-advisor:setup-doc-structure to configure?"
+  - Yes → invoke `/doc-advisor:setup-doc-structure`, then restart this skill
+  - Manual → tell the user to create `.doc_structure.yaml` at the project root (see README.md for a minimal example), then re-run this skill
   - No → abort
 
 For other unexpected errors, report the error details clearly and use AskUserQuestion to ask the user how to proceed.

@@ -62,4 +62,4 @@ ToC キーワード検索と Embedding セマンティック検索を組み合�
 
 ## 動作要件
 
-- プロジェクトルートに `.doc_structure.yaml`（`/forge:setup-doc-structure` で生成）— [文書構造ガイド](guide_doc_structure_ja.md) を参照
+- プロジェクトルートに `.doc_structure.yaml`（`/doc-advisor:setup-doc-structure` で生成、または手動配置）— [文書構造ガイド](guide_doc_structure_ja.md) を参照

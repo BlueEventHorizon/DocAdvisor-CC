@@ -515,7 +515,10 @@ def _parse_config_yaml(content):
 
         if ':' in stripped and not stripped.startswith('- '):
             key, _, value = stripped.partition(':')
-            key = key.strip()
+            # Strip whitespace and surrounding quotes from key (YAML allows
+            # quoted keys like "docs/specs/**/design/", which must be unquoted
+            # before they are stored or matched against the filesystem).
+            key = key.strip().strip('"\'')
             value = value.strip()
 
             if indent == _INDENT_LEVEL_ROOT:
