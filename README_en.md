@@ -1,249 +1,208 @@
-# Doc Advisor
+# bw-cc-plugins
 
-English | [日本語](README.md)
+Claude Code plugins for **Spec-Driven Development** — write specs first, then let AI implement and review with full context.
 
-[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+**Marketplace version: 0.1.25**
 
-## Introduction
+The marketplace ships **4 plugins** (forge, anvil, doc-advisor, **doc-db**). **doc-db** complements rule/spec discovery with heading-level Hybrid search (Embedding + Lexical) and LLM Rerank. It is **not a superset of doc-advisor**; the two are designed to be used together, sharing the same `.doc_structure.yaml`.
 
-Generative AI can miss important specs even when you say “read the docs.”
-Doc Advisor is built on that constraint to ensure the AI reads only what it truly needs.
+[Japanese README (README.md)](README.md)
 
-## Premise
+## What is Spec-Driven Development?
 
-This project builds on the ideas in:
-[Why generative AI doesn't read documents even when asked — Context Engineering and Doc Advisor](https://zenn.dev/k2moons/articles/ff6399ee33346e)
+Spec-Driven Development is a workflow where every code change traces back to a written specification. **forge** guides you through five stages — requirements, design, plan, implement, and review — so that AI always works from explicit, reviewable intent rather than ad-hoc instructions. Each stage produces a document; each document feeds the next stage. The result is traceable, auditable delivery: you can always answer _why_ a piece of code exists.
 
-Key limitations highlighted there:
+## The Role of doc-advisor
 
-- Context Rot: Information in the middle of long contexts is missed
-- Attention Budget: Attention is finite and degrades with excessive input
-- Satisficing: The model stops early with a “good-enough” answer
+Large projects accumulate rules, standards, and design documents that AI cannot use if it cannot find them. **doc-advisor** indexes these documents (via ToC keyword search and OpenAI Embedding semantic search) and automatically supplies the relevant ones to forge at the moments that matter:
 
-## Goals and Features
+- **During implementation** — project-specific coding rules and related specs are collected before a single line is written.
+- **During review** — applicable rules are added as review perspectives, so reviews check against your actual standards, not generic best practices.
 
-Doc Advisor’s goal is to identify the right documents quickly and reliably.
-Key features:
+This eliminates context gaps: AI implements and reviews with the same knowledge a senior team member would have.
 
-- **Document categories**: Separate rules and specs
-- **doc_type management**: requirement / design / plan
-- **Automatic ToC generation**: Parse `.md`, extract metadata, output YAML
-- **Incremental updates**: SHA-256 change detection
-- **Parallel processing**: Up to 5 concurrent workers
-- **Interruption recovery**: Preserve completed work and resume
-- **Symlink support**: Include external documentation via symbolic links (v3.2+)
+## Workflow
 
-For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
+```mermaid
+flowchart LR
+    subgraph forge
+        R([Requirements]) --> D([Design]) --> P([Plan]) --> I([Implement]) --> RF([Review / Fix])
+    end
+    RF --> DL([Delivery])
+    DA[doc-advisor] -. find context .-> forge
+    DB[doc-db] -. chunk Hybrid search .-> forge
+    AV[anvil] -- commit & PR --> DL
+```
 
-## Design Intent (Highlights)
+## Plugins
 
-- **rules / specs separation**: Reduce search cost and ambiguity
-- **plan excluded from ToC**: Plans are read in full during work
-- **Path-based doc_type detection**: Stable detection without filename constraints
-- **File path as identifier**: Avoid forced IDs and keep references consistent
-- **Incremental processing**: Only reprocess what changed
-- **Interruption-first**: `.toc_work/` keeps artifacts for safe resumption
+| Plugin          | Version | Description                                                                                                                                                                                  |
+| --------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **forge**       | 0.1.1   | AI-powered document lifecycle tool. Create, review, and auto-fix requirements/design/plan docs and code.                                                                                     |
+| **anvil**       | 0.0.8   | GitHub operations toolkit. Create PRs, manage issues, and automate GitHub workflows.                                                                                                         |
+| **doc-advisor** | 0.3.0   | AI-searchable document index with dual search — keyword (ToC) and semantic (OpenAI Embedding). Auto-discovers relevant rules and specs for any task.                                         |
+| **doc-db**      | 0.0.2   | Heading-chunk Hybrid search (Embedding + Lexical) with LLM Rerank. Grep results for IDs / proper nouns are merged in to reduce misses (used together with and complementary to doc-advisor). |
 
-## Typical Use Cases
+## Skills
 
-- Large document sets: Retrieve only what matters
-- Frequent updates: Reprocess deltas only
-- Interruptions: Resume from pending entries
-- Deletions: Apply delete-only updates via checksums
-- Parallel failures: Fall back to serial processing
+### forge
 
-## Quick Start
+> For Feature management and document structure details, see the [Document Structure Guide](docs/readme/guide_doc_structure.md).
 
-### Claude Code
+#### Pipeline
 
-1. Clone the repository (with submodules)
+```mermaid
+flowchart LR
+    REQ["start-requirements<br/>(what to build)"]
+    UXUI["start-uxui-design<br/>(how it looks)"]
+    DES["start-design<br/>(how to build)"]
+    PLAN["start-plan<br/>(when)"]
+    IMPL["start-implement<br/>(build)"]
+
+    REQ --> UXUI -.->|optional| DES --> PLAN --> IMPL
+
+    REV["review<br/>(available at every stage)"]
+    REQ & DES & PLAN & IMPL -.->|anytime| REV
+```
+
+| Stage          | Skill              | Input                        | Output                       |
+| -------------- | ------------------ | ---------------------------- | ---------------------------- |
+| Requirements   | start-requirements | Dialog / source code / Figma | Requirements docs (Markdown) |
+| UXUI Design    | start-uxui-design  | ASCII art from requirements  | Design tokens + UI specs     |
+| Design         | start-design       | Requirements docs            | Design docs (Markdown)       |
+| Plan           | start-plan         | Design docs                  | Plan (YAML)                  |
+| Implementation | start-implement    | Plan                         | Code + progress updates      |
+| Review         | review             | Code / documents             | Findings + fixes             |
+
+#### Getting Started
 
 ```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+# 1. Project setup (first time only)
+/forge:setup-doc-structure
+
+# 2. Requirements through implementation
+/forge:start-requirements my-feature --mode interactive --new
+/forge:start-design my-feature
+/forge:start-plan my-feature
+/forge:start-implement my-feature
+
+# 3. Review (anytime)
+/forge:review code src/ --auto
 ```
 
-> If you already cloned without `--recursive`, run `git submodule update --init`.
+#### Skills
 
-2. Run setup for your target project
+| Skill                                                                                  | Description                                                                                                                      | Trigger                        |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| [**review**](docs/readme/forge/guide_review.md)                                        | Review code & docs with 🔴🟡🟢 severity. Auto-fix with `--auto N`                                                                | `"review"`                     |
+| [**start-requirements**](docs/readme/forge/guide_create_docs.md#start-requirements)    | Create requirements via dialog, reverse-engineering, or Figma                                                                    | `"requirements"`               |
+| [**start-design**](docs/readme/forge/guide_create_docs.md#start-design)                | Create design docs from requirements. Prioritizes asset reuse                                                                    | `"start design"`               |
+| [**start-plan**](docs/readme/forge/guide_create_docs.md#start-plan)                    | Extract tasks from design docs into a YAML plan                                                                                  | `"start plan"`                 |
+| [**start-implement**](docs/readme/forge/guide_implement.md)                            | Select tasks from plan, implement, review, and update                                                                            | `"start implement"`            |
+| [**start-uxui-design**](docs/readme/forge/guide_uxui_design.md)                        | Create design tokens & UI specs with UX evaluation                                                                               | `"UXUI design"`                |
+| **merge-specs**                                                                        | Merge two spec DIRs (base / additional) at content granularity. Additional is canonical; base is revised; pure-new parts migrate | `"merge spec"`                 |
+| [**setup-doc-structure**](docs/readme/guide_doc_structure.md#forgesetup-doc-structure) | Generate `.doc_structure.yaml` + scaffold directories                                                                            | `"setup"`                      |
+| [**setup-version-config**](docs/readme/forge/guide_setup.md#setup-version-config)      | Generate/update `.version-config.yaml`                                                                                           | `"version config"`             |
+| [**update-version**](docs/readme/forge/guide_setup.md#update-version)                  | Bump version across files. patch/minor/major/direct                                                                              | `"version bump"`               |
+| [**clean-rules**](docs/readme/forge/guide_setup.md#clean-rules)                        | Analyze and reorganize rules/ based on taxonomy                                                                                  | `"clean rules"`                |
+| [**help**](docs/readme/forge/guide_setup.md#help)                                      | Interactive help wizard                                                                                                          | `"help"`                       |
+| [_reviewer_](docs/readme/forge/guide_review.md#execution-flow)                         | Evaluate P1/P2/P3 in check order from criteria (single-launch principle)                                                         | ※ Called by review             |
+| [_evaluator_](docs/readme/forge/guide_review.md#execution-flow)                        | Scrutinize review findings and determine fix/skip/confirm                                                                        | ※ Called by review             |
+| [_fixer_](docs/readme/forge/guide_review.md#execution-flow)                            | Fix issues based on review findings                                                                                              | ※ Called by review             |
+| [_present-findings_](docs/readme/forge/guide_review.md#execution-flow)                 | Present review findings interactively, one item at a time                                                                        | ※ Called by review             |
+| [_doc-structure_](docs/readme/guide_doc_structure.md)                                  | Parse and resolve paths from `.doc_structure.yaml`                                                                               | ※ Called by orchestrators      |
+| [_next-spec-id_](docs/readme/forge/guide_create_docs.md)                               | Scan all branches for spec IDs and return the next available number                                                              | ※ Called by start-requirements |
+
+### anvil
+
+> [Detailed Guide](docs/readme/guide_anvil.md) — Usage and examples
+
+| Skill                                                 | Description                                                                                         | Trigger             |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------- |
+| [**commit**](docs/readme/guide_anvil.md#commit)       | Generate commit message from changes, commit & push                                                 | `"commit"`          |
+| [**create-pr**](docs/readme/guide_anvil.md#create-pr) | Create a GitHub draft PR with auto-generated title/body                                             | `"create-pr"`       |
+| **create-issue**                                      | Organize problem, background, and root cause into a GitHub Issue (resolution handled by impl-issue) | `"create issue"`    |
+| **impl-issue**                                        | Run end-to-end from a GitHub Issue: plan, branch, implement, PR (UI Issue supported)                | `"implement issue"` |
+
+### doc-advisor
+
+> [Detailed Guide](docs/readme/guide_doc-advisor.md) — Usage and examples
+
+| Skill                                                                     | Description                                                        | Trigger               |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------- |
+| [**query-rules**](docs/readme/guide_doc-advisor.md#query-rules)           | Search rules with ToC (keyword), Index (semantic), or hybrid mode  | `"query rules"`       |
+| [**query-specs**](docs/readme/guide_doc-advisor.md#query-specs)           | Search specs with ToC (keyword), Index (semantic), or hybrid mode  | `"query specs"`       |
+| [**create-rules-toc**](docs/readme/guide_doc-advisor.md#create-rules-toc) | Update the rules search index (ToC) after modifying rule documents | `"rebuild rules ToC"` |
+| [**create-specs-toc**](docs/readme/guide_doc-advisor.md#create-specs-toc) | Update the specs search index (ToC) after modifying spec documents | `"rebuild specs ToC"` |
+
+### doc-db
+
+> Detailed Guide: [Japanese](docs/readme/guide_doc-db_ja.md) (en TBD) — Usage, examples, and how it complements doc-advisor
+
+| Skill                                                         | Description                                                             | Trigger           |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------- |
+| [**build-index**](docs/readme/guide_doc-db_ja.md#build-index) | Build/update the heading-chunk Index (rules / specs, `--full`, etc.)    | `"build doc-db"`  |
+| [**query**](docs/readme/guide_doc-db_ja.md#query)             | Hybrid / Rerank search. Optionally augments results with full-text grep | `"search doc-db"` |
+
+> **Bold** = user-invocable, _Italic_ = AI-only (called internally by other skills)
+
+## Installation
+
+### Option A: Marketplace (persistent)
+
+Inside a Claude Code session:
+
+```
+/plugin marketplace add BlueEventHorizon/bw-cc-plugins
+/plugin install forge@bw-cc-plugins
+/plugin install anvil@bw-cc-plugins
+/plugin install doc-advisor@bw-cc-plugins
+/plugin install doc-db@bw-cc-plugins
+```
+
+To re-enable a disabled plugin, from your terminal:
 
 ```bash
-cd DocAdvisor-CC
-./setup.sh /path/to/your-project
+claude plugin enable forge@bw-cc-plugins
 ```
 
-3. Launch Claude Code
+`marketplace add` registers the GitHub repo as a plugin source (once per user). Once installed, the plugin is always available.
+
+### Option B: Local directory (per session)
 
 ```bash
-cd /path/to/your-project
-claude
+git clone https://github.com/BlueEventHorizon/bw-cc-plugins.git
+claude --plugin-dir ./bw-cc-plugins/plugins/forge
 ```
 
-4. Configure document directories
+> **Note**: `--plugin-dir` is session-only. You must specify it every time you start Claude Code. To unload, simply start without the flag.
 
-If `setup.sh` detected `.doc_structure.yaml`, directories are auto-configured.
-Otherwise, run the classification skill:
+### Update
+
+From your terminal:
 
 ```bash
-/setup-doc-structure
+claude plugin update forge@bw-cc-plugins --scope local
 ```
 
-5. Generate initial ToC files
+## Document Structure (.doc_structure.yaml)
 
-```bash
-/create-rules-toc --full
-/create-specs-toc --full
-```
+`.doc_structure.yaml` declares where documents live and what types they are. Both forge and doc-advisor reference this file. Generate it with `/forge:setup-doc-structure`.
+→ [Document Structure Guide](docs/readme/guide_doc_structure.md) | [Schema reference](plugins/forge/docs/doc_structure_format.md)
 
-> Using the Makefile:
->
-> ```bash
-> make setup
-> make setup TARGET=/path/to/your-project
-> ```
+## Git Information Cache (.git_information.yaml)
 
-### Codex
-
-For Codex, this repository installs the pre-generated and reviewed `codex_skill_set/` as ordinary environment-wide Codex Skills.
-Target project runtime state and `AGENTS.md` are initialized only when requested.
-
-1. Clone the repository (with submodules)
-
-```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
-```
-
-> If you already cloned without `--recursive`, run `git submodule update --init`.
-
-2. Install the Codex Skills into your environment
-
-```bash
-cd DocAdvisor-CC
-./setup_for_codex.sh
-```
-
-By default this writes:
-
-```text
-~/.codex/skills/
-~/.codex/doc-advisor/resources/
-~/.codex/doc-advisor/install.yaml
-```
-
-To also initialize project runtime state and `AGENTS.md`:
-
-```bash
-./setup_for_codex.sh --project /path/to/your-project
-```
-
-`--project` does not create project-local `.codex/skills/` or `.codex/resources/`. If old project-local Doc Advisor managed files already exist, the managed legacy paths are removed to avoid duplicate stale skills.
-The project-local bridge pattern, where `AGENTS.md` points Codex at project-local `.codex/skills/`, is not an official Codex Skill install. It is documented as a migration and experiment pattern in `specs/codex/design/DES-CODEX-001_setup_for_codex.md`.
-Legacy files from the previous plugin approach, such as `~/plugins/doc-advisor/` or `~/.agents/plugins/marketplace.json`, are not removed automatically. Disable or delete them separately if needed.
-
-3. Launch Codex in the target project
-
-Restart Codex if the new or updated Skills are not visible in the current session.
-
-```bash
-cd /path/to/your-project
-codex
-```
-
-4. Available functions
-
-Codex reads these installed environment Skills.
-
-| Function | Skill |
-| -------- | ----- |
-| rules ToC generation | `create-rules-toc` |
-| specs ToC generation | `create-specs-toc` |
-| rules search | `query-rules` |
-| specs search | `query-specs` |
-| document structure setup | `setup-doc-structure` |
-| requirements authoring | `start-requirements` |
-| design authoring | `start-design` |
-| plan authoring | `start-plan` |
-
-Codex ToC and index outputs are written under `.codex/state/doc-advisor/toc/` and `.codex/state/doc-advisor/index/`.
-They are separate from Claude Code's `.claude/` files.
-The forge authoring wrappers use a chat-based confirmation protocol instead of a dedicated UI tool. When a file creation, overwrite, or decision branch needs approval, Codex presents choices and waits for the user's reply.
-
-## Usage
-
-### Claude Code
-
-### ToC generation commands
-
-```bash
-/create-rules-toc          # Incremental update
-/create-rules-toc --full   # Full rebuild
-
-/create-specs-toc          # Incremental update
-/create-specs-toc --full   # Full rebuild
-```
-
-### Document search skills
-
-```bash
-/query-rules Identify documents for implementing authentication
-/query-specs Find requirements for screen navigation
-```
-
-### Codex
-
-In Codex, use natural-language requests instead of slash commands.
-Codex will refer to the installed Doc Advisor Skills and, when `--project` was used, the Doc Advisor section in `AGENTS.md`.
-
-Examples:
-
-```text
-Regenerate the full rules ToC.
-Incrementally update the specs ToC.
-Find the rules needed to implement authentication.
-Find specs related to screen navigation.
-Configure the document structure.
-Create requirements for the login feature.
-Create a design document for the login feature.
-Create an implementation plan for the login feature.
-```
-
-## Configuration
-
-Config file: `.doc_structure.yaml` (project root)
-
-- Customize `rules` / `specs` root directories and doc_type mappings
-- Add user-defined exclude patterns as needed
-- Doc Advisor internal settings (toc paths, parallelism) are built-in defaults
-
-## Documentation
-
-- Japanese: [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md)
-- English: [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)
+On first run, `/anvil:create-pr` detects your GitHub repo from `git remote` and offers to save the settings to `.git_information.yaml` for future use.
 
 ## Requirements
 
-- Python 3 (standard library only)
-- Claude Code
-- Codex (when using the Codex Skills)
-- Bash shell
-
-## Codex Install Profile
-
-`setup_for_codex.sh` installs only when the source version, commit, layout hash, and `codex_skill_set` hash match `codex_install_profiles/doc-advisor/current.yaml`.
-
-When the `bw-cc-plugins` plugin layout or version changes, regenerate and review the Codex skill set and install profile first.
-
-```bash
-./analyze_codex_install_profile.sh
-./generate_codex_skill_set.sh
-./setup_for_codex.sh
-```
-
-List available profiles with:
-
-```bash
-./setup_for_codex.sh --list-profiles
-```
+- [Claude Code](https://claude.ai/code) CLI
+- Python 3 (for setup scan)
+- [Codex CLI](https://github.com/openai/codex) (optional, for Codex engine; falls back to Claude if unavailable)
+- OpenAI API key (for doc-advisor embedding features; `OPENAI_API_DOCDB_KEY` recommended, falls back to `OPENAI_API_KEY` if unset; per DES-007 unified spec)
+- OpenAI API key (for doc-db index build / search / rerank; `OPENAI_API_DOCDB_KEY` recommended, falls back to `OPENAI_API_KEY` if unset; per DES-007 unified spec)
+- [gh CLI](https://cli.github.com/) (for anvil, authenticated)
 
 ## License
 
-MIT License
+[MIT](LICENSE)

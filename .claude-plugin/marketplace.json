@@ -1,0 +1,53 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "bw-cc-plugins",
+  "metadata": {
+    "description": "Document lifecycle management, GitHub operations, and AI-searchable document indexing",
+    "version": "0.1.25"
+  },
+  "owner": {
+    "name": "moons"
+  },
+  "plugins": [
+    {
+      "name": "forge",
+      "description": "AI-powered document lifecycle tool. Create, review, and auto-fix requirements/design/plan docs and code.",
+      "version": "0.1.1",
+      "author": {
+        "name": "moons"
+      },
+      "source": "./plugins/forge",
+      "homepage": "https://github.com/BlueEventHorizon/bw-cc-plugins"
+    },
+    {
+      "name": "anvil",
+      "description": "GitHub operations toolkit. Create PRs, manage issues, and automate GitHub workflows.",
+      "version": "0.0.8",
+      "author": {
+        "name": "moons"
+      },
+      "source": "./plugins/anvil",
+      "homepage": "https://github.com/BlueEventHorizon/bw-cc-plugins"
+    },
+    {
+      "name": "doc-advisor",
+      "description": "AI-searchable document index (ToC) generator for Claude Code",
+      "version": "0.3.0",
+      "author": {
+        "name": "moons"
+      },
+      "source": "./plugins/doc-advisor",
+      "homepage": "https://github.com/BlueEventHorizon/bw-cc-plugins"
+    },
+    {
+      "name": "doc-db",
+      "description": "Heading-chunk hybrid search index plugin (Embedding + Lexical + LLM Rerank)",
+      "version": "0.0.2",
+      "author": {
+        "name": "moons"
+      },
+      "source": "./plugins/doc-db",
+      "homepage": "https://github.com/BlueEventHorizon/bw-cc-plugins"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# forge 内蔵ドキュメント用 .doc_structure.yaml
+# update-forge-toc スキルが一時的に使用する設定
+# doc_structure_version: 3.0
+
+rules:
+  output_dir: plugins/forge/
+  root_dirs:
+    - plugins/forge/docs/
+    - plugins/forge/skills/*/docs/
+  doc_types_map:
+    plugins/forge/docs/: rule
+    plugins/forge/skills/*/docs/: rule
+  patterns:
+    target_glob: "**/*.md"
+    exclude: []

@@ -142,7 +142,8 @@
 
       "Skill(forge *)",
       "Skill(anvil *)",
-      "Skill(xcode *)",
+      "Skill(xcode-build)",
+      "Skill(xcode-test)",
 
       "Skill(create-rules-toc)",
       "Skill(create-specs-toc)",

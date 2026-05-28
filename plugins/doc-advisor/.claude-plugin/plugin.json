@@ -1,0 +1,13 @@
+{
+  "name": "doc-advisor",
+  "description": "AI-searchable document index (ToC) generator for Claude Code",
+  "version": "0.3.0",
+  "author": { "name": "moons" },
+  "license": "MIT",
+  "skills": [
+    "./skills/create-rules-toc",
+    "./skills/create-specs-toc",
+    "./skills/query-rules",
+    "./skills/query-specs"
+  ]
+}

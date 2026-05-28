@@ -1,0 +1,95 @@
+# version_config_version: 1.0
+
+targets:
+  - name: marketplace
+    version_file: .claude-plugin/marketplace.json
+    version_path: metadata.version
+    sync_files:
+      - path: README.md
+        pattern: "**マーケットプレイスバージョン: {version}**"
+        filter: "**マーケットプレイスバージョン:"
+      - path: README_en.md
+        pattern: "**Marketplace version: {version}**"
+        filter: "**Marketplace version:"
+        optional: true
+
+  - name: forge
+    version_file: plugins/forge/.claude-plugin/plugin.json
+    version_path: version
+    sync_files:
+      - path: .claude-plugin/marketplace.json
+        pattern: '"version": "{version}"'
+        filter: '"name": "forge"'
+      - path: README.md
+        pattern: "| **forge** | {version} |"
+        filter: "| **forge**"
+      - path: README_en.md
+        pattern: "| **forge** | {version} |"
+        filter: "| **forge**"
+        optional: true
+      - path: CLAUDE.md
+        pattern: "**forge** (v{version})"
+        filter: "**forge** (v"
+
+  - name: anvil
+    version_file: plugins/anvil/.claude-plugin/plugin.json
+    version_path: version
+    sync_files:
+      - path: .claude-plugin/marketplace.json
+        pattern: '"version": "{version}"'
+        filter: '"name": "anvil"'
+      - path: README.md
+        pattern: "| **anvil** | {version} |"
+        filter: "| **anvil**"
+      - path: README_en.md
+        pattern: "| **anvil** | {version} |"
+        filter: "| **anvil**"
+        optional: true
+
+  - name: doc-advisor
+    version_file: plugins/doc-advisor/.claude-plugin/plugin.json
+    version_path: version
+    sync_files:
+      - path: .claude-plugin/marketplace.json
+        pattern: '"version": "{version}"'
+        filter: '"name": "doc-advisor"'
+      - path: README.md
+        pattern: "| **doc-advisor** | {version} |"
+        filter: "| **doc-advisor**"
+      - path: README_en.md
+        pattern: "| **doc-advisor** | {version} |"
+        filter: "| **doc-advisor**"
+        optional: true
+      - path: CLAUDE.md
+        pattern: "**doc-advisor** (v{version})"
+        filter: "**doc-advisor** (v"
+
+  - name: doc-db
+    version_file: plugins/doc-db/.claude-plugin/plugin.json
+    version_path: version
+    sync_files:
+      - path: .claude-plugin/marketplace.json
+        pattern: '"version": "{version}"'
+        filter: '"name": "doc-db"'
+      - path: README.md
+        pattern: "| **doc-db**      | {version} |"
+        filter: "| **doc-db**"
+      - path: README_en.md
+        pattern: "| **doc-db**      | {version} |"
+        filter: "| **doc-db**"
+        optional: true
+      - path: CLAUDE.md
+        pattern: "**doc-db** (v{version})"
+        filter: "**doc-db** (v"
+
+changelog:
+  file: CHANGELOG.md
+  format: keep-a-changelog
+  git_log_auto: false
+  section_per_target: true
+
+git:
+  tag_format: "{target}-v{version}"
+  commit_message: "chore: bump {target} to {version}"
+  auto_tag: false
+  auto_commit: false

@@ -1,247 +1,211 @@
-# Doc Advisor
+# bw-cc-plugins
 
-[English](README_en.md) | 日本語
+**仕様駆動開発（Spec-Driven Development）** のための Claude Code プラグイン — 仕様を先に書き、AI がフルコンテキストで実装・レビューする。
 
-[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+**マーケットプレイスバージョン: 0.1.25**
 
-## はじめに
+マーケットプレイスは **4 つのプラグイン**（forge、anvil、doc-advisor、**doc-db**）で構成される。**doc-db** は見出し単位 chunk の Embedding + Lexical による Hybrid 検索と LLM Rerank で、ルール・仕様文書の発見精度を補完する。doc-advisor（ToC／軽量インデックス）と**上位互換ではなく併用**し、同一の `.doc_structure.yaml` を参照する。
 
-生成AIに「ドキュメントを読んで」と指示しても、重要な仕様を見落とすことがあります。
-Doc Advisor は、この構造的な限界を前提に「必要な文書だけを確実に読ませる」ための運用を実現する仕組みです。
+[English README (README_en.md)](README_en.md)
 
-## 前提
+## 仕様駆動開発とは
 
-[なぜ生成AIは「ドキュメントを読んで」と言っても読まないのか？ ― コンテキスト・エンジニアリングと Doc Advisor](https://zenn.dev/k2moons/articles/ff6399ee33346e) の問題意識を土台にしています。
-指摘されている主な制約は次の通りです。
+仕様駆動開発は、すべてのコード変更を書かれた仕様に遡れるワークフローである。**forge** が要件定義・設計・計画・実装・レビューの5段階を導き、AI が場当たり的な指示ではなく明文化された意図に基づいて作業する。各段階で文書が生まれ、次の段階の入力になる。結果として追跡可能で監査可能な成果物が得られる — コードがなぜ存在するかを常に説明できる。
 
-- Context Rot: 長い文脈ほど「真ん中」の情報が読まれにくい
-- Attention Budget: 注意資源は有限であり、情報過多で精度が落ちる
-- Satisficing: 探索を十分に行わず「それっぽい答え」で止まる
+→ 哲学と追加開発ワークフローの詳細は [仕様駆動開発ガイド](docs/readme/guide_sdd_ja.md) を参照。
 
-## Doc Advisor の目的と機能
+## doc-advisor の役割
 
-Doc Advisor の目的は「必要な文書を、短時間で、確実に特定できるようにすること」です。
-主な機能は次の通りです。
+プロジェクトが大きくなると、ルール・規約・設計文書が蓄積される。AI がそれらを見つけられなければ活用できない。**doc-advisor** はこれらの文書をインデックス化し（ToC キーワード検索 + OpenAI Embedding セマンティック検索）、forge の重要な場面で自動的に提供する:
 
-- **ドキュメント分類**: rules と specs を分離
-- **doc_type 管理**: requirement / design / plan
-- **ToC 自動生成**: `.md` を解析してメタデータを抽出し YAML 化
-- **差分更新**: SHA-256 で変更検出
-- **並列処理**: 最大 5 並列
-- **中断耐性**: 完了分を保持し再開可能
-- **シンボリックリンク対応**: シンボリックリンク経由で外部ドキュメントを統合 (v3.2+)
+- **実装時** — コードを書く前にプロジェクト固有の実装ルールと関連仕様を収集する。
+- **レビュー時** — 適用すべきルールをレビュー観点として追加し、汎用的なベストプラクティスではなくプロジェクトの実際の基準で検査する。
 
-詳細は [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md) を参照してください。
+これによりコンテキストの欠損がなくなる — AI がシニアメンバーと同じ知識で実装・レビューできるようになる。
 
-## 設計の意図（要点）
+## ワークフロー
 
-- **rules / specs の分離**: 開発ドキュメントと仕様書を明確に分け、参照コストを下げる
-- **plan の除外**: plan は作業時に全文読み込みする前提のため、ToC から外す
-- **パスによる doc_type 判定**: ファイル名の命名自由度を保ちつつ判定を安定化
-- **ファイルパスの識別子化**: 余分なID強制を避け、参照を一貫させる
-- **差分更新**: 変更分のみ処理して運用負荷を削減
-- **中断前提**: `.toc_work/` に成果物を保持し、途中から再開できる
+```mermaid
+flowchart LR
+    subgraph forge
+        R(["要件定義"]) --> D(["設計"]) --> P(["計画"]) --> I(["実装"]) --> RF(["レビュー / 修正"])
+    end
+    RF --> DL(["成果物"])
+    DA[doc-advisor] -. "コンテキスト収集" .-> forge
+    DB[doc-db] -. "chunk Hybrid 検索" .-> forge
+    AV[anvil] -- "コミット & PR" --> DL
+```
 
-## 想定ケース
+## プラグイン一覧
 
-- 大量ドキュメント: 必要文書だけを検索で抽出
-- 頻繁な更新: 変更分のみ再処理
-- 途中中断: 未完了のみ再開
-- 削除反映: チェックサム差分で delete-only
-- 並列失敗: 直列フォールバックで継続
+| プラグイン      | バージョン | 説明                                                                                                                                                     |
+| --------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **forge**       | 0.1.1      | AI によるドキュメントライフサイクルツール。要件定義・設計・計画書の作成、コード・文書レビュー、自動修正、品質確定に対応                                  |
+| **anvil**       | 0.0.8      | GitHub 操作ツールキット。PR 作成、Issue 管理、GitHub ワークフロー自動化に対応                                                                            |
+| **doc-advisor** | 0.3.0      | AI 検索可能な文書インデックス。キーワード（ToC）と OpenAI Embedding セマンティック検索の2層構造で、タスクに関連するルール・仕様文書を自動発見する        |
+| **doc-db**      | 0.0.2      | 見出し chunk 単位の Hybrid 検索（Embedding + Lexical）と LLM Rerank。ID や固有名詞は grep 結果も統合して取りこぼしを抑える（doc-advisor とは併用・補完） |
 
-## クイックスタート
+## スキル一覧
 
-### Claude Code で使う
+### forge
 
-1. リポジトリをクローン（submodule 含む）
+> Feature と文書構造管理の詳細は [文書構造ガイド](docs/readme/guide_doc_structure_ja.md) を参照。
+
+#### パイプライン
+
+```mermaid
+flowchart LR
+    REQ["start-requirements<br/>(何を作るか)"]
+    UXUI["start-uxui-design<br/>(どう見せるか)"]
+    DES["start-design<br/>(どう作るか)"]
+    PLAN["start-plan<br/>(いつ作るか)"]
+    IMPL["start-implement<br/>(作る)"]
+
+    REQ --> UXUI -.->|optional| DES --> PLAN --> IMPL
+
+    REV["review<br/>(全ステージで利用可)"]
+    REQ & DES & PLAN & IMPL -.->|"随時"| REV
+```
+
+| 段階          | スキル             | 入力                        | 出力                       |
+| ------------- | ------------------ | --------------------------- | -------------------------- |
+| 要件定義      | start-requirements | 対話 / ソースコード / Figma | 要件定義書（Markdown）     |
+| UXUI デザイン | start-uxui-design  | 要件定義書の ASCII アート   | デザイントークン + UI 仕様 |
+| 設計          | start-design       | 要件定義書                  | 設計書（Markdown）         |
+| 計画          | start-plan         | 設計書                      | 計画書（YAML）             |
+| 実装          | start-implement    | 計画書                      | コード + 進捗更新          |
+| レビュー      | review             | コード / 文書               | 指摘 + 修正                |
+
+#### はじめかた
 
 ```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+# 1. プロジェクト設定（初回のみ）
+/forge:setup-doc-structure
+
+# 2. 要件定義から実装まで
+/forge:start-requirements my-feature --mode interactive --new
+/forge:start-design my-feature
+/forge:start-plan my-feature
+/forge:start-implement my-feature
+
+# 3. レビュー（随時）
+/forge:review code src/ --auto
 ```
 
-> 既存クローンの場合は `git submodule update --init` を実行してください。
+#### スキル一覧
 
-2. ターゲットプロジェクトにセットアップ
+| スキル                                                                                    | 説明                                                                                                                         | トリガー                            |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| [**review**](docs/readme/forge/guide_review_ja.md)                                        | コード・文書を 🔴🟡🟢 重大度付きでレビュー。`--auto N` で自動修正                                                            | `"レビューして"`                    |
+| [**start-requirements**](docs/readme/forge/guide_create_docs_ja.md#start-requirements)    | 対話・ソース解析・Figma の 3 モードで要件定義書を作成                                                                        | `"要件定義"`                        |
+| [**start-design**](docs/readme/forge/guide_create_docs_ja.md#start-design)                | 要件定義書から設計書を作成。既存資産の再利用を重視                                                                           | `"設計書作成"`                      |
+| [**start-plan**](docs/readme/forge/guide_create_docs_ja.md#start-plan)                    | 設計書からタスクを抽出し YAML 計画書を作成                                                                                   | `"計画書作成"`                      |
+| [**start-implement**](docs/readme/forge/guide_implement_ja.md)                            | 計画書のタスクを選択し、実装・レビュー・計画書更新を一連で実行                                                               | `"実装開始"`                        |
+| [**start-uxui-design**](docs/readme/forge/guide_uxui_design_ja.md)                        | 要件定義書からデザイントークン・UI 仕様を UX 評価付きで創造                                                                  | `"UXUIデザイン"`                    |
+| **create-feature-from-markdown-plan**                                                     | Claude plan mode の Markdown plan から要件定義書 → 設計書を一気通貫で作成（forge 実装計画書 `{feature}_plan.yaml` は対象外） | `"markdown plan から feature 作成"` |
+| **merge-specs**                                                                           | 2 つの仕様 DIR（基本 / 追加）を内容単位でマージ。追加側を正として基本側を改訂し、純粋新規分のみ移送                          | `"spec をマージ"`                   |
+| [**setup-doc-structure**](docs/readme/guide_doc_structure_ja.md#forgesetup-doc-structure) | `.doc_structure.yaml` 生成 + ディレクトリ scaffold                                                                           | `"初期設定"`                        |
+| [**setup-version-config**](docs/readme/forge/guide_setup_ja.md#setup-version-config)      | `.version-config.yaml` 生成・更新                                                                                            | `"バージョン設定"`                  |
+| [**update-version**](docs/readme/forge/guide_setup_ja.md#update-version)                  | バージョン一括更新。patch/minor/major/直接指定                                                                               | `"バージョン更新"`                  |
+| [**clean-rules**](docs/readme/forge/guide_setup_ja.md#clean-rules)                        | rules/ を分類学に基づいて分析・再構築                                                                                        | `"rules を整理"`                    |
+| [**help**](docs/readme/forge/guide_setup_ja.md#help)                                      | インタラクティブヘルプ                                                                                                       | `"ヘルプ"`                          |
+| [_reviewer_](docs/readme/forge/guide_review_ja.md#実行フロー)                             | criteria に基づき P1/P2/P3 をチェック順で順次評価 (1 起動原則)                                                               | ※ review が委譲                     |
+| [_evaluator_](docs/readme/forge/guide_review_ja.md#実行フロー)                            | レビュー指摘を吟味し修正/スキップ/要確認を判定                                                                               | ※ review が委譲                     |
+| [_fixer_](docs/readme/forge/guide_review_ja.md#実行フロー)                                | レビュー指摘に基づきコード・文書を修正                                                                                       | ※ review が委譲                     |
+| [_present-findings_](docs/readme/forge/guide_review_ja.md#実行フロー)                     | レビュー結果を対話的に1件ずつ提示                                                                                            | ※ review が委譲                     |
+| [_doc-structure_](docs/readme/guide_doc_structure_ja.md)                                  | `.doc_structure.yaml` のパース・パス解決                                                                                     | ※ 各オーケストレーターが呼び出し    |
+| [_next-spec-id_](docs/readme/forge/guide_create_docs_ja.md)                               | 全ブランチをスキャンして仕様書 ID の次番を取得                                                                               | ※ start-requirements が呼び出し     |
+
+### anvil
+
+> [詳細ガイド](docs/readme/guide_anvil_ja.md) — 使い方、使用例
+
+| スキル                                                   | 説明                                                                                   | トリガー              |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------- |
+| [**commit**](docs/readme/guide_anvil_ja.md#commit)       | 変更内容からコミットメッセージを自動生成し commit & push                               | `"コミットして"`      |
+| [**create-pr**](docs/readme/guide_anvil_ja.md#create-pr) | GitHub PR をドラフト作成。コミット差分からタイトル/本文を自動生成                      | `"PR を作成"`         |
+| **create-issue**                                         | 問題・背景・原因を整理して GitHub Issue を作成（解決策は impl-issue が担当）           | `"issue を作成"`      |
+| **impl-issue**                                           | GitHub Issue から実装計画策定→ブランチ作成→実装→PR 作成までを一貫実行（UI Issue 対応） | `"この issue を実装"` |
+
+### doc-advisor
+
+> [詳細ガイド](docs/readme/guide_doc-advisor_ja.md) — 使い方、使用例
+
+| スキル                                                                       | 説明                                                                           | トリガー           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ |
+| [**query-rules**](docs/readme/guide_doc-advisor_ja.md#query-rules)           | ToC（キーワード）・Index（セマンティック）・ハイブリッドでルール文書を検索する | `"ルール確認"`     |
+| [**query-specs**](docs/readme/guide_doc-advisor_ja.md#query-specs)           | ToC（キーワード）・Index（セマンティック）・ハイブリッドで仕様文書を検索する   | `"仕様確認"`       |
+| [**create-rules-toc**](docs/readme/guide_doc-advisor_ja.md#create-rules-toc) | ルール文書の変更後に ToC を構築・更新する                                      | `"rules ToC 更新"` |
+| [**create-specs-toc**](docs/readme/guide_doc-advisor_ja.md#create-specs-toc) | 仕様文書の変更後に ToC を構築・更新する                                        | `"specs ToC 更新"` |
+
+> **太字** = ユーザー起動可能、_斜体_ = AI 専用（他スキルから内部的に呼び出される）
+
+### doc-db
+
+> [詳細ガイド](docs/readme/guide_doc-db_ja.md) — 使い方、使用例、doc-advisor との併用
+
+| スキル                                                        | 説明                                                                 | トリガー            |
+| ------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+| [**build-index**](docs/readme/guide_doc-db_ja.md#build-index) | 見出し chunk 単位で Index を構築・更新（rules / specs、`--full` 等） | `"doc-db の index"` |
+| [**query**](docs/readme/guide_doc-db_ja.md#query)             | Hybrid / Rerank 検索。必要に応じ grep で全文行検索し結果を統合       | `"doc-db で検索"`   |
+
+## インストール
+
+### 方法 A: マーケットプレイス経由（永続）
+
+Claude Code セッション内で:
+
+```
+/plugin marketplace add BlueEventHorizon/bw-cc-plugins
+/plugin install forge@bw-cc-plugins
+/plugin install anvil@bw-cc-plugins
+/plugin install doc-advisor@bw-cc-plugins
+/plugin install doc-db@bw-cc-plugins
+```
+
+無効化したプラグインを再有効化するには、ターミナルから:
 
 ```bash
-cd DocAdvisor-CC
-./setup.sh /path/to/your-project
+claude plugin enable forge@bw-cc-plugins
 ```
 
-3. Claude Code を起動
+`marketplace add` は GitHub リポジトリをプラグイン取得元として登録します（ユーザーごとに1回）。一度インストールすれば、常に利用可能です。
+
+### 方法 B: ローカルディレクトリ（セッション限定）
 
 ```bash
-cd /path/to/your-project
-claude
+git clone https://github.com/BlueEventHorizon/bw-cc-plugins.git
+claude --plugin-dir ./bw-cc-plugins/plugins/forge
 ```
 
-4. ドキュメントディレクトリの設定
+> **注意**: `--plugin-dir` はセッション限定です。Claude Code を起動するたびに指定が必要です。解除するには、フラグなしで起動するだけです。
 
-`setup.sh` が `.doc_structure.yaml` を検出した場合、ディレクトリは自動設定されます。
-検出されなかった場合は、分類スキルを実行してください:
+### 更新
+
+ターミナルから:
 
 ```bash
-/setup-doc-structure
+claude plugin update forge@bw-cc-plugins --scope local
 ```
 
-5. 初回 ToC 生成
+## 文書構造管理 (.doc_structure.yaml)
 
-```bash
-/create-rules-toc --full
-/create-specs-toc --full
-```
+`.doc_structure.yaml` はプロジェクトのドキュメント配置場所と種別を宣言する設定ファイル。forge・doc-advisor・doc-db が参照する。`/forge:setup-doc-structure` で生成する。
+→ [文書構造ガイド](docs/readme/guide_doc_structure_ja.md) | [スキーマ仕様](plugins/forge/docs/doc_structure_format.md)
 
-> Makefile を使う場合:
->
-> ```bash
-> make setup
-> make setup TARGET=/path/to/your-project
-> ```
+## Git 情報キャッシュ (.git_information.yaml)
 
-### Codex で使う
+`/anvil:create-pr` の初回実行時に `git remote` から GitHub リポジトリを検出し、`.git_information.yaml` への設定保存を提案します。
 
-Codex では、DocAdvisor 内で事前生成・レビュー済みの `codex_skill_set/` を、環境全体で使う通常の Codex Skill としてインストールします。
-必要な場合だけ target project の `.codex/state/doc-advisor/` と `AGENTS.md` を初期化します。
+## 動作要件
 
-1. リポジトリをクローン（submodule 含む）
-
-```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
-```
-
-> 既存クローンの場合は `git submodule update --init` を実行してください。
-
-2. Codex Skill を環境全体へインストール
-
-```bash
-cd DocAdvisor-CC
-./setup_for_codex.sh
-```
-
-デフォルトでは次に配置されます。
-
-```text
-~/.codex/skills/
-~/.codex/doc-advisor/resources/
-~/.codex/doc-advisor/install.yaml
-```
-
-特定 project の runtime state と `AGENTS.md` も初期化する場合:
-
-```bash
-./setup_for_codex.sh --project /path/to/your-project
-```
-
-`--project` は project-local な `.codex/skills/` や `.codex/resources/` を作成しません。既存の古い project-local Doc Advisor 管理ファイルがある場合は、重複 Skill を避けるため管理対象だけ削除します。
-`AGENTS.md` で project 内の `.codex/skills/` を参照させる project-local bridge は正式な Codex Skill install ではありません。移行・実験用の方式として、詳細は `specs/codex/design/DES-CODEX-001_setup_for_codex.md` に記録しています。
-以前の plugin 方式で作成した `~/plugins/doc-advisor/` や `~/.agents/plugins/marketplace.json` は自動削除しません。必要なら別途無効化・削除してください。
-
-3. ターゲットプロジェクトで Codex を起動
-
-新しい Skill が現在の Codex session に見えない場合は、Codex を再起動してください。
-
-```bash
-cd /path/to/your-project
-codex
-```
-
-4. Codex で使える機能
-
-Codex は環境にインストールされた次の Skill を参照します。
-
-| 機能 | Skill |
-| ---- | ----- |
-| rules ToC 生成 | `create-rules-toc` |
-| specs ToC 生成 | `create-specs-toc` |
-| rules 検索 | `query-rules` |
-| specs 検索 | `query-specs` |
-| ドキュメント構成の初期設定 | `setup-doc-structure` |
-| 要件定義書作成 | `start-requirements` |
-| 設計書作成 | `start-design` |
-| 計画書作成 | `start-plan` |
-
-Codex 用の ToC / index 出力先は `.codex/state/doc-advisor/toc/` と `.codex/state/doc-advisor/index/` です。
-Claude Code 用の `.claude/` とは分離されます。
-forge の文書作成系 wrapper は、専用 UI ではなくチャット上の確認プロトコルを使います。ファイル作成・上書き・判断分岐が必要な場合は、Codex が選択肢を提示してユーザーの返答を待つ運用です。
-
-## 使い方
-
-### Claude Code
-
-### ToC 生成コマンド
-
-```bash
-/create-rules-toc          # 差分更新
-/create-rules-toc --full   # 全件再生成
-
-/create-specs-toc          # 差分更新
-/create-specs-toc --full   # 全件再生成
-```
-
-### ドキュメント検索スキル
-
-```bash
-/query-rules 認証機能の実装に必要な文書を特定
-/query-specs 画面遷移の要件を特定
-```
-
-### Codex
-
-Codex では slash command ではなく、自然文で依頼します。
-必要に応じて環境にインストールされた Doc Advisor Skill と、`--project` で追加した `AGENTS.md` の Doc Advisor セクションが参照されます。
-
-例:
-
-```text
-rules の ToC を全件再生成してください
-specs の ToC を差分更新してください
-認証機能の実装に必要な rules を特定してください
-画面遷移に関係する specs を探してください
-ドキュメント構成を設定してください
-ログイン機能の要件定義書を作成してください
-ログイン機能の設計書を作成してください
-ログイン機能の実装計画を作成してください
-```
-
-## 設定
-
-設定ファイル: `.doc_structure.yaml`（プロジェクトルート）
-
-- `rules` / `specs` のルートディレクトリや doc_type マッピングを変更可能
-- 除外パターンはユーザー定義で追加可能
-- Doc Advisor 内部設定（ToC パス・並列数）はコードデフォルトで管理
-
-## ドキュメント
-
-- 日本語: [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md)
-- 英語: [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)
-
-## 必要要件
-
-- Python 3（標準ライブラリのみ）
-- Claude Code
-- Codex（Codex Skill を使う場合）
-- Bash シェル
-
-## Codex install profile
-
-`setup_for_codex.sh` は、`codex_install_profiles/doc-advisor/current.yaml` に記録された source version / commit / layout hash / `codex_skill_set` hash と一致する場合だけインストールします。
-
-`bw-cc-plugins` の plugin 構成や version が変わった場合は、先に Codex Skill セットと profile を再生成・レビューしてください。
-
-```bash
-./analyze_codex_install_profile.sh
-./generate_codex_skill_set.sh
-./setup_for_codex.sh
-```
-
-利用可能な profile は次で確認できます。
-
-```bash
-./setup_for_codex.sh --list-profiles
-```
+- [Claude Code](https://claude.ai/code) CLI
+- Python 3（setup スキャン用）
+- [Codex CLI](https://github.com/openai/codex)（任意。Codex エンジン使用時に必要。未インストールの場合は Claude にフォールバック）
+- OpenAI API キー（doc-advisor の embedding 使用時。`OPENAI_API_DOCDB_KEY` 推奨。未設定時は `OPENAI_API_KEY` にフォールバック。DES-007 統一仕様）
+- OpenAI API キー（doc-db の Index 構築・検索・Rerank 使用時。`OPENAI_API_DOCDB_KEY` 推奨。未設定時は `OPENAI_API_KEY` にフォールバック。DES-007 統一仕様）
+- [gh CLI](https://cli.github.com/)（anvil 用、認証済み）
 
 ## ライセンス
 
-MIT License
+[MIT](LICENSE)
