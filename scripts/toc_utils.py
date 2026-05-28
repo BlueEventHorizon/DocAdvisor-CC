@@ -134,7 +134,7 @@ def resolve_config_path(config_value, default_base, project_root):
     Simple names (no '/') are resolved relative to default_base.
 
     This supports both default paths (.claude/doc-advisor/...) and
-    output_dir-derived paths (plugins/forge/doc-advisor/...) as project-relative,
+    output_dir-derived paths (e.g., custom_dir/doc-advisor/...) as project-relative,
     while keeping simple fallback names (.toc_work, .toc_checksums.yaml) as
     default_base-relative.
 

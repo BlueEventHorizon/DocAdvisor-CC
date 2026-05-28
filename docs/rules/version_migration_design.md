@@ -330,8 +330,6 @@ targets = [5, 6]  (sorted, 4 < v <= 6)
 
 `.doc_structure.yaml` のバージョンマイグレーションについては以下を参照:
 
-- 要件定義: `docs/specs/common/requirement/COMMON-REQ-001_versioned_migration.md`
-- 設計: `docs/specs/forge/design/DES-016_doc_structure_version_management_design.md`
-- 実装: `plugins/forge/scripts/migrate_doc_structure.py`
+- 要件定義: `docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md`
 
-本ルール文書の原則（パイプライン、冪等性等）に準拠し、テキスト操作（`fn(str) -> str`）で実装されている。
+本ルール文書の原則（パイプライン、冪等性等）に準拠する。実装は forge プラグインに存在していたが、forge 分離に伴い、現リポジトリ内には含まれない。将来 `.doc_structure.yaml` の version 移行が必要となった場合は、本ルールに従って実装すること。

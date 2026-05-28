@@ -51,14 +51,14 @@ argument-hint: "[--toc|--index] task description"
 
 ## mode = toc
 
-`${CLAUDE_PLUGIN_ROOT}/docs/query_toc_workflow.md` を Read し、`category = rules` として手順に従う。
+`${CLAUDE_PLUGIN_ROOT}/workflows/query_toc_workflow.md` を Read し、`category = rules` として手順に従う。
 
 - ToC が存在しない場合: AskUserQuestion で `/doc-advisor:create-rules-toc` の実行を案内する。**Index にフォールバックしない**
 - 候補あり → Step: 最終判定 へ
 
 ## mode = index
 
-`${CLAUDE_PLUGIN_ROOT}/docs/query_index_workflow.md` を Read し、`category = rules` として手順に従う。
+`${CLAUDE_PLUGIN_ROOT}/workflows/query_index_workflow.md` を Read し、`category = rules` として手順に従う。
 
 - Index 構築に失敗した場合（OPENAI_API_DOCDB_KEY/OPENAI_API_KEY 未設定等）: AskUserQuestion でエラー内容を通知する。**ToC にフォールバックしない**
 - 候補あり → Step: 最終判定 へ
@@ -88,14 +88,14 @@ ToC キーワード検索を **常時** 実行し、API キー（`OPENAI_API_DOC
 
 ### Step B: ToC ワークフロー実行（常時）
 
-`${CLAUDE_PLUGIN_ROOT}/docs/query_toc_workflow.md` を Read し、`category = rules` として手順に従う。
+`${CLAUDE_PLUGIN_ROOT}/workflows/query_toc_workflow.md` を Read し、`category = rules` として手順に従う。
 
 - ToC が未生成の場合: 候補なし（空リスト）として扱う（query_toc_workflow.md の既存仕様）。エラーにしない
 - 得られた候補パスを `S_toc` として保持
 
 ### Step C: Index ワークフロー実行（Step A で `api_key_present = true` の場合のみ）
 
-`${CLAUDE_PLUGIN_ROOT}/docs/query_index_workflow.md` を Read し、`category = rules` として手順に従う。
+`${CLAUDE_PLUGIN_ROOT}/workflows/query_index_workflow.md` を Read し、`category = rules` として手順に従う。
 
 - Auto-update / Procedure いずれの段階でも `{"status": "error", ...}` が返ったら **静かに空リスト** として扱う（query_index_workflow.md の既存仕様）。auto モードを失敗にしない
 - 得られた候補パスを `S_index` として保持

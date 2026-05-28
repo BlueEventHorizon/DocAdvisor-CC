@@ -2,7 +2,7 @@
 
 **作成日**: 2026-01-01
 **目的**: 全文書の一貫性を確保するためのメタルール
-**適用範囲**: `docs/rules/`, `docs/specs/`, `.claude/skills/`, `plugins/*/skills/*/SKILL.md`, `plugins/*/docs/`, `meta/`
+**適用範囲**: `docs/rules/`, `docs/specs/`, `.claude/skills/`, `skills/*/SKILL.md`, `workflows/`, `formats/`
 
 ---
 
@@ -183,7 +183,7 @@ applicable_when:
 
 ### 3.2 メタデータ（frontmatter）
 
-SKILL 文書（`plugins/*/skills/*/SKILL.md`、`.claude/skills/*/SKILL.md`）およびワークフロー文書は frontmatter を持つ。
+SKILL 文書（`skills/*/SKILL.md`、`.claude/skills/*/SKILL.md`）およびワークフロー文書は frontmatter を持つ。
 
 ```yaml
 ---
@@ -277,14 +277,21 @@ docs/
 
 #### specs/ 内の文書を参照する場合
 
-ID ベース参照記法は `plugins/forge/docs/spec_format.md` の「ID 参照記法」セクションを参照する。
+ID プレフィックス（`REQ-001`, `DES-002`, `ADR-003` 等）を使う。
 
-#### `docs/rules/`、`.claude/`、`plugins/` の文書を参照する場合
+```markdown
+REQ-001 を参照
+DES-006 に従う
+```
+
+ID はファイル名先頭にあり、ブランチ間で衝突しない一意の識別子。
+
+#### `docs/rules/`、`.claude/`、`workflows/`、`formats/` の文書を参照する場合
 
 **絶対パス**（プロジェクトルート起点）を使用。
 
 ```markdown
-詳細は `plugins/forge/docs/spec_format.md` を参照
+詳細は `docs/rules/document_writing_rules.md` を参照
 ```
 
 **理由**:
@@ -324,13 +331,14 @@ ID ベース参照記法は `plugins/forge/docs/spec_format.md` の「ID 参照�
 
 **なぜ分離するか**: 同じ情報を複数の場所に書くと、保守のたびに矛盾が生まれる。役割を明確に分離することで、AIと人間の判断コストが下がり、文書の再利用性が向上する。
 
-| ディレクトリ        | 性質                                 | 説明                                         |
-| ------------------- | ------------------------------------ | -------------------------------------------- |
-| `docs/rules/`       | プロジェクトルール                   | 開発ルール・実装ガイドライン・文書記述ルール |
-| `docs/specs/`       | プロジェクト固有仕様                 | 要件定義書・設計書・計画書                   |
-| `plugins/*/docs/`   | プラグイン内部仕様                   | プラグインが配布する原則・フォーマット       |
-| `.claude/skills/`   | プロジェクトローカル SKILL（非配布） | bw-cc-plugins 内部運用専用の SKILL           |
-| `plugins/*/skills/` | 配布 SKILL                           | マーケットプレイス経由で配布される SKILL     |
+| ディレクトリ      | 性質                                 | 説明                                           |
+| ----------------- | ------------------------------------ | ---------------------------------------------- |
+| `docs/rules/`     | プロジェクトルール                   | 開発ルール・実装ガイドライン・文書記述ルール   |
+| `docs/specs/`     | プロジェクト固有仕様                 | 要件定義書・設計書・計画書                     |
+| `workflows/`      | プラグインランタイム文書（手順）     | SKILL が実行時に Read するオーケストレーション |
+| `formats/`        | プラグインランタイム文書（スキーマ） | YAML / 構造定義                                |
+| `.claude/skills/` | プロジェクトローカル SKILL（非配布） | doc-advisor リポジトリ内部運用専用の SKILL     |
+| `skills/`         | 配布 SKILL                           | プラグインインストール時に提供される SKILL     |
 
 **`docs/rules/` 内の役割分担:**
 

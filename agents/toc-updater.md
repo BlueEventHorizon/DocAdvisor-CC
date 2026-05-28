@@ -29,7 +29,7 @@ Processes a single document (`.md` file) and completes the corresponding entry Y
 
 Read the following before processing:
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/toc_format.md` - Format definition file
+- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` - Format definition file
 
 ## Procedure
 

@@ -30,8 +30,8 @@ Orchestrator workflow to generate/update `.claude/doc-advisor/toc/{category}/{ca
 
 Read the following before processing:
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/toc_format.md` - Format definition and intermediate file schema
-- `${CLAUDE_PLUGIN_ROOT}/docs/toc_update_workflow.md` - Detailed workflow
+- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` - Format definition and intermediate file schema
+- `${CLAUDE_PLUGIN_ROOT}/workflows/toc_update_workflow.md` - Detailed workflow
 
 ---
 
@@ -152,7 +152,7 @@ The script handles:
 2. Filename generation using SHA-256 hash of the source path (e.g., `rules/core/architecture_rule.md` → `a1b2c3d4e5f67890.yaml`)
 3. Template generation with pending status
 
-**Template format**: See "Intermediate File Schema" section in `${CLAUDE_PLUGIN_ROOT}/docs/toc_format.md`
+**Template format**: See "Intermediate File Schema" section in `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md`
 
 ---
 

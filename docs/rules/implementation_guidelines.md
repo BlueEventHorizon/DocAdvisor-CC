@@ -34,18 +34,18 @@
 
 ### テストの配置
 
-`tests/` にプラグイン名・スキル名で分類して配置する:
+単一プラグイン構成のため、`tests/` 直下に責務単位で分類して配置する:
 
 ```
 tests/
-├── common/                 # プラグイン横断（マニフェスト整合性等）
-├── forge/
-│   ├── review/             # plugins/forge/skills/review/scripts/ のテスト
-│   └── scripts/            # plugins/forge/scripts/ のテスト
-└── {plugin}/               # 新プラグイン追加時も同構造
+├── scripts/                # scripts/ 配下のスクリプトのテスト
+├── skills/                 # skills/ 配下のスキルのテスト
+├── integration/            # プラグイン全体の統合テスト
+├── golden_set/             # 検索品質評価のゴールデンセット
+└── goldenset_test/         # 評価実行用 fixture
 ```
 
-命名規則: `test_{module}.py`（例: `test_session_manager.py`）
+命名規則: `test_{module}.py`（例: `test_toc_utils.py`）
 
 ### テスト実行
 

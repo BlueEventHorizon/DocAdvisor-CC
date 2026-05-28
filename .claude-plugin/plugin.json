@@ -4,6 +4,9 @@
   "version": "0.3.0",
   "author": { "name": "moons" },
   "license": "MIT",
+  "homepage": "https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin",
+  "repository": "https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin",
+  "keywords": ["doc-advisor", "search", "toc", "embedding", "documentation"],
   "skills": [
     "./skills/create-rules-toc",
     "./skills/create-specs-toc",
