@@ -1,5 +1,7 @@
 # DES-006 セマンティック検索 設計書
 
+> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスは現在ルート直下を指す（例: `plugins/doc-advisor/scripts/embed_docs.py` → `scripts/embed_docs.py`）。また `forge:DES-*` 等の外部設計書は本リポジトリ内には存在しない。
+
 ## メタデータ
 
 | 項目     | 値                                                                                                     |

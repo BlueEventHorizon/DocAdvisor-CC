@@ -1,5 +1,7 @@
 # FNC-001 コンテキスト外検索 要件定義書
 
+> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスや他プラグイン（forge / anvil / doc-db）への参照は現状と異なる場合がある。
+
 ## 概要
 
 doc-advisor の文書検索（query-specs / query-rules）において、検索処理を AI のコンテキストウィンドウの外で実行し、AI には検索結果（候補パスのリスト）のみを渡す。

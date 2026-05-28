@@ -427,19 +427,16 @@ Repository（ContactRepository）が連絡先を取得し... ← ❌
 
 ## 8. 適用範囲
 
-| ディレクトリ               | 適用 | 備考                                   |
-| -------------------------- | ---- | -------------------------------------- |
-| `docs/rules/**/*.md`       | ✓    | プロジェクトルール                     |
-| `docs/specs/**/*.md`       | ✓    | 要件定義書・設計書・計画書             |
-| `docs/readme/**/*.md`      | ✓    | ユーザーガイド                         |
-| `plugins/*/docs/**/*.md`   | ✓    | プラグイン内部仕様                     |
-| `plugins/*/skills/**/*.md` | ✓    | 配布 SKILL                             |
-| `.claude/skills/**/*.md`   | ✓    | プロジェクトローカル SKILL             |
-| `meta/**/*.md`             | ✓    | メタ情報（git 管理外、適用は努力目標） |
-
-**除外:**
-
-- `meta/history/` - 会話履歴アーカイブ（過去の記録なので修正不要）
+| ディレクトリ             | 適用 | 備考                                 |
+| ------------------------ | ---- | ------------------------------------ |
+| `docs/rules/**/*.md`     | ✓    | プロジェクトルール                   |
+| `docs/specs/**/*.md`     | ✓    | 要件定義書・設計書                   |
+| `docs/readme/**/*.md`    | ✓    | ユーザー向けガイド                   |
+| `skills/**/SKILL.md`     | ✓    | 配布 SKILL                           |
+| `agents/**/*.md`         | ✓    | 配布 agent                           |
+| `workflows/**/*.md`      | ✓    | プラグインランタイム手順文書         |
+| `formats/**/*.md`        | ✓    | プラグインランタイムスキーマ文書     |
+| `.claude/skills/**/*.md` | ✓    | プロジェクトローカル SKILL（非配布） |
 
 ---
 
@@ -511,13 +508,13 @@ Repository（ContactRepository）が連絡先を取得し... ← ❌
 
 ```bash
 # スペース2個の検出
-grep -r "  \[MANDATORY\]" docs/rules/ docs/specs/ plugins/ .claude/skills/ meta/
+grep -r "  \[MANDATORY\]" docs/ skills/ agents/ workflows/ formats/ .claude/skills/
 
 # 旧表現「必読文書」の検出
-grep -r "## 必読文書" docs/rules/ docs/specs/ plugins/ .claude/skills/ meta/
+grep -r "## 必読文書" docs/ skills/ agents/ workflows/ formats/ .claude/skills/
 
 # 説明文の旧パターン検出
-grep -r "下記のドキュメントを全て読み込み" docs/rules/ docs/specs/ plugins/ .claude/skills/ meta/
+grep -r "下記のドキュメントを全て読み込み" docs/ skills/ agents/ workflows/ formats/ .claude/skills/
 ```
 
 ### 10.2 修正時のチェックリスト

@@ -1,5 +1,7 @@
 # DES-005: ToC 生成フロー設計書
 
+> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスは現在ルート直下を指す（例: `plugins/doc-advisor/scripts/` → `scripts/`）。
+
 ## 概要
 
 本設計書では、Doc Advisor の ToC（Table of Contents）自動生成システムの全体フロー、変更検出メカニズム、並列分割処理、マージ処理を定義する。

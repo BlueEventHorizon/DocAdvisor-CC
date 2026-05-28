@@ -2,18 +2,20 @@
 
 ## メタデータ
 
-| 項目       | 値                                                                       |
-| ---------- | ------------------------------------------------------------------------ |
-| 設計 ID    | COMMON-DES-001                                                           |
-| 関連要件   | -                                                                        |
-| 関連 ADR   | doc-advisor:ADR-002_query_skill_subagent_isolation                       |
-| 関連ルール | `docs/rules/skill_authoring_notes.md`                                    |
-| 作成日     | 2026-05-18                                                               |
-| 適用範囲   | bw-cc-plugins 配下の全プラグイン（forge / doc-advisor / doc-db / anvil） |
+| 項目       | 値                                                 |
+| ---------- | -------------------------------------------------- |
+| 設計 ID    | COMMON-DES-001                                     |
+| 関連要件   | -                                                  |
+| 関連 ADR   | doc-advisor:ADR-002_query_skill_subagent_isolation |
+| 関連ルール | `docs/rules/skill_authoring_notes.md`              |
+| 作成日     | 2026-05-18                                         |
+| 適用範囲   | doc-advisor プラグイン                             |
+
+> **歴史的経緯**: 本設計書は `bw-cc-plugins` マーケットプレイス（forge / doc-advisor / doc-db / anvil 4 プラグイン）時代に「共通設計（COMMON-）」として執筆された。doc-advisor を単独プラグインリポジトリに分離した後、適用範囲を doc-advisor のみに限定し、`§6` の規定リストも doc-advisor の SKILL のみに整理した。
 
 ## 1. 概要
 
-bw-cc-plugins における SKILL の基本設計を定義する。SKILL は Claude Code が解釈する単位の実行指示書であり、フォーマット規約（HOW）は `docs/rules/skill_authoring_notes.md` で管理する。本設計書は、その**設計判断の根拠（WHY）と全体像**を記録する。
+doc-advisor プラグインにおける SKILL の基本設計を定義する。SKILL は Claude Code が解釈する単位の実行指示書であり、フォーマット規約（HOW）は `docs/rules/skill_authoring_notes.md` で管理する。本設計書は、その**設計判断の根拠（WHY）と全体像**を記録する。
 
 ### 1.1 設計目的
 
@@ -22,7 +24,7 @@ bw-cc-plugins における SKILL の基本設計を定義する。SKILL は Clau
 | 効率性           | **親 context を継承する継承型がデフォルト**。親 context を活用できる場面では追加プロンプト不要で動作し、context 効率・実装コストの両面で有利 |
 | 厳密な fork 管理 | fork するか否かを SKILL ごとに人が個別判断し、本書 §6 の規定リストで管理する。命名・性質によるルールベース自動判断は採用しない               |
 | 安全性           | fork が必要な具体的事例（doc-advisor:ADR-002_query_skill_subagent_isolation 等）に限り fork 型を採用し、多重防御を適用する                   |
-| テスト容易性     | §6 リストの記載が `tests/doc_advisor/` の静的検証の唯一の根拠になる                                                                          |
+| テスト容易性     | §6 リストの記載が `tests/skills/` の静的検証の唯一の根拠になる                                                                               |
 
 ## 2. SKILL 実行モデル
 
@@ -43,7 +45,7 @@ SKILL は `context: fork` frontmatter の有無で 2 種類に分かれる。詳
 
 - **親 context の活用**: 親が既に持っている差分・進行中タスク・既読ファイル等を追加プロンプトなしで利用できる
 - **context 効率**: fork 型は SKILL.md + `$ARGUMENTS` を毎回入力として読み込むため、親 context にある同一情報を args で再供給すると二重コストになる
-- **二重 fork の回避**: SKILL の直後に親が更に fork するワークフロー（例: `forge:start-*` 内の検索フェーズ）では、内側の fork は無駄になる
+- **二重 fork の回避**: SKILL の直後に親が更に fork するワークフロー（親が継承型 SKILL 内から検索系 SKILL を呼ぶ場合等）では、内側の fork は無駄になる
 
 ### 3.2 fork 型を採用する判断基準
 
@@ -146,15 +148,12 @@ fork 型 SKILL とカスタム Agent は、どちらも「隔離 context + 事�
 
 **本リストに記載のない SKILL はすべて継承型として運用する**。
 
-bw-cc-plugins 配下で `context: fork` を指定する SKILL は以下のとおり（2026-05-18 時点）。
+doc-advisor で `context: fork` を指定する SKILL は以下のとおり。
 
-| パス                                              | プラグイン  | name          | `agent`                       | `user-invocable` | 用途                                                        | fork 採用根拠                                                                                                         |
-| ------------------------------------------------- | ----------- | ------------- | ----------------------------- | ---------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `plugins/doc-advisor/skills/query-rules/SKILL.md` | doc-advisor | `query-rules` | （未指定＝`general-purpose`） | `true`           | `docs/rules/` から関連ルール文書を検索（read-only）         | doc-advisor:ADR-002_query_skill_subagent_isolation（impl-issue 親 context が漏洩し、SKILL.md 等を書き換えた実害事例） |
-| `plugins/doc-advisor/skills/query-specs/SKILL.md` | doc-advisor | `query-specs` | （未指定＝`general-purpose`） | `true`           | `docs/specs/` から関連仕様文書を検索（read-only）           | doc-advisor:ADR-002_query_skill_subagent_isolation（同上）                                                            |
-| `plugins/forge/skills/reviewer/SKILL.md`          | forge       | `reviewer`    | `general-purpose`             | `false`          | `/forge:review` のレビュー実行エンジン（種別ごとに 1 起動） | forge:DES-029 §5.1（Issue #32 の親 context 漏洩誤読を構造的に解消、設計原則「1 起動」と整合）                         |
-| `plugins/forge/skills/evaluator/SKILL.md`         | forge       | `evaluator`   | `general-purpose`             | `false`          | `/forge:review` の判定エンジン（種別ごとに 1 起動）         | forge:DES-029 §5.2（同上 + 5 観点精査の review playbook を独立 context で実行）                                       |
-| `plugins/forge/skills/fixer/SKILL.md`             | forge       | `fixer`       | `general-purpose`             | `false`          | `/forge:review` の修正実行エンジン                          | forge:DES-029 §5.3（同上 + 「メインコンテキスト消費を抑える」設計原則と整合 + 二重起動解消）                          |
+| パス                          | name          | `agent`                       | `user-invocable` | 用途                                                | fork 採用根拠                                                                                                         |
+| ----------------------------- | ------------- | ----------------------------- | ---------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `skills/query-rules/SKILL.md` | `query-rules` | （未指定＝`general-purpose`） | `true`           | `docs/rules/` から関連ルール文書を検索（read-only） | doc-advisor:ADR-002_query_skill_subagent_isolation（impl-issue 親 context が漏洩し、SKILL.md 等を書き換えた実害事例） |
+| `skills/query-specs/SKILL.md` | `query-specs` | （未指定＝`general-purpose`） | `true`           | `docs/specs/` から関連仕様文書を検索（read-only）   | doc-advisor:ADR-002_query_skill_subagent_isolation（同上）                                                            |
 
 ### 6.1 fork 型 SKILL の共通設計
 
@@ -164,7 +163,7 @@ bw-cc-plugins 配下で `context: fork` を指定する SKILL は以下のとお
 
 ### 6.2 継承型に再分類された SKILL
 
-- **`forge:query-forge-rules`**（2026-05-18 継承型に変更）— このスキルは主に `forge:start-*` 系ワークフローの内部から呼ばれる。`forge:start-*` 自体が継承型で、その直後に呼ばれる本スキルを更に fork すると、親 context を活用できず追加プロンプトも不要なのに毎回 SKILL.md と args を再ロードする無駄が生じる（二重 fork）。doc-advisor:ADR-002_query_skill_subagent_isolation §D は「同種の検索スキルは統一された制約下で動作させる」と波及適用を求めていたが、本設計書 §3.1 のデフォルト継承型方針と §3.2 の「具体的な実害が記録されている場合に限る」基準に照らし、`query-forge-rules` を継承型に変更した。read-only 制約・引数解釈ガード・自己再帰禁止（B 層）は SKILL.md 本文で引き続き維持する。
+（doc-advisor 単独プラグイン化により、過去 bw-cc-plugins 時代の継承型再分類事例 `forge:query-forge-rules` は本リポジトリ管理対象外となった。継承型再分類が必要な事例が doc-advisor で発生した場合、本セクションに記録する。）
 
 ### 6.3 リスト変更の手順
 
@@ -231,7 +230,7 @@ doc-advisor:ADR-002_query_skill_subagent_isolation で採択した多重防御�
 
 ### 9.1 静的検証
 
-`tests/doc_advisor/` 配下に SKILL.md 形式検証を実装している（doc-advisor:ADR-002_query_skill_subagent_isolation §E）:
+`tests/skills/` 配下に SKILL.md 形式検証を実装している（doc-advisor:ADR-002_query_skill_subagent_isolation §E）:
 
 - fork 型 SKILL の frontmatter に `context: fork` が含まれていることを検証
 - SKILL.md 本文に「Edit / Write / MultiEdit / NotebookEdit」「read-only」等の制約文言が含まれていることを検証
@@ -240,7 +239,7 @@ doc-advisor:ADR-002_query_skill_subagent_isolation で採択した多重防御�
 
 ### 9.2 一覧の保守 [MANDATORY]
 
-本設計書 §6 の規定リストは **bw-cc-plugins における fork 型 SKILL の唯一の正式記録**である。SKILL 追加・削除時は §6.3 の手順で本書を更新する。`/forge:update-db-specs` 実行時に本設計書自体は specs ToC に登録されるが、fork 型 SKILL の規定リストとしては §6 の表が SoT である。
+本設計書 §6 の規定リストは **doc-advisor における fork 型 SKILL の唯一の正式記録**である。SKILL 追加・削除時は §6.3 の手順で本書を更新する。本設計書自体は specs ToC に登録されるが、fork 型 SKILL の規定リストとしては §6 の表が SoT である。
 
 自動生成（SKILL.md frontmatter のスキャン等）は監査用途には使えるが、**規定の根拠は本書 §6** とする。frontmatter と本書 §6 に乖離がある場合は、§6 を正として SKILL.md を修正する。
 

@@ -75,9 +75,9 @@ Agent ツール (汎用 Agent / カスタム Agent) の `subagent_type` パラ�
 
 以下は **すべて無効** — `subagent_type` の値域外:
 
-- Skill 名 (slash command 名): `forge:fixer` / `anvil:create-pr` 等
-- slash 表記: `/forge:fixer` / `/forge:fixer --batch` 等
+- Skill 名 (slash command 名): `doc-advisor:query-rules` / `doc-advisor:create-rules-toc` 等
+- slash 表記: `/doc-advisor:query-rules` 等
 - ファイルパス: `skills/query-rules/SKILL.md` 等
 
-> prompt 内の slash command 表記 (`/forge:fixer --batch` 等) は、Agent ツールに渡す **タスク指示文の中の表現** であり、`subagent_type` の値ではない。\
-> Agent ツールに「fixer のロールを演じさせる」場合の正しい指定は `subagent_type: general-purpose` (= 汎用 Agent) で、prompt 内に役割と手順を記述する。
+> prompt 内の slash command 表記 (`/doc-advisor:query-rules ...` 等) は、Agent ツールに渡す **タスク指示文の中の表現** であり、`subagent_type` の値ではない。\
+> Agent ツールに「特定スキルのロールを演じさせる」場合の正しい指定は `subagent_type: general-purpose` (= 汎用 Agent) で、prompt 内に役割と手順を記述する。

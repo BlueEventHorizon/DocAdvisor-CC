@@ -1,5 +1,7 @@
 # DES-004: ドキュメントモデル設計書
 
+> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスは現在ルート直下を指す（例: `plugins/doc-advisor/scripts/` → `scripts/`）。
+
 ## 概要
 
 本設計書では、Doc Advisor が管理するドキュメントモデルの全体構造、設定項目、およびスキャン対象の仕様を定義する。

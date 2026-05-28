@@ -193,7 +193,7 @@ $ARGUMENTS[0] # $0 と同等
 - `/kaizen:fix-findings --batch` を呼び出し、🔴問題を修正する
 ```
 
-- ✅ 別プラグイン / 同一プラグインの SKILL を `Skill` ツールで起動できる。fork 型 SKILL 内からも同様（例: `create-feature-from-markdown-plan` → `/forge:start-*`、query-specs / query-rules → `/doc-db:*`）
+- ✅ 同一プラグインまたは別プラグインの SKILL を `Skill` ツールで起動できる。fork 型 SKILL 内からも同様
 - ❌ 自己再帰禁止（下記）
 
 ### 自己再帰禁止 [MANDATORY]
@@ -202,10 +202,10 @@ SKILL 内から自身を `Skill` ツールで呼ぶ・「`/<self-skill>` を実�
 
 特に「作業着手前に毎回呼ばれる」以下 SKILL は、SKILL.md 冒頭に明示すること:
 
-- `doc-advisor:query-rules` / `doc-advisor:query-specs` / `forge:query-forge-rules`
+- `doc-advisor:query-rules` / `doc-advisor:query-specs`
 
 ```markdown
-> - ❌ 禁止: `Skill` ツールで `query-rules` / `query-specs` / `query-forge-rules` を呼ぶこと（無限再帰でハーネスが詰まる）
+> - ❌ 禁止: `Skill` ツールで `query-rules` / `query-specs` を呼ぶこと（無限再帰でハーネスが詰まる）
 > - ❌ 禁止: 「`/query-rules` を実行します」のように自身を再起動すること
 ```
 
@@ -286,5 +286,5 @@ AskUserQuestion を使用してエンジンを確認する:
 - AI 専用スキルには必ず `user-invocable: false` を指定
 - スクリプトのパス参照は `${CLAUDE_PLUGIN_ROOT}` を使用
 - `[MANDATORY]` マーカーは省略・変更不可の必須仕様に付ける
-- フォーマット・テンプレート類は `plugins/{plugin-name}/docs/` に配置
+- スキル間で共有されるランタイム文書は `workflows/`（手順）または `formats/`（スキーマ）に配置
 - ユーザーへの質問・確認は必ず `AskUserQuestion` を使用する（上記参照）

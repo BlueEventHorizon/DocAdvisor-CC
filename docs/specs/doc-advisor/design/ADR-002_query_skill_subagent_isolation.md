@@ -1,5 +1,7 @@
 # ADR-002: query-rules / query-specs の fork 型 SKILL 隔離と read-only 制約
 
+> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス（forge / doc-advisor / doc-db / anvil）時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスは現在ルート直下を指す（例: `plugins/doc-advisor/skills/` → `skills/`）。また `forge:DES-*` 等の外部設計書は本リポジトリ内には存在しない（旧 bw-cc-plugins 由来）。
+
 ## ステータス
 
 採択（2026-05-16）
