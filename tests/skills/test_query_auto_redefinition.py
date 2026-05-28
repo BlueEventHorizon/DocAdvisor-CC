@@ -17,13 +17,12 @@ Issue #54 で auto モードから doc-db 連携 (Step 1a/1b/2/3) を削除し�
 で検証する性質のため本ユニットテストの対象外。
 
 対象:
-- plugins/doc-advisor/skills/query-rules/SKILL.md
-- plugins/doc-advisor/skills/query-specs/SKILL.md
-- plugins/doc-advisor/.claude-plugin/plugin.json
-- .claude-plugin/marketplace.json
+- skills/query-rules/SKILL.md
+- skills/query-specs/SKILL.md
+- .claude-plugin/plugin.json
 
 実行:
-  python3 -m unittest tests.doc_advisor.skills.test_query_auto_redefinition -v
+  python3 -m unittest tests.skills.test_query_auto_redefinition -v
 """
 
 import json
@@ -31,15 +30,14 @@ import re
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 QUERY_SKILLS = [
-    REPO_ROOT / 'plugins' / 'doc-advisor' / 'skills' / 'query-rules' / 'SKILL.md',
-    REPO_ROOT / 'plugins' / 'doc-advisor' / 'skills' / 'query-specs' / 'SKILL.md',
+    REPO_ROOT / 'skills' / 'query-rules' / 'SKILL.md',
+    REPO_ROOT / 'skills' / 'query-specs' / 'SKILL.md',
 ]
 
-PLUGIN_JSON = REPO_ROOT / 'plugins' / 'doc-advisor' / '.claude-plugin' / 'plugin.json'
-MARKETPLACE_JSON = REPO_ROOT / '.claude-plugin' / 'marketplace.json'
+PLUGIN_JSON = REPO_ROOT / '.claude-plugin' / 'plugin.json'
 
 EXPECTED_VERSION = '0.3.0'
 
@@ -152,31 +150,14 @@ class TestDescriptionTriggerRemoved(unittest.TestCase):
 
 
 class TestPluginVersionBumped(unittest.TestCase):
-    """plugin.json / marketplace.json のバージョンが 0.3.0 になっていること (受け入れ #8)"""
+    """plugin.json のバージョンが 0.3.0 になっていること (受け入れ #8)"""
 
     def test_plugin_json_version(self):
         data = json.loads(_read(PLUGIN_JSON))
         self.assertEqual(
             data.get('version'),
             EXPECTED_VERSION,
-            f"plugins/doc-advisor/.claude-plugin/plugin.json の version が {EXPECTED_VERSION} ではない",
-        )
-
-    def test_marketplace_json_version(self):
-        data = json.loads(_read(MARKETPLACE_JSON))
-        plugins = data.get('plugins', [])
-        doc_advisor_entry = next(
-            (p for p in plugins if p.get('name') == 'doc-advisor'),
-            None,
-        )
-        self.assertIsNotNone(
-            doc_advisor_entry,
-            ".claude-plugin/marketplace.json に doc-advisor エントリが存在しない",
-        )
-        self.assertEqual(
-            doc_advisor_entry.get('version'),
-            EXPECTED_VERSION,
-            f"marketplace.json の doc-advisor.version が {EXPECTED_VERSION} ではない",
+            f".claude-plugin/plugin.json の version が {EXPECTED_VERSION} ではない",
         )
 
 

@@ -19,7 +19,7 @@ from pathlib import Path
 
 # テスト対象スクリプトのパス
 SCRIPTS_DIR = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', '..', 'plugins', 'doc-advisor', 'scripts'
+    os.path.dirname(__file__), '..', '..', 'scripts'
 ))
 CREATE_PENDING_SCRIPT = os.path.join(SCRIPTS_DIR, 'create_pending_yaml.py')
 

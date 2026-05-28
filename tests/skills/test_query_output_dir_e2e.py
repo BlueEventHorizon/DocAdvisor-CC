@@ -32,9 +32,9 @@ import unittest
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SWAP_SCRIPT = REPO_ROOT / ".claude" / "skills" / "swap-doc-config" / "scripts" / "swap_doc_config.py"
-DOC_ADVISOR_SCRIPTS = REPO_ROOT / "plugins" / "doc-advisor" / "scripts"
+DOC_ADVISOR_SCRIPTS = REPO_ROOT / "scripts"
 FILTER_TOC = DOC_ADVISOR_SCRIPTS / "filter_toc.py"
 SEARCH_DOCS = DOC_ADVISOR_SCRIPTS / "search_docs.py"
 

@@ -22,7 +22,7 @@ from pathlib import Path
 
 # テスト対象スクリプトのパス
 SCRIPTS_DIR = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', '..', 'plugins', 'doc-advisor', 'scripts'
+    os.path.dirname(__file__), '..', '..', 'scripts'
 ))
 VALIDATE_SCRIPT = os.path.join(SCRIPTS_DIR, 'validate_toc.py')
 

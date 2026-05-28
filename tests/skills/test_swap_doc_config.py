@@ -25,7 +25,7 @@ import unittest
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SWAP_SCRIPT = REPO_ROOT / ".claude" / "skills" / "swap-doc-config" / "scripts" / "swap_doc_config.py"
 
 # /tmp 不可環境のためプロジェクト内に temp ベースを置く（既存ルール踏襲）

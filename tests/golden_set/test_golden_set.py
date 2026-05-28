@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 
 # テスト対象スクリプトのパス
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins" / "doc-advisor" / "scripts"
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 SEARCH_DOCS_SCRIPT = SCRIPTS_DIR / "search_docs.py"
 
 # search_docs.py の get_index_path() を使用するため

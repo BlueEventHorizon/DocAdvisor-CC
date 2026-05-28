@@ -14,13 +14,11 @@ ADR-002 (docs/specs/doc-advisor/design/ADR-002_query_skill_subagent_isolation.md
 
 対象:
 - fork 型 (COMMON-DES-001 §4 規定リスト):
-  - plugins/doc-advisor/skills/query-rules/SKILL.md
-  - plugins/doc-advisor/skills/query-specs/SKILL.md
-- 継承型だが Role 制約を維持する SKILL (COMMON-DES-001 §4.2):
-  - plugins/forge/skills/query-forge-rules/SKILL.md
+  - skills/query-rules/SKILL.md
+  - skills/query-specs/SKILL.md
 
 実行:
-  python3 -m unittest tests.common.test_query_skill_isolation -v
+  python3 -m unittest tests.skills.test_query_skill_isolation -v
 """
 
 import re
@@ -31,15 +29,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # COMMON-DES-001 §4 規定リスト: fork 型 SKILL（context: fork 必須）
 FORK_TARGET_SKILLS = [
-    REPO_ROOT / 'plugins' / 'doc-advisor' / 'skills' / 'query-rules' / 'SKILL.md',
-    REPO_ROOT / 'plugins' / 'doc-advisor' / 'skills' / 'query-specs' / 'SKILL.md',
+    REPO_ROOT / 'skills' / 'query-rules' / 'SKILL.md',
+    REPO_ROOT / 'skills' / 'query-specs' / 'SKILL.md',
 ]
 
 # Role 制約・引数解釈ガード・出力契約を維持する全 query-* SKILL
-# (fork 型 + COMMON-DES-001 §4.2 で継承型に再分類された SKILL)
-CONSTRAINT_TARGET_SKILLS = FORK_TARGET_SKILLS + [
-    REPO_ROOT / 'plugins' / 'forge' / 'skills' / 'query-forge-rules' / 'SKILL.md',
-]
+# (fork 型のみ。継承型の forge:query-forge-rules は forge プラグイン分離により対象外)
+CONSTRAINT_TARGET_SKILLS = FORK_TARGET_SKILLS
 
 
 def _split_frontmatter_body(skill_path: Path):

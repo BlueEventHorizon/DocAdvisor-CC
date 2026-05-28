@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 # テスト対象モジュールの import
 SCRIPTS_DIR = os.path.join(
-    os.path.dirname(__file__), '..', '..', '..', 'plugins', 'doc-advisor', 'scripts'
+    os.path.dirname(__file__), '..', '..', 'scripts'
 )
 sys.path.insert(0, os.path.abspath(SCRIPTS_DIR))
 

@@ -16,7 +16,7 @@ from pathlib import Path
 
 # テスト対象スクリプトのパス
 SCRIPTS_DIR = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', '..', 'plugins', 'doc-advisor', 'scripts'
+    os.path.dirname(__file__), '..', '..', 'scripts'
 ))
 MERGE_SCRIPT = os.path.join(SCRIPTS_DIR, 'merge_toc.py')
 
@@ -33,7 +33,7 @@ class TestMergeTocBase(unittest.TestCase):
         # プロジェクトルート設定
         os.environ['CLAUDE_PROJECT_DIR'] = self.tmpdir
         os.environ['CLAUDE_PLUGIN_ROOT'] = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), '..', '..', '..', 'plugins', 'doc-advisor'
+            os.path.dirname(__file__), '..', '..'
         ))
 
         # .doc_structure.yaml 作成
