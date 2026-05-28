@@ -140,17 +140,13 @@
       "mcp__gemini-cli__ask-gemini",
       "mcp__codex__codex",
 
-      "Skill(forge *)",
-      "Skill(anvil *)",
-      "Skill(xcode *)",
-
       "Skill(create-rules-toc)",
       "Skill(create-specs-toc)",
       "Skill(query-rules)",
       "Skill(query-specs)",
 
-      "Bash(python3 .claude/doc-advisor/scripts/*)",
-      "Bash(bash .claude/doc-advisor/scripts/check_config.sh *)",
+      "Bash(python3 scripts/*)",
+      "Bash(python3 -m unittest *)",
       "Bash(mkdir -p .claude/.temp/*)",
       "Bash(rm -rf .claude/doc-advisor/toc/specs/.toc_work/)",
       "Bash(rm -rf .claude/doc-advisor/toc/rules/.toc_work/)",

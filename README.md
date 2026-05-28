@@ -1,247 +1,131 @@
-# Doc Advisor
+# doc-advisor
 
-[English](README_en.md) | 日本語
+**Version: 0.3.0**
 
-[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトのルール・仕様文書を ToC（キーワード）と Embedding（セマンティック）の 2 層で検索し、AI が必要なコンテキストを自動発見できるようにする。
 
-## はじめに
+[English README](README_en.md)
 
-生成AIに「ドキュメントを読んで」と指示しても、重要な仕様を見落とすことがあります。
-Doc Advisor は、この構造的な限界を前提に「必要な文書だけを確実に読ませる」ための運用を実現する仕組みです。
+## なぜ doc-advisor が必要か
 
-## 前提
+プロジェクトが大きくなるとルール・規約・設計文書が蓄積される。AI がそれらを見つけられなければ活用できない。`doc-advisor` はこれらの文書をインデックス化し、AI が実装・レビュー時に関連文書を自動取得できるようにする。
 
-[なぜ生成AIは「ドキュメントを読んで」と言っても読まないのか？ ― コンテキスト・エンジニアリングと Doc Advisor](https://zenn.dev/k2moons/articles/ff6399ee33346e) の問題意識を土台にしています。
-指摘されている主な制約は次の通りです。
+- **実装前**: コードを書く前にプロジェクト固有の実装ルールと関連仕様を集める
+- **レビュー時**: 適用すべきルールをレビュー観点として追加し、汎用的なベストプラクティスではなくプロジェクトの実際の基準で検査する
 
-- Context Rot: 長い文脈ほど「真ん中」の情報が読まれにくい
-- Attention Budget: 注意資源は有限であり、情報過多で精度が落ちる
-- Satisficing: 探索を十分に行わず「それっぽい答え」で止まる
+## スキル一覧
 
-## Doc Advisor の目的と機能
+| スキル               | 説明                                            | トリガー句         |
+| -------------------- | ----------------------------------------------- | ------------------ |
+| **query-rules**      | ルール文書を ToC・Embedding・ハイブリッドで検索 | `"ルール確認"`     |
+| **query-specs**      | 仕様文書を ToC・Embedding・ハイブリッドで検索   | `"仕様確認"`       |
+| **create-rules-toc** | ルール文書の変更後に ToC を構築・更新           | `"rules ToC 更新"` |
+| **create-specs-toc** | 仕様文書の変更後に ToC を構築・更新             | `"specs ToC 更新"` |
 
-Doc Advisor の目的は「必要な文書を、短時間で、確実に特定できるようにすること」です。
-主な機能は次の通りです。
+## ワークフロー
 
-- **ドキュメント分類**: rules と specs を分離
-- **doc_type 管理**: requirement / design / plan
-- **ToC 自動生成**: `.md` を解析してメタデータを抽出し YAML 化
-- **差分更新**: SHA-256 で変更検出
-- **並列処理**: 最大 5 並列
-- **中断耐性**: 完了分を保持し再開可能
-- **シンボリックリンク対応**: シンボリックリンク経由で外部ドキュメントを統合 (v3.2+)
+```mermaid
+flowchart LR
+    DOC[(rules / specs<br/>Markdown)]
+    CT[create-*-toc<br/>ToC 構築]
+    QR[query-* SKILL<br/>検索]
+    AI[AI Agent<br/>実装/レビュー]
 
-詳細は [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md) を参照してください。
-
-## 設計の意図（要点）
-
-- **rules / specs の分離**: 開発ドキュメントと仕様書を明確に分け、参照コストを下げる
-- **plan の除外**: plan は作業時に全文読み込みする前提のため、ToC から外す
-- **パスによる doc_type 判定**: ファイル名の命名自由度を保ちつつ判定を安定化
-- **ファイルパスの識別子化**: 余分なID強制を避け、参照を一貫させる
-- **差分更新**: 変更分のみ処理して運用負荷を削減
-- **中断前提**: `.toc_work/` に成果物を保持し、途中から再開できる
-
-## 想定ケース
-
-- 大量ドキュメント: 必要文書だけを検索で抽出
-- 頻繁な更新: 変更分のみ再処理
-- 途中中断: 未完了のみ再開
-- 削除反映: チェックサム差分で delete-only
-- 並列失敗: 直列フォールバックで継続
-
-## クイックスタート
-
-### Claude Code で使う
-
-1. リポジトリをクローン（submodule 含む）
-
-```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+    DOC --> CT --> TOC[(ToC YAML<br/>Embedding Index)]
+    QR --> TOC
+    AI --> QR
+    QR -. 関連文書パス .-> AI
 ```
 
-> 既存クローンの場合は `git submodule update --init` を実行してください。
-
-2. ターゲットプロジェクトにセットアップ
-
-```bash
-cd DocAdvisor-CC
-./setup.sh /path/to/your-project
-```
-
-3. Claude Code を起動
-
-```bash
-cd /path/to/your-project
-claude
-```
-
-4. ドキュメントディレクトリの設定
-
-`setup.sh` が `.doc_structure.yaml` を検出した場合、ディレクトリは自動設定されます。
-検出されなかった場合は、分類スキルを実行してください:
-
-```bash
-/setup-doc-structure
-```
-
-5. 初回 ToC 生成
-
-```bash
-/create-rules-toc --full
-/create-specs-toc --full
-```
-
-> Makefile を使う場合:
->
-> ```bash
-> make setup
-> make setup TARGET=/path/to/your-project
-> ```
-
-### Codex で使う
-
-Codex では、DocAdvisor 内で事前生成・レビュー済みの `codex_skill_set/` を、環境全体で使う通常の Codex Skill としてインストールします。
-必要な場合だけ target project の `.codex/state/doc-advisor/` と `AGENTS.md` を初期化します。
-
-1. リポジトリをクローン（submodule 含む）
-
-```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
-```
-
-> 既存クローンの場合は `git submodule update --init` を実行してください。
-
-2. Codex Skill を環境全体へインストール
-
-```bash
-cd DocAdvisor-CC
-./setup_for_codex.sh
-```
-
-デフォルトでは次に配置されます。
+## インストール
 
 ```text
-~/.codex/skills/
-~/.codex/doc-advisor/resources/
-~/.codex/doc-advisor/install.yaml
+/plugin marketplace add BlueEventHorizon/DocAdvisor
+/plugin install doc-advisor@DocAdvisor
 ```
 
-特定 project の runtime state と `AGENTS.md` も初期化する場合:
+無効化したプラグインを再有効化するには、ターミナルから:
 
 ```bash
-./setup_for_codex.sh --project /path/to/your-project
+claude plugin enable doc-advisor@DocAdvisor
 ```
 
-`--project` は project-local な `.codex/skills/` や `.codex/resources/` を作成しません。既存の古い project-local Doc Advisor 管理ファイルがある場合は、重複 Skill を避けるため管理対象だけ削除します。
-`AGENTS.md` で project 内の `.codex/skills/` を参照させる project-local bridge は正式な Codex Skill install ではありません。移行・実験用の方式として、詳細は `specs/codex/design/DES-CODEX-001_setup_for_codex.md` に記録しています。
-以前の plugin 方式で作成した `~/plugins/doc-advisor/` や `~/.agents/plugins/marketplace.json` は自動削除しません。必要なら別途無効化・削除してください。
-
-3. ターゲットプロジェクトで Codex を起動
-
-新しい Skill が現在の Codex session に見えない場合は、Codex を再起動してください。
+### ローカルで試す（セッション限定）
 
 ```bash
-cd /path/to/your-project
-codex
+git clone https://github.com/BlueEventHorizon/DocAdvisor.git
+claude --plugin-dir ./DocAdvisor
 ```
 
-4. Codex で使える機能
+## セットアップ
 
-Codex は環境にインストールされた次の Skill を参照します。
+### 1. `.doc_structure.yaml` の配置
 
-| 機能 | Skill |
-| ---- | ----- |
-| rules ToC 生成 | `create-rules-toc` |
-| specs ToC 生成 | `create-specs-toc` |
-| rules 検索 | `query-rules` |
-| specs 検索 | `query-specs` |
-| ドキュメント構成の初期設定 | `setup-doc-structure` |
-| 要件定義書作成 | `start-requirements` |
-| 設計書作成 | `start-design` |
-| 計画書作成 | `start-plan` |
+プロジェクトのドキュメント配置を宣言する設定ファイルが必要。最小例:
 
-Codex 用の ToC / index 出力先は `.codex/state/doc-advisor/toc/` と `.codex/state/doc-advisor/index/` です。
-Claude Code 用の `.claude/` とは分離されます。
-forge の文書作成系 wrapper は、専用 UI ではなくチャット上の確認プロトコルを使います。ファイル作成・上書き・判断分岐が必要な場合は、Codex が選択肢を提示してユーザーの返答を待つ運用です。
+```yaml
+# doc_structure_version: 3.0
 
-## 使い方
+rules:
+  root_dirs:
+    - docs/rules/
+  doc_types_map:
+    docs/rules/: rule
+  patterns:
+    target_glob: "**/*.md"
 
-### Claude Code
-
-### ToC 生成コマンド
-
-```bash
-/create-rules-toc          # 差分更新
-/create-rules-toc --full   # 全件再生成
-
-/create-specs-toc          # 差分更新
-/create-specs-toc --full   # 全件再生成
+specs:
+  root_dirs:
+    - "docs/specs/**/design/"
+    - "docs/specs/**/requirements/"
+  doc_types_map:
+    "docs/specs/**/design/": design
+    "docs/specs/**/requirements/": requirement
+  patterns:
+    target_glob: "**/*.md"
 ```
 
-### ドキュメント検索スキル
+追加で使えるフィールド:
 
-```bash
-/query-rules 認証機能の実装に必要な文書を特定
-/query-specs 画面遷移の要件を特定
-```
+- `output_dir`: ToC 出力先（既定: `.claude/doc-advisor/`）
+- `patterns.exclude`: 除外するファイル/ディレクトリのパターン
 
-### Codex
-
-Codex では slash command ではなく、自然文で依頼します。
-必要に応じて環境にインストールされた Doc Advisor Skill と、`--project` で追加した `AGENTS.md` の Doc Advisor セクションが参照されます。
-
-例:
+### 2. 初回 ToC 構築
 
 ```text
-rules の ToC を全件再生成してください
-specs の ToC を差分更新してください
-認証機能の実装に必要な rules を特定してください
-画面遷移に関係する specs を探してください
-ドキュメント構成を設定してください
-ログイン機能の要件定義書を作成してください
-ログイン機能の設計書を作成してください
-ログイン機能の実装計画を作成してください
+/doc-advisor:create-rules-toc --full
+/doc-advisor:create-specs-toc --full
 ```
 
-## 設定
+### 3. 検索
 
-設定ファイル: `.doc_structure.yaml`（プロジェクトルート）
-
-- `rules` / `specs` のルートディレクトリや doc_type マッピングを変更可能
-- 除外パターンはユーザー定義で追加可能
-- Doc Advisor 内部設定（ToC パス・並列数）はコードデフォルトで管理
-
-## ドキュメント
-
-- 日本語: [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md)
-- 英語: [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)
-
-## 必要要件
-
-- Python 3（標準ライブラリのみ）
-- Claude Code
-- Codex（Codex Skill を使う場合）
-- Bash シェル
-
-## Codex install profile
-
-`setup_for_codex.sh` は、`codex_install_profiles/doc-advisor/current.yaml` に記録された source version / commit / layout hash / `codex_skill_set` hash と一致する場合だけインストールします。
-
-`bw-cc-plugins` の plugin 構成や version が変わった場合は、先に Codex Skill セットと profile を再生成・レビューしてください。
-
-```bash
-./analyze_codex_install_profile.sh
-./generate_codex_skill_set.sh
-./setup_for_codex.sh
+```text
+/doc-advisor:query-rules "認証フローのレビュー観点"
+/doc-advisor:query-specs "ユーザ登録 API"
 ```
 
-利用可能な profile は次で確認できます。
+## 検索モード
 
-```bash
-./setup_for_codex.sh --list-profiles
-```
+`query-rules` / `query-specs` は 3 モードに対応:
+
+| モード       | 引数      | 動作                                                            |
+| ------------ | --------- | --------------------------------------------------------------- |
+| auto（既定） | `(none)`  | ToC キーワード検索を常時実行。API キー設定時のみ Embedding 追加 |
+| toc          | `--toc`   | ToC キーワード検索のみ                                          |
+| index        | `--index` | Embedding セマンティック検索のみ                                |
+
+## 動作要件
+
+- [Claude Code](https://claude.ai/code) CLI
+- Python 3（標準ライブラリのみ。追加パッケージは不要）
+- OpenAI API キー（Embedding 検索を使う場合のみ。`OPENAI_API_DOCDB_KEY` を優先参照、未設定なら `OPENAI_API_KEY` にフォールバック）
+
+## 開発者向け情報
+
+このリポジトリ自体での開発フロー・テスト・フォーマットについては [`CLAUDE.md`](CLAUDE.md) を参照。
+
+このリポジトリは `BlueEventHorizon/bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。
 
 ## ライセンス
 
-MIT License
+[MIT](LICENSE)

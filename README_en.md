@@ -1,249 +1,131 @@
-# Doc Advisor
+# doc-advisor
 
-English | [日本語](README.md)
+**Version: 0.3.0**
 
-[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+An AI-searchable document index plugin for Claude Code. Indexes project rules and specifications with a two-layer search (keyword ToC + Embedding semantic search) so AI can automatically find the context it needs.
 
-## Introduction
+[日本語版 README](README.md)
 
-Generative AI can miss important specs even when you say “read the docs.”
-Doc Advisor is built on that constraint to ensure the AI reads only what it truly needs.
+## Why doc-advisor
 
-## Premise
+As a project grows, rules, conventions, and design documents accumulate. AI cannot use what it cannot find. `doc-advisor` indexes these documents and makes them automatically discoverable during implementation and review.
 
-This project builds on the ideas in:
-[Why generative AI doesn't read documents even when asked — Context Engineering and Doc Advisor](https://zenn.dev/k2moons/articles/ff6399ee33346e)
+- **Before implementation** — gather project-specific coding rules and relevant specs before writing a line of code.
+- **During review** — add applicable rules as review perspectives so reviews check against your actual standards, not generic best practices.
 
-Key limitations highlighted there:
+## Skills
 
-- Context Rot: Information in the middle of long contexts is missed
-- Attention Budget: Attention is finite and degrades with excessive input
-- Satisficing: The model stops early with a “good-enough” answer
+| Skill                | Description                                        | Trigger               |
+| -------------------- | -------------------------------------------------- | --------------------- |
+| **query-rules**      | Search rules with ToC / Embedding / hybrid mode    | `"query rules"`       |
+| **query-specs**      | Search specs with ToC / Embedding / hybrid mode    | `"query specs"`       |
+| **create-rules-toc** | Build/update rules ToC after rule documents change | `"rebuild rules ToC"` |
+| **create-specs-toc** | Build/update specs ToC after spec documents change | `"rebuild specs ToC"` |
 
-## Goals and Features
+## Workflow
 
-Doc Advisor’s goal is to identify the right documents quickly and reliably.
-Key features:
+```mermaid
+flowchart LR
+    DOC[(rules / specs<br/>Markdown)]
+    CT[create-*-toc<br/>Build ToC]
+    QR[query-* SKILL<br/>Search]
+    AI[AI Agent<br/>Implement / Review]
 
-- **Document categories**: Separate rules and specs
-- **doc_type management**: requirement / design / plan
-- **Automatic ToC generation**: Parse `.md`, extract metadata, output YAML
-- **Incremental updates**: SHA-256 change detection
-- **Parallel processing**: Up to 5 concurrent workers
-- **Interruption recovery**: Preserve completed work and resume
-- **Symlink support**: Include external documentation via symbolic links (v3.2+)
-
-For full details, see [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
-
-## Design Intent (Highlights)
-
-- **rules / specs separation**: Reduce search cost and ambiguity
-- **plan excluded from ToC**: Plans are read in full during work
-- **Path-based doc_type detection**: Stable detection without filename constraints
-- **File path as identifier**: Avoid forced IDs and keep references consistent
-- **Incremental processing**: Only reprocess what changed
-- **Interruption-first**: `.toc_work/` keeps artifacts for safe resumption
-
-## Typical Use Cases
-
-- Large document sets: Retrieve only what matters
-- Frequent updates: Reprocess deltas only
-- Interruptions: Resume from pending entries
-- Deletions: Apply delete-only updates via checksums
-- Parallel failures: Fall back to serial processing
-
-## Quick Start
-
-### Claude Code
-
-1. Clone the repository (with submodules)
-
-```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
+    DOC --> CT --> TOC[(ToC YAML<br/>Embedding Index)]
+    QR --> TOC
+    AI --> QR
+    QR -. matched paths .-> AI
 ```
 
-> If you already cloned without `--recursive`, run `git submodule update --init`.
-
-2. Run setup for your target project
-
-```bash
-cd DocAdvisor-CC
-./setup.sh /path/to/your-project
-```
-
-3. Launch Claude Code
-
-```bash
-cd /path/to/your-project
-claude
-```
-
-4. Configure document directories
-
-If `setup.sh` detected `.doc_structure.yaml`, directories are auto-configured.
-Otherwise, run the classification skill:
-
-```bash
-/setup-doc-structure
-```
-
-5. Generate initial ToC files
-
-```bash
-/create-rules-toc --full
-/create-specs-toc --full
-```
-
-> Using the Makefile:
->
-> ```bash
-> make setup
-> make setup TARGET=/path/to/your-project
-> ```
-
-### Codex
-
-For Codex, this repository installs the pre-generated and reviewed `codex_skill_set/` as ordinary environment-wide Codex Skills.
-Target project runtime state and `AGENTS.md` are initialized only when requested.
-
-1. Clone the repository (with submodules)
-
-```bash
-git clone --recursive https://github.com/BlueEventHorizon/DocAdvisor-CC.git
-```
-
-> If you already cloned without `--recursive`, run `git submodule update --init`.
-
-2. Install the Codex Skills into your environment
-
-```bash
-cd DocAdvisor-CC
-./setup_for_codex.sh
-```
-
-By default this writes:
+## Installation
 
 ```text
-~/.codex/skills/
-~/.codex/doc-advisor/resources/
-~/.codex/doc-advisor/install.yaml
+/plugin marketplace add BlueEventHorizon/DocAdvisor
+/plugin install doc-advisor@DocAdvisor
 ```
 
-To also initialize project runtime state and `AGENTS.md`:
+To re-enable a disabled plugin, from your terminal:
 
 ```bash
-./setup_for_codex.sh --project /path/to/your-project
+claude plugin enable doc-advisor@DocAdvisor
 ```
 
-`--project` does not create project-local `.codex/skills/` or `.codex/resources/`. If old project-local Doc Advisor managed files already exist, the managed legacy paths are removed to avoid duplicate stale skills.
-The project-local bridge pattern, where `AGENTS.md` points Codex at project-local `.codex/skills/`, is not an official Codex Skill install. It is documented as a migration and experiment pattern in `specs/codex/design/DES-CODEX-001_setup_for_codex.md`.
-Legacy files from the previous plugin approach, such as `~/plugins/doc-advisor/` or `~/.agents/plugins/marketplace.json`, are not removed automatically. Disable or delete them separately if needed.
-
-3. Launch Codex in the target project
-
-Restart Codex if the new or updated Skills are not visible in the current session.
+### Local trial (session only)
 
 ```bash
-cd /path/to/your-project
-codex
+git clone https://github.com/BlueEventHorizon/DocAdvisor.git
+claude --plugin-dir ./DocAdvisor
 ```
 
-4. Available functions
+## Setup
 
-Codex reads these installed environment Skills.
+### 1. Place `.doc_structure.yaml`
 
-| Function | Skill |
-| -------- | ----- |
-| rules ToC generation | `create-rules-toc` |
-| specs ToC generation | `create-specs-toc` |
-| rules search | `query-rules` |
-| specs search | `query-specs` |
-| document structure setup | `setup-doc-structure` |
-| requirements authoring | `start-requirements` |
-| design authoring | `start-design` |
-| plan authoring | `start-plan` |
+A configuration file declaring where documents live is required. Minimal example:
 
-Codex ToC and index outputs are written under `.codex/state/doc-advisor/toc/` and `.codex/state/doc-advisor/index/`.
-They are separate from Claude Code's `.claude/` files.
-The forge authoring wrappers use a chat-based confirmation protocol instead of a dedicated UI tool. When a file creation, overwrite, or decision branch needs approval, Codex presents choices and waits for the user's reply.
+```yaml
+# doc_structure_version: 3.0
 
-## Usage
+rules:
+  root_dirs:
+    - docs/rules/
+  doc_types_map:
+    docs/rules/: rule
+  patterns:
+    target_glob: "**/*.md"
 
-### Claude Code
-
-### ToC generation commands
-
-```bash
-/create-rules-toc          # Incremental update
-/create-rules-toc --full   # Full rebuild
-
-/create-specs-toc          # Incremental update
-/create-specs-toc --full   # Full rebuild
+specs:
+  root_dirs:
+    - "docs/specs/**/design/"
+    - "docs/specs/**/requirements/"
+  doc_types_map:
+    "docs/specs/**/design/": design
+    "docs/specs/**/requirements/": requirement
+  patterns:
+    target_glob: "**/*.md"
 ```
 
-### Document search skills
+Additional supported fields:
 
-```bash
-/query-rules Identify documents for implementing authentication
-/query-specs Find requirements for screen navigation
-```
+- `output_dir`: ToC output directory (default: `.claude/doc-advisor/`)
+- `patterns.exclude`: glob patterns to exclude
 
-### Codex
-
-In Codex, use natural-language requests instead of slash commands.
-Codex will refer to the installed Doc Advisor Skills and, when `--project` was used, the Doc Advisor section in `AGENTS.md`.
-
-Examples:
+### 2. Initial ToC build
 
 ```text
-Regenerate the full rules ToC.
-Incrementally update the specs ToC.
-Find the rules needed to implement authentication.
-Find specs related to screen navigation.
-Configure the document structure.
-Create requirements for the login feature.
-Create a design document for the login feature.
-Create an implementation plan for the login feature.
+/doc-advisor:create-rules-toc --full
+/doc-advisor:create-specs-toc --full
 ```
 
-## Configuration
+### 3. Search
 
-Config file: `.doc_structure.yaml` (project root)
+```text
+/doc-advisor:query-rules "review perspectives for auth flow"
+/doc-advisor:query-specs "user registration API"
+```
 
-- Customize `rules` / `specs` root directories and doc_type mappings
-- Add user-defined exclude patterns as needed
-- Doc Advisor internal settings (toc paths, parallelism) are built-in defaults
+## Search Modes
 
-## Documentation
+`query-rules` / `query-specs` support 3 modes:
 
-- Japanese: [TECHNICAL_GUIDE_ja.md](TECHNICAL_GUIDE_ja.md)
-- English: [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)
+| Mode           | Argument  | Behavior                                                         |
+| -------------- | --------- | ---------------------------------------------------------------- |
+| auto (default) | `(none)`  | ToC keyword search always; Embedding added if API key is present |
+| toc            | `--toc`   | ToC keyword search only                                          |
+| index          | `--index` | Embedding semantic search only                                   |
 
 ## Requirements
 
-- Python 3 (standard library only)
-- Claude Code
-- Codex (when using the Codex Skills)
-- Bash shell
+- [Claude Code](https://claude.ai/code) CLI
+- Python 3 (standard library only; no extra packages required)
+- OpenAI API key (only if you use Embedding search; `OPENAI_API_DOCDB_KEY` is preferred, falling back to `OPENAI_API_KEY` if unset)
 
-## Codex Install Profile
+## For Developers
 
-`setup_for_codex.sh` installs only when the source version, commit, layout hash, and `codex_skill_set` hash match `codex_install_profiles/doc-advisor/current.yaml`.
+For development flow, tests, and formatting in this repository itself, see [`CLAUDE.md`](CLAUDE.md).
 
-When the `bw-cc-plugins` plugin layout or version changes, regenerate and review the Codex skill set and install profile first.
-
-```bash
-./analyze_codex_install_profile.sh
-./generate_codex_skill_set.sh
-./setup_for_codex.sh
-```
-
-List available profiles with:
-
-```bash
-./setup_for_codex.sh --list-profiles
-```
+This repository was separated from `BlueEventHorizon/bw-cc-plugins` (a marketplace bundling forge / anvil / doc-advisor / doc-db).
 
 ## License
 
-MIT License
+[MIT](LICENSE)

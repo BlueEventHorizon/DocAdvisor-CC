@@ -1,0 +1,30 @@
+# version_config_version: 1.0
+
+targets:
+  - name: doc-advisor
+    version_file: .claude-plugin/plugin.json
+    version_path: version
+    sync_files:
+      - path: README.md
+        pattern: "**Version: {version}**"
+        filter: "**Version:"
+      - path: README_en.md
+        pattern: "**Version: {version}**"
+        filter: "**Version:"
+        optional: true
+      - path: CLAUDE.md
+        pattern: "**doc-advisor** (v{version})"
+        filter: "**doc-advisor** (v"
+        optional: true
+
+changelog:
+  file: CHANGELOG.md
+  format: keep-a-changelog
+  git_log_auto: false
+  section_per_target: false
+
+git:
+  tag_format: "v{version}"
+  commit_message: "chore: bump to v{version}"
+  auto_tag: false
+  auto_commit: false

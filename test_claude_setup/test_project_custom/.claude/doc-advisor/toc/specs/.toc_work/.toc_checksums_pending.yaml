@@ -1,7 +1,0 @@
-# Phase 1 snapshot - used to replace .toc_checksums.yaml after merge
-# Auto-generated - do not edit
-generated_at: 2026-05-09T03:26:17Z
-file_count: 2
-checksums:
-  documents/main/arch/api.md: 1a019c88b5f1629dbd77a6bcd5f9ded0c1398aaebcc83a4825a6bba1dabf1c2b
-  documents/main/reqs/auth.md: 116252b37322f870e257aac741f349a37274e79031f7781d4c5d5dc571774313

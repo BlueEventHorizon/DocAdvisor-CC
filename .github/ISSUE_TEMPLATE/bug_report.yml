@@ -29,13 +29,6 @@ body:
     validations:
       required: true
   - type: textarea
-    id: actual
-    attributes:
-      label: 実際の動作
-      description: 期待と異なる実際の動作を説明してください。
-    validations:
-      required: true
-  - type: textarea
     id: error-output
     attributes:
       label: エラー出力 / ログ
