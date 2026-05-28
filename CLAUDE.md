@@ -73,8 +73,8 @@ dprint check    # チェックのみ
 claude --plugin-dir /Users/moons/data/dev/moons/ai_tools/DocAdvisor
 
 # GitHub 経由
-/plugin marketplace add BlueEventHorizon/DocAdvisor-CCPlugin
-/plugin install doc-advisor@DocAdvisor-CCPlugin
+/plugin marketplace add BlueEventHorizon/DocAdvisor
+/plugin install doc-advisor@DocAdvisor
 ```
 
 ## Testing [MANDATORY]

@@ -40,21 +40,21 @@ flowchart LR
 ## インストール
 
 ```text
-/plugin marketplace add BlueEventHorizon/DocAdvisor-CCPlugin
-/plugin install doc-advisor@DocAdvisor-CCPlugin
+/plugin marketplace add BlueEventHorizon/DocAdvisor
+/plugin install doc-advisor@DocAdvisor
 ```
 
 無効化したプラグインを再有効化するには、ターミナルから:
 
 ```bash
-claude plugin enable doc-advisor@DocAdvisor-CCPlugin
+claude plugin enable doc-advisor@DocAdvisor
 ```
 
 ### ローカルで試す（セッション限定）
 
 ```bash
-git clone https://github.com/BlueEventHorizon/DocAdvisor-CCPlugin.git
-claude --plugin-dir ./DocAdvisor-CCPlugin
+git clone https://github.com/BlueEventHorizon/DocAdvisor.git
+claude --plugin-dir ./DocAdvisor
 ```
 
 ## セットアップ
