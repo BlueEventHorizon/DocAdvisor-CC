@@ -1,10 +1,8 @@
 # DES-004: ドキュメントモデル設計書
 
-> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスは現在ルート直下を指す（例: `plugins/doc-advisor/scripts/` → `scripts/`）。
-
 ## 概要
 
-本設計書では、Doc Advisor が管理するドキュメントモデルの全体構造、設定項目、およびスキャン対象の仕様を定義する。
+本設計書では、doc-advisor が管理するドキュメントモデルの全体構造、設定項目、およびスキャン対象の仕様を定義する。
 
 ## 関連要件
 
@@ -43,10 +41,10 @@ Doc Advisor は2つのカテゴリでドキュメントを管理する。
 
 各カテゴリは**1つ以上のルートディレクトリ**を持つ。ルートディレクトリ配下のサブディレクトリ構造は自由。
 
-`root_dirs` の設定方法（`.doc_structure.yaml` に記述。ランタイムで直接参照: FR-08）:
+`root_dirs` の設定方法（`.doc_structure.yaml` に記述。ランタイムで直接参照: REQ-001 PRE-01）:
 
 - `.doc_structure.yaml` がある場合: そのまま使用
-- `.doc_structure.yaml` がない場合: `/forge:setup-doc-structure` スキルで AI が分類し `.doc_structure.yaml` を作成
+- `.doc_structure.yaml` がない場合: `/doc-advisor:setup-doc-structure` スキルで AI が分類し `.doc_structure.yaml` を作成
 
 ```yaml
 rules:
@@ -186,7 +184,7 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 #### バージョン
 
 ファイル先頭に `# doc_structure_version: 3.0` コメントを記述する。
-これは forge プラグインと Doc Advisor で共通のバージョニング規約。
+これは `.doc_structure.yaml` の形式バージョニング規約である。
 
 #### 構造
 
@@ -249,8 +247,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目                    | 型     | 設定ソース / デフォルト                                                                 | 説明                                 |
 | ----------------------- | ------ | --------------------------------------------------------------------------------------- | ------------------------------------ |
-| `root_dirs`             | array  | `.doc_structure.yaml`（`/forge:setup-doc-structure` で設定）                            | ルートディレクトリ群                 |
-| `doc_types_map`         | object | `.doc_structure.yaml`（`/forge:setup-doc-structure` で設定）                            | パス → doc_type の対応。FR-01-6 参照 |
+| `root_dirs`             | array  | `.doc_structure.yaml`（`/doc-advisor:setup-doc-structure` で設定）                      | ルートディレクトリ群                 |
+| `doc_types_map`         | object | `.doc_structure.yaml`（`/doc-advisor:setup-doc-structure` で設定）                      | パス → doc_type の対応。FR-01-6 参照 |
 | `patterns.target_glob`  | string | `.doc_structure.yaml` / デフォルト: `**/*.md`                                           | スキャン対象パターン                 |
 | `patterns.exclude`      | array  | `.doc_structure.yaml` / デフォルト: `[]`                                                | 除外パターン（ユーザー定義）         |
 | `toc_file`              | string | コードデフォルト（`toc_utils.py`）: `.claude/doc-advisor/toc/rules/rules_toc.yaml`      | 出力 ToC ファイルパス                |
@@ -263,8 +261,8 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 | 項目                    | 型     | 設定ソース / デフォルト                                                                 | 説明                                 |
 | ----------------------- | ------ | --------------------------------------------------------------------------------------- | ------------------------------------ |
-| `root_dirs`             | array  | `.doc_structure.yaml`（`/forge:setup-doc-structure` で設定）                            | ルートディレクトリ群                 |
-| `doc_types_map`         | object | `.doc_structure.yaml`（`/forge:setup-doc-structure` で設定）                            | パス → doc_type の対応。FR-01-6 参照 |
+| `root_dirs`             | array  | `.doc_structure.yaml`（`/doc-advisor:setup-doc-structure` で設定）                      | ルートディレクトリ群                 |
+| `doc_types_map`         | object | `.doc_structure.yaml`（`/doc-advisor:setup-doc-structure` で設定）                      | パス → doc_type の対応。FR-01-6 参照 |
 | `patterns.target_glob`  | string | `.doc_structure.yaml` / デフォルト: `**/*.md`                                           | スキャン対象パターン                 |
 | `patterns.exclude`      | array  | `.doc_structure.yaml` / デフォルト: `[]`                                                | 除外パターン（ユーザー定義）         |
 | `toc_file`              | string | コードデフォルト（`toc_utils.py`）: `.claude/doc-advisor/toc/specs/specs_toc.yaml`      | 出力 ToC ファイルパス                |
@@ -365,6 +363,5 @@ common:
 
 | 設計書  | 内容                                  |
 | ------- | ------------------------------------- |
-| DES-001 | セットアップスクリプト                |
 | DES-003 | 文書識別子の設計                      |
 | DES-005 | ToC 生成フローと Skill/Agent 設計根拠 |

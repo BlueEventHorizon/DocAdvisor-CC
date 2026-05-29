@@ -1,17 +1,15 @@
 # DES-005: ToC 生成フロー設計書
 
-> **歴史的記録（doc-advisor 単独プラグイン化前のスナップショット）**: 本文書は `bw-cc-plugins` マーケットプレイス時代に執筆された。現リポジトリは doc-advisor 単独プラグインのため、文中の `plugins/doc-advisor/` プレフィックスは現在ルート直下を指す（例: `plugins/doc-advisor/scripts/` → `scripts/`）。
-
 ## 概要
 
-本設計書では、Doc Advisor の ToC（Table of Contents）自動生成システムの全体フロー、変更検出メカニズム、並列分割処理、マージ処理を定義する。
+本設計書では、doc-advisor の ToC（Table of Contents）自動生成システムの全体フロー、変更検出メカニズム、並列分割処理、マージ処理を定義する。
 
 ## 関連要件
 
 - REQ-001 FR-02: ToC 自動生成
 - REQ-001 FR-03: 変更検出
 - REQ-001 FR-04: 並列処理
-- REQ-001 FR-08: ランタイム設定原則
+- REQ-001 FR-06: セットアップ
 
 ---
 
@@ -91,81 +89,41 @@ flowchart TD
 ### 設計思想
 
 - **`.doc_structure.yaml` + コードデフォルトがランタイム設定**: `.doc_structure.yaml` はランタイムで直接参照する
-- **入口集約**: check_doc_structure.sh を通過すれば後段スクリプトは二重検証不要
-- **ソフトゲート**: AI への指示として機能（スキル Pre-check で呼び出される）
+- **スクリプトによる検証**: 各スクリプトは `load_config()`（`toc_utils.py`）経由で `.doc_structure.yaml` を読み込み、対象カテゴリの `root_dirs` が未設定なら `{"status": "config_required", ...}` を返す
+- **SKILL の Error Handling で案内**: スクリプトが `config_required` を返したら、SKILL は `AskUserQuestion` で `/doc-advisor:setup-doc-structure` の実行（または `.doc_structure.yaml` の手動配置）を案内する
 
 ### .doc_structure.yaml 確立フロー
 
-`.doc_structure.yaml` の `root_dirs` と `doc_types_map` は以下の2つの独立した経路で設定される。いずれも最終成果物は `.doc_structure.yaml`（プロジェクトルート）である。
-
-#### 経路 A: setup.sh（インストール時）
+`.doc_structure.yaml` の `root_dirs` と `doc_types_map` は `/doc-advisor:setup-doc-structure` スキル、または手動配置で設定される。最終成果物は `.doc_structure.yaml`（プロジェクトルート）である。
 
 ```mermaid
 flowchart TD
-    A[setup.sh 実行] --> B{".doc_structure.yaml 存在?"}
-    B -->|Yes| C[そのまま使用]
-    C --> D[setup.sh 終了]
-    B -->|No| E["警告出力:<br>.doc_structure.yaml の作成を案内"]
-    E --> F[setup.sh 終了]
+    H[create-*-toc スキル起動] --> I[create_pending_yaml.py 実行]
+    I --> J{"root_dirs 設定済み?"}
+    J -->|Yes| K[Phase 1 へ]
+    J -->|No| L["config_required を返す"]
+    L --> M["SKILL の Error Handling が<br>AskUserQuestion で案内"]
+    M --> N["ユーザーが setup-doc-structure 実行<br>または .doc_structure.yaml を手動配置"]
+    N --> O[".doc_structure.yaml 有効"]
+    O --> K
 ```
 
-> `.doc_structure.yaml` が存在すれば、doc-structure プラグインが分析済みの結果である。setup.sh は内容の妥当性を判定せず、そのまま使用する。root_dirs の有効性検証は setup.sh の責務ではなく、check_doc_structure.sh（スキル起動時）の責務である。
+> `.doc_structure.yaml` の作成・分類は `/doc-advisor:setup-doc-structure` が担う（外部スクリプト・追加パッケージに依存せず、Glob / Read / Write / AskUserQuestion のみで完結）。スクリプト側は内容の妥当性を判定せず、`root_dirs` の有無のみを検証する。
 
-#### 経路 B: /forge:setup-doc-structure（check_doc_structure.sh の警告を契機に AI が実行）
+### config_required の判定条件
 
-```mermaid
-flowchart TD
-    H[スキル起動] --> I[check_doc_structure.sh 実行]
-    I --> J{root_dirs 設定済み?}
-    J -->|Yes| K[スキル本体へ]
-    J -->|No| L["警告メッセージ出力"]
-    L --> M["AI が警告を読み取り<br>スキルを中断"]
-    M --> N["AI が setup-doc-structure スキルを実行"]
-    N --> O[AI がプロジェクトをスキャン]
-    O --> P[ユーザー確認]
-    P --> Q[.doc_structure.yaml を作成]
-    Q --> R[.doc_structure.yaml 有効]
-```
-
-**重要**: 経路 A と経路 B は独立した操作であり、循環しない。setup.sh は `.doc_structure.yaml` の有無で処理して終了する。root_dirs が未設定のままスキルが起動された場合、check_doc_structure.sh が警告を出力し、AI がそれを読み取って `/forge:setup-doc-structure` の実行を判断する（自動実行ではなく、AI の判断による実行）。
-
-### check_doc_structure.sh 検証フロー
-
-スキル起動時に `.doc_structure.yaml` の状態を検証する:
-
-```mermaid
-flowchart TD
-    A[check_doc_structure.sh 実行] --> B{".doc_structure.yaml 存在?"}
-    B -->|No| C[警告出力<br>/forge:setup-doc-structure の実行を促す]
-    B -->|Yes| D{root_dirs 設定あり?}
-    D -->|Yes| E[exit 0<br>設定 OK]
-    D -->|No| C
-```
-
-### 現行からの変更点
-
-| 項目   | 現行                                        | 改善後                                              |
-| ------ | ------------------------------------------- | --------------------------------------------------- |
-| Case 1 | `.doc_structure.yaml` 存在 + root_dirs あり | exit 0（設定 OK）                                   |
-| Case 2 | `.doc_structure.yaml` 存在 + root_dirs なし | 警告出力（/forge:setup-doc-structure の実行を促す） |
-| Case 3 | `.doc_structure.yaml` 不存在                | 警告出力（/forge:setup-doc-structure の実行を促す） |
-
-### 判定条件テーブル
-
-| .doc_structure.yaml | root_dirs 行                    | 判定 | 出力           |
-| ------------------- | ------------------------------- | ---- | -------------- |
-| 存在しない          | —                               | NG   | 警告メッセージ |
-| 存在する            | `root_dirs:` あり（空配列含む） | OK   | なし（exit 0） |
-| 存在する            | コメントアウト or 行なし        | NG   | 警告メッセージ |
+| .doc_structure.yaml | 対象カテゴリの root_dirs 行     | 判定 | スクリプト出力                  |
+| ------------------- | ------------------------------- | ---- | ------------------------------- |
+| 存在しない          | —                               | NG   | `{"status": "config_required"}` |
+| 存在する            | `root_dirs:` あり（空配列含む） | OK   | 通常処理へ                      |
+| 存在する            | コメントアウト or 行なし        | NG   | `{"status": "config_required"}` |
 
 - **入力**: `.doc_structure.yaml`（プロジェクトルート）
-- **出力**: 警告メッセージ（stdout）または出力なし
-- **副作用**: なし（`.doc_structure.yaml` を変更しない）
-- **exit code**: 常に 0
+- **副作用**: なし（スクリプトは `.doc_structure.yaml` を変更しない）
 
 ### 関連要件
 
-- REQ-001 FR-08: ランタイム設定原則
+- REQ-001 FR-06: セットアップ
 
 ---
 

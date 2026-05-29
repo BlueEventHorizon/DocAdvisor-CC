@@ -4,8 +4,8 @@
 
 metadata:
   name: Project Specification Document Search Index
-  generated_at: 2026-05-28T16:58:18Z
-  file_count: 17
+  generated_at: 2026-05-29T05:42:22Z
+  file_count: 12
 
 docs:
   docs/specs/common/design/COMMON-DES-001_skill_base_design.md:
@@ -105,62 +105,28 @@ docs:
       - IOError
   docs/specs/doc-advisor/design/ADR-002_query_skill_subagent_isolation.md:
     doc_type: design
-    title: "ADR-002: fork-type SKILL isolation and read-only constraint"
-    purpose: Documents decision to isolate query-rules and query-specs skills with fork context and read-only constraints as multi-layered safeguards against unauthorized modifications in subagent invocation
+    title: "Architecture Decision Record: query-rules and query-specs fork SKILL isolation with read-only constraints"
+    purpose: Defines architecture decision for ensuring query-rules and query-specs SKILL operate as read-only, fork-isolated skills that prevent unintended context inheritance and writing operations
     content_details:
-      - "Root cause analysis: missing context fork, lacking negative constraints in Role, granted write tools, command-like query strings, legacy auto mode side effects"
-      - "Decision: add context: fork, strengthen Role with read-only constraints, clarify argument interpretation"
-      - "Multiple defense layers: fork boundary, explicit Role constraints, argument interpretation guard"
-      - "Regression prevention: tests for frontmatter context: fork and Role constraint text presence"
-      - "Impact scope: query-rules and query-specs SKILL.md updates and test additions"
+      - Fork context isolation requirement
+      - Read-only constraint specification
+      - Argument interpretation guidelines
+      - Multi-layer defense approach
+      - Regression test requirements
+      - Incident analysis and root causes
+      - Impact scope on SKILL.md files
     applicable_tasks:
-      - SKILL design review and validation
-      - Search skill security audit
-      - Fork-type SKILL implementation
-      - Regression test implementation
-      - Documentation for read-only constraints
+      - SKILL design review
+      - Read-only skill implementation
+      - Context isolation verification
+      - Architecture decision documentation
     keywords:
-      - fork-type SKILL
-      - read-only constraint
-      - context isolation
+      - fork context
+      - read-only
       - query-rules
       - query-specs
-      - subagent context inheritance
-      - multi-layered defense
-      - SKILL.md frontmatter
-  docs/specs/doc-advisor/design/DES-001_plugin_migration_design.md:
-    doc_type: design
-    title: DocAdvisor Plugin Migration Design
-    purpose: Documents the architectural design for migrating DocAdvisor from setup.sh distribution to bw-cc-plugins marketplace, including directory structure, module design, and integration patterns
-    content_details:
-      - Directory structure with flat scripts layout
-      - Module responsibilities and dependencies
-      - Use case design for ToC generation and document search
-      - Path reference migration (33 locations across skills/agents/docs)
-      - "Skill name namespace updates (doc-advisor: prefix)"
-      - Project root resolution with 3-stage fallback strategy
-      - plugin.json configuration without explicit skills/agents fields
-      - Test migration from bash to Python unittest
-      - Configuration file handling with .doc_structure.yaml direct reference
-      - Risk mitigation and rollback procedures
-    applicable_tasks:
-      - Plugin migration planning and implementation
-      - Architecture review for marketplace deployment
-      - Integration testing between doc-advisor and forge plugins
-      - Documentation structure validation
-      - Path reference refactoring
-      - Test suite migration and maintenance
-    keywords:
-      - plugin migration
-      - marketplace distribution
-      - directory structure
-      - Python unittest
-      - toc_utils
-      - CLAUDE_PROJECT_DIR
-      - plugin.json
-      - config.yaml removal
-      - script namespace
-      - forge integration
+      - SKILL isolation
+      - context inheritance prevention
   docs/specs/doc-advisor/design/DES-003_document_identifier.md:
     doc_type: design
     title: Document Identifier Design
@@ -193,249 +159,143 @@ docs:
   docs/specs/doc-advisor/design/DES-004_document_model.md:
     doc_type: design
     title: "DES-004: Document Model Design"
-    purpose: Defines the overall structure, configuration items, and scanning specifications for documents managed by Doc Advisor
+    purpose: Defines the overall structure of the document model managed by doc-advisor, including configuration items, directory management, and scanning specifications for both rules and specs categories
     content_details:
-      - Document categories (rules, specs)
-      - Directory structure and root directories
-      - Scan patterns and exclusion rules
-      - Configuration file schema (.doc_structure.yaml)
-      - ToC file, checksums file, and work directory specifications
-      - Doc type definitions (rule, requirement, design, plan, api, reference, spec)
-      - Configuration merging and runtime loading logic
+      - Two document categories with separate ToC files
+      - Root directory configuration through .doc_structure.yaml
+      - Multi-root directory support and subdirectory structure
+      - Scan target patterns with glob matching and exclusion rules
+      - Exclusion pattern logic for directory path matching
+      - Configuration schema with doc_types_map for path-to-type mapping
+      - "Built-in document types: rule, requirement, design, plan, api, reference, spec"
+      - Custom doc_type support with format validation
+      - Configuration merge logic and backward compatibility
+      - "System file structure: .toc_checksums.yaml and .toc_work directory"
     applicable_tasks:
-      - Document structure configuration
-      - ToC generation setup
-      - Doc Advisor design understanding
-      - Configuration file creation
-      - Scan pattern customization
+      - Document structure configuration and setup
+      - Root directory and scanning pattern definition
+      - Document type classification and mapping
+      - Configuration file schema creation and validation
+      - Doc-advisor ToC generation workflow understanding
     keywords:
-      - document model
-      - scanning
-      - ToC
-      - configuration
-      - doc_structure.yaml
+      - doc_structure
       - root_dirs
+      - doc_types_map
+      - category
       - exclusion patterns
-      - doc_type
+      - toc_file
+      - configuration
+      - document model
+      - path matching
   docs/specs/doc-advisor/design/DES-005_toc_generation_flow.md:
     doc_type: design
     title: ToC Generation Flow Design
-    purpose: Defines the entire Table of Contents automatic generation system including change detection, parallel processing, merge operations, and error handling workflow
+    purpose: Specifies the complete ToC auto-generation system flow, change detection mechanism, parallel processing, and merge procedure for doc-advisor
     content_details:
-      - Overall system components and architecture
-      - "Four processing modes: full, incremental, continuation, delete-only"
-      - "Phase 0: startup validation with doc_structure.yaml"
-      - "Phase 1: hash-based change detection algorithm"
-      - "Phase 2: parallel work file processing with SHA256-based naming"
-      - "Phase 3: merge operations and deletion handling"
-      - "Phase 4: output validation and checksums"
-      - Subagent processing workflow
-      - Error handling and continuation recovery
-      - Performance considerations for parallel processing
+      - System components and their roles (Orchestrator, Subagent, Checksum Generator, Pending Generator, Writer, Merger, Validator)
+      - "Processing modes: full, incremental, continuation, delete-only"
+      - "Phase 0: startup validation with .doc_structure.yaml configuration"
+      - "Phase 1: SHA-256 hash-based change detection algorithm"
+      - "Phase 2: parallel processing with individual entry files in .toc_work directory"
+      - "Phase 3: merge processing supporting full/incremental/delete-only modes"
+      - "Phase 4: validation with YAML syntax, metadata, and file existence checks"
+      - Error handling with file read errors, YAML errors, and validation failures
+      - Continuation (resumption) flow for interrupted processing
+      - Performance metrics showing 80 percent reduction in processing time with 5-parallel execution
     applicable_tasks:
-      - ToC generation implementation
-      - Change detection mechanism design
-      - Parallel processing architecture
-      - Document indexing pipeline
-      - Error recovery and resumption
-      - Performance optimization for bulk document processing
+      - ToC automatic generation implementation
+      - Change detection mechanism with hash comparison
+      - Parallel processing orchestration
+      - File merge and consolidation
+      - Validation and error recovery
+      - Phase-based workflow coordination
     keywords:
-      - orchestrator
-      - subagent
-      - checksum
+      - ToC generation
+      - change detection
       - SHA-256
-      - pending YAML
-      - merge
-      - validator
-      - incremental mode
-      - continuation
       - parallel processing
-  docs/specs/doc-advisor/requirements/FNC-001_context_external_search_spec.md:
-    doc_type: requirement
-    title: FNC-001 Context External Search Specification
-    purpose: Defines requirements for executing document search outside AI context window in doc-advisor query-specs and query-rules skills using three search modes
-    content_details:
-      - Three search modes (--toc, --index, auto) with different context consumption approaches
-      - API key setup requirements and graceful fallback behavior
-      - Search input (natural language task description) and output (candidate document path list)
-      - Error handling for missing indices, empty queries, and API failures
-      - doc-advisor self-contained search pattern (ToC keyword matching plus optional Embedding with union merge)
-      - Fork SKILL execution for context isolation
-      - Python script testing requirements
-      - Search result scoring using cosine similarity
-    applicable_tasks:
-      - Document search implementation and integration
-      - Search mode selection and behavior implementation
-      - Error handling in search workflows
-      - Fork SKILL search execution design
-      - API key fallback mechanism implementation
-      - Search result merging and deduplication
-    keywords:
-      - context external search
-      - ToC keyword matching
-      - Embedding search
-      - API key
-      - fork SKILL
-      - search modes
-      - union merge
-      - Hybrid search
-      - search index
-      - context window
+      - merge flow
+      - validation
+      - checksum
+      - entry file
+      - continuation
+      - phase orchestration
   docs/specs/doc-advisor/requirements/FNC-002_zero_miss_search_accuracy_spec.md:
     doc_type: requirement
     title: FNC-002 Zero-Miss Search Accuracy Specification
-    purpose: "Defines zero-miss search accuracy requirements for doc-advisor's document search, ensuring all related documents are returned without false negatives and false positives are minimized"
+    purpose: Defines search accuracy requirements for ToC searches to ensure no relevant documents are missed when retrieving content
     content_details:
-      - Search accuracy requirements with false negatives = 0 and no result count limit
-      - "Searchable fields: title, purpose, content_details, applicable_tasks, keywords"
-      - Category separation maintaining independent rules and specs indexes
-      - Golden set precision testing with 43 query test cases across 6 categories
-      - Quality test results showing ToC search exceeds Embedding accuracy in v0.2.0
-      - v0.3.x auto mode quality criteria combining ToC and Embedding union
-      - Error handling for stale indexes with warning and regeneration guidance
-      - Recall measurement methodology using golden set benchmark
+      - Search accuracy requirements ensuring all relevant documents are retrieved
+      - Search target fields (title, purpose, content_details, applicable_tasks, keywords)
+      - Category separation requirement for rules and specs
+      - AI-based semantic matching methodology for ToC
+      - Quality assurance mechanisms through comprehensive metadata
+      - Error case handling for stale or missing ToC
     applicable_tasks:
-      - Search accuracy verification and zero-miss validation
-      - Document index quality assessment
-      - Golden set benchmark creation and maintenance
-      - Search result precision evaluation against test cases
-      - Quality regression testing across doc-advisor versions
+      - ToC metadata generation and completeness verification
+      - Search implementation and quality validation
+      - Document discovery accuracy testing
     keywords:
-      - zero-miss search
       - search accuracy
-      - false negative
-      - golden set
-      - recall measurement
-      - ToC index
-      - Embedding union
-      - precision testing
-  docs/specs/doc-advisor/requirements/FNC-003_fast_index_generation_spec.md:
-    doc_type: requirement
-    title: FNC-003 Fast Index Generation Specification
-    purpose: Specifies requirements for faster index generation in the doc-advisor search pipeline, including full rebuild and incremental update capabilities based on change detection
-    content_details:
-      - Full index rebuild must be faster than current AI-based ToC generation
-      - Incremental update support for changed/added/deleted documents
-      - Incremental updates must be faster than full rebuild
-      - Triggered by create-specs-toc and create-rules-toc skills
-      - SHA-256 checksum mechanism for change detection
-      - Index persistence in .claude/doc-advisor/ directory
-      - Error handling for corrupt index (full rebuild) and deleted files (entry removal)
-      - "Related requirements: FNC-001 context-outside search and NFR-002 YAML ToC deprecation"
-    applicable_tasks:
-      - Index generation pipeline implementation
-      - Incremental update mechanism design
-      - Change detection implementation
-      - Error handling for index corruption
-    keywords:
-      - fast index generation
-      - incremental update
-      - checksum
-      - diff detection
-      - rebuild
-      - doc-advisor
-  docs/specs/doc-advisor/requirements/NFR-001_context_cost_reduction_spec.md:
-    doc_type: requirement
-    title: NFR-001 Context Cost Reduction Specification
-    purpose: Reduces context window consumption during document search by eliminating full ToC YAML loading requirement
-    content_details:
-      - Context cost reduction by mode (--index 50%+, --toc none, auto variable)
-      - Token-based measurement methodology with fixed query set
-      - Error handling behavior per mode (--index, --toc, auto)
-      - 100-entry threshold for auto mode decision logic
-      - Fallback strategy for unavailable search index or ToC
-      - Prerequisite dependency on FNC-001 (out-of-context search)
-    applicable_tasks:
-      - Document search mode design and implementation
-      - Context cost optimization
-      - Search accuracy evaluation and precision maintenance
-      - Error handling strategy definition
-      - Index search threshold configuration
-    keywords:
-      - context cost
-      - token reduction
-      - index search
-      - ToC filtering
-      - auto mode
-      - search index
-      - context optimization
-      - FNC-001
-      - measurement
-      - threshold
-  docs/specs/doc-advisor/requirements/NFR-002_yaml_toc_abolition_spec.md:
-    doc_type: requirement
-    title: YAML ToC Abolition Specification
-    purpose: Defines requirements for abolishing the YAML ToC and its generation pipeline after achieving sufficient search index accuracy, including abolition conditions and operational continuity
-    content_details:
-      - Abolition conditions and prerequisites
-      - Abolition targets including toc.yaml files and generation pipeline
-      - Maintained components for backward compatibility
-      - Operational continuity requirements for differential updates and recovery
-      - Error handling for premature abolition attempts
-      - Frozen status due to unmet embedding precision validation
-    applicable_tasks:
-      - Search index accuracy evaluation and validation
-      - Doc-advisor architecture review
-      - ToC deprecation planning
-      - Embedding index precision comparison
-    keywords:
-      - YAML ToC abolition
-      - search index accuracy
-      - embedding precision
-      - hybrid index architecture
-      - frozen requirement
+      - false negatives
+      - metadata
+      - ToC
+      - content discovery
+      - precision
+      - relevance
   docs/specs/doc-advisor/requirements/NFR-003_standard_library_preferred_spec.md:
     doc_type: requirement
-    title: NFR-003 Standard Library Preferred Requirement
-    purpose: Specifies policy for using Python standard library versus external libraries in search index implementation, with exception approval for semantic search performance requirements
+    title: NFR-003 Standard Library Preferred Specification
+    purpose: "Clarifies library selection policy: Python standard library preferred, but external libraries permitted when necessary for search precision and performance requirements"
     content_details:
-      - Standard library priority policy
-      - External library usage when standard library cannot meet performance requirements
-      - Dependency addition documentation requirement
-      - "Scope: index construction, search execution, result ranking"
+      - Standard library priority policy (sqlite3, json, etc)
+      - External library tolerance when precision/performance requirements cannot be met
+      - Design documentation requirement for external dependency justification
+      - Application scope (index construction, search execution, ranking)
       - Error handling for missing external libraries
+      - Relationship to REQ-001 (dependencies constraint)
+      - "Embedding search deletion (Issue #13)"
     applicable_tasks:
-      - Search index implementation
-      - Dependency selection and evaluation
-      - External library adoption decision
-      - Performance requirement assessment
-      - Search feature implementation
+      - Library selection decision for search implementation
+      - External dependency justification review
+      - Architecture compliance verification
     keywords:
       - standard library
-      - Python
-      - search index
-      - semantic search
       - external library
-      - dependency
-      - performance requirement
+      - dependencies
+      - search index
+      - embedding
+      - YAML
+      - PyYAML
+      - requirements
   docs/specs/doc-advisor/requirements/REQ-001_doc_advisor.md:
     doc_type: requirement
-    title: "REQ-001: Doc Advisor Requirements Definition"
-    purpose: Defines functional and non-functional requirements for Doc Advisor system including document management, ToC auto-generation, change detection, parallel processing, and search functionality
+    title: "REQ-001: doc-advisor Requirements Definition"
+    purpose: Defines requirements for the doc-advisor plugin, including document management categories, ToC auto-generation, change detection, parallel processing, and document search functionality
     content_details:
-      - Two-category document management (rule and spec)
-      - ToC auto-generation with metadata extraction
-      - SHA-256 checksum-based change detection
-      - Parallel document processing (max 5 parallel)
-      - Document search with 3 modes (ToC keyword, Embedding semantic, auto hybrid)
-      - Directory classification and runtime configuration
-      - Pre-check validation of .doc_structure.yaml
-      - Setup procedures and templates
+      - Functional requirements for document management
+      - ToC generation and metadata extraction
+      - SHA-256 based change detection
+      - Parallel agent processing
+      - Document search via ToC query
+      - Setup and configuration procedures
+      - Non-functional requirements and prerequisites
+      - Terminology definitions
     applicable_tasks:
-      - Doc Advisor system implementation
-      - ToC generation workflow design
-      - Document search feature implementation
-      - Setup and configuration planning
-      - .doc_structure.yaml validation
+      - Plugin architecture review
+      - ToC generation planning
+      - Requirements validation
+      - Feature implementation planning
+      - System design documentation
     keywords:
-      - Doc Advisor
+      - doc-advisor
       - ToC
-      - document indexing
-      - .doc_structure.yaml
+      - requirements
+      - document management
       - change detection
       - parallel processing
-      - search modes
-      - metadata extraction
+      - search indexing
+      - .doc_structure.yaml
   docs/specs/doc-advisor/requirements/REQ-002_upgrade_v2_to_v3.md:
     doc_type: requirement
     title: "REQ-002: Doc Advisor v2 to v3+ Upgrade Requirements"
