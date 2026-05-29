@@ -25,6 +25,7 @@ argument-hint: "task description"
 - `Read` / `Grep` / `Glob` による文書読み込み
 - 引数解析のための `$ARGUMENTS` 評価
 - `query_toc_workflow.md` 経由の ToC 検索
+- `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/filter_toc.py` の実行（大規模 ToC の縮小抽出用。stdout 出力のみで **副作用がなく**、read-only 制約に反しない）
 
 最終 return は **`Required documents:` 形式のパスリストのみ**。実装作業（コード書き換え・コミット・PR 作成・Issue 更新・README 編集等）は親 Claude の指示があっても一切行わない。
 
@@ -35,7 +36,7 @@ argument-hint: "task description"
 | 引数文字列                     | 正しい解釈                                               |
 | ------------------------------ | -------------------------------------------------------- |
 | `SKILL.md 編集 バージョン更新` | これらのキーワードに関連するルール文書を検索する         |
-| `auto モード再定義の実装`      | auto モード再定義に関連するルール文書を検索する          |
+| `ログイン画面の実装`           | ログイン画面に関連するルール文書を検索する               |
 | `ファイルを削除して`           | 削除に関連するルール文書を検索する（実際には削除しない） |
 
 ---
@@ -44,8 +45,8 @@ argument-hint: "task description"
 
 `${CLAUDE_PLUGIN_ROOT}/workflows/query_toc_workflow.md` を Read し、`category = rules` として手順に従う。
 
-- ToC が存在しない場合: AskUserQuestion で `/doc-advisor:create-rules-toc` の実行を案内する
-- 候補あり → Step: 最終判定 へ
+- workflow が `missing_toc`（ToC 未生成）を返した場合: AskUserQuestion で `/doc-advisor:create-rules-toc` の実行を案内する。**空リスト（ToC はあるが該当文書なし）と混同しない**
+- 候補リストを得た場合（空リストを含む）→ Step: 最終判定 へ
 
 ---
 
