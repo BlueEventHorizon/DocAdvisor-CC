@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working on **th
 
 `doc-advisor` プラグイン本体のリポジトリ。Claude Code 公式仕様の単一プラグイン構成（リポジトリルートに `.claude-plugin/plugin.json`）。
 
-ToC（キーワード）と Embedding（セマンティック）の2層検索でルール・仕様文書をインデックス化し、AI が必要なコンテキストを自動発見できるようにする。
+ToC（キーワード／メタデータ）でルール・仕様文書をインデックス化し、AI が必要なコンテキストを自動発見できるようにする。
 
 詳細は [README.md](README.md) を参照。
 

@@ -2,7 +2,7 @@
 
 **Version: 0.3.0**
 
-Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトのルール・仕様文書を ToC（キーワード）と Embedding（セマンティック）の 2 層で検索し、AI が必要なコンテキストを自動発見できるようにする。
+Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトのルール・仕様文書を ToC（キーワード・メタデータ）で検索し、AI が必要なコンテキストを自動発見できるようにする。
 
 [English README](README_en.md)
 
@@ -15,12 +15,13 @@ Claude Code 用の AI 検索可能なドキュメントインデックスプラ�
 
 ## スキル一覧
 
-| スキル               | 説明                                            | トリガー句         |
-| -------------------- | ----------------------------------------------- | ------------------ |
-| **query-rules**      | ルール文書を ToC・Embedding・ハイブリッドで検索 | `"ルール確認"`     |
-| **query-specs**      | 仕様文書を ToC・Embedding・ハイブリッドで検索   | `"仕様確認"`       |
-| **create-rules-toc** | ルール文書の変更後に ToC を構築・更新           | `"rules ToC 更新"` |
-| **create-specs-toc** | 仕様文書の変更後に ToC を構築・更新             | `"specs ToC 更新"` |
+| スキル                  | 説明                                                   | トリガー句              |
+| ----------------------- | ------------------------------------------------------ | ----------------------- |
+| **setup-doc-structure** | `.doc_structure.yaml` を対話的に生成・更新（初期設定） | `"setup doc structure"` |
+| **query-rules**         | ルール文書を ToC（キーワード/メタデータ）で検索        | `"ルール確認"`          |
+| **query-specs**         | 仕様文書を ToC（キーワード/メタデータ）で検索          | `"仕様確認"`            |
+| **create-rules-toc**    | ルール文書の変更後に ToC を構築・更新                  | `"rules ToC 更新"`      |
+| **create-specs-toc**    | 仕様文書の変更後に ToC を構築・更新                    | `"specs ToC 更新"`      |
 
 ## ワークフロー
 
@@ -31,7 +32,7 @@ flowchart LR
     QR[query-* SKILL<br/>検索]
     AI[AI Agent<br/>実装/レビュー]
 
-    DOC --> CT --> TOC[(ToC YAML<br/>Embedding Index)]
+    DOC --> CT --> TOC[(ToC YAML)]
     QR --> TOC
     AI --> QR
     QR -. 関連文書パス .-> AI
@@ -104,21 +105,10 @@ specs:
 /doc-advisor:query-specs "ユーザ登録 API"
 ```
 
-## 検索モード
-
-`query-rules` / `query-specs` は 3 モードに対応:
-
-| モード       | 引数      | 動作                                                            |
-| ------------ | --------- | --------------------------------------------------------------- |
-| auto（既定） | `(none)`  | ToC キーワード検索を常時実行。API キー設定時のみ Embedding 追加 |
-| toc          | `--toc`   | ToC キーワード検索のみ                                          |
-| index        | `--index` | Embedding セマンティック検索のみ                                |
-
 ## 動作要件
 
 - [Claude Code](https://claude.ai/code) CLI
 - Python 3（標準ライブラリのみ。追加パッケージは不要）
-- OpenAI API キー（Embedding 検索を使う場合のみ。`OPENAI_API_DOCDB_KEY` を優先参照、未設定なら `OPENAI_API_KEY` にフォールバック）
 
 ## 開発者向け情報
 

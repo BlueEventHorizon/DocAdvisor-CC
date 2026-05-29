@@ -4,8 +4,7 @@
 .claude/settings.local.json
 .claude/.temp/
 
-# 機械生成の検索 Index (embedding vectors を含む、サイズ大、再生成可能)
-.claude/doc-advisor/index/
+# Codex CLI ローカル状態
 .codex/
 
 # テスト用一時ディレクトリ（tempfile.mkdtemp の出力先・/tmp 不可環境のフォールバック）

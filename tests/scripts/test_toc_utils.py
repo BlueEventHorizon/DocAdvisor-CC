@@ -700,28 +700,27 @@ class TestExpandDocTypesMap(unittest.TestCase):
 class TestExpandOutputDir(unittest.TestCase):
     """_expand_output_dir() のテスト。"""
 
-    def test_derives_four_fields(self):
-        """output_dir から4フィールドが正しく導出される"""
+    def test_derives_three_fields(self):
+        """output_dir から3フィールドが正しく導出される"""
         section = {'output_dir': 'custom/output/'}
         toc_utils._expand_output_dir(section, 'rules')
         self.assertEqual(section['toc_file'], 'custom/output/toc/rules/rules_toc.yaml')
         self.assertEqual(section['checksums_file'], 'custom/output/toc/rules/.toc_checksums.yaml')
         self.assertEqual(section['work_dir'], 'custom/output/toc/rules/.toc_work/')
-        self.assertEqual(section['index_file'], 'custom/output/index/rules/rules_index.json')
 
     def test_specs_category(self):
         """specs カテゴリの導出パスが正しい"""
         section = {'output_dir': 'my/base/'}
         toc_utils._expand_output_dir(section, 'specs')
         self.assertEqual(section['toc_file'], 'my/base/toc/specs/specs_toc.yaml')
-        self.assertEqual(section['index_file'], 'my/base/index/specs/specs_index.json')
+        self.assertEqual(section['work_dir'], 'my/base/toc/specs/.toc_work/')
 
     def test_no_output_dir_does_nothing(self):
         """output_dir 未設定時は何もしない"""
         section = {'root_dirs': ['rules/']}
         toc_utils._expand_output_dir(section, 'rules')
         self.assertNotIn('toc_file', section)
-        self.assertNotIn('index_file', section)
+        self.assertNotIn('work_dir', section)
 
     def test_does_not_overwrite_explicit_fields(self):
         """明示的に設定された個別フィールドは上書きしない"""
@@ -735,7 +734,6 @@ class TestExpandOutputDir(unittest.TestCase):
         # 他は導出される
         self.assertEqual(section['checksums_file'], 'custom/output/toc/rules/.toc_checksums.yaml')
         self.assertEqual(section['work_dir'], 'custom/output/toc/rules/.toc_work/')
-        self.assertEqual(section['index_file'], 'custom/output/index/rules/rules_index.json')
 
     def test_trailing_slash_stripped(self):
         """末尾スラッシュが正しく処理される"""
@@ -770,11 +768,11 @@ class TestLoadConfigOutputDir(unittest.TestCase):
 # doc_structure_version: 3.0
 
 rules:
-  output_dir: plugins/forge/doc-advisor/
+  output_dir: custom/output/
   root_dirs:
-    - plugins/forge/docs/
+    - docs/rules/
   doc_types_map:
-    plugins/forge/docs/: rule
+    docs/rules/: rule
   patterns:
     target_glob: "**/*.md"
     exclude: []
@@ -784,24 +782,11 @@ rules:
 
         config = toc_utils.load_config(category='rules')
         self.assertEqual(config['toc_file'],
-                         'plugins/forge/doc-advisor/toc/rules/rules_toc.yaml')
+                         'custom/output/toc/rules/rules_toc.yaml')
         self.assertEqual(config['checksums_file'],
-                         'plugins/forge/doc-advisor/toc/rules/.toc_checksums.yaml')
+                         'custom/output/toc/rules/.toc_checksums.yaml')
         self.assertEqual(config['work_dir'],
-                         'plugins/forge/doc-advisor/toc/rules/.toc_work/')
-        self.assertEqual(config['index_file'],
-                         'plugins/forge/doc-advisor/index/rules/rules_index.json')
-
-    def test_default_config_has_index_file(self):
-        """デフォルト config に index_file が含まれる"""
-        # .doc_structure.yaml なし → デフォルトにフォールバック
-        config = toc_utils.load_config(category='rules')
-        self.assertIn('index_file', config)
-        self.assertIn('rules_index.json', config['index_file'])
-
-        config_specs = toc_utils.load_config(category='specs')
-        self.assertIn('index_file', config_specs)
-        self.assertIn('specs_index.json', config_specs['index_file'])
+                         'custom/output/toc/rules/.toc_work/')
 
 
 class TestResolveConfigPath(unittest.TestCase):
@@ -840,29 +825,29 @@ class TestResolveConfigPath(unittest.TestCase):
     def test_multi_component_path_resolves_to_project_root(self):
         """'/' を含む非 .claude/ パスも project_root 基準（output_dir 由来）"""
         result = toc_utils.resolve_config_path(
-            'plugins/forge/doc-advisor/toc/rules/.toc_work/',
+            'custom/output/toc/rules/.toc_work/',
             self.default_base, self.project_root)
         self.assertEqual(
             result,
-            Path('/project/plugins/forge/doc-advisor/toc/rules/.toc_work'))
+            Path('/project/custom/output/toc/rules/.toc_work'))
 
     def test_output_dir_derived_toc_file(self):
         """output_dir 由来の toc_file パスが project_root 基準"""
         result = toc_utils.resolve_config_path(
-            'plugins/forge/doc-advisor/toc/rules/rules_toc.yaml',
+            'custom/output/toc/rules/rules_toc.yaml',
             self.default_base, self.project_root)
         self.assertEqual(
             result,
-            Path('/project/plugins/forge/doc-advisor/toc/rules/rules_toc.yaml'))
+            Path('/project/custom/output/toc/rules/rules_toc.yaml'))
 
     def test_output_dir_derived_checksums_file(self):
         """output_dir 由来の checksums_file パスが project_root 基準"""
         result = toc_utils.resolve_config_path(
-            'plugins/forge/doc-advisor/toc/rules/.toc_checksums.yaml',
+            'custom/output/toc/rules/.toc_checksums.yaml',
             self.default_base, self.project_root)
         self.assertEqual(
             result,
-            Path('/project/plugins/forge/doc-advisor/toc/rules/.toc_checksums.yaml'))
+            Path('/project/custom/output/toc/rules/.toc_checksums.yaml'))
 
     def test_trailing_slash_stripped(self):
         """末尾スラッシュが除去される"""

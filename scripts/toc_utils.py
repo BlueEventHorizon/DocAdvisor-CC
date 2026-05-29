@@ -177,7 +177,7 @@ def _expand_output_dir(section_config, category):
     """output_dir から個別パスフィールドを導出する。
 
     output_dir が設定されている場合、固定 convention に従い
-    toc_file, checksums_file, work_dir, index_file を導出する。
+    toc_file, checksums_file, work_dir を導出する。
     明示的に設定された個別フィールドは上書きしない。
 
     Note: output_dir は .doc_structure.yaml v3.0 の公式フィールドではない。
@@ -195,7 +195,6 @@ def _expand_output_dir(section_config, category):
         'toc_file': f'{base}/toc/{category}/{category}_toc.yaml',
         'checksums_file': f'{base}/toc/{category}/.toc_checksums.yaml',
         'work_dir': f'{base}/toc/{category}/.toc_work/',
-        'index_file': f'{base}/index/{category}/{category}_index.json',
     }
     for key, value in derived.items():
         section_config.setdefault(key, value)
@@ -443,7 +442,6 @@ def _get_default_config():
             'toc_file': '.claude/doc-advisor/toc/rules/rules_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/rules/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/rules/.toc_work/',
-            'index_file': '.claude/doc-advisor/index/rules/rules_index.json',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
@@ -458,7 +456,6 @@ def _get_default_config():
             'toc_file': '.claude/doc-advisor/toc/specs/specs_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/specs/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/specs/.toc_work/',
-            'index_file': '.claude/doc-advisor/index/specs/specs_index.json',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
@@ -1282,42 +1279,5 @@ def get_all_md_files(common_config):
 
     md_files.sort()
     return md_files, file_root_map
-
-
-def load_metadata(category, file_path, toc_path=None):
-    """
-    文書ファイルのメタデータを ToC YAML から読み込む（抽象化レイヤー）。
-
-    embed_docs.py がメタデータを取得するための統一インターフェース。
-    Phase 3 で ToC 廃止後はこの関数の実装のみを変更すればよく、
-    embed_docs.py への影響を局所化できる。
-
-    Args:
-        category: 'rules' or 'specs'
-        file_path: 文書のプロジェクト相対パス（str）
-        toc_path: ToC YAML ファイルパス（省略時は設定から自動解決）
-
-    Returns:
-        dict: メタデータ dict。キー: title, purpose, keywords,
-              applicable_tasks, content_details。
-              ToC に存在しない場合は空 dict。
-    """
-    if toc_path is None:
-        try:
-            config = load_config(category)
-            project_root = get_project_root()
-            default_dir = project_root / category
-            # ToC ファイルパスを設定から解決
-            toc_file_setting = config.get('toc_file', f'.claude/doc-advisor/toc/{category}/{category}_toc.yaml')
-            toc_path = resolve_config_path(toc_file_setting, default_dir, project_root)
-        except Exception as e:
-            print(f"Warning: load_metadata failed for {file_path}: {e}", file=sys.stderr)
-            return {}
-
-    toc_entries = load_existing_toc(toc_path)
-    # NFC 正規化してキー検索
-    normalized_path = normalize_path(file_path)
-    entry = toc_entries.get(normalized_path, {})
-    return entry
 
 

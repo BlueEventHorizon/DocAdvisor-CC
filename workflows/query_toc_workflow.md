@@ -18,8 +18,8 @@ ToC（キーワード/メタデータ）ベースで関連文書の候補パス�
    - `output_dir` が設定されている場合: `{output_dir}/toc/{category}/{category}_toc.yaml`
    - `output_dir` が未設定の場合（デフォルト）: `.claude/doc-advisor/toc/{category}/{category}_toc.yaml`
 2. `{filter_paths}` が指定されている場合は **Filter Procedure** へ。指定なしの場合は次へ
-3. 決定したパスの ToC ファイルを Read する
-   - **ファイルが存在しない場合**: 候補なし（空リスト）として返す。エラーにしない
+3. 決定したパスの ToC ファイルの存在を確認する
+   - **ファイルが存在しない場合**: `missing_toc` 状態を返す（ToC 未生成）。これは「ToC は存在するが該当文書がない（空リスト）」とは **明確に区別** する。呼び出し元はこれを受けて ToC 生成（`/doc-advisor:create-{category}-toc`）を案内する
    - **ファイルが存在する場合**: **全文を Read ツールで読み込む**
 4. 全エントリを深く理解し、タスク内容から関連候補を特定する
    - keywords, purpose, title, applicable_tasks を照合
