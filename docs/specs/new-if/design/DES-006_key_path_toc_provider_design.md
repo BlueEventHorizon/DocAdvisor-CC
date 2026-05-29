@@ -1,3 +1,11 @@
+---
+type: temporary-feature-design
+notes:
+  - この設計書は追加 feature (new-if) の一時文書。正本は REQ-004。旧仕様（base/）と矛盾する場合は REQ-004 を優先して判断・実装すること。
+  - 旧仕様ファイル（base/）は本 feature 実装完了まで書き換えない。新規ファイル / 新規ディレクトリとして切り出すこと。
+  - 本 feature 実装完了後、この設計書は旧設計書（base/）へ merge され削除される予定。
+---
+
 # DES-006 key + path 汎用 ToC Provider 設計書
 
 ## メタデータ
