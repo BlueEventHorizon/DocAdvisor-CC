@@ -10,7 +10,7 @@
 テスト方針:
 - tmpdir に仮 ToC YAML を配置し、CLAUDE_PROJECT_DIR でルートを指定
 - filter_toc.py はローカル抽出のみ（外部 API なし）
-- 既存テスト test_grep_docs.py のパターンを踏襲
+- 既存テスト test_create_pending.py のパターンを踏襲
 """
 
 import json
