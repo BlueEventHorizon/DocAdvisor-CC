@@ -18,7 +18,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 
 - **作業開始時に `/query-rules` を実行**: プロジェクトルールを最初に確認する。`docs/rules/` を検索
 - **ルールは `docs/rules/` で管理**: CLAUDE.md にルールを詰め込まない（コンテキスト肥大化防止）
-- **設計文書は `docs/specs/doc-advisor/{requirements,design}/` に保存**: plan モードで作成した重要設計は ID プレフィックス（REQ-, DES-, ADR-）で命名
+- **設計文書は `docs/specs/base/{requirements,design}/` に保存**: plan モードで作成した重要設計は ID プレフィックス（REQ-, DES-, ADR-）で命名
 - **プラグインランタイム文書の境界**: `workflows/` `formats/` 配下は SKILL.md がランタイム Read する配布物。`docs/` 配下はプロジェクト自身のメタ文書
 
 ## Repository Layout
@@ -34,7 +34,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 | `workflows/`                 | SKILL がランタイム Read する手順文書                                                |
 | `formats/`                   | SKILL がランタイム Read するスキーマ文書                                            |
 | `docs/rules/`                | プロジェクトルール（`/query-rules` 対象）                                           |
-| `docs/specs/doc-advisor/`    | doc-advisor の要件・設計文書                                                        |
+| `docs/specs/base/`           | doc-advisor 基盤仕様の要件・設計文書                                                |
 | `docs/specs/common/`         | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                               |
 | `docs/readme/`               | ユーザ向けガイド（日英併記）                                                        |
 | `tests/`                     | 単体テスト・統合テスト・golden set                                                  |

@@ -103,7 +103,7 @@ docs:
       - error propagation
       - FileNotFoundError
       - IOError
-  docs/specs/doc-advisor/design/ADR-002_query_skill_subagent_isolation.md:
+  docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
     doc_type: design
     title: "Architecture Decision Record: query-rules and query-specs fork SKILL isolation with read-only constraints"
     purpose: Defines architecture decision for ensuring query-rules and query-specs SKILL operate as read-only, fork-isolated skills that prevent unintended context inheritance and writing operations
@@ -127,7 +127,7 @@ docs:
       - query-specs
       - SKILL isolation
       - context inheritance prevention
-  docs/specs/doc-advisor/design/DES-003_document_identifier.md:
+  docs/specs/base/design/DES-003_document_identifier.md:
     doc_type: design
     title: Document Identifier Design
     purpose: Defines document identification method for Doc Advisor system, analyzing current dual-identifier approach and establishing file path as single authoritative identifier
@@ -156,7 +156,7 @@ docs:
       - extract_id_from_filename
       - dual management
       - schema design
-  docs/specs/doc-advisor/design/DES-004_document_model.md:
+  docs/specs/base/design/DES-004_document_model.md:
     doc_type: design
     title: "DES-004: Document Model Design"
     purpose: Defines the overall structure of the document model managed by doc-advisor, including configuration items, directory management, and scanning specifications for both rules and specs categories
@@ -187,7 +187,7 @@ docs:
       - configuration
       - document model
       - path matching
-  docs/specs/doc-advisor/design/DES-005_toc_generation_flow.md:
+  docs/specs/base/design/DES-005_toc_generation_flow.md:
     doc_type: design
     title: ToC Generation Flow Design
     purpose: Specifies the complete ToC auto-generation system flow, change detection mechanism, parallel processing, and merge procedure for doc-advisor
@@ -220,7 +220,7 @@ docs:
       - entry file
       - continuation
       - phase orchestration
-  docs/specs/doc-advisor/requirements/FNC-002_zero_miss_search_accuracy_spec.md:
+  docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md:
     doc_type: requirement
     title: FNC-002 Zero-Miss Search Accuracy Specification
     purpose: Defines search accuracy requirements for ToC searches to ensure no relevant documents are missed when retrieving content
@@ -243,7 +243,7 @@ docs:
       - content discovery
       - precision
       - relevance
-  docs/specs/doc-advisor/requirements/NFR-003_standard_library_preferred_spec.md:
+  docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md:
     doc_type: requirement
     title: NFR-003 Standard Library Preferred Specification
     purpose: "Clarifies library selection policy: Python standard library preferred, but external libraries permitted when necessary for search precision and performance requirements"
@@ -268,7 +268,7 @@ docs:
       - YAML
       - PyYAML
       - requirements
-  docs/specs/doc-advisor/requirements/REQ-001_doc_advisor.md:
+  docs/specs/base/requirements/REQ-001_doc_advisor.md:
     doc_type: requirement
     title: "REQ-001: doc-advisor Requirements Definition"
     purpose: Defines requirements for the doc-advisor plugin, including document management categories, ToC auto-generation, change detection, parallel processing, and document search functionality
@@ -296,7 +296,7 @@ docs:
       - parallel processing
       - search indexing
       - .doc_structure.yaml
-  docs/specs/doc-advisor/requirements/REQ-002_upgrade_v2_to_v3.md:
+  docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md:
     doc_type: requirement
     title: "REQ-002: Doc Advisor v2 to v3+ Upgrade Requirements"
     purpose: Defines upgrade requirements and protection principles for migrating from Doc Advisor v2.0 to v4.x, including legacy file detection, user asset protection, and advisor agent migration
@@ -323,7 +323,7 @@ docs:
       - query-rules
       - query-specs
       - ToC preservation
-  docs/specs/doc-advisor/requirements/REQ-003_versioned_migration.md:
+  docs/specs/base/requirements/REQ-003_versioned_migration.md:
     doc_type: requirement
     title: "REQ-003: Staged Version Migration Requirements"
     purpose: Defines framework for backward-compatible data format migration supporting transition from old versions to current versions through staged, incremental conversion steps.

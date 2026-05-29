@@ -2,7 +2,7 @@
 """
 検索系 SKILL の subagent 隔離 / read-only 制約テスト
 
-ADR-002 (docs/specs/doc-advisor/design/ADR-002_query_skill_subagent_isolation.md)
+ADR-002 (docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md)
 および COMMON-DES-001 §4 (docs/specs/common/design/COMMON-DES-001_skill_base_design.md)
 で採択された以下の制約が、対象 SKILL.md に反映されていることを検証する:
 
