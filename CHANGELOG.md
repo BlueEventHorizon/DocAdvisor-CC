@@ -12,12 +12,9 @@ All notable changes to doc-advisor are documented in this file.
   - `.claude-plugin/plugin.json` を repo ルート直下に配置
   - `plugins/doc-advisor/` 配下を repo ルート直下に展開 (`skills/`, `agents/`, `scripts/`)
   - プラグインランタイム文書を `workflows/` (orchestrator / 手順) と `formats/` (スキーマ) に分離
-  - `tests/` を単一プラグイン構成にフラット化（`scripts/`, `skills/`, `integration/`）
+  - `tests/` を単一プラグイン構成にフラット化（`scripts/`, `skills/`, `integration/`, `golden_set/`）
 - SKILL.md / agent / workflow 内の `${CLAUDE_PLUGIN_ROOT}/docs/` 参照を `/workflows/` または `/formats/` に更新
 - `.version-config.yaml` を doc-advisor 単独構成に簡素化
-- **Embedding 検索機能を廃止し、doc-advisor を ToC 検索専用に戻す** (Issue #13)
-  - `query-rules` / `query-specs` SKILL から `--toc` / `--index` / `auto` の mode フラグを全廃止。デフォルトは ToC のみ
-  - Embedding 実装は今後 query-docs プラグイン側で再構築予定 (`BlueEventHorizon/bw-cc-plugins#77`)
 
 ### Removed
 
@@ -25,12 +22,6 @@ All notable changes to doc-advisor are documented in this file.
 - 旧 setup.sh ベースの配布物 (`test_claude_setup/`, `codex_skill_set/`, `codex_install_profiles/` 等) を削除
 - `.claude-plugin/marketplace.json`（単一プラグインのため不要）
 - `meta` シンボリックリンク、`.git_information.yaml` (anvil 用)
-- **Embedding 関連の scripts / tests / workflow / specs を削除** (Issue #13)
-  - Scripts: `scripts/embed_docs.py`, `scripts/search_docs.py`, `scripts/embedding_api.py`, `scripts/code_index/`（空）
-  - Tests: `tests/scripts/test_embed_docs.py`, `test_search_docs.py`, `test_embedding_api.py`, `test_evaluate_toc_results.py`, `tests/golden_set/`（embedding 検索品質評価用）, `tests/skills/test_query_auto_redefinition.py`, `tests/skills/test_query_output_dir_e2e.py`
-  - Workflow: `workflows/query_index_workflow.md`
-  - Specs: `docs/specs/doc-advisor/design/DES-006_semantic_search_design.md`, `DES-007_unified_api_key_reference_design.md`, `docs/specs/doc-advisor/requirements/FNC-004_unified_api_key_reference_spec.md`, `technical_research_report.md`, `technical_qa.md`
-- `.gitignore` / `dprint.jsonc` から embedding index 出力先 (`.claude/doc-advisor/index/`) を削除（不要になったため）
 
 ## [0.2.6] - 2026-05-16
 

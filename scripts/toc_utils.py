@@ -177,7 +177,7 @@ def _expand_output_dir(section_config, category):
     """output_dir から個別パスフィールドを導出する。
 
     output_dir が設定されている場合、固定 convention に従い
-    toc_file, checksums_file, work_dir, index_file を導出する。
+    toc_file, checksums_file, work_dir を導出する。
     明示的に設定された個別フィールドは上書きしない。
 
     Note: output_dir は .doc_structure.yaml v3.0 の公式フィールドではない。
@@ -195,7 +195,6 @@ def _expand_output_dir(section_config, category):
         'toc_file': f'{base}/toc/{category}/{category}_toc.yaml',
         'checksums_file': f'{base}/toc/{category}/.toc_checksums.yaml',
         'work_dir': f'{base}/toc/{category}/.toc_work/',
-        'index_file': f'{base}/index/{category}/{category}_index.json',
     }
     for key, value in derived.items():
         section_config.setdefault(key, value)
@@ -443,7 +442,6 @@ def _get_default_config():
             'toc_file': '.claude/doc-advisor/toc/rules/rules_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/rules/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/rules/.toc_work/',
-            'index_file': '.claude/doc-advisor/index/rules/rules_index.json',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
@@ -458,7 +456,6 @@ def _get_default_config():
             'toc_file': '.claude/doc-advisor/toc/specs/specs_toc.yaml',
             'checksums_file': '.claude/doc-advisor/toc/specs/.toc_checksums.yaml',
             'work_dir': '.claude/doc-advisor/toc/specs/.toc_work/',
-            'index_file': '.claude/doc-advisor/index/specs/specs_index.json',
             'patterns': {
                 'target_glob': '**/*.md',
                 'exclude': []  # User-defined only; system files excluded separately
