@@ -37,7 +37,7 @@
   - 単体テスト（DES-006 §13 / REQ-004 NFR-N03）: store_dir 解決（slug/hash/予約 key/空・過長・Unicode key）、path 検証 6 系統 + `./a.md`↔`a.md` 同一視 + 大小衝突 warning、desired-state diff（**部分配列 → 残り削除の固定**: 受け入れ基準）、JSON status/error_code enum 固定、単体モード（固定除外・空 repo 冪等空出力・root 外 symlink 除外）。
 - **フェーズ内モジュール実装順序**（依存順）:
   1. `toc_store.py`（全 script の基盤）+ 単体テスト
-  2. `toc_utils.py` 改修: `resolve_within_root()` 新規 + category 分岐削除（ただし旧 category 依存テストは削除せず後段で扱う。後述リスク）+ path 検証単体テスト
+  2. `toc_utils.py` 改修: `resolve_within_root()` 新規 + category 分岐削除（削除したロジックに対応する旧 category 依存テストは本タスクで同時に改名／削除。後述リスク）+ path 検証単体テスト
   3. `prepare_toc.py`（旧 create_pending_yaml 改名・転用）+ 差分検出・path 検証・単体モード単体テスト
   4. `merge_toc.py` 改修（prepare → merge は協調フロー FR-N07-3。backup/restore 含む）+ 単体テスト
   5. `get_toc.py`（旧 filter_toc 統合）+ 単体テスト
@@ -50,7 +50,7 @@
   - 部分配列 desired-state で残りが削除される回帰テストが緑（受け入れ基準）。
   - 外部依存ゼロ（標準ライブラリのみ）を維持（NFR-N01）。
   - `dprint check` が緑（変更 JSON/YAML/Markdown）。
-  - 注意: このフェーズでは旧 SKILL（`create-*` / `query-*`）はまだ旧 script を参照したまま壊れている可能性がある。SKILL の整合はフェーズ③で取る。フェーズ②の build/test 健全性は「scripts/ 単体・統合テスト緑」を基準とし、SKILL 経由 E2E は対象外とする。
+  - 注意: このフェーズでは旧 SKILL（`create-*` / `query-*`）はまだ旧 script を参照したまま壊れている可能性がある。SKILL の整合はフェーズ③で取る。フェーズ②の build/test 健全性は「`discover` 全緑（各 script タスクで対応する旧 category 依存テストも整理済み）」を基準とし、SKILL 経由 E2E は対象外とする。
 
 ### フェーズ ③: SKILL / agent 一本化（AI 層の差し替え）
 
@@ -78,14 +78,14 @@
 
 - **目標**: 通常実行経路で `.doc_structure.yaml` を一切読まない状態を最終確定し、README / workflow / formats / base 仕様の supersede 箇所を改訂して REQ-004 受け入れ基準「仕様整合」（NFR-N04: コードと同一 PR）を満たす。
 - **スコープ**（REQ-004 受け入れ基準 / §9 / DES-006 §7.1 / §14）:
-  - `.doc_structure.yaml` 通常経路依存の最終除去確認と、それに依存していた旧テストの削除（フェーズ②で `toc_utils.py` から削除したロジックに対応する旧テストを同時除去: implementation_guidelines「使わないコードは削除、テストも同時削除」）。
-  - 旧 doc_structure 依存が通常経路に残っていないことの回帰テスト追加（DES-006 §13、既存 embedding-removal 回帰テストに倣う）。
+  - `.doc_structure.yaml` 通常経路依存の最終除去確認（旧 category 依存テストの削除はフェーズ②の各 script タスクで完了済み: implementation_guidelines「使わないコードは削除、テストも同時削除」。④では除去漏れがないことを最終確認する）。
+  - 旧 doc_structure 依存が通常経路に残っていないことの回帰テスト追加（DES-006 §13、既存 embedding-removal 回帰テストに倣う。**フェーズ④の主スコープ**）。
   - `formats/toc_format.md` から `doc_type` 除去（§7.1）。
   - README / README_en / SKILL / workflow から `setup-doc-structure` 前提・config_required 案内導線を削除（受け入れ基準）。Python 下限 3.9 を README に明記（REQ-004 §6.1 / NFR-N01）。
   - base 仕様の supersede 箇所改訂（NFR-N04 同一 PR）: REQ-001（PRE-01〜03 / FR-01-1 / FR-01-7 / FR-06 / NFR-02-4,5）、DES-004（文書モデル全体）、DES-005（Phase 0）の §9 通りの改訂。
   - `dprint fmt` 整形（変更 Markdown / YAML / JSON）。
 - **フェーズ内実装順序**:
-  1. 通常経路の doc_structure 非読込を確認 → 旧 category 依存テスト削除 + 非読込回帰テスト追加
+  1. 通常経路の doc_structure 非読込を確認（旧 category 依存テストは②で整理済み・除去漏れの最終確認）→ 非読込回帰テスト追加
   2. formats（toc_format.md doc_type 除去）
   3. README / workflow / SKILL の setup-doc-structure 記述削除・Python 下限明記
   4. base 仕様（REQ-001 / DES-004 / DES-005）supersede 箇所改訂
@@ -101,7 +101,7 @@
 
 - **各フェーズ完了時に build/test が通る単位を維持する**（REQ-004 TBD-002 暫定段階分割の原則）。フェーズ間依存は一方向（③は②の script 契約に、④は②③の成果物に依存）。
 - **健全性の基準はフェーズで異なる**:
-  - フェーズ②: `scripts/` 単体・統合テスト緑 + JSON 契約固定 + 外部依存ゼロ。SKILL 経由 E2E は対象外（旧 SKILL がまだ旧 script を参照し得るため、ここを健全性条件に含めない）。
+  - フェーズ②: `discover` 全緑（各 script タスクで対応する旧 category 依存テストも整理済み）+ JSON 契約固定 + 外部依存ゼロ。SKILL 経由 E2E は対象外（旧 SKILL がまだ旧 script を参照し得るため、ここを健全性条件に含めない）。
   - フェーズ③: scripts テスト緑（②を壊さない）+ 新 SKILL 経由 E2E 手動確認。SKILL.md はテスト例外。
   - フェーズ④: 旧 category 依存テスト削除後も全テスト緑 + doc_structure 非読込回帰テスト緑 + 仕様/文書整合（grep・supersede 改訂）+ dprint check 緑。
 - **テスト必須の貫徹**: `scripts/` 配下の新設・改修 Python は対応する単体テストを同一フェーズ内で伴う（NFR-N03 / CLAUDE.md MANDATORY）。実装タスクとテストタスクを分離する場合も同一フェーズに閉じる。
@@ -109,16 +109,16 @@
 
 ## リスクと対策
 
-| リスク                                                                                                                                                       | 影響度 | 対策（どのフェーズで潰すか）                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| doc_structure 削除の順序ミス（フェーズ②で `toc_utils.py` の category 分岐を削除すると、それに依存する旧テスト・旧 SKILL が即座に壊れ build/test が赤になる） | 高     | フェーズ②では `toc_utils.py` から category ロジックを削除しつつ、**それに依存する旧テストの最終削除と doc_structure 非読込の回帰固定はフェーズ④に集約**する。②では新 script のテストを緑にすることを健全性基準とし、旧 category 依存テストは④まで段階的に整理。clean break の「除去の完了」を最後に置くことで途中フェーズの検証を安定させる。                                    |
-| `resolve_within_root()` symlink 厳格化（後方互換の意図的破壊・新規ロジック）の挙動誤り                                                                       | 高     | リスク駆動でフェーズ②前半（`toc_utils.py` 改修）に実装し、6 系統 path 検証 + root 外 symlink reject + 単体モード列挙後除外（§5.3）の単体テストで早期に固定。`validate_path_within_base()` の docstring・ポリシーは変更しないことを明示（traversal 専用流用と symlink 新規ロジックの分離を崩さない）。                                                                            |
-| TBD-001（単体モード最大ファイル数の警告閾値）※2026-05-30 に 100 件で確定済み・本リスクはクローズ                                                             | 中     | **AI が数値を捏造しない**。戦略上は「warning 機構自体はフェーズ②の `prepare_toc.py --all` で実装可能（閾値超過で warnings に追加し処理継続: NFR-N05）」と「閾値の具体値は当事者確定が必要」を分離して扱う。計画書では閾値定数の確定を実装着手前のブロッカー（当事者確認事項）として明示し、機構実装と数値確定を別タスク化。閾値未確定でも空 ToC 冪等出力・処理継続の検証は可能。 |
-| 既存テストとの整合（旧 script 改名・統合に伴うテストファイルの追従漏れ）                                                                                     | 中     | 旧テスト（test_create_pending → prepare、test_filter_toc → get_toc 等）の改名・移行を各 script 改修と同一フェーズ・同一タスクで行い、使わないテストは即削除（implementation_guidelines「テストも同時削除」）。フェーズ完了時に discover 実行で孤児テスト・import エラーがないことを確認。                                                                                        |
-| prepare / merge 協調フロー（FR-N07-3）の境界誤実装（script が AI 処理を内包してしまう）                                                                      | 中     | レイヤ責務（FR-N07-1: script はメタデータ抽出をしない）を単体テストで固定（「script 単体がメタデータ抽出をしないこと」: 受け入れ基準）。メタデータ充填は toc-updater agent 経路のみ（フェーズ③）に限定。                                                                                                                                                                         |
-| merge 失敗時のストア破損（原子的書き込み・backup/restore の key 単位再編漏れ）                                                                               | 中     | フェーズ②の `merge_toc.py` で base/DES-005 Phase 3/4 の backup → validate → restore を key 単位ストアに踏襲（§6.5）。`os.replace` 原子的置換 + 検証失敗時 `.bak` 復元・checksums 据え置き・`.toc_work/` 保持を単体テストで確認。                                                                                                                                                 |
-| SKILL 仕様の独自解釈（fork / 継承の判別、自己再帰呼び出し）                                                                                                  | 低〜中 | フェーズ③で claude-code-guide agent による公式確認（MANDATORY）。fork 型採用は規定リスト準拠、query-docs の自己再帰禁止、起動経路は公式短縮名称で統一（skill_authoring_notes / skill_launch_paths_definitions）。                                                                                                                                                                |
-| 設計書の単純度によるフェーズ未分割                                                                                                                           | 低     | 本 feature は 8 モジュール改修 + SKILL/agent 一本化 + 仕様整合を含む規模であり、2 フェーズ未満には収まらない。段階分割（②③④ の 3 フェーズ）が妥当。                                                                                                                                                                                                                              |
+| リスク                                                                                                                                                       | 影響度 | 対策（どのフェーズで潰すか）                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| doc_structure 削除の順序ミス（フェーズ②で `toc_utils.py` の category 分岐を削除すると、それに依存する旧テスト・旧 SKILL が即座に壊れ build/test が赤になる） | 高     | フェーズ②では `toc_utils.py` から category ロジックを削除する際、**各 script 改修タスク（TASK-002〜007）で対応する旧 category 依存テストを同時に改名／削除**する。これによりフェーズ②完了（TASK-008）時点で `discover` 全緑を健全性基準として満たす。**フェーズ④は `doc_structure` 非読込の新規回帰テスト追加に純化**し、旧テストの最終削除は②で完了済みとする。clean break の「除去」を各 script タスクに分散させ、②完了で discover 緑を成立させることで途中フェーズの検証を安定させる。 |
+| `resolve_within_root()` symlink 厳格化（後方互換の意図的破壊・新規ロジック）の挙動誤り                                                                       | 高     | リスク駆動でフェーズ②前半（`toc_utils.py` 改修）に実装し、6 系統 path 検証 + root 外 symlink reject + 単体モード列挙後除外（§5.3）の単体テストで早期に固定。`validate_path_within_base()` の docstring・ポリシーは変更しないことを明示（traversal 専用流用と symlink 新規ロジックの分離を崩さない）。                                                                                                                                                                                     |
+| TBD-001（単体モード最大ファイル数の警告閾値）※2026-05-30 に 100 件で確定済み・本リスクはクローズ                                                             | 中     | **AI が数値を捏造しない**。戦略上は「warning 機構自体はフェーズ②の `prepare_toc.py --all` で実装可能（閾値超過で warnings に追加し処理継続: NFR-N05）」と「閾値の具体値は当事者確定が必要」を分離して扱う。計画書では閾値定数の確定を実装着手前のブロッカー（当事者確認事項）として明示し、機構実装と数値確定を別タスク化。閾値未確定でも空 ToC 冪等出力・処理継続の検証は可能。                                                                                                          |
+| 既存テストとの整合（旧 script 改名・統合に伴うテストファイルの追従漏れ）                                                                                     | 中     | 旧テスト（test_create_pending → prepare、test_filter_toc → get_toc 等）の改名・移行を各 script 改修と同一フェーズ・同一タスクで行い、使わないテストは即削除（implementation_guidelines「テストも同時削除」）。フェーズ完了時に discover 実行で孤児テスト・import エラーがないことを確認。                                                                                                                                                                                                 |
+| prepare / merge 協調フロー（FR-N07-3）の境界誤実装（script が AI 処理を内包してしまう）                                                                      | 中     | レイヤ責務（FR-N07-1: script はメタデータ抽出をしない）を単体テストで固定（「script 単体がメタデータ抽出をしないこと」: 受け入れ基準）。メタデータ充填は toc-updater agent 経路のみ（フェーズ③）に限定。                                                                                                                                                                                                                                                                                  |
+| merge 失敗時のストア破損（原子的書き込み・backup/restore の key 単位再編漏れ）                                                                               | 中     | フェーズ②の `merge_toc.py` で base/DES-005 Phase 3/4 の backup → validate → restore を key 単位ストアに踏襲（§6.5）。`os.replace` 原子的置換 + 検証失敗時 `.bak` 復元・checksums 据え置き・`.toc_work/` 保持を単体テストで確認。                                                                                                                                                                                                                                                          |
+| SKILL 仕様の独自解釈（fork / 継承の判別、自己再帰呼び出し）                                                                                                  | 低〜中 | フェーズ③で claude-code-guide agent による公式確認（MANDATORY）。fork 型採用は規定リスト準拠、query-docs の自己再帰禁止、起動経路は公式短縮名称で統一（skill_authoring_notes / skill_launch_paths_definitions）。                                                                                                                                                                                                                                                                         |
+| 設計書の単純度によるフェーズ未分割                                                                                                                           | 低     | 本 feature は 8 モジュール改修 + SKILL/agent 一本化 + 仕様整合を含む規模であり、2 フェーズ未満には収まらない。段階分割（②③④ の 3 フェーズ）が妥当。                                                                                                                                                                                                                                                                                                                                       |
 
 ## 計画書作成への申し送り事項
 

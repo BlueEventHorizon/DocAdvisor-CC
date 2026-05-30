@@ -20,62 +20,86 @@ requirements_traceability:
     title: key 単位 ToC 管理（opaque key・決定的変換・original key 保持・予約語 all）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-001]
   - requirement_id: FR-N02
     title: desired-state sync（追加・更新・削除・無変更の冪等反映と件数 JSON 出力）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-003, TASK-004]
   - requirement_id: FR-N03
     title: paths 入力（--paths-json / --paths-file / root-relative 解決・不正 path 処理）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-003]
   - requirement_id: FR-N04
     title: 単体モード（予約 key all・--all / --key 省略・固定除外）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-003]
   - requirement_id: FR-N05
     title: ToC 取得・検索（get_toc 全体/縮小抽出・ranking なし・見落としゼロ・fork 検索）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-005, TASK-011]
   - requirement_id: FR-N06
     title: 削除（key 全体削除 / 指定 path の個別削除）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-006]
   - requirement_id: FR-N07
     title: レイヤ責務境界（deterministic script / AI 層・prepare→agent→merge 協調）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-003, TASK-004, TASK-009]
   - requirement_id: FR-N08
     title: JSON 出力契約（stdout 単一 JSON・status / error_code enum 固定）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-001, TASK-008]
   - requirement_id: NFR-N01
     title: 標準ライブラリのみ・Python 3.9 下限（is_relative_to 使用）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-002]
   - requirement_id: NFR-N02
     title: 既存資産の再利用（validate_path_within_base / normalize_path / hash / glob 等）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-002]
   - requirement_id: NFR-N03
     title: scripts/ 配下 Python はテスト必須（追加・改修コードは同一 PR でテストを伴う）
     design_id: DES-006
     status: pending
+    task_ids: [
+      TASK-001,
+      TASK-002,
+      TASK-003,
+      TASK-004,
+      TASK-005,
+      TASK-006,
+      TASK-007,
+      TASK-008,
+    ]
   - requirement_id: NFR-N04
     title: 仕様改訂（REQ-004 / DES-006 / base supersede 記載）はコードと同一 PR
     design_id: DES-006
     status: pending
+    task_ids: [TASK-016]
   - requirement_id: NFR-N05
     title: 性能（最大ファイル数超過は warning・処理継続。閾値 100 件・空 repo は冪等空出力）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-003]
   - requirement_id: NFR-N06
     title: セキュリティ（path traversal / root 外 symlink によるインデックス漏洩防止）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-002]
   - requirement_id: NFR-N07
     title: 運用性（base/DES-005 のバックアップ・復元フローを key 単位で継続）
     design_id: DES-006
     status: pending
+    task_ids: [TASK-004]
 
 design_traceability:
   - design_id: DES-006
@@ -132,6 +156,7 @@ tasks:
       - "予約 key all 判定・空 key reject・過長/Unicode key 吸収を実装（§3.3 / FR-N01-5）"
       - "emit_json() と error_code enum 定数を本モジュールに集約する（§8.2 / FR-N08-2）"
       - "create_checksums.py の --promote-pending / --clean-work-dir 機能を key 単位で統合（§4.1）"
+      - "統合後に create_checksums.py 本体（--category 依存）を削除し、tests/scripts/test_create_checksums.py は test_toc_store.py へ移行または削除する（implementation_guidelines: 使わないコードは削除・テストも同時削除）"
       - "tests/scripts/test_toc_store.py に単体テストを追加する（NFR-N03）"
     acceptance_criteria: "test_toc_store.py が緑。空 key で KEY_EMPTY、任意 all 指定で KEY_RESERVED、同一 key が常に同一 store_dir へ決定的に解決され、slug 衝突時もサフィックスで別ディレクトリに解決されることを検証する"
     required_reading:
@@ -366,7 +391,7 @@ tasks:
       - "--key 省略時は予約 key all を検索する（FR-N04-4）"
       - "見落としゼロ検索方針を踏襲する（FR-N05-3 / base/FNC-002）"
       - "自己再帰呼び出しを禁止する（MANDATORY: skill_authoring_notes）"
-      - "query workflow を新 SKILL 名・新 script 名へ整合させる"
+      - "workflows/query_toc_workflow.md を新 SKILL 名・新 script 名へ整合させる（または統廃合する）"
     acceptance_criteria: "query-docs --key K および query-docs（省略 = all）で関連文書パスリストが返る手動 E2E 確認が成功する。fork / read-only で実行され自己再帰呼び出しがないことを確認する"
     required_reading:
       - docs/specs/new-if/design/DES-006_key_path_toc_provider_design.md
@@ -485,3 +510,5 @@ revision_history:
     content: 初版作成。REQ-004 / DES-006 / new-if_strategy.md から ②script層（GROUP-001）→③SKILL一本化→④doc_structure削除 の 16 タスクを抽出
   - date: "2026-05-30"
     content: "review 指摘反映: TASK-010 に toc_update_workflow.md 整合/統廃合を追加 / TASK-005 に toc_store 経由のパス解決経路を明記"
+  - date: "2026-05-30"
+    content: "review 指摘反映: TASK-001 に create_checksums.py 本体削除・test 移行/削除を明記 / requirements_traceability 各要件へ task_ids を付与 / TASK-011 に query_toc_workflow.md ファイル名を明記。戦略書の旧 category 依存テスト整理を A 案（各 script タスクで同時整理し②で discover 全緑・④は doc_structure 非読込回帰に純化）へ統一"
