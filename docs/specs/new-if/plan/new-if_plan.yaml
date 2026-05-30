@@ -9,9 +9,8 @@
 # 実装戦略書: docs/specs/new-if/plan/new-if_strategy.md
 # フェーズ: ② script 層（GROUP-001）→ ③ SKILL/agent 一本化 → ④ doc_structure 削除・仕様整合
 #
-# [ブロッカー] TBD-001（単体モードの最大ファイル数の警告閾値, NFR-N05）は当事者確定事項。
-# AI は数値を捏造しない。warning 機構自体は TASK-003 で実装可能だが、閾値の具体値は
-# 実装着手前に当事者が確定する（TASK-003 acceptance 参照）。
+# [確定] TBD-001（単体モードの最大ファイル数の警告閾値, NFR-N05）= 100 件（2026-05-30 当事者確定）。
+# warning 機構は TASK-003 で実装し、この値を閾値定数に用いる（超過で warnings に追加・処理は継続）。
 
 # === トレーサビリティ ===
 # PRE-N01（上位層が desired state を決定）/ PRE-N03（embedding は責務外）は doc-advisor 実装対象外
@@ -66,7 +65,7 @@ requirements_traceability:
     design_id: DES-006
     status: pending
   - requirement_id: NFR-N05
-    title: 性能（最大ファイル数超過は warning・処理継続。閾値は TBD-001・空 repo は冪等空出力）
+    title: 性能（最大ファイル数超過は warning・処理継続。閾値 100 件・空 repo は冪等空出力）
     design_id: DES-006
     status: pending
   - requirement_id: NFR-N06
@@ -177,7 +176,7 @@ tasks:
       - "paths 検証（§5.1）→ desired-state 差分検出（added/updated/unchanged/deleted, §6.2）を実装"
       - "追加・変更分の pending YAML 生成と --dry-run（書き込みなし予定提示）を実装（FR-N02-5）"
       - "--all 単体モード（rglob + 固定除外 §6.4 + root 外実体除外 §5.3）を実装（FR-N04）"
-      - "最大ファイル数超過時の warning 機構を実装（NFR-N05）。閾値はプレースホルダ定数とし TBD-001 確定まで数値を埋めない"
+      - "最大ファイル数超過時の warning 機構を実装（NFR-N05）。閾値定数 = 100 件（TBD-001 確定値, 2026-05-30）"
       - "has_substantive_content() を転用し空ファイルをスキップする（§12）"
       - "対応する単体テストを追加し、旧 create_pending テストを prepare 用に改名・移行する"
     acceptance_criteria: "part 配列を渡すと前回 ToC の残りが deleted に算出される回帰テストが緑。added/updated/unchanged/deleted の各算出、--dry-run 非書き込み、空 repo の冪等空出力（status ok / file_count 0）、root 外 symlink 除外を検証する"

@@ -113,7 +113,7 @@ store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
 - `meta.yaml` に **original key** を保持（REQ-004 FR-N01-4）。`store_dir` から key を復元・照合可能にする
 - 予約 key `all`（REQ-004 FR-N04）は `store_dir("all")` に解決する。`all` はユーザー任意 key として reject されるため（FR-N01-5）、名前空間衝突は起きない
 
-base/DES-004 の category 別固定パス（`toc/rules/`, `toc/specs/`）は廃止し、本構造へ移行する。既存ストアからの移行は行わず再生成とする（REQ-004 TBD-001 の前提、clean break）。
+base/DES-004 の category 別固定パス（`toc/rules/`, `toc/specs/`）は廃止し、本構造へ移行する。既存ストアからの移行は行わず再生成とする（REQ-004 §6.2 clean break 確定 / 非目的「自動 migration を持たない」）。
 
 ### 3.3 key の検証
 
@@ -364,7 +364,7 @@ REQ-004 FR-N04。`--all` / `--key` 省略時、予約 key `all` に解決し pro
 
 ### 9.2 境界条件
 
-- 最大ファイル数超過時は `warnings` に含め処理継続（REQ-004 NFR-N05、閾値は TBD-001）
+- 最大ファイル数超過時は `warnings` に含め処理継続（REQ-004 NFR-N05、閾値は 100 件）
 - 空 repo / 対象 0 件は `error` ではなく空 `toc.yaml` を冪等出力（`status: ok`, `file_count: 0`）
 
 ### 9.3 単体モードのシーケンス
@@ -471,7 +471,7 @@ REQ-004 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 
 ## 14. 移行に伴う設計上の注意
 
-- 既存 `toc/{rules,specs}/` から `toc/keys/` への自動移行は行わない（clean break、REQ-004 TBD で確定）。再生成で対応
+- 既存 `toc/{rules,specs}/` から `toc/keys/` への自動移行は行わない（clean break、REQ-004 §6.2 / 非目的で確定）。再生成で対応
 - README / SKILL / workflow から `setup-doc-structure` 前提の記述を削除（REQ-004 受け入れ基準、コードと同一 PR）
 - PR 分割方針は REQ-004 TBD-002（暫定: 設計 → script 層 → SKILL 一本化 → doc_structure 削除）
 
