@@ -19,7 +19,7 @@ requirements_traceability:
   - requirement_id: FR-N01
     title: key 単位 ToC 管理（opaque key・決定的変換・original key 保持・予約語 all）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-001]
   - requirement_id: FR-N02
     title: desired-state sync（追加・更新・削除・無変更の冪等反映と件数 JSON 出力）
@@ -144,7 +144,7 @@ tasks:
   - task_id: TASK-001
     title: toc_store.py 新設（key→store_dir 解決・meta I/O・JSON 契約基盤）
     priority: 90
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on: []
     group_id: null
