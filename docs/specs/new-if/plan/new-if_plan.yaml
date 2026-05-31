@@ -424,7 +424,7 @@ tasks:
   - task_id: TASK-013
     title: doc_structure 非読込の回帰テスト追加・残存 category 依存テストの最終確認
     priority: 40
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-008
@@ -444,7 +444,7 @@ tasks:
   - task_id: TASK-014
     title: formats/toc_format.md から doc_type 除去
     priority: 38
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-007
@@ -463,7 +463,7 @@ tasks:
   - task_id: TASK-015
     title: README / workflow / SKILL から setup-doc-structure 記述削除・Python 3.9 下限明記
     priority: 36
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-012
@@ -512,3 +512,5 @@ revision_history:
     content: "review 指摘反映: TASK-010 に toc_update_workflow.md 整合/統廃合を追加 / TASK-005 に toc_store 経由のパス解決経路を明記"
   - date: "2026-05-30"
     content: "review 指摘反映: TASK-001 に create_checksums.py 本体削除・test 移行/削除を明記 / requirements_traceability 各要件へ task_ids を付与 / TASK-011 に query_toc_workflow.md ファイル名を明記。戦略書の旧 category 依存テスト整理を A 案（各 script タスクで同時整理し②で discover 全緑・④は doc_structure 非読込回帰に純化）へ統一"
+  - date: "2026-06-01"
+    content: "フェーズ②③④ 実装完了（TASK-001〜015、discover 367 緑）。④: TASK-013 doc_structure 非読込回帰テスト+旧 category toc 4 ファイル削除 / TASK-014 formats doc_type 除去（③の formats 矛盾解消）/ TASK-015 README・guide 整合・Python 3.9 明記・guide_doc_structure 削除。TASK-016（base supersede 改訂）は additive_development 原則優先で /forge:merge-specs へ委譲（NFR-N04 を同一 PR→merge-specs 時に変更、2026-06-01 当事者判断）。.toc_work は gitignore しない方針を DES-006 §3.2 に正本化"

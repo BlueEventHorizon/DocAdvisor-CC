@@ -2,7 +2,7 @@
 
 **Version: 0.3.0**
 
-An AI-searchable document index plugin for Claude Code. Indexes project rules and specifications with a ToC (keyword / metadata) search so AI can automatically find the context it needs.
+An AI-searchable document index plugin for Claude Code. Indexes project Markdown documents per `key` with a ToC (keyword / metadata) search so AI can automatically find the context it needs.
 
 [日本語版 README](README.md)
 
@@ -15,24 +15,25 @@ As a project grows, rules, conventions, and design documents accumulate. AI cann
 
 ## Skills
 
-| Skill                   | Description                                                   | Trigger                 |
-| ----------------------- | ------------------------------------------------------------- | ----------------------- |
-| **setup-doc-structure** | Interactively generate / update `.doc_structure.yaml` (setup) | `"setup doc structure"` |
-| **query-rules**         | Search rules via ToC (keyword / metadata)                     | `"query rules"`         |
-| **query-specs**         | Search specs via ToC (keyword / metadata)                     | `"query specs"`         |
-| **create-rules-toc**    | Build/update rules ToC after rule documents change            | `"rebuild rules ToC"`   |
-| **create-specs-toc**    | Build/update specs ToC after spec documents change            | `"rebuild specs ToC"`   |
+doc-advisor is a generic ToC Provider that manages document sets per `key` (an arbitrary string). It does not interpret the meaning of a `key` (rules / specs classification); it operates deterministically on the given `key` and project-root-relative `paths`.
+
+| Skill          | Description                                                      | Trigger               |
+| -------------- | ---------------------------------------------------------------- | --------------------- |
+| **index-docs** | Generate / update a ToC (keyword / metadata) from key + paths    | `"index docs"`        |
+| **query-docs** | Search a per-key ToC by keyword / natural language, return paths | `"find related docs"` |
 
 ## Workflow
 
 ```mermaid
 flowchart LR
-    DOC[(rules / specs<br/>Markdown)]
-    CT[create-*-toc<br/>Build ToC]
-    QR[query-* SKILL<br/>Search]
+    UP[Upper layer / single mode<br/>decides key + paths]
+    DOC[(Target Markdown)]
+    IX[index-docs<br/>Generate / update ToC]
+    QR[query-docs<br/>Search]
     AI[AI Agent<br/>Implement / Review]
 
-    DOC --> CT --> TOC[(ToC YAML)]
+    UP --> IX
+    DOC --> IX --> TOC[(ToC YAML / per key)]
     QR --> TOC
     AI --> QR
     QR -. matched paths .-> AI
@@ -58,57 +59,41 @@ git clone https://github.com/BlueEventHorizon/DocAdvisor.git
 claude --plugin-dir ./DocAdvisor
 ```
 
-## Setup
+## Usage
 
-### 1. Place `.doc_structure.yaml`
+No configuration file (`.doc_structure.yaml`) is required up front. Just pass a `key` and project-root-relative `paths`.
 
-A configuration file declaring where documents live is required. Minimal example:
+### 1. Build a ToC (index-docs)
 
-```yaml
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - docs/rules/
-  doc_types_map:
-    docs/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-
-specs:
-  root_dirs:
-    - "docs/specs/**/design/"
-    - "docs/specs/**/requirements/"
-  doc_types_map:
-    "docs/specs/**/design/": design
-    "docs/specs/**/requirements/": requirement
-  patterns:
-    target_glob: "**/*.md"
-```
-
-Additional supported fields:
-
-- `output_dir`: ToC output directory (default: `.claude/doc-advisor/`)
-- `patterns.exclude`: glob patterns to exclude
-
-### 2. Initial ToC build
+Pass a `key` and paths; the paths are treated as the complete desired state for that key.
 
 ```text
-/doc-advisor:create-rules-toc --full
-/doc-advisor:create-specs-toc --full
+# An upper layer (e.g. forge) decides the key and paths and passes them
+/doc-advisor:index-docs --key my-rules --paths-json '["docs/rules/a.md", "docs/rules/b.md"]'
+
+# Read paths from a JSON file
+/doc-advisor:index-docs --key my-rules --paths-file paths.json
+
+# Single mode: index every Markdown file under the project root into the reserved key "all"
+/doc-advisor:index-docs --all
 ```
 
-### 3. Search
+> **Desired-state destructiveness**: The paths passed via `--paths-json` / `--paths-file` are the complete desired state for that key. Any path present in the previous ToC but absent from the new paths is deleted (passing a partial array drops the rest).
+
+### 2. Search (query-docs)
 
 ```text
-/doc-advisor:query-rules "review perspectives for auth flow"
-/doc-advisor:query-specs "user registration API"
+# Search a specific key
+/doc-advisor:query-docs --key my-rules "review perspectives for auth flow"
+
+# Omitting --key searches the reserved key "all" (single-mode index of the whole project)
+/doc-advisor:query-docs "user registration API"
 ```
 
 ## Requirements
 
 - [Claude Code](https://claude.ai/code) CLI
-- Python 3 (standard library only; no extra packages required)
+- Python 3.9 or later (standard library only; no extra packages required)
 
 ## For Developers
 

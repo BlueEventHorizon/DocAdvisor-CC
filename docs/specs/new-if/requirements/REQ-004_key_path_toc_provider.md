@@ -181,7 +181,7 @@ Issue 提案の `update_toc.py` / `search_toc.py`、および単一 `sync_toc.py
 | NFR-N02 | 既存資産（`validate_path_within_base` / `normalize_path` / `calculate_file_hash` / `rglob_follow_symlinks` / `should_exclude` / `load_existing_toc` / `write_yaml_output` / `yaml_escape`）を可能な限り再利用する |
 
 | NFR-N03 | `scripts/` 配下 Python はテスト必須（implementation_guidelines）。本 Feature の追加・改修コードは同一 PR でテストを伴う |
-| NFR-N04 | 仕様改訂（REQ-004 / DES-006 / base 仕様の supersede 記載）はコードと同一 PR で行う |
+| NFR-N04 | new-if 内の追加 feature 文書（REQ-004 / DES-006）の更新はコードと同一 PR で行う。**base 仕様（REQ-001 / DES-004 / DES-005）の supersede 改訂は、additive_development 原則（実装完了まで base を書き換えない）を優先し、`/forge:merge-specs` による base 統合時にまとめて反映する**（2026-06-01 当事者判断で当初の「同一 PR」方針から変更。TASK-016 の base 改訂は merge-specs へ委譲） |
 | NFR-N05 | （性能）最大ファイル数超過時は warning を JSON に含めるが処理は継続する。超過判定の閾値（最大ファイル数）は 100 件とする（2026-05-30 当事者確定）。空 repo / 対象 0 件時は error ではなく空 ToC を冪等出力する |
 | NFR-N06 | （セキュリティ）path traversal / root 外 symlink によるインデックス漏洩を防止する。検証方針は §6.1 path validation policy に従う（traversal は論理パス検証、symlink は実体解決 reject） |
 | NFR-N07 | （運用性）base/DES-005 のバックアップ・復元フローは key 単位で継続する（Phase 1〜4 の key 単位再編に伴い、ToC 書き出し時のバックアップ・復元も key 単位で行う） |

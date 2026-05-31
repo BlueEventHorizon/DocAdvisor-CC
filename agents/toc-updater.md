@@ -26,8 +26,8 @@ tools: Read, Bash
 
 ## Parameters
 
-| Parameter    | Required | Description                                                                                                                          |
-| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Parameter    | Required | Description                                                                                                                           |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `key`        | Yes\*    | The opaque key whose ToC this entry belongs to. \*Omit `key` and pass `all` for single mode (reserved key `all`).                     |
 | `entry_file` | Yes      | Path to the pending entry YAML to fill (e.g., `.claude/doc-advisor/toc/keys/<slug>-<hash>/.toc_work/<sha256>.yaml`, project-relative) |
 

@@ -2,7 +2,7 @@
 
 **Version: 0.3.0**
 
-Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトのルール・仕様文書を ToC（キーワード・メタデータ）で検索し、AI が必要なコンテキストを自動発見できるようにする。
+Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトの Markdown 文書を ToC（キーワード・メタデータ）で `key` 単位にインデックス化・検索し、AI が必要なコンテキストを自動発見できるようにする。
 
 [English README](README_en.md)
 
@@ -15,24 +15,25 @@ Claude Code 用の AI 検索可能なドキュメントインデックスプラ�
 
 ## スキル一覧
 
-| スキル                  | 説明                                                   | トリガー句              |
-| ----------------------- | ------------------------------------------------------ | ----------------------- |
-| **setup-doc-structure** | `.doc_structure.yaml` を対話的に生成・更新（初期設定） | `"setup doc structure"` |
-| **query-rules**         | ルール文書を ToC（キーワード/メタデータ）で検索        | `"ルール確認"`          |
-| **query-specs**         | 仕様文書を ToC（キーワード/メタデータ）で検索          | `"仕様確認"`            |
-| **create-rules-toc**    | ルール文書の変更後に ToC を構築・更新                  | `"rules ToC 更新"`      |
-| **create-specs-toc**    | 仕様文書の変更後に ToC を構築・更新                    | `"specs ToC 更新"`      |
+doc-advisor は文書集合を `key`（任意の文字列）単位で管理する汎用 ToC Provider。`key` の意味（rules / specs 等の分類）を解釈せず、与えられた `key` と project-root-relative の `paths` に対して決定的に動作する。
+
+| スキル         | 説明                                                         | トリガー句           |
+| -------------- | ------------------------------------------------------------ | -------------------- |
+| **index-docs** | key + paths から ToC（キーワード/メタデータ）を生成・更新    | `"index docs"`       |
+| **query-docs** | key 単位の ToC をキーワード/自然文で検索し関連文書パスを返す | `"関連文書を探して"` |
 
 ## ワークフロー
 
 ```mermaid
 flowchart LR
-    DOC[(rules / specs<br/>Markdown)]
-    CT[create-*-toc<br/>ToC 構築]
-    QR[query-* SKILL<br/>検索]
+    UP[上位層 / 単体モード<br/>key + paths 決定]
+    DOC[(対象 Markdown)]
+    IX[index-docs<br/>ToC 生成・更新]
+    QR[query-docs<br/>検索]
     AI[AI Agent<br/>実装/レビュー]
 
-    DOC --> CT --> TOC[(ToC YAML)]
+    UP --> IX
+    DOC --> IX --> TOC[(ToC YAML / key 単位)]
     QR --> TOC
     AI --> QR
     QR -. 関連文書パス .-> AI
@@ -58,57 +59,41 @@ git clone https://github.com/BlueEventHorizon/DocAdvisor.git
 claude --plugin-dir ./DocAdvisor
 ```
 
-## セットアップ
+## 使い方
 
-### 1. `.doc_structure.yaml` の配置
+事前の設定ファイル（`.doc_structure.yaml`）は不要。`key` と project-root-relative の `paths` を渡すだけで動作する。
 
-プロジェクトのドキュメント配置を宣言する設定ファイルが必要。最小例:
+### 1. ToC 構築（index-docs）
 
-```yaml
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - docs/rules/
-  doc_types_map:
-    docs/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-
-specs:
-  root_dirs:
-    - "docs/specs/**/design/"
-    - "docs/specs/**/requirements/"
-  doc_types_map:
-    "docs/specs/**/design/": design
-    "docs/specs/**/requirements/": requirement
-  patterns:
-    target_glob: "**/*.md"
-```
-
-追加で使えるフィールド:
-
-- `output_dir`: ToC 出力先（既定: `.claude/doc-advisor/`）
-- `patterns.exclude`: 除外するファイル/ディレクトリのパターン
-
-### 2. 初回 ToC 構築
+`key` と paths を指定して、その key の **完全な desired state** として ToC を構築・更新する。
 
 ```text
-/doc-advisor:create-rules-toc --full
-/doc-advisor:create-specs-toc --full
+# 上位層（forge 等）が key と paths を決定して渡す
+/doc-advisor:index-docs --key my-rules --paths-json '["docs/rules/a.md", "docs/rules/b.md"]'
+
+# paths を JSON ファイルから読み込む
+/doc-advisor:index-docs --key my-rules --paths-file paths.json
+
+# 単体モード: project root 以下の全 Markdown を予約 key "all" に索引化
+/doc-advisor:index-docs --all
 ```
 
-### 3. 検索
+> **desired-state の破壊性**: `--paths-json` / `--paths-file` で渡す paths は当該 key の完全な desired state。前回 ToC に存在し今回 paths に含まれない path は削除される（部分配列を渡すと残りが消える）。
+
+### 2. 検索（query-docs）
 
 ```text
-/doc-advisor:query-rules "認証フローのレビュー観点"
-/doc-advisor:query-specs "ユーザ登録 API"
+# key を指定して検索
+/doc-advisor:query-docs --key my-rules "認証フローのレビュー観点"
+
+# key 省略時は予約 key "all"（project 全体の単体モード索引）を検索
+/doc-advisor:query-docs "ユーザ登録 API"
 ```
 
 ## 動作要件
 
 - [Claude Code](https://claude.ai/code) CLI
-- Python 3（標準ライブラリのみ。追加パッケージは不要）
+- Python 3.9 以上（標準ライブラリのみ。追加パッケージは不要）
 
 ## 開発者向け情報
 

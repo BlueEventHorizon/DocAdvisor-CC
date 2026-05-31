@@ -21,11 +21,11 @@ in as `key + paths`, or resolved by single mode (`--all`, reserved key `all`).
 
 ## Options / Arguments
 
-| Argument               | Description                                                                                   |
-| ---------------------- | --------------------------------------------------------------------------------------------- |
-| `--key <key>`          | Target ToC opaque key (decided by the upper layer). `all` is reserved and rejected as a key.  |
-| `--paths-json '[...]'` | Complete desired-state JSON array of project-root-relative paths for the key                  |
-| `--paths-file <path>`  | JSON file containing the paths array (alternative to `--paths-json`)                          |
+| Argument               | Description                                                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `--key <key>`          | Target ToC opaque key (decided by the upper layer). `all` is reserved and rejected as a key.                          |
+| `--paths-json '[...]'` | Complete desired-state JSON array of project-root-relative paths for the key                                          |
+| `--paths-file <path>`  | JSON file containing the paths array (alternative to `--paths-json`)                                                  |
 | `--all`                | Single mode. Equivalent to omitting `--key`; resolves to reserved key `all`, indexing all Markdown under project root |
 
 > **Desired-state destructiveness [MANDATORY]**: the `paths` passed to a key are its **complete
@@ -70,11 +70,11 @@ Before preparing, decide whether to resume an interrupted run for the target key
 key's `store_dir` (from a prior `prepare`/`merge` JSON, or by resolving the key once) and check
 `store_dir/.toc_work/` with `test -d`.
 
-| Condition                                                       | Action                                                                                  |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `store_dir/.toc_work/` exists with pending (`status: pending`)  | Do **not** re-run `prepare_toc.py`. Resume parallel fill (Phase 2) from remaining pending, then merge |
-| `store_dir/.toc_work/` exists with all `completed`              | Already filled. Go directly to merge (Phase 3)                                          |
-| `store_dir/.toc_work/` does not exist                           | Normal start from Phase 1 (prepare)                                                     |
+| Condition                                                      | Action                                                                                                |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `store_dir/.toc_work/` exists with pending (`status: pending`) | Do **not** re-run `prepare_toc.py`. Resume parallel fill (Phase 2) from remaining pending, then merge |
+| `store_dir/.toc_work/` exists with all `completed`             | Already filled. Go directly to merge (Phase 3)                                                        |
+| `store_dir/.toc_work/` does not exist                          | Normal start from Phase 1 (prepare)                                                                   |
 
 > To discard `.toc_work/` and re-prepare from scratch (e.g. corrupted pending), use
 > `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`).
@@ -102,12 +102,12 @@ under `store_dir/.toc_work/`. Read the single stdout JSON:
 
 Decision logic:
 
-| Condition                                          | Action                                                                          |
-| -------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `status == error`                                  | Report `error_code` / `message`; ask the user how to proceed                    |
-| `added == 0` and `updated == 0` and `deleted == 0` | Idempotent success (including empty ToC). Done (no Phase 2/3 needed)            |
-| `added == 0` and `updated == 0` and `deleted > 0`  | Delete-only. Skip Phase 2; go to Phase 3 with `merge_toc.py --delete-only`      |
-| `added > 0` or `updated > 0`                       | Proceed to Phase 2                                                              |
+| Condition                                          | Action                                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| `status == error`                                  | Report `error_code` / `message`; ask the user how to proceed               |
+| `added == 0` and `updated == 0` and `deleted == 0` | Idempotent success (including empty ToC). Done (no Phase 2/3 needed)       |
+| `added == 0` and `updated == 0` and `deleted > 0`  | Delete-only. Skip Phase 2; go to Phase 3 with `merge_toc.py --delete-only` |
+| `added > 0` or `updated > 0`                       | Proceed to Phase 2                                                         |
 
 > **Dry-run (optional)**: add `--dry-run` to `prepare_toc.py` to print `counts` and path lists
 > without writing. If destructive deletions are unexpected, confirm with the user before continuing.
@@ -171,10 +171,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
 
 Read the stdout JSON: `status` / `counts` / `deleted_paths` / `warnings`.
 
-| Condition          | Action                                                                                                          |
-| ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `status == ok`     | Proceed to the completion report                                                                                |
-| `status == error`  | Validation failed: toc.yaml restored, `.toc_work/` preserved. Report the error; ask the user how to proceed (e.g. fix the source document and re-run) |
+| Condition         | Action                                                                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status == ok`    | Proceed to the completion report                                                                                                                      |
+| `status == error` | Validation failed: toc.yaml restored, `.toc_work/` preserved. Report the error; ask the user how to proceed (e.g. fix the source document and re-run) |
 
 ---
 
@@ -198,13 +198,13 @@ Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_f
 
 ## Checksums / Work Directory Responsibility
 
-| Operation                              | Who                                                                                            |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| checksums promote (active update)      | `merge_toc.py` internally on validation success (recomputed from final docs)                   |
-| `.toc_work/` removal                   | `merge_toc.py` internally on validation success                                                |
-| checksums kept / `.toc_work/` preserved | `merge_toc.py` internally on validation failure (for retry)                                    |
-| **Manual** promote (maintenance only)  | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --promote-pending` (single mode: `--all`) |
-| **Manual** work-dir clean (recovery)   | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`) |
+| Operation                               | Who                                                                                                         |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| checksums promote (active update)       | `merge_toc.py` internally on validation success (recomputed from final docs)                                |
+| `.toc_work/` removal                    | `merge_toc.py` internally on validation success                                                             |
+| checksums kept / `.toc_work/` preserved | `merge_toc.py` internally on validation failure (for retry)                                                 |
+| **Manual** promote (maintenance only)   | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --promote-pending` (single mode: `--all`) |
+| **Manual** work-dir clean (recovery)    | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`)  |
 
 The orchestrator never runs `cp`/`rm` directly against the store. The `toc_store.py` promote /
 clean-work-dir commands are maintenance / abnormal-recovery tools only; the normal pipeline
