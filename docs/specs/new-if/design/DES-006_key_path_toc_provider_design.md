@@ -112,6 +112,7 @@ store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
 
 - `meta.yaml` に **original key** を保持（REQ-004 FR-N01-4）。`store_dir` から key を復元・照合可能にする
 - 予約 key `all`（REQ-004 FR-N04）は `store_dir("all")` に解決する。`all` はユーザー任意 key として reject されるため（FR-N01-5）、名前空間衝突は起きない
+- `.toc_work/` は merge 後に削除される一時ディレクトリであり、**`.gitignore` に登録しない**。正常動作では merge 完了時に消えるため、残存は merge 未完・クリーンアップ漏れの異常シグナルである。`.gitignore` で隠すと残存に気づけなくなるので、あえて追跡対象外（untracked）のまま放置し、`git status` で残存を目視検知できることを優先する（§6.6 continuation の再開判定もこの残存可視性に依存する）。誤 commit は `git add` を明示パスに限定する運用で防ぐ
 
 base/DES-004 の category 別固定パス（`toc/rules/`, `toc/specs/`）は廃止し、本構造へ移行する。既存ストアからの移行は行わず再生成とする（REQ-004 §6.2 clean break 確定 / 非目的「自動 migration を持たない」）。
 

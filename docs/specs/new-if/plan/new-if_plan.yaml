@@ -39,7 +39,7 @@ requirements_traceability:
   - requirement_id: FR-N05
     title: ToC 取得・検索（get_toc 全体/縮小抽出・ranking なし・見落としゼロ・fork 検索）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-005, TASK-011]
   - requirement_id: FR-N06
     title: 削除（key 全体削除 / 指定 path の個別削除）
@@ -49,7 +49,7 @@ requirements_traceability:
   - requirement_id: FR-N07
     title: レイヤ責務境界（deterministic script / AI 層・prepare→agent→merge 協調）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-003, TASK-004, TASK-009]
   - requirement_id: FR-N08
     title: JSON 出力契約（stdout 単一 JSON・status / error_code enum 固定）
@@ -334,7 +334,7 @@ tasks:
   - task_id: TASK-009
     title: toc-updater agent 改修（write_pending --key 駆動・doc_type 抽出廃止）
     priority: 60
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-007
@@ -355,7 +355,7 @@ tasks:
   - task_id: TASK-010
     title: index-docs SKILL 新設（生成パイプライン駆動・fork なし）+ orchestrator 整合
     priority: 58
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-008
@@ -379,7 +379,7 @@ tasks:
   - task_id: TASK-011
     title: query-docs SKILL 新設（検索パイプライン・fork / read-only）+ query workflow 整合
     priority: 56
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-005
@@ -401,7 +401,7 @@ tasks:
   - task_id: TASK-012
     title: 旧 SKILL 5 件の削除（clean break）
     priority: 54
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-010
