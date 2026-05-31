@@ -57,6 +57,18 @@ WORK_DIRNAME = ".toc_work"
 PENDING_CHECKSUMS_FILENAME = ".toc_checksums_pending.yaml"
 CHECKSUMS_FILENAME = ".toc_checksums.yaml"
 
+# prepare → merge の協調で deleted（desired から外れた path）を引き渡すサイドカー。
+# store_dir/.toc_work/ 配下に置き、merge が読んで toc.yaml から除去する（DES-006 §6.1 / §6.2 / FR-N02-2）。
+DELETED_SIDECAR_FILENAME = ".deleted.json"
+
+# prepare → merge の協調で「desired 0 件（空 repo / 対象 0 件）」の意図を引き渡すサイドカー。
+# prepare が desired 0 件を検出した場合に store_dir/.toc_work/ 配下へ残し、merge は
+# pending も既存 toc も無い場合でもこのマーカーがあれば空 toc.yaml を冪等出力する
+# （DES-006 §9.2 / §9.3 / REQ-004 NFR-N05 / 受け入れ基準「空 repo で空 ToC を冪等出力」）。
+# これにより「prepare 実行済みで desired 0 件（空にすべき）」と「prepare 未実行で
+# 何も準備されていない（NO_TARGETS）」を痕跡で区別し取り違えを防ぐ。
+EMPTY_INTENT_SIDECAR_FILENAME = ".empty_intent"
+
 # slug の最大長（DES-006 §3.1）
 SLUG_MAX_LEN = 40
 
@@ -386,6 +398,7 @@ def emit_json(
     normalized_paths=None,
     rejected_paths=None,
     counts=None,
+    deleted_paths=None,
     warnings=None,
     stream=None,
 ):
@@ -404,6 +417,7 @@ def emit_json(
         normalized_paths: 正規化済み path リスト
         rejected_paths: [{path, reason}] のリスト
         counts: {added, updated, deleted, unchanged} の dict
+        deleted_paths: 削除された path のリスト（merge の FR-N02-4）
         warnings: warning 文字列リスト
         stream: 出力先（省略時 sys.stdout。テスト用）
     """
@@ -423,6 +437,8 @@ def emit_json(
         payload["rejected_paths"] = rejected_paths
     if counts is not None:
         payload["counts"] = counts
+    if deleted_paths is not None:
+        payload["deleted_paths"] = deleted_paths
     if warnings is not None:
         payload["warnings"] = warnings
 

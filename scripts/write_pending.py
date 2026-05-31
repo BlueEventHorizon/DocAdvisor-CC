@@ -1,28 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-pending YAML write script (doc-advisor plugin, unified for rules/specs)
+pending YAML write script (doc-advisor plugin / key + path I/F)
 
-toc-updater agent の分析結果を pending YAML に書き込み、
-status を completed に更新する。
+DES-006 §7.1（doc_type 除去）/ §4.1（モジュール）を実装する。
+
+toc-updater agent の分析結果を pending YAML（store_dir/.toc_work/ 配下）に
+書き込み、status を completed に更新する。doc_type は扱わない。
+
+充填するフィールド: title / purpose / content_details / applicable_tasks / keywords
+（DES-006 §7.1: doc_type なし）。
 
 Usage:
-    python3 write_pending.py --category rules \
-      --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
+    python3 write_pending.py --key K \
+      --entry-file ".claude/doc-advisor/toc/keys/<slug>-<hash>/.toc_work/xxx.yaml" \
       --title "Title" \
       --purpose "Purpose" \
       --content-details "item1 ||| item2 ||| item3 ||| item4 ||| item5" \
       --applicable-tasks "task1 ||| task2" \
       --keywords "kw1 ||| kw2 ||| kw3 ||| kw4 ||| kw5"
 
+    # 単体モード（予約 key all）: --all または --key 省略
+    python3 write_pending.py --all --entry-file "..." --title ... (他フィールド)
+
 Error mode:
-    python3 write_pending.py --category rules \
-      --entry-file ".claude/doc-advisor/toc/rules/.toc_work/xxx.yaml" \
+    python3 write_pending.py --key K \
+      --entry-file "..." \
       --error --error-message "Source file not found"
 
 Exit codes:
     0: Success
-    1: File not found
+    1: File not found / path traversal / key error
     2: Missing required field
     3: Array element count insufficient
     4: Write failure
@@ -33,7 +41,17 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
-from toc_utils import yaml_escape, load_entry_file, get_project_root, validate_path_within_base, log
+from toc_utils import (
+    yaml_escape,
+    load_entry_file,
+    get_project_root,
+    validate_path_within_base,
+    log,
+)
+from toc_store import (
+    KeyError_,
+    resolve_key_from_args,
+)
 
 
 # Validation settings
@@ -42,15 +60,17 @@ MIN_APPLICABLE_TASKS = 1
 MIN_KEYWORDS = 5
 
 
-def parse_args():
+def parse_args(argv=None):
     """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
-        description='Write analysis results to pending YAML'
+        description='Write analysis results to pending YAML (key + path I/F)'
     )
-    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
-                        help='Document category: rules or specs')
+    # key 解決（--all / --key 省略 → 予約 key all、--key all → reject）
+    parser.add_argument('--key', help='User-specified key (opaque)')
+    parser.add_argument('--all', action='store_true',
+                        help="Single mode: resolve to reserved key 'all'")
     parser.add_argument('--entry-file', required=True,
-                        help='Target entry YAML file path')
+                        help='Target entry YAML file path (store_dir/.toc_work/ 配下)')
 
     # Error mode
     parser.add_argument('--error', action='store_true',
@@ -72,7 +92,7 @@ def parse_args():
     parser.add_argument('--force', action='store_true',
                         help='Force overwrite even if completed')
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def parse_separated(value, separator='|||'):
@@ -92,27 +112,23 @@ def validate_array(name, items, min_count):
     return True
 
 
-def write_error_yaml(filepath, meta, error_message, category):
+def write_error_yaml(filepath, meta, error_message):
     """
-    Write error status to entry YAML file
+    Write error status to entry YAML file (DES-006 §7.1: doc_type なし)
 
     Args:
         filepath: Output file path
-        meta: _meta section dict (source_file, doc_type preserved)
+        meta: _meta section dict (source_file preserved)
         error_message: Error description
-        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success
     """
     lines = []
 
-    # _meta section
+    # _meta section (doc_type なし)
     lines.append("_meta:")
     lines.append(f"  source_file: {yaml_escape(meta.get('source_file', ''))}")
-    doc_type = meta.get('doc_type', '')
-    if doc_type:
-        lines.append(f"  doc_type: {doc_type}")
     lines.append("  status: pending")
     lines.append(f"  error_message: {yaml_escape(error_message)}")
     lines.append(f"  updated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
@@ -136,27 +152,23 @@ def write_error_yaml(filepath, meta, error_message, category):
         return False
 
 
-def write_entry_yaml(filepath, meta, entry, category):
+def write_entry_yaml(filepath, meta, entry):
     """
-    Write entry YAML file
+    Write entry YAML file (DES-006 §7.1: doc_type なし)
 
     Args:
         filepath: Output file path
-        meta: _meta section dict
+        meta: _meta section dict (source_file / status / updated_at)
         entry: Entry data dict
-        category: 'rules' or 'specs'
 
     Returns:
         bool: True on success
     """
     lines = []
 
-    # _meta section
+    # _meta section (doc_type なし)
     lines.append("_meta:")
     lines.append(f"  source_file: {yaml_escape(meta.get('source_file', ''))}")
-    doc_type = meta.get('doc_type', '')
-    if doc_type:
-        lines.append(f"  doc_type: {doc_type}")
     lines.append(f"  status: {meta.get('status', 'completed')}")
     lines.append(f"  updated_at: {meta.get('updated_at', '')}")
     lines.append("")
@@ -183,10 +195,18 @@ def write_entry_yaml(filepath, meta, entry, category):
         return False
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
 
-    category = args.category
+    # key 解決（--all / --key 省略 → 予約 all、--key all → KEY_RESERVED）
+    # write_pending は store_dir を直接受け取らず entry-file を受けるが、
+    # key の妥当性検証（空 / 任意 all reject）は他 script と統一する。
+    try:
+        resolve_key_from_args(args)
+    except KeyError_ as e:
+        log(f"Error: {e}")
+        return 1
+
     entry_file = Path(args.entry_file)
 
     # Path traversal check (CWE-22)
@@ -224,7 +244,7 @@ def main():
         if not args.error_message:
             log("Error: --error-message is required with --error")
             return 2
-        if not write_error_yaml(entry_file, meta, args.error_message, category):
+        if not write_error_yaml(entry_file, meta, args.error_message):
             return 4
         log(f"Entry error: {entry_file}")
         log(f"  source_file: {meta['source_file']}")
@@ -263,10 +283,9 @@ def main():
     if not valid:
         return 3
 
-    # Update _meta (preserve doc_type from pending YAML)
+    # Update _meta (doc_type なし / DES-006 §7.1)
     updated_meta = {
         'source_file': meta['source_file'],
-        'doc_type': meta.get('doc_type', ''),
         'status': 'completed',
         'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     }
@@ -280,7 +299,7 @@ def main():
         'keywords': keywords
     }
     # Write
-    if not write_entry_yaml(entry_file, updated_meta, entry, category):
+    if not write_entry_yaml(entry_file, updated_meta, entry):
         return 4
 
     # Success message

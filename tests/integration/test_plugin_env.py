@@ -85,32 +85,5 @@ class TestGetProjectRootCwd(unittest.TestCase):
             shutil.rmtree(tmpdir)
 
 
-class TestFindConfigFile(unittest.TestCase):
-    """find_config_file() のテスト"""
-
-    def test_finds_doc_structure(self):
-        """.doc_structure.yaml がプロジェクトルートに存在する場合"""
-        tmpdir = tempfile.mkdtemp()
-        ds_path = os.path.join(tmpdir, '.doc_structure.yaml')
-        with open(ds_path, 'w') as f:
-            f.write('rules:\n  root_dirs:\n    - rules/\n')
-        try:
-            with patch.dict(os.environ, {'CLAUDE_PROJECT_DIR': tmpdir}):
-                result = toc_utils.find_config_file()
-            self.assertEqual(result, Path(tmpdir) / '.doc_structure.yaml')
-        finally:
-            shutil.rmtree(tmpdir)
-
-    def test_not_found_raises_error(self):
-        """.doc_structure.yaml が存在しない場合は FileNotFoundError"""
-        tmpdir = tempfile.mkdtemp()
-        try:
-            with patch.dict(os.environ, {'CLAUDE_PROJECT_DIR': tmpdir}):
-                with self.assertRaises(FileNotFoundError):
-                    toc_utils.find_config_file()
-        finally:
-            shutil.rmtree(tmpdir)
-
-
 if __name__ == '__main__':
     unittest.main()

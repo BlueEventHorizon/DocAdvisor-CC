@@ -22,58 +22,6 @@ sys.path.insert(0, os.path.abspath(SCRIPTS_DIR))
 import toc_utils
 
 
-# ---------------------------------------------------------------------------
-# テスト用 .doc_structure.yaml
-# ---------------------------------------------------------------------------
-
-BASIC_DOC_STRUCTURE = """\
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - rules/
-  doc_types_map:
-    rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-
-specs:
-  root_dirs:
-    - specs/
-  doc_types_map:
-    specs/: spec
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-
-CUSTOM_DOC_STRUCTURE = """\
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - docs/rules/
-  doc_types_map:
-    docs/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude:
-      - draft
-
-specs:
-  root_dirs:
-    - docs/specs/design/
-    - docs/specs/plan/
-  doc_types_map:
-    docs/specs/design/: design
-    docs/specs/plan/: plan
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-
-
 # ===========================================================================
 # should_exclude テスト（test_should_exclude.sh から移行）
 # ===========================================================================
@@ -398,160 +346,6 @@ class TestNormalizePath(unittest.TestCase):
 
 
 # ===========================================================================
-# load_config テスト
-# ===========================================================================
-
-class TestLoadConfig(unittest.TestCase):
-    """load_config() のデフォルトマージテスト。"""
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.original_env = {}
-        for key in ('CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT'):
-            self.original_env[key] = os.environ.get(key)
-        os.environ['CLAUDE_PROJECT_DIR'] = self.tmpdir
-
-        # .doc_structure.yaml 作成
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(BASIC_DOC_STRUCTURE)
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-        for key, val in self.original_env.items():
-            if val is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = val
-
-    def test_load_config_returns_dict(self):
-        """load_config() は辞書を返す"""
-        config = toc_utils.load_config()
-        self.assertIsInstance(config, dict)
-
-    def test_load_config_has_rules_and_specs(self):
-        """rules と specs セクションが含まれる"""
-        config = toc_utils.load_config()
-        self.assertIn('rules', config)
-        self.assertIn('specs', config)
-
-    def test_load_config_category_filter(self):
-        """category 指定で該当セクションのみ返す"""
-        config = toc_utils.load_config(category='rules')
-        self.assertIn('root_dirs', config)
-        self.assertNotIn('rules', config)  # トップレベルキーではなくセクション内容
-
-    def test_load_config_defaults_merged(self):
-        """デフォルト値（toc_file 等）がマージされる"""
-        config = toc_utils.load_config(category='rules')
-        self.assertIn('toc_file', config)
-        self.assertIn('checksums_file', config)
-
-    def test_load_config_user_override(self):
-        """ユーザー定義の root_dirs がデフォルトを上書き"""
-        config = toc_utils.load_config(category='rules')
-        self.assertEqual(config['root_dirs'], ['rules/'])
-
-    def test_load_config_no_file(self):
-        """.doc_structure.yaml がない場合はデフォルトを返す"""
-        os.remove(os.path.join(self.tmpdir, '.doc_structure.yaml'))
-        config = toc_utils.load_config(category='rules')
-        self.assertIn('root_dirs', config)
-
-    def test_load_config_custom_exclude(self):
-        """カスタム .doc_structure.yaml の exclude が反映される"""
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(CUSTOM_DOC_STRUCTURE)
-        config = toc_utils.load_config(category='rules')
-        self.assertIn('draft', config.get('patterns', {}).get('exclude', []))
-
-    def test_load_config_quoted_doc_types_map_keys(self):
-        """README / ガイドが推奨する quoted glob key (\"docs/specs/**/design/\") が
-        正しく unquote されて doc_types_map に格納されること。
-
-        Regression: parser が key 側の quote を strip せず、その結果 quote 付きの
-        path pattern が glob 展開対象となり doc_types_map が空になっていたバグ。
-        """
-        yaml_with_quoted_keys = """\
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - docs/rules/
-  doc_types_map:
-    docs/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-
-specs:
-  root_dirs:
-    - "docs/specs/**/design/"
-    - "docs/specs/**/requirements/"
-  doc_types_map:
-    "docs/specs/**/design/": design
-    "docs/specs/**/requirements/": requirement
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(yaml_with_quoted_keys)
-        config = toc_utils.load_config(category='specs')
-        doc_types_map = config.get('doc_types_map', {})
-        self.assertIn('docs/specs/**/design/', doc_types_map)
-        self.assertIn('docs/specs/**/requirements/', doc_types_map)
-        self.assertEqual(doc_types_map['docs/specs/**/design/'], 'design')
-        self.assertEqual(doc_types_map['docs/specs/**/requirements/'], 'requirement')
-        # Ensure no key still has surrounding quotes
-        for key in doc_types_map.keys():
-            self.assertFalse(key.startswith('"'), f"key still has quote: {key!r}")
-            self.assertFalse(key.startswith("'"), f"key still has quote: {key!r}")
-
-    def test_load_config_quoted_keys_glob_expansion_works(self):
-        """quoted glob key → 実ディレクトリ走査で expand_doc_types_map が正しく動く"""
-        # 実在するディレクトリを作成
-        for feature in ('payment', 'auth'):
-            (Path(self.tmpdir) / 'docs' / 'specs' / feature / 'design').mkdir(parents=True)
-            (Path(self.tmpdir) / 'docs' / 'specs' / feature / 'requirements').mkdir(parents=True)
-
-        yaml_with_quoted_keys = """\
-# doc_structure_version: 3.0
-
-specs:
-  root_dirs:
-    - "docs/specs/*/design/"
-    - "docs/specs/*/requirements/"
-  doc_types_map:
-    "docs/specs/*/design/": design
-    "docs/specs/*/requirements/": requirement
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-
-rules:
-  root_dirs:
-    - docs/rules/
-  doc_types_map:
-    docs/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(yaml_with_quoted_keys)
-        config = toc_utils.load_config(category='specs')
-        expanded = toc_utils.expand_doc_types_map(
-            config.get('doc_types_map', {}),
-            Path(self.tmpdir),
-        )
-        # quoted pattern が unquote されて glob 展開され、各 feature が doc_type 付きで現れる
-        self.assertEqual(expanded.get('docs/specs/payment/design/'), 'design')
-        self.assertEqual(expanded.get('docs/specs/auth/design/'), 'design')
-        self.assertEqual(expanded.get('docs/specs/payment/requirements/'), 'requirement')
-        self.assertEqual(expanded.get('docs/specs/auth/requirements/'), 'requirement')
-
-
-# ===========================================================================
 # get_project_root テスト
 # ===========================================================================
 
@@ -599,264 +393,239 @@ class TestGetProjectRoot(unittest.TestCase):
 
 
 # ===========================================================================
-# get_system_exclude_patterns テスト
+# validate_path_within_base テスト（traversal 専用流用 / 挙動不変）
 # ===========================================================================
 
-class TestGetSystemExcludePatterns(unittest.TestCase):
-    """get_system_exclude_patterns() のテスト。"""
+class TestValidatePathWithinBase(unittest.TestCase):
+    """validate_path_within_base() の traversal 検証テスト。
 
-    def test_rules_patterns(self):
-        patterns = toc_utils.get_system_exclude_patterns('rules')
-        self.assertIn('.toc_work', patterns)
-        self.assertIn('rules_toc.yaml', patterns)
-        self.assertIn('.toc_checksums.yaml', patterns)
+    DES-006 §5.1 / §5.2 で本関数は traversal 専用として流用し、
+    docstring・論理パス検証ポリシーは変更しない。symlink 厳格化は
+    resolve_within_root が担う（両者を分離）。本クラスは流用元の
+    挙動が不変であることを固定する。
+    """
 
-    def test_specs_patterns(self):
-        patterns = toc_utils.get_system_exclude_patterns('specs')
-        self.assertIn('.toc_work', patterns)
-        self.assertIn('specs_toc.yaml', patterns)
+    def test_normal_path_returns_joined(self):
+        """通常パスは base/path の join を返す（例外なし）"""
+        result = toc_utils.validate_path_within_base('docs/a.md', '/project')
+        self.assertEqual(Path(result), Path('/project/docs/a.md'))
 
-    def test_unknown_category(self):
-        patterns = toc_utils.get_system_exclude_patterns('unknown')
-        self.assertEqual(patterns, [])
+    def test_traversal_rejected(self):
+        """.. による root 外参照は ValueError"""
+        with self.assertRaises(ValueError):
+            toc_utils.validate_path_within_base('../outside.md', '/project')
 
-    def test_returns_copy(self):
-        """元のリストが変更されないこと"""
-        p1 = toc_utils.get_system_exclude_patterns('rules')
-        p1.append('extra')
-        p2 = toc_utils.get_system_exclude_patterns('rules')
-        self.assertNotIn('extra', p2)
+    def test_nested_traversal_rejected(self):
+        """ネストされた .. で root を抜ける場合も ValueError"""
+        with self.assertRaises(ValueError):
+            toc_utils.validate_path_within_base('docs/../../escape.md', '/project')
+
+    def test_inner_traversal_allowed(self):
+        """root 内に留まる .. は許可される"""
+        result = toc_utils.validate_path_within_base('docs/sub/../a.md', '/project')
+        # join は正規化前のパスを返す（既存仕様）
+        self.assertEqual(Path(result), Path('/project/docs/sub/../a.md'))
 
 
 # ===========================================================================
-# expand_doc_types_map テスト
+# resolve_within_root テスト（新規 symlink 実体解決 / DES-006 §5.2）
 # ===========================================================================
 
-class TestExpandDocTypesMap(unittest.TestCase):
-    """expand_doc_types_map() unit tests."""
+class TestResolveWithinRoot(unittest.TestCase):
+    """resolve_within_root() の symlink 実体解決テスト。"""
 
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
+        # symlink の実体差を確実にするため tmpdir を resolve しておく
+        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.outside = Path(tempfile.mkdtemp()).resolve()
 
     def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        shutil.rmtree(self.root, ignore_errors=True)
+        shutil.rmtree(self.outside, ignore_errors=True)
 
-    def test_empty_map(self):
-        """Empty map returns empty dict."""
-        result = toc_utils.expand_doc_types_map({}, Path(self.tmpdir))
-        self.assertEqual(result, {})
+    def test_existing_file_within_root(self):
+        """root 配下の実在ファイルは resolve 済み実体を返す"""
+        f = self.root / 'a.md'
+        f.write_text('# a\n', encoding='utf-8')
+        result = toc_utils.resolve_within_root(f, self.root)
+        self.assertEqual(result, f.resolve())
 
-    def test_no_glob_key_passthrough(self):
-        """Non-glob key is passed through unchanged."""
-        doc_map = {'docs/rules/': 'rule'}
-        result = toc_utils.expand_doc_types_map(doc_map, Path(self.tmpdir))
-        self.assertEqual(result, {'docs/rules/': 'rule'})
+    def test_missing_file_raises_filenotfound(self):
+        """不在ファイルは FileNotFoundError（strict=True）"""
+        with self.assertRaises(FileNotFoundError):
+            toc_utils.resolve_within_root(self.root / 'missing.md', self.root)
 
-    def test_glob_match_expands(self):
-        """Glob key expands to matching directories with correct doc_type."""
-        # Create dirs: specs/app1/design/, specs/app2/design/
-        for name in ('app1', 'app2'):
-            (Path(self.tmpdir) / 'specs' / name / 'design').mkdir(parents=True)
-        doc_map = {'specs/*/design/': 'design'}
-        result = toc_utils.expand_doc_types_map(doc_map, Path(self.tmpdir))
-        self.assertIn('specs/app1/design/', result)
-        self.assertIn('specs/app2/design/', result)
-        self.assertEqual(result['specs/app1/design/'], 'design')
-        self.assertEqual(result['specs/app2/design/'], 'design')
+    def test_symlink_to_outside_rejected(self):
+        """root 外の実体を指す symlink は OUTSIDE_ROOT で reject"""
+        target = self.outside / 'secret.md'
+        target.write_text('# secret\n', encoding='utf-8')
+        link = self.root / 'link.md'
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        with self.assertRaises(toc_utils.PathRejection) as ctx:
+            toc_utils.resolve_within_root(link, self.root)
+        self.assertEqual(ctx.exception.error_code, 'OUTSIDE_ROOT')
 
-    def test_glob_no_match_excluded(self):
-        """Glob key with no matches produces no entries."""
-        doc_map = {'nonexistent/*/foo/': 'bar'}
-        result = toc_utils.expand_doc_types_map(doc_map, Path(self.tmpdir))
-        self.assertEqual(result, {})
-
-    def test_mixed_glob_and_non_glob(self):
-        """Mix of glob and non-glob keys are both handled correctly."""
-        (Path(self.tmpdir) / 'specs' / 'core' / 'plan').mkdir(parents=True)
-        doc_map = {
-            'docs/rules/': 'rule',
-            'specs/*/plan/': 'plan',
-        }
-        result = toc_utils.expand_doc_types_map(doc_map, Path(self.tmpdir))
-        self.assertEqual(result['docs/rules/'], 'rule')
-        self.assertIn('specs/core/plan/', result)
-        self.assertEqual(result['specs/core/plan/'], 'plan')
-
-    def test_multiple_glob_matches_same_doc_type(self):
-        """Multiple glob matches all receive the same doc_type."""
-        for name in ('alpha', 'beta', 'gamma'):
-            (Path(self.tmpdir) / 'modules' / name).mkdir(parents=True)
-        doc_map = {'modules/*/': 'module'}
-        result = toc_utils.expand_doc_types_map(doc_map, Path(self.tmpdir))
-        self.assertEqual(len(result), 3)
-        for key, doc_type in result.items():
-            self.assertEqual(doc_type, 'module')
+    def test_symlink_within_root_allowed(self):
+        """root 内の実体を指す symlink は許可される"""
+        target = self.root / 'real.md'
+        target.write_text('# real\n', encoding='utf-8')
+        link = self.root / 'alias.md'
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        result = toc_utils.resolve_within_root(link, self.root)
+        self.assertEqual(result, target.resolve())
 
 
 # ===========================================================================
-# _expand_output_dir テスト
+# validate_path テスト（検証フロー 6 系統 / DES-006 §5.1）
 # ===========================================================================
 
-class TestExpandOutputDir(unittest.TestCase):
-    """_expand_output_dir() のテスト。"""
+class TestValidatePath(unittest.TestCase):
+    """validate_path() の検証フローテスト。
 
-    def test_derives_three_fields(self):
-        """output_dir から3フィールドが正しく導出される"""
-        section = {'output_dir': 'custom/output/'}
-        toc_utils._expand_output_dir(section, 'rules')
-        self.assertEqual(section['toc_file'], 'custom/output/toc/rules/rules_toc.yaml')
-        self.assertEqual(section['checksums_file'], 'custom/output/toc/rules/.toc_checksums.yaml')
-        self.assertEqual(section['work_dir'], 'custom/output/toc/rules/.toc_work/')
-
-    def test_specs_category(self):
-        """specs カテゴリの導出パスが正しい"""
-        section = {'output_dir': 'my/base/'}
-        toc_utils._expand_output_dir(section, 'specs')
-        self.assertEqual(section['toc_file'], 'my/base/toc/specs/specs_toc.yaml')
-        self.assertEqual(section['work_dir'], 'my/base/toc/specs/.toc_work/')
-
-    def test_no_output_dir_does_nothing(self):
-        """output_dir 未設定時は何もしない"""
-        section = {'root_dirs': ['rules/']}
-        toc_utils._expand_output_dir(section, 'rules')
-        self.assertNotIn('toc_file', section)
-        self.assertNotIn('work_dir', section)
-
-    def test_does_not_overwrite_explicit_fields(self):
-        """明示的に設定された個別フィールドは上書きしない"""
-        section = {
-            'output_dir': 'custom/output/',
-            'toc_file': 'my/explicit/toc.yaml',
-        }
-        toc_utils._expand_output_dir(section, 'rules')
-        # toc_file は明示値のまま
-        self.assertEqual(section['toc_file'], 'my/explicit/toc.yaml')
-        # 他は導出される
-        self.assertEqual(section['checksums_file'], 'custom/output/toc/rules/.toc_checksums.yaml')
-        self.assertEqual(section['work_dir'], 'custom/output/toc/rules/.toc_work/')
-
-    def test_trailing_slash_stripped(self):
-        """末尾スラッシュが正しく処理される"""
-        section = {'output_dir': 'path/with/slash/'}
-        toc_utils._expand_output_dir(section, 'rules')
-        self.assertTrue(section['toc_file'].startswith('path/with/slash/'))
-        # 二重スラッシュが入らないことを確認
-        self.assertNotIn('//', section['toc_file'])
-
-
-class TestLoadConfigOutputDir(unittest.TestCase):
-    """load_config() で output_dir が正しく展開されるテスト。"""
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.original_env = {}
-        for key in ('CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT'):
-            self.original_env[key] = os.environ.get(key)
-        os.environ['CLAUDE_PROJECT_DIR'] = self.tmpdir
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-        for key, val in self.original_env.items():
-            if val is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = val
-
-    def test_output_dir_derives_paths_in_config(self):
-        """output_dir 設定時に導出パスが deep merge 後の config に反映"""
-        doc_structure = """\
-# doc_structure_version: 3.0
-
-rules:
-  output_dir: custom/output/
-  root_dirs:
-    - docs/rules/
-  doc_types_map:
-    docs/rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(doc_structure)
-
-        config = toc_utils.load_config(category='rules')
-        self.assertEqual(config['toc_file'],
-                         'custom/output/toc/rules/rules_toc.yaml')
-        self.assertEqual(config['checksums_file'],
-                         'custom/output/toc/rules/.toc_checksums.yaml')
-        self.assertEqual(config['work_dir'],
-                         'custom/output/toc/rules/.toc_work/')
-
-
-class TestResolveConfigPath(unittest.TestCase):
-    """resolve_config_path() のパス解決ルールのテスト。
-
-    ルール:
-    - '/' を含むパス → project_root 基準
-    - '/' を含まない単純名 → default_base 基準
+    6 系統: 絶対パス / traversal / 不在 / root 外 symlink / 非 Markdown / 正常。
+    加えて ./a.md ↔ a.md の同一視を固定する。error_code は
+    toc_store.ErrorCode と整合する文字列。
     """
 
     def setUp(self):
-        self.project_root = Path('/project')
-        self.default_base = Path('/project/rules/core')
+        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.outside = Path(tempfile.mkdtemp()).resolve()
 
-    def test_simple_name_resolves_to_default_base(self):
-        """'/' を含まない単純名は default_base 基準で解決"""
-        result = toc_utils.resolve_config_path(
-            '.toc_work', self.default_base, self.project_root)
-        self.assertEqual(result, Path('/project/rules/core/.toc_work'))
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+        shutil.rmtree(self.outside, ignore_errors=True)
 
-    def test_simple_filename_resolves_to_default_base(self):
-        """単純ファイル名も default_base 基準"""
-        result = toc_utils.resolve_config_path(
-            '.toc_checksums.yaml', self.default_base, self.project_root)
-        self.assertEqual(result, Path('/project/rules/core/.toc_checksums.yaml'))
+    def _make_md(self, rel):
+        p = self.root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('# doc\n', encoding='utf-8')
+        return p
 
-    def test_claude_prefix_resolves_to_project_root(self):
-        """.claude/ プレフィックスは project_root 基準"""
-        result = toc_utils.resolve_config_path(
-            '.claude/doc-advisor/toc/rules/rules_toc.yaml',
-            self.default_base, self.project_root)
-        self.assertEqual(
-            result,
-            Path('/project/.claude/doc-advisor/toc/rules/rules_toc.yaml'))
+    # --- 1. 絶対パス ---
 
-    def test_multi_component_path_resolves_to_project_root(self):
-        """'/' を含む非 .claude/ パスも project_root 基準（output_dir 由来）"""
-        result = toc_utils.resolve_config_path(
-            'custom/output/toc/rules/.toc_work/',
-            self.default_base, self.project_root)
-        self.assertEqual(
-            result,
-            Path('/project/custom/output/toc/rules/.toc_work'))
+    def test_absolute_path_rejected(self):
+        with self.assertRaises(toc_utils.PathRejection) as ctx:
+            toc_utils.validate_path('/etc/passwd.md', self.root)
+        self.assertEqual(ctx.exception.error_code, 'ABSOLUTE_PATH')
 
-    def test_output_dir_derived_toc_file(self):
-        """output_dir 由来の toc_file パスが project_root 基準"""
-        result = toc_utils.resolve_config_path(
-            'custom/output/toc/rules/rules_toc.yaml',
-            self.default_base, self.project_root)
-        self.assertEqual(
-            result,
-            Path('/project/custom/output/toc/rules/rules_toc.yaml'))
+    # --- 2. traversal ---
 
-    def test_output_dir_derived_checksums_file(self):
-        """output_dir 由来の checksums_file パスが project_root 基準"""
-        result = toc_utils.resolve_config_path(
-            'custom/output/toc/rules/.toc_checksums.yaml',
-            self.default_base, self.project_root)
-        self.assertEqual(
-            result,
-            Path('/project/custom/output/toc/rules/.toc_checksums.yaml'))
+    def test_traversal_rejected(self):
+        with self.assertRaises(toc_utils.PathRejection) as ctx:
+            toc_utils.validate_path('../escape.md', self.root)
+        self.assertEqual(ctx.exception.error_code, 'PATH_TRAVERSAL')
 
-    def test_trailing_slash_stripped(self):
-        """末尾スラッシュが除去される"""
-        result = toc_utils.resolve_config_path(
-            '.claude/doc-advisor/toc/rules/.toc_work/',
-            self.default_base, self.project_root)
-        self.assertEqual(
-            result,
-            Path('/project/.claude/doc-advisor/toc/rules/.toc_work'))
+    # --- 3. 不在 ---
+
+    def test_missing_file_rejected(self):
+        with self.assertRaises(toc_utils.PathRejection) as ctx:
+            toc_utils.validate_path('docs/missing.md', self.root)
+        self.assertEqual(ctx.exception.error_code, 'NOT_FOUND')
+
+    # --- 4. root 外 symlink ---
+
+    def test_outside_root_symlink_rejected(self):
+        target = self.outside / 'secret.md'
+        target.write_text('# secret\n', encoding='utf-8')
+        link = self.root / 'link.md'
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        with self.assertRaises(toc_utils.PathRejection) as ctx:
+            toc_utils.validate_path('link.md', self.root)
+        self.assertEqual(ctx.exception.error_code, 'OUTSIDE_ROOT')
+
+    # --- 5. 非 Markdown ---
+
+    def test_non_markdown_rejected(self):
+        p = self.root / 'a.txt'
+        p.write_text('not md\n', encoding='utf-8')
+        with self.assertRaises(toc_utils.PathRejection) as ctx:
+            toc_utils.validate_path('a.txt', self.root)
+        self.assertEqual(ctx.exception.error_code, 'NOT_MARKDOWN')
+
+    # --- 6. 正常 accept ---
+
+    def test_valid_markdown_accepted(self):
+        self._make_md('docs/a.md')
+        result = toc_utils.validate_path('docs/a.md', self.root)
+        self.assertEqual(result, 'docs/a.md')
+
+    def test_markdown_extension_variant_accepted(self):
+        """.markdown 拡張子も受理される"""
+        self._make_md('docs/b.markdown')
+        result = toc_utils.validate_path('docs/b.markdown', self.root)
+        self.assertEqual(result, 'docs/b.markdown')
+
+    # --- ./a.md ↔ a.md 同一視 ---
+
+    def test_dot_slash_normalized(self):
+        """./a.md は a.md に正規化されて同一視される"""
+        self._make_md('a.md')
+        result = toc_utils.validate_path('./a.md', self.root)
+        self.assertEqual(result, 'a.md')
+
+    def test_dot_slash_matches_plain(self):
+        """./a.md と a.md が同一の正規化結果になる"""
+        self._make_md('docs/a.md')
+        r1 = toc_utils.validate_path('docs/a.md', self.root)
+        r2 = toc_utils.validate_path('./docs/a.md', self.root)
+        self.assertEqual(r1, r2)
+
+
+# ===========================================================================
+# detect_case_collisions テスト（大小衝突 warning / DES-006 §5.2）
+# ===========================================================================
+
+class TestDetectCaseCollisions(unittest.TestCase):
+    """detect_case_collisions() の case-insensitive 衝突検出テスト。"""
+
+    def test_no_collision(self):
+        warnings = toc_utils.detect_case_collisions(['docs/a.md', 'docs/b.md'])
+        self.assertEqual(warnings, [])
+
+    def test_collision_detected(self):
+        """大文字小文字のみ異なる path は warning として検出される（reject しない）"""
+        warnings = toc_utils.detect_case_collisions(['docs/A.md', 'docs/a.md'])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('case-insensitive collision', warnings[0])
+
+    def test_exact_duplicate_no_collision(self):
+        """完全一致の重複は衝突 warning を出さない"""
+        warnings = toc_utils.detect_case_collisions(['docs/a.md', 'docs/a.md'])
+        self.assertEqual(warnings, [])
+
+    def test_multiple_collisions(self):
+        warnings = toc_utils.detect_case_collisions(
+            ['A.md', 'a.md', 'docs/X.md', 'docs/x.md']
+        )
+        self.assertEqual(len(warnings), 2)
+
+
+# ===========================================================================
+# error_code 整合テスト（toc_store.ErrorCode との一致 / FR-N08-2）
+# ===========================================================================
+
+class TestErrorCodeIntegration(unittest.TestCase):
+    """validate_path / resolve_within_root が出す error_code が
+    toc_store.ErrorCode 定数（ERROR_CODES enum）に含まれることを固定する。"""
+
+    def setUp(self):
+        import toc_store
+        self.toc_store = toc_store
+
+    def test_path_error_codes_in_enum(self):
+        for code in ('ABSOLUTE_PATH', 'PATH_TRAVERSAL', 'NOT_FOUND',
+                     'OUTSIDE_ROOT', 'NOT_MARKDOWN'):
+            self.assertIn(code, self.toc_store.ERROR_CODES,
+                          f'{code} must be a defined error_code')
 
 
 if __name__ == '__main__':

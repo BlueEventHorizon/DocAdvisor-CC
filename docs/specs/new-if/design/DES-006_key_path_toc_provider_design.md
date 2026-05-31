@@ -327,7 +327,7 @@ docs:
 
 ### 8.1 共通スキーマ（REQ-004 FR-N08 / §G）
 
-全 script は stdout に単一 JSON、ログ・進捗は stderr（既存 `log()` を踏襲）。
+全 script は stdout に単一 JSON、ログ・進捗は stderr（既存 `log()` を踏襲）。ただし `get_toc.py` の `--format yaml` は検索 SKILL が AI に渡す用途の例外で、既定は JSON、`--format yaml` 指定時のみ ToC 本体の生 YAML を stdout に出す（§4.1 の「JSON or YAML 出力」に対応）。
 
 ```json
 {

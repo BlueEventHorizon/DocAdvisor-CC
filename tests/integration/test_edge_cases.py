@@ -7,7 +7,11 @@ test_edge_cases.sh からの移行:
 - 日本語ファイル名の処理
 - 特殊文字を含むコンテンツ
 - 深いネスト（5レベル）のファイル検出
-- root_dirs: [] 空配列でクラッシュしないこと
+- 存在しないディレクトリでクラッシュしないこと
+
+注: 旧 doc_structure 依存のテスト（load_config / expand_root_dir_globs /
+init_common_config / ConfigNotReadyError）は REQ-004 §6.2 の clean break で
+当該ロジックが削除されたため除去済み（TASK-008）。
 """
 
 import os
@@ -16,7 +20,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 # テスト対象モジュールの import
 SCRIPTS_DIR = os.path.join(
@@ -137,173 +140,19 @@ class TestDeepNesting(unittest.TestCase):
 
 
 class TestEmptyRootDirs(unittest.TestCase):
-    """root_dirs: [] 空配列でクラッシュしないことのテスト"""
+    """存在しないディレクトリでクラッシュしないことのテスト"""
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, '.git'))
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
-
-    def _write_doc_structure(self, content):
-        path = os.path.join(self.tmpdir, '.doc_structure.yaml')
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-
-    def test_empty_root_dirs_load_config(self):
-        """root_dirs: [] でも load_config がクラッシュしない"""
-        self._write_doc_structure("""\
-# doc_structure_version: 3.0
-rules:
-  root_dirs: []
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-""")
-        with patch.object(Path, 'cwd', return_value=Path(self.tmpdir)):
-            config = toc_utils.load_config('rules')
-        self.assertEqual(config['root_dirs'], [])
-
-    def test_empty_root_dirs_expand_globs(self):
-        """空の root_dirs で expand_root_dir_globs がクラッシュしない"""
-        result = toc_utils.expand_root_dir_globs([], Path(self.tmpdir))
-        self.assertEqual(result, [])
 
     def test_empty_root_dirs_rglob(self):
         """存在しないディレクトリで rglob_follow_symlinks がクラッシュしない"""
         nonexistent = Path(self.tmpdir) / 'nonexistent'
         files = list(toc_utils.rglob_follow_symlinks(nonexistent, '**/*.md'))
         self.assertEqual(files, [])
-
-
-# ===========================================================================
-# expand_root_dir_globs additional tests
-# ===========================================================================
-
-class TestExpandRootDirGlobs(unittest.TestCase):
-    """expand_root_dir_globs() additional test cases."""
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-
-    def test_non_glob_passthrough(self):
-        """Non-glob directory is returned as-is."""
-        result = toc_utils.expand_root_dir_globs(
-            ['docs/rules/'], Path(self.tmpdir)
-        )
-        self.assertEqual(result, ['docs/rules/'])
-
-    def test_glob_match_expanded(self):
-        """Glob directory with matches is expanded."""
-        for name in ('app1', 'app2'):
-            (Path(self.tmpdir) / 'specs' / name / 'requirements').mkdir(parents=True)
-        result = toc_utils.expand_root_dir_globs(
-            ['specs/*/requirements/'], Path(self.tmpdir)
-        )
-        self.assertIn('specs/app1/requirements/', result)
-        self.assertIn('specs/app2/requirements/', result)
-        self.assertEqual(len(result), 2)
-
-    def test_glob_no_match_returns_original(self):
-        """Glob directory with no matches returns the original list."""
-        result = toc_utils.expand_root_dir_globs(
-            ['nonexistent/*/foo/'], Path(self.tmpdir)
-        )
-        # When expanded list is empty, original dirs are returned as fallback
-        self.assertEqual(result, ['nonexistent/*/foo/'])
-
-
-# ===========================================================================
-# Integration: init_common_config with glob patterns
-# ===========================================================================
-
-class TestInitCommonConfigGlobExpansion(unittest.TestCase):
-    """Integration test: init_common_config() expands glob patterns in doc_types_map."""
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        os.makedirs(os.path.join(self.tmpdir, '.git'))
-        # Create directory structure matching globs
-        for name in ('core', 'ui'):
-            os.makedirs(os.path.join(self.tmpdir, 'specs', name, 'design'))
-        # Write .doc_structure.yaml with glob patterns
-        doc_structure = """\
-# doc_structure_version: 3.0
-
-specs:
-  root_dirs:
-    - specs/*/design/
-  doc_types_map:
-    specs/*/design/: design
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(doc_structure)
-        self.original_env = os.environ.get('CLAUDE_PROJECT_DIR')
-        os.environ['CLAUDE_PROJECT_DIR'] = self.tmpdir
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-        if self.original_env is None:
-            os.environ.pop('CLAUDE_PROJECT_DIR', None)
-        else:
-            os.environ['CLAUDE_PROJECT_DIR'] = self.original_env
-
-    def test_doc_types_map_expanded_in_init_common_config(self):
-        """init_common_config() returns expanded doc_types_map with concrete paths."""
-        result = toc_utils.init_common_config('specs')
-        doc_types_map = result['doc_types_map']
-        # Glob pattern should be expanded to concrete paths
-        self.assertNotIn('specs/*/design/', doc_types_map)
-        self.assertIn('specs/core/design/', doc_types_map)
-        self.assertIn('specs/ui/design/', doc_types_map)
-        self.assertEqual(doc_types_map['specs/core/design/'], 'design')
-        self.assertEqual(doc_types_map['specs/ui/design/'], 'design')
-
-
-class TestConfigNotReadyError(unittest.TestCase):
-    """ConfigNotReadyError validation in init_common_config()"""
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-
-    @patch.object(toc_utils, 'get_project_root')
-    def test_raises_when_no_config_and_no_default_dir(self, mock_root):
-        """No .doc_structure.yaml + no rules/ dir → ConfigNotReadyError"""
-        mock_root.return_value = Path(self.tmpdir)
-        # No .doc_structure.yaml, no rules/ directory
-        with self.assertRaises(toc_utils.ConfigNotReadyError):
-            toc_utils.init_common_config('rules')
-
-    @patch.object(toc_utils, 'get_project_root')
-    def test_no_error_when_default_dir_exists(self, mock_root):
-        """No .doc_structure.yaml but rules/ dir exists → no error (uses default)"""
-        mock_root.return_value = Path(self.tmpdir)
-        os.makedirs(os.path.join(self.tmpdir, 'rules'))
-        # Should not raise — default dir exists
-        result = toc_utils.init_common_config('rules')
-        self.assertIn('root_dirs', result)
-
-    @patch.object(toc_utils, 'get_project_root')
-    def test_no_error_when_config_has_root_dirs(self, mock_root):
-        """Configured .doc_structure.yaml with root_dirs → no error"""
-        mock_root.return_value = Path(self.tmpdir)
-        docs_dir = os.path.join(self.tmpdir, 'docs', 'rules')
-        os.makedirs(docs_dir)
-        config_path = os.path.join(self.tmpdir, '.doc_structure.yaml')
-        with open(config_path, 'w') as f:
-            f.write('rules:\n  root_dirs:\n    - docs/rules/\n')
-        result = toc_utils.init_common_config('rules')
-        self.assertIn('root_dirs', result)
 
 
 if __name__ == '__main__':

@@ -24,17 +24,17 @@ requirements_traceability:
   - requirement_id: FR-N02
     title: desired-state sync（追加・更新・削除・無変更の冪等反映と件数 JSON 出力）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-003, TASK-004]
   - requirement_id: FR-N03
     title: paths 入力（--paths-json / --paths-file / root-relative 解決・不正 path 処理）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-003]
   - requirement_id: FR-N04
     title: 単体モード（予約 key all・--all / --key 省略・固定除外）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-003]
   - requirement_id: FR-N05
     title: ToC 取得・検索（get_toc 全体/縮小抽出・ranking なし・見落としゼロ・fork 検索）
@@ -44,7 +44,7 @@ requirements_traceability:
   - requirement_id: FR-N06
     title: 削除（key 全体削除 / 指定 path の個別削除）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-006]
   - requirement_id: FR-N07
     title: レイヤ責務境界（deterministic script / AI 層・prepare→agent→merge 協調）
@@ -54,22 +54,22 @@ requirements_traceability:
   - requirement_id: FR-N08
     title: JSON 出力契約（stdout 単一 JSON・status / error_code enum 固定）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-001, TASK-008]
   - requirement_id: NFR-N01
     title: 標準ライブラリのみ・Python 3.9 下限（is_relative_to 使用）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-002]
   - requirement_id: NFR-N02
     title: 既存資産の再利用（validate_path_within_base / normalize_path / hash / glob 等）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-002]
   - requirement_id: NFR-N03
     title: scripts/ 配下 Python はテスト必須（追加・改修コードは同一 PR でテストを伴う）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [
       TASK-001,
       TASK-002,
@@ -88,17 +88,17 @@ requirements_traceability:
   - requirement_id: NFR-N05
     title: 性能（最大ファイル数超過は warning・処理継続。閾値 100 件・空 repo は冪等空出力）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-003]
   - requirement_id: NFR-N06
     title: セキュリティ（path traversal / root 外 symlink によるインデックス漏洩防止）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-002]
   - requirement_id: NFR-N07
     title: 運用性（base/DES-005 のバックアップ・復元フローを key 単位で継続）
     design_id: DES-006
-    status: pending
+    status: completed
     task_ids: [TASK-004]
 
 design_traceability:
@@ -167,7 +167,7 @@ tasks:
   - task_id: TASK-002
     title: toc_utils.py 改修（resolve_within_root 新規・category ロジック削除）
     priority: 88
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-001
@@ -189,7 +189,7 @@ tasks:
   - task_id: TASK-003
     title: prepare_toc.py（旧 create_pending_yaml.py 改名・転用）+ desired-state 差分検出
     priority: 86
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-001
@@ -213,7 +213,7 @@ tasks:
   - task_id: TASK-004
     title: merge_toc.py 改修（pending 統合・削除反映・key 単位 backup/restore）
     priority: 84
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-001
@@ -237,7 +237,7 @@ tasks:
   - task_id: TASK-005
     title: get_toc.py（旧 filter_toc.py 統合・新設）
     priority: 82
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-001
@@ -261,7 +261,7 @@ tasks:
   - task_id: TASK-006
     title: remove_toc.py 新設（key 全体削除 / path 個別削除）
     priority: 80
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-001
@@ -284,7 +284,7 @@ tasks:
   - task_id: TASK-007
     title: write_pending.py / validate_toc.py 改修（doc_type 廃止・key 対応）
     priority: 78
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-001
@@ -306,7 +306,7 @@ tasks:
   - task_id: TASK-008
     title: script 層 統合テスト（prepare→write_pending→merge 協調 / remove）+ フェーズ② 健全性確認
     priority: 76
-    status: pending
+    status: completed
     design_id: DES-006
     depends_on:
       - TASK-003
