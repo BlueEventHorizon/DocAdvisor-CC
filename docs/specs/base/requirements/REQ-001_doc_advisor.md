@@ -93,6 +93,18 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 | FR-N06-1 | `remove --key <key>` で当該 key の ToC 全体（ディレクトリ）を削除する        |
 | FR-N06-2 | `remove --key <key> --paths-json [...]` で指定 path のエントリを個別削除する |
 
+### FR-N09: ディレクトリ入力（SKILL 層展開）
+
+| ID       | 要件                                                                                                                                         |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-N09-1 | `index-docs` SKILL は `--dirs-json '["docs/rules/", ...]'` でディレクトリ配列を受け取れる                                                    |
+| FR-N09-2 | `--exclude-json '["docs/rules/draft/", "docs/rules/wip.md"]'` でディレクトリ・ファイルの除外を指定できる                                     |
+| FR-N09-3 | ディレクトリ展開・除外フィルタは **SKILL 層で完結**する。script 層（`prepare_toc.py` 等）のインターフェースは変更しない                       |
+| FR-N09-4 | 展開結果（ファイルパス配列）は既存の `--paths-json` として `prepare_toc.py` へ渡す。desired-state の完全性責務は呼び出し側が担う（PRE-N01）   |
+| FR-N09-5 | 展開には Python ヘルパー（`rglob_follow_symlinks` / `should_exclude` 再利用）を使ってよい                                                     |
+| FR-N09-6 | システム固定除外（`SYSTEM_EXCLUDE_PATTERNS`）は `--exclude-json` の指定有無にかかわらず常時適用する                                           |
+| FR-N09-7 | `--dirs-json` と `--paths-json` は併用できる。展開後のファイルリストをマージして重複を除去してから `prepare_toc.py` へ渡す                    |
+
 ### FR-N07: レイヤ責務境界（deterministic / AI）
 
 | ID       | 要件                                                                                                                                       |
@@ -155,6 +167,18 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 
 単体モード（`--all`）では固定除外を適用する（FR-N04-3）。除外リストの定義（SoT）は DES-005 §9.1 を参照する。
 
+### 6.5 SKILL 層ディレクトリ展開方針【確定】
+
+`--dirs-json` によるディレクトリ入力は **`index-docs` SKILL 層で完結**する。script 層のインターフェースは変更しない（FR-N09-3）。
+
+| 項目               | 方針                                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 展開責務           | SKILL が `rglob` でディレクトリ内の `**/*.md` を収集し、`--paths-json` に変換して `prepare_toc.py` へ渡す                   |
+| 除外順序           | ① システム固定除外（`SYSTEM_EXCLUDE_PATTERNS`）→ ② `--exclude-json` 指定の除外（常にこの順で適用）                          |
+| `--paths-json` 併用 | `--dirs-json` 展開結果と `--paths-json` 指定ファイルをマージし、重複除去してから渡す（FR-N09-7）                             |
+| Python ヘルパー    | 展開・除外に `rglob_follow_symlinks` / `should_exclude` を再利用するヘルパー script を追加してよい（FR-N09-5、テスト必須）  |
+| desired-state 責務 | ディレクトリ展開後のファイルリストが当該 key の desired state となる。上位層（forge 等）はディレクトリ集合が完全かを管理する |
+
 ## 非機能要件
 
 | ID      | 要件                                                                                                                                                                                                              |
@@ -209,6 +233,14 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 - [ ] §6.4 固定除外が適用される
 - [ ] 空 repo で空 ToC を冪等出力する（error にしない）
 - [ ] ユーザーが `--key all` を任意指定した場合に予約語衝突として扱う
+
+### ディレクトリ入力（SKILL 層展開）
+
+- [ ] `index-docs` SKILL が `--dirs-json` を受け取り、ディレクトリ内の Markdown を展開して `prepare_toc.py --paths-json` へ渡す
+- [ ] `--exclude-json` で指定したディレクトリ・ファイルが展開結果から除外される
+- [ ] システム固定除外（`SYSTEM_EXCLUDE_PATTERNS`）が `--exclude-json` の有無にかかわらず適用される
+- [ ] `--dirs-json` と `--paths-json` の併用で重複除去されたファイルリストが渡される
+- [ ] `prepare_toc.py` のインターフェースが変更されない（SKILL 層で閉じている）
 
 ### 取得・検索 / JSON 契約 / レイヤ責務
 

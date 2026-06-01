@@ -43,6 +43,8 @@ from toc_utils import (
     detect_case_collisions,
     PathRejection,
     log,
+    SYSTEM_EXCLUDE_PATTERNS,
+    MARKDOWN_GLOB,
 )
 from toc_store import (
     WORK_DIRNAME,
@@ -66,29 +68,6 @@ from toc_store import (
 
 # 単体モード（--all）の最大ファイル数 warning 閾値（NFR-N05 / TBD-001 確定値 = 100 件）
 MAX_FILES_WARN_THRESHOLD = 100
-
-# 単体モード固定除外リスト（DES-005 §9.1）。
-# should_exclude はディレクトリ名完全一致 / path 部分文字列マッチで適用する。
-# 生成済み ToC / work files は STORE_ROOT_REL（.claude/doc-advisor/...）配下にあり、
-# ".claude" 除外で同時にカバーされる。
-SYSTEM_EXCLUDE_PATTERNS = [
-    ".git",            # .git/**
-    ".claude",         # .claude/** runtime state + 生成済み ToC / work files
-    ".codex",          # .codex/**
-    "node_modules",    # node_modules/**
-    "vendor",          # vendor/**
-    "dist",            # dist/**
-    "build",           # build/**
-    "__pycache__",     # __pycache__/**
-    ".venv",           # .venv/**
-    "target",          # target/**
-    "coverage",        # coverage/**
-    ".pytest_cache",   # .pytest_cache/**
-    ".mypy_cache",     # .mypy_cache/**
-]
-
-# Markdown 走査グロブ（単体モード）
-MARKDOWN_GLOB = "**/*.md"
 
 # pending YAML テンプレート（DES-005 §7.1: doc_type を除去）
 PENDING_TEMPLATE = """_meta:
