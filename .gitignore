@@ -31,3 +31,7 @@ docs/references
 # UXUI 参照画像（著作権配慮のためデフォルト除外。README/notes は git 管理下に残す）
 **/uxui_references/competitors/
 **/uxui_references/inspirations/
+
+# Index
+
+.claude/doc-advisor/index/

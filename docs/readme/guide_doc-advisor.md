@@ -1,72 +1,42 @@
 # doc-advisor Detailed Guide
 
-AI-searchable document index (ToC) generator for Claude Code. Extracts AI metadata from documents to enable task-relevant discovery of rules and specs.
+AI-searchable document index (ToC) generator and search tool for Claude Code. Extracts AI metadata from documents to enable task-relevant discovery.
+
+doc-advisor is a generic ToC Provider that manages document sets per `key` (an arbitrary string). It does not interpret the meaning of a `key` (rules / specs classification); it operates deterministically on the given `key` and project-root-relative `paths`. Deciding which files to index is the job of an upper layer such as forge, or the `--all` single mode (reserved key `all`).
 
 ## Skill Details
 
-### setup-doc-structure
+### index-docs
 
 ```
-/doc-advisor:setup-doc-structure [--update]
+/doc-advisor:index-docs --key <key> --paths-json '["docs/a.md", "docs/b.md"]'
+/doc-advisor:index-docs --key <key> --paths-file paths.json
+/doc-advisor:index-docs --all
 ```
 
-| Argument   | Description                                                                   |
-| ---------- | ----------------------------------------------------------------------------- |
-| (none)     | Scan the project and interactively generate / overwrite `.doc_structure.yaml` |
-| `--update` | Add only directories not yet listed in the existing `root_dirs`               |
+| Argument               | Description                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--key <key>`          | Opaque key of the target ToC (decided by the upper layer). `all` is reserved and cannot be set freely     |
+| `--paths-json '[...]'` | JSON array of project-root-relative paths that form the **complete desired state** for the key            |
+| `--paths-file <path>`  | JSON file containing the paths array (alternative to `--paths-json`)                                      |
+| `--all`                | Single mode. Same as omitting `--key`; resolves to reserved key `all` and targets all Markdown under root |
 
-Discover document directories under the project, classify them as rules / specs, and write `.doc_structure.yaml` to the project root after user confirmation. Required as a prerequisite before running the other skills.
+Generates / updates the ToC for the key as a desired state. Any path present in the previous ToC but absent from the new paths is deleted (passing a partial array drops the rest). Internally it runs the cooperative pipeline `prepare_toc.py` (diff detection) → `doc-advisor:toc-updater` custom Agent (parallel metadata fill) → `merge_toc.py` (merge).
 
-### query-rules
-
-```
-/doc-advisor:query-rules task description
-```
-
-| Argument           | Description                                                 |
-| ------------------ | ----------------------------------------------------------- |
-| `task description` | Description of the task to find relevant rule documents for |
-
-Search the ToC (keyword / metadata index) to identify rule documents (coding standards, architecture rules, workflow guides) relevant to a task. Returns a list of matching paths only — the calling agent decides how to read them.
-
-### query-specs
+### query-docs
 
 ```
-/doc-advisor:query-specs task description
+/doc-advisor:query-docs [--key <key>] task description
 ```
 
-| Argument           | Description                                                 |
-| ------------------ | ----------------------------------------------------------- |
-| `task description` | Description of the task to find relevant spec documents for |
+| Argument           | Description                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| `--key <key>`      | Key of the ToC to search. When omitted, searches the reserved key `all`   |
+| `task description` | Keywords or a natural-language task description to find relevant docs for |
 
-Search the ToC to identify specification documents (requirements, design docs) relevant to a task. Returns a list of matching paths only.
-
-### create-rules-toc
-
-```
-/doc-advisor:create-rules-toc [--full]
-```
-
-| Argument | Description                                           |
-| -------- | ----------------------------------------------------- |
-| (none)   | Incremental update (hash-based) or resume processing  |
-| `--full` | Full file scan (for initial creation or regeneration) |
-
-Update the rules search index (ToC) after modifying, creating, or deleting rule documents.
-
-### create-specs-toc
-
-```
-/doc-advisor:create-specs-toc [--full]
-```
-
-| Argument | Description                                           |
-| -------- | ----------------------------------------------------- |
-| (none)   | Incremental update (hash-based) or resume processing  |
-| `--full` | Full file scan (for initial creation or regeneration) |
-
-Update the specs search index (ToC) after modifying, creating, or deleting spec documents.
+Searches the ToC (keyword / metadata index) to identify documents relevant to a task. The AI reads every ToC entry, decides which document paths are relevant to the task description, and returns only the matching paths — the calling agent decides how to read them. Runs in isolation with `context: fork` / read-only.
 
 ## Requirements
 
-- `.doc_structure.yaml` in project root (generate with `/doc-advisor:setup-doc-structure` or write it by hand) — see [Document Structure Guide](guide_doc_structure.md)
+- [Claude Code](https://claude.ai/code) CLI
+- Python 3.9 or later (standard library only; no extra packages required)

@@ -136,7 +136,7 @@ ADR-002 の決定（多重防御）に従い、性質に応じて以下を組み
 
 ### 出典
 
-- **ADR-002**: `docs/specs/doc-advisor/design/ADR-002_query_skill_subagent_isolation.md` — 多重防御の根拠・実害事例
+- **ADR-002**: `docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md` — 多重防御の根拠・実害事例
 - **Claude Code 公式 docs**:
   - [Skills](https://code.claude.com/docs/en/skills) — `context: fork`、`agent`、`allowed-tools` の仕様
   - [Subagents](https://code.claude.com/docs/en/sub-agents) — 汎用 Agent の組み込みタイプ（Explore / Plan / general-purpose）およびカスタム Agent の定義

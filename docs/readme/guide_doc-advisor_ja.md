@@ -1,72 +1,42 @@
 # doc-advisor 詳細ガイド
 
-AI 検索可能なドキュメントインデックス（ToC）生成・検索ツール。文書から AI がメタデータを抽出し、タスクに関連する rules/specs 文書を自動発見する。
+AI 検索可能なドキュメントインデックス（ToC）生成・検索ツール。文書から AI がメタデータを抽出し、タスクに関連する文書を自動発見する。
+
+doc-advisor は文書集合を `key`（任意の文字列）単位で管理する汎用 ToC Provider であり、`key` の意味（rules / specs 等の分類）を解釈しない。与えられた `key` と project-root-relative の `paths` に対して決定的に動作する。どのファイルを索引化するかの決定は、forge などの上位層、または `--all`（予約 key `all`）の単体モードが担う。
 
 ## スキル詳細
 
-### setup-doc-structure
+### index-docs
 
 ```
-/doc-advisor:setup-doc-structure [--update]
+/doc-advisor:index-docs --key <key> --paths-json '["docs/a.md", "docs/b.md"]'
+/doc-advisor:index-docs --key <key> --paths-file paths.json
+/doc-advisor:index-docs --all
 ```
 
-| 引数       | 説明                                                                    |
-| ---------- | ----------------------------------------------------------------------- |
-| （なし）   | プロジェクトをスキャンし、対話的に `.doc_structure.yaml` を生成・上書き |
-| `--update` | 既存 `root_dirs` に未登録のディレクトリのみ追加                         |
+| 引数                   | 説明                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| `--key <key>`          | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                       |
+| `--paths-json '[...]'` | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列            |
+| `--paths-file <path>`  | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                        |
+| `--all`                | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象 |
 
-プロジェクト内のドキュメントディレクトリを発見・分類（rules/specs）し、ユーザ確認後に `.doc_structure.yaml` をルートへ書き出す。他スキルを使う前提として必要。
+`key` と paths から、その key の ToC を desired-state で生成・更新する。前回 ToC に存在し今回 paths に含まれない path は削除される（部分配列を渡すと残りが消える）。内部は `prepare_toc.py`（差分検出）→ `doc-advisor:toc-updater` カスタム Agent による並列メタデータ充填 → `merge_toc.py`（統合）の協調フローで動作する。
 
-### query-rules
-
-```
-/doc-advisor:query-rules タスクの説明
-```
-
-| 引数           | 説明                                     |
-| -------------- | ---------------------------------------- |
-| `タスクの説明` | 関連するルール文書を検索するタスクの説明 |
-
-ToC（キーワード／メタデータインデックス）でタスクに関連するルール文書（コーディング規約、アーキテクチャルール、ワークフローガイド等）を特定する。マッチしたパスのみを返し、内容の読み込みは呼び出し元エージェントが行う。
-
-### query-specs
+### query-docs
 
 ```
-/doc-advisor:query-specs タスクの説明
+/doc-advisor:query-docs [--key <key>] タスクの説明
 ```
 
-| 引数           | 説明                                   |
-| -------------- | -------------------------------------- |
-| `タスクの説明` | 関連する仕様文書を検索するタスクの説明 |
+| 引数           | 説明                                                              |
+| -------------- | ----------------------------------------------------------------- |
+| `--key <key>`  | 検索対象 ToC の key。省略時は予約 key `all`（project 全体）を検索 |
+| `タスクの説明` | 関連する文書を検索するためのキーワードまたは自然文のタスク記述    |
 
-ToC でタスクに関連する仕様文書（要件定義書、設計書等）を特定する。マッチしたパスのみを返す。
-
-### create-rules-toc
-
-```
-/doc-advisor:create-rules-toc [--full]
-```
-
-| 引数     | 説明                                           |
-| -------- | ---------------------------------------------- |
-| （なし） | 差分更新（ハッシュベース）または中断からの再開 |
-| `--full` | 全ファイルスキャン（初回作成または再生成用）   |
-
-ルール文書の追加・変更・削除後に ToC を更新する。
-
-### create-specs-toc
-
-```
-/doc-advisor:create-specs-toc [--full]
-```
-
-| 引数     | 説明                                           |
-| -------- | ---------------------------------------------- |
-| （なし） | 差分更新（ハッシュベース）または中断からの再開 |
-| `--full` | 全ファイルスキャン（初回作成または再生成用）   |
-
-仕様文書の追加・変更・削除後に ToC を更新する。
+ToC（キーワード／メタデータインデックス）でタスクに関連する文書を特定する。AI が ToC の全エントリを読み、タスク記述に関連する文書パスを判断してマッチしたパスのみを返す。内容の読み込みは呼び出し元エージェントが行う。`context: fork` / read-only で隔離実行する。
 
 ## 動作要件
 
-- プロジェクトルートに `.doc_structure.yaml`（`/doc-advisor:setup-doc-structure` で生成、または手動配置）— [文書構造ガイド](guide_doc_structure_ja.md) を参照
+- [Claude Code](https://claude.ai/code) CLI
+- Python 3.9 以上（標準ライブラリのみ。追加パッケージは不要）

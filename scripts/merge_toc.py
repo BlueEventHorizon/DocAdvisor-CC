@@ -1,189 +1,159 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-{category}_toc.yaml Merge Script (doc-advisor plugin, standard library only)
+merge_toc.py — 充填済み pending を統合し toc.yaml を書き出す（doc-advisor plugin / key + path I/F）
 
-.toc_work/ 配下の pending YAML エントリをマージし、
-.claude/doc-advisor/toc/{category}/{category}_toc.yaml を生成する。
+DES-005 §6.1（prepare/merge 2 フェーズ）/ §6.2（差分検出）/ §6.3（破壊性）/
+§6.5（バックアップと異常系: backup → validate → restore）/ §6.6（continuation）/
+§7.1（toc.yaml スキーマ: doc_type なし）/ §7.2（metadata.key 転記）/ §8（JSON 契約）/
+§4.1（モジュール）を実装する。DES-005 §6.5 の挙動を key 単位ストアで踏襲する。
 
-Usage:
-    python3 merge_toc.py --category rules [--mode full|incremental]
-    python3 merge_toc.py --category specs [--mode full|incremental]
-    python3 merge_toc.py --category rules --delete-only
+責務（決定的処理。メタデータ抽出はしない / FR-N07-1）:
+- key 解決（toc_store.resolve_key_from_args。--all / --key 省略 → 予約 all、--key all → reject）
+- store_dir/.toc_work/ の充填済み pending（status: completed）を既存 toc.yaml の docs とマージ
+- desired-state の deleted（prepare 算出 / checksums と現状の差）を toc.yaml から除去（FR-N02-2）
+- backup → 原子的書き込み → validate → OK で checksums 更新 + work 削除 / NG で復元（§6.5）
+- meta.yaml の original_key を toc.yaml の metadata.key へ転記し同期を保証（§7.2）
+- added/updated/deleted/unchanged 件数と deleted paths を JSON 出力（FR-N02-4 / FR-N08）
 
-Options:
-    --category     Document category: rules or specs (required)
-    --mode         full (default): Generate new, incremental: Differential merge
-    --delete-only  Apply deletions without .toc_work/
+CLI:
+    python3 merge_toc.py --key <key>
+    python3 merge_toc.py --all
+    python3 merge_toc.py --key <key> --delete-only
+
+標準ライブラリのみ使用（NFR-N01）。
 """
 
+import argparse
 import json
 import os
 import sys
-import argparse
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from toc_utils import (
-    init_common_config,
-    load_entry_file,
-    yaml_escape,
-    backup_existing_file,
-    load_checksums,
-    load_existing_toc,
-    should_exclude,
-    resolve_config_path,
-    rglob_follow_symlinks,
+    get_project_root,
     normalize_path,
-    ConfigNotReadyError,
+    yaml_escape,
+    load_entry_file,
+    load_existing_toc,
+    load_checksums,
+    calculate_file_hash,
+    write_checksums_yaml,
     log,
 )
+from toc_store import (
+    WORK_DIRNAME,
+    CHECKSUMS_FILENAME,
+    DELETED_SIDECAR_FILENAME,
+    EMPTY_INTENT_SIDECAR_FILENAME,
+    ErrorCode,
+    KeyError_,
+    STATUS_OK,
+    STATUS_ERROR,
+    resolve_store_dir,
+    resolve_key_from_args,
+    read_meta,
+    emit_json,
+    toc_path_rel,
+    clean_work_dir,
+)
+from validate_toc import validate_toc
 
-# Global configuration (initialized in init_config())
-CONFIG = None
-PROJECT_ROOT = None
-ROOT_DIRS = None  # list of (root_dir_path, root_dir_name)
-TOC_WORK_DIR = None
-OUTPUT_FILE = None
-CHECKSUMS_FILE = None
-OUTPUT_CONFIG = None
-PATTERNS_CONFIG = None
-TARGET_GLOB = None
-EXCLUDE_PATTERNS = None
-CATEGORY = None  # 'rules' or 'specs'
+# ---------------------------------------------------------------------------
+# 定数
+# ---------------------------------------------------------------------------
 
+# toc.yaml ファイル名（store_dir 配下）
+TOC_FILENAME = "toc.yaml"
 
-def parse_args():
-    """Parse command-line arguments"""
-    parser = argparse.ArgumentParser(
-        description='Merge pending YAML entries into ToC file'
-    )
-    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
-                        help='Document category: rules or specs')
-    parser.add_argument('--mode', default='full', choices=['full', 'incremental'],
-                        help='Merge mode: full (default) or incremental')
-    parser.add_argument('--delete-only', action='store_true',
-                        help='Apply deletions without .toc_work/')
-    return parser.parse_args()
+# backup ファイル名（§6.5: toc.yaml.bak）
+BACKUP_SUFFIX = ".bak"
 
-
-def init_config(category):
-    """
-    Initialize configuration.
-
-    Args:
-        category: 'rules' or 'specs'
-
-    Returns:
-        bool: True on success, False on failure
-    """
-    global CONFIG, PROJECT_ROOT, ROOT_DIRS, TOC_WORK_DIR, OUTPUT_FILE
-    global CHECKSUMS_FILE, OUTPUT_CONFIG, PATTERNS_CONFIG, TARGET_GLOB, EXCLUDE_PATTERNS, CATEGORY
-
-    CATEGORY = category
-
-    try:
-        common = init_common_config(category)
-    except ConfigNotReadyError as e:
-        print(json.dumps({"status": "config_required", "message": str(e)}))
-        return False
-    except (RuntimeError, FileNotFoundError) as e:
-        log(f"Error: {e}")
-        return False
-
-    CONFIG = common['config']
-    PROJECT_ROOT = common['project_root']
-    ROOT_DIRS = common['root_dirs']
-    PATTERNS_CONFIG = common['patterns_config']
-    TARGET_GLOB = common['target_glob']
-    EXCLUDE_PATTERNS = common['exclude_patterns']
-
-    first_dir = common['first_dir']
-    TOC_WORK_DIR = resolve_config_path(CONFIG.get('work_dir', '.toc_work'), first_dir, PROJECT_ROOT)
-    OUTPUT_FILE = resolve_config_path(CONFIG.get('toc_file', f'{category}_toc.yaml'), first_dir, PROJECT_ROOT)
-    CHECKSUMS_FILE = resolve_config_path(CONFIG.get('checksums_file', '.toc_checksums.yaml'), first_dir, PROJECT_ROOT)
-    OUTPUT_CONFIG = CONFIG.get('output', {})
-    return True
+# ToC エントリのスカラ / 配列フィールド描画順（DES-005 §7.1: doc_type なし）
+SCALAR_FIELDS = ("title", "purpose")
+LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
 
 
-def get_existing_files():
-    """Get list of currently existing files across all root_dirs (symlink-aware)"""
-    files = set()
-    for root_dir, root_dir_name in ROOT_DIRS:
-        if not root_dir.exists():
-            continue
-        for filepath in rglob_follow_symlinks(root_dir, TARGET_GLOB):
-            if should_exclude(filepath, root_dir, EXCLUDE_PATTERNS):
-                continue
-            rel_path = normalize_path(filepath.relative_to(root_dir))
-            prefixed_path = f"{root_dir_name}/{rel_path}"
-            files.add(prefixed_path)
-    return files
+# ---------------------------------------------------------------------------
+# toc.yaml 書き出し（DES-005 §7.1 / §7.2 / §6.5 原子的書き込み）
+# ---------------------------------------------------------------------------
 
+def render_toc_yaml(docs, *, key, toc_rel):
+    """docs を toc.yaml の文字列として描画する（DES-005 §7.1 / §7.2）。
 
-def write_yaml_output(docs, output_path, *, category=None, output_config=None):
-    """
-    Write YAML file
+    docs 順序は **path のソート順** で決定的に出力する（FR-N05-2 整合）。
+    get_toc は toc.yaml の定義順をそのまま保持するため、ここでの出力順が
+    そのまま検索結果順になる。再現可能な順序として path 昇順を採用する。
+
+    metadata は name / key / generated_at / file_count（§7.1 スキーマ、doc_type なし）。
+    metadata.key には meta.yaml の original_key を転記する（§7.2、呼び出し側で解決）。
 
     Args:
-        docs: ドキュメントエントリの辞書
-        output_path: 出力先パス
-        category: カテゴリ名（省略時はグローバル変数 CATEGORY にフォールバック）
-        output_config: 出力設定辞書（省略時はグローバル変数 OUTPUT_CONFIG にフォールバック）
+        docs: source_file -> entry の dict
+        key: original key（metadata.key / metadata.name 由来）
+        toc_rel: toc.yaml の project-relative パス（ヘッダ表示用）
 
     Returns:
-        bool: True on success, False on failure
+        str: toc.yaml の本文（末尾改行付き）
     """
-    _category = category if category is not None else CATEGORY
-    _output_config = output_config if output_config is not None else OUTPUT_CONFIG
-
     lines = []
-
-    toc_name = f"{_category}_toc.yaml"
-    toc_rel_path = f".claude/doc-advisor/toc/{_category}/{toc_name}"
-    header_comment = _output_config.get('header_comment', f'Document Search Index for {_category}')
-    metadata_name = _output_config.get('metadata_name', f'Document Search Index ({_category})')
-
-    lines.append(f"# {toc_rel_path}")
-    lines.append(f"# {header_comment}")
-    lines.append(f"# Auto-generated by /doc-advisor:create-{_category}-toc - Do not edit directly")
+    lines.append(f"# {toc_rel}")
+    lines.append(f"# Document Search Index for key: {key}")
+    lines.append("# Auto-generated by doc-advisor index-docs - Do not edit directly")
     lines.append("")
 
     lines.append("metadata:")
-    lines.append(f"  name: {yaml_escape(metadata_name)}")
-    lines.append(f"  generated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    lines.append(f"  name: {yaml_escape(f'Document Search Index ({key})')}")
+    lines.append(f"  key: {yaml_escape(key)}")
+    lines.append(
+        f"  generated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    )
     lines.append(f"  file_count: {len(docs)}")
     lines.append("")
 
     lines.append("docs:")
-    for source_file, entry in sorted(docs.items()):
+    for source_file in sorted(docs.keys()):
+        entry = docs[source_file]
         lines.append(f"  {yaml_escape(source_file)}:")
-
-        # doc_type first (if available)
-        if 'doc_type' in entry:
-            lines.append(f"    doc_type: {entry['doc_type']}")
-
-        for key in ['title', 'purpose']:
-            if key in entry:
-                lines.append(f"    {key}: {yaml_escape(entry[key])}")
-
-        for key in ['content_details', 'applicable_tasks', 'keywords']:
-            if key in entry and entry[key]:
-                lines.append(f"    {key}:")
-                for item in entry[key]:
+        for field in SCALAR_FIELDS:
+            if field in entry and entry[field] is not None:
+                lines.append(f"    {field}: {yaml_escape(entry[field])}")
+        for field in LIST_FIELDS:
+            if field in entry and entry[field]:
+                lines.append(f"    {field}:")
+                for item in entry[field]:
                     lines.append(f"      - {yaml_escape(item)}")
 
-    # 一時ファイルに書き込んでから rename する（書き込み途中の異常でファイルが壊れるのを防止）
+    return "\n".join(lines) + "\n"
+
+
+def write_toc_atomic(docs, toc_path, *, key, toc_rel):
+    """toc.yaml を原子的に書き出す（DES-005 §6.5 / 旧 write_yaml_output の os.replace 流用）。
+
+    一時ファイルへ書き込んでから os.replace で置換し、書き込み途中の破損を防ぐ。
+
+    Args:
+        docs: source_file -> entry の dict
+        toc_path: 出力先 toc.yaml の Path
+        key: original key（metadata 用）
+        toc_rel: toc.yaml の project-relative パス（ヘッダ用）
+
+    Returns:
+        bool: True on success, False on failure
+    """
+    body = render_toc_yaml(docs, key=key, toc_rel=toc_rel)
+    toc_path = Path(toc_path)
     try:
-        output_dir = output_path.parent
+        output_dir = toc_path.parent
         output_dir.mkdir(parents=True, exist_ok=True)
-        fd, tmp_path = tempfile.mkstemp(dir=str(output_dir), suffix='.tmp', prefix='.toc_')
+        fd, tmp_path = tempfile.mkstemp(dir=str(output_dir), suffix=".tmp", prefix=".toc_")
         try:
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(lines) + '\n')
-            os.replace(tmp_path, str(output_path))
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(body)
+            os.replace(tmp_path, str(toc_path))
         except BaseException:
-            # 書き込み失敗時は一時ファイルを削除
             try:
                 os.unlink(tmp_path)
             except OSError:
@@ -191,162 +161,433 @@ def write_yaml_output(docs, output_path, *, category=None, output_config=None):
             raise
         return True
     except (IOError, OSError, PermissionError) as e:
-        log(f"Error: Failed to write file: {output_path} - {e}")
+        log(f"Error: Failed to write toc.yaml: {toc_path} - {e}")
         return False
 
 
-def delete_only_mode():
-    """Delete-only mode: Apply deletions without .toc_work/"""
-    toc_name = f"{CATEGORY}_toc.yaml"
-    log("Mode: delete-only")
+# ---------------------------------------------------------------------------
+# pending 統合（DES-005 §6.1）
+# ---------------------------------------------------------------------------
 
-    if not OUTPUT_FILE.exists():
-        log(f"Error: {toc_name} does not exist")
-        return False
+def load_completed_pendings(work_dir):
+    """work_dir 配下の pending YAML を読み、status: completed のみ抽出する。
 
-    # Create backup
-    backup_existing_file(OUTPUT_FILE)
+    Args:
+        work_dir: store_dir/.toc_work/ の Path
 
-    # Load existing data
-    docs = load_existing_toc(OUTPUT_FILE)
-
-    # Delete entries that exist in checksums but file doesn't exist
-    checksum_files = set(load_checksums(CHECKSUMS_FILE).keys())
-    existing_files = get_existing_files()
-    deleted_files = checksum_files - existing_files
-
-    deleted_count = 0
-    for del_file in deleted_files:
-        if del_file in docs:
-            del docs[del_file]
-            log(f"  Deleted: {del_file}")
-            deleted_count += 1
-
-    # Also delete stale entries in ToC but not in current valid files
-    stale_entries = [p for p in docs if p not in existing_files]
-    for stale in stale_entries:
-        del docs[stale]
-        log(f"  Deleted (stale): {stale}")
-        deleted_count += 1
-
-    if deleted_count == 0:
-        log("No entries to delete")
-        return True
-
-    if not write_yaml_output(docs, OUTPUT_FILE):
-        return False
-
-    log(f"\nDeletion complete: {deleted_count} entries deleted")
-    return True
-
-
-def merge_toc_files(mode='full'):
-    yaml_files = sorted(f for f in TOC_WORK_DIR.glob("*.yaml") if not f.name.startswith('.'))
-
-    if not yaml_files:
-        log(f"Error: No YAML files found in {TOC_WORK_DIR}")
-        return False
-
-    log(f"Target files: {len(yaml_files)}")
-    log(f"Mode: {mode}")
-
-    # Create backup (common to all modes)
-    backup_existing_file(OUTPUT_FILE)
-
-    # Get current valid files (exclude applied)
-    existing_files = get_existing_files()
-
-    # In incremental mode, load existing data
-    if mode == 'incremental':
-        docs = load_existing_toc(OUTPUT_FILE)
-        # Delete entries that exist in checksums but file doesn't exist
-        checksum_files = set(load_checksums(CHECKSUMS_FILE).keys())
-        deleted_files = checksum_files - existing_files
-        for del_file in deleted_files:
-            if del_file in docs:
-                del docs[del_file]
-                log(f"  Deleted: {del_file}")
-    else:
-        docs = {}
-
+    Returns:
+        tuple: (entries, errors)
+            entries: source_file -> entry の dict（completed のみ）
+            errors: 警告メッセージのリスト（source_file 欠落 / 未完了 等）
+    """
+    entries = {}
     errors = []
+
+    work_dir = Path(work_dir)
+    if not work_dir.exists():
+        return entries, errors
+
+    # 隠しファイル（.toc_checksums_pending.yaml 等）を除外し、決定的順序で処理
+    yaml_files = sorted(
+        f for f in work_dir.glob("*.yaml") if not f.name.startswith(".")
+    )
 
     for filepath in yaml_files:
         filename = filepath.name
         try:
             meta, entry = load_entry_file(filepath)
-            source_file = meta.get('source_file')
-            status = meta.get('status')
-
-            if not source_file:
-                errors.append(f"{filename}: Cannot get source_file")
-                continue
-
-            if status != 'completed':
-                errors.append(f"{filename}: Status is not completed ({status})")
-                continue
-
-            # Skip excluded or missing files
-            if source_file not in existing_files:
-                errors.append(f"{filename}: Skipped (excluded or missing: {source_file})")
-                continue
-
-            # Carry doc_type from _meta into entry
-            doc_type = meta.get('doc_type', '')
-            if doc_type:
-                entry['doc_type'] = doc_type
-
-            docs[source_file] = entry
-            log(f"  {source_file}")
-
-        except Exception as e:
+        except IOError as e:
             errors.append(f"{filename}: {e}")
+            continue
 
-    # Remove stale entries not in current valid files
-    if mode == 'incremental':
-        stale_entries = [p for p in docs if p not in existing_files]
-        for stale in stale_entries:
-            del docs[stale]
-            log(f"  Deleted (stale): {stale}")
+        source_file = meta.get("source_file")
+        status = meta.get("status")
 
-    if errors:
-        log("\nWarnings:")
-        for err in errors:
-            log(f"  - {err}")
+        if not source_file:
+            errors.append(f"{filename}: missing _meta.source_file")
+            continue
+        if status != "completed":
+            errors.append(f"{filename}: status is not completed ({status})")
+            continue
 
-    if not docs:
-        log("Error: No valid entries")
+        entries[normalize_path(source_file)] = entry
+
+    return entries, errors
+
+
+# ---------------------------------------------------------------------------
+# 削除検出（DES-005 §6.2 / FR-N02-2）
+# ---------------------------------------------------------------------------
+
+def load_deleted_sidecar(work_dir):
+    """prepare が残した deleted サイドカー（.deleted.json）を読む（DES-005 §6.1 / §6.2）。
+
+    prepare は `deleted = prev.keys() - desired` を算出し、本サイドカーへ JSON 配列で
+    書き出す。merge はこれを desired-state の削除の正として反映する（FR-N02-2）。
+    ファイルが存在しない場合は空リストを返す。
+
+    Args:
+        work_dir: store_dir/.toc_work/ の Path
+
+    Returns:
+        list[str]: 削除対象 path（正規化済み）
+    """
+    sidecar = Path(work_dir) / DELETED_SIDECAR_FILENAME
+    if not sidecar.exists():
+        return []
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (IOError, OSError, PermissionError, ValueError) as e:
+        log(f"Warning: Failed to read deleted sidecar: {sidecar} - {e}")
+        return []
+    if not isinstance(data, list):
+        return []
+    return [normalize_path(p) for p in data if isinstance(p, str)]
+
+
+def detect_deleted(docs, prev_checksums, sidecar_deleted, project_root):
+    """toc.yaml から除去すべき path を算出する（DES-005 §6.2 / FR-N02-2）。
+
+    desired-state モデルの削除は 2 つの源から決まる:
+      1. prepare が算出し `.deleted.json` サイドカーへ残した deleted
+         （= 前回 checksums にあり今回 desired に含まれない path。実ファイルが
+           存在していても desired から外れたものを含む。「部分配列 → 残り削除」を支える）
+      2. 実ファイルが存在しない path（checksums または toc.yaml に残る stale エントリ）。
+         サイドカーが無い `--delete-only` フォールバック経路でも削除を成立させる
+
+    Args:
+        docs: 現在の toc.yaml docs（source_file -> entry）
+        prev_checksums: 前回 checksums（path -> hash）
+        sidecar_deleted: prepare のサイドカーから読んだ deleted（正規化済み path リスト）
+        project_root: project root（Path）
+
+    Returns:
+        list[str]: 削除対象 path（昇順）
+    """
+    root = Path(project_root)
+    deleted = set(sidecar_deleted)
+
+    # 実ファイル不在の stale（checksums / toc.yaml 双方を見る）
+    for path in list(prev_checksums.keys()) + list(docs.keys()):
+        full = root / path
+        if not full.exists():
+            deleted.add(normalize_path(path))
+
+    return sorted(deleted)
+
+
+# ---------------------------------------------------------------------------
+# checksums 再計算（DES-005 §6.2 / FR-N02-6）
+# ---------------------------------------------------------------------------
+
+def compute_checksums_for_docs(docs, project_root):
+    """toc.yaml の最終 docs から checksums（path -> hash）を再計算する。
+
+    desired-state の最終結果（merge 後の docs キー集合）を checksums の正とする。
+    実体が読めない path は除外する（検証で別途検出される）。
+
+    Args:
+        docs: 最終 docs（source_file -> entry）
+        project_root: project root（Path）
+
+    Returns:
+        dict: path -> sha256 hash
+    """
+    root = Path(project_root)
+    checksums = {}
+    for path in docs.keys():
+        h = calculate_file_hash(root / path)
+        if h is not None:
+            checksums[path] = h
+    return checksums
+
+
+# ---------------------------------------------------------------------------
+# backup / restore（DES-005 §6.5）
+# ---------------------------------------------------------------------------
+
+def backup_toc(toc_path):
+    """toc.yaml を toc.yaml.bak へバックアップする（§6.5）。
+
+    既存 toc.yaml が無い場合は何もしない（新規生成）。
+
+    Args:
+        toc_path: toc.yaml の Path
+
+    Returns:
+        Path | None: バックアップファイルの Path（作成した場合）、無ければ None
+    """
+    toc_path = Path(toc_path)
+    if not toc_path.exists():
+        return None
+    backup_path = toc_path.with_name(toc_path.name + BACKUP_SUFFIX)
+    try:
+        backup_path.write_bytes(toc_path.read_bytes())
+        log(f"Backup created: {backup_path}")
+        return backup_path
+    except (IOError, OSError, PermissionError) as e:
+        log(f"Warning: Failed to create backup: {backup_path} - {e}")
+        return None
+
+
+def restore_toc(toc_path, backup_path):
+    """toc.yaml.bak から toc.yaml を復元する（§6.5 検証失敗時）。
+
+    backup が無い場合（新規生成で検証失敗）は、書き出した toc.yaml を削除して
+    元の「不在」状態へ戻す。
+
+    Args:
+        toc_path: toc.yaml の Path
+        backup_path: バックアップファイルの Path（None の場合は新規生成だった）
+
+    Returns:
+        bool: True on success
+    """
+    toc_path = Path(toc_path)
+    if backup_path is not None and Path(backup_path).exists():
+        try:
+            toc_path.write_bytes(Path(backup_path).read_bytes())
+            log(f"Restored from backup: {backup_path} -> {toc_path}")
+            return True
+        except (IOError, OSError, PermissionError) as e:
+            log(f"Error: Failed to restore from backup: {e}")
+            return False
+    # backup なし = 新規生成だった。検証失敗した toc.yaml を消して不在へ戻す。
+    try:
+        if toc_path.exists():
+            toc_path.unlink()
+            log(f"Removed invalid newly-generated toc.yaml: {toc_path}")
+        return True
+    except (OSError, PermissionError) as e:
+        log(f"Error: Failed to remove invalid toc.yaml: {e}")
         return False
 
-    if not write_yaml_output(docs, OUTPUT_FILE):
-        return False
 
-    log(f"\nGeneration complete: {OUTPUT_FILE}")
-    log(f"   - File count: {len(docs)}")
+def remove_backup(backup_path):
+    """検証成功後にバックアップファイルを削除する（残骸を残さない）。"""
+    if backup_path is None:
+        return
+    try:
+        bp = Path(backup_path)
+        if bp.exists():
+            bp.unlink()
+    except (OSError, PermissionError) as e:
+        log(f"Warning: Failed to remove backup: {backup_path} - {e}")
 
-    return True
+
+# ---------------------------------------------------------------------------
+# merge コア（DES-005 §6.1 / §6.5）
+# ---------------------------------------------------------------------------
+
+def run_merge(store_dir, key, project_root, *, delete_only=False):
+    """pending 統合 + 削除反映 + backup → validate → restore を実行する。
+
+    Args:
+        store_dir: store_dir の Path
+        key: original key
+        project_root: project root（Path）
+        delete_only: True のとき pending を統合せず削除のみ反映する
+
+    Returns:
+        tuple: (ok, payload_kwargs)
+            ok: True on success
+            payload_kwargs: emit_json に渡す追加 kwargs（counts / warnings 等）
+    """
+    store_dir = Path(store_dir)
+    toc_path = store_dir / TOC_FILENAME
+    toc_rel = toc_path_rel(store_dir, project_root)
+    work_dir = store_dir / WORK_DIRNAME
+    checksums_file = store_dir / CHECKSUMS_FILENAME
+
+    warnings = []
+
+    # 既存 toc.yaml の docs（incremental ベース）
+    existing_docs = load_existing_toc(toc_path) if toc_path.exists() else {}
+    prev_checksums = load_checksums(checksums_file)
+    prev_doc_paths = set(existing_docs.keys())
+
+    # 1. pending 統合（delete-only では行わない）
+    completed = {}
+    if not delete_only:
+        completed, merge_errors = load_completed_pendings(work_dir)
+        warnings.extend(merge_errors)
+
+    # 2. docs を構築（既存 + pending 上書き）。
+    #    added/updated は prev_checksums 基準で判定する（§6.2 と一貫）。
+    #    pending は prepare が added/updated と確定したものだけが入る。
+    docs = dict(existing_docs)
+    added = []
+    updated = []
+    for source_file, entry in completed.items():
+        if source_file in prev_checksums:
+            updated.append(source_file)
+        else:
+            added.append(source_file)
+        docs[source_file] = entry
+
+    # 3. 削除反映（FR-N02-2）。prepare のサイドカー + 実体不在 stale。
+    sidecar_deleted = load_deleted_sidecar(work_dir)
+    deleted = detect_deleted(docs, prev_checksums, sidecar_deleted, project_root)
+    for del_path in deleted:
+        if del_path in docs:
+            del docs[del_path]
+            log(f"  Deleted: {del_path}")
+
+    # unchanged: 前回 toc にあり、added/updated/deleted のいずれでもないもの
+    changed_set = set(added) | set(updated) | set(deleted)
+    unchanged = sorted(p for p in prev_doc_paths if p not in changed_set and p in docs)
+
+    counts = {
+        "added": len(added),
+        "updated": len(updated),
+        "deleted": len(deleted),
+        "unchanged": len(unchanged),
+    }
+
+    # 4. backup → 原子的書き込み → validate → restore（§6.5）
+    backup_path = backup_toc(toc_path)
+
+    if not write_toc_atomic(docs, toc_path, key=key, toc_rel=toc_rel):
+        # 書き込み自体が失敗。backup から復元。
+        restore_toc(toc_path, backup_path)
+        return False, {
+            "error_code": ErrorCode.NOT_FOUND,
+            "message": "failed to write toc.yaml",
+            "counts": counts,
+            "deleted_paths": deleted,
+            "warnings": warnings,
+        }
+
+    # 検証（空 ToC は検証をスキップして冪等に成功させる / §9.2 空 ToC 冪等出力）
+    validation_ok = True
+    if docs:
+        validation_ok = validate_toc(toc_path, project_root=project_root)
+
+    if not validation_ok:
+        # §6.5 NG: backup から復元・checksums 据え置き・.toc_work 保持
+        restore_toc(toc_path, backup_path)
+        log("Validation failed: toc.yaml restored, checksums kept, .toc_work preserved")
+        return False, {
+            "error_code": ErrorCode.INVALID_PATH,
+            "message": "validation failed; toc.yaml restored from backup, "
+                       ".toc_work preserved for retry",
+            "counts": counts,
+            "deleted_paths": deleted,
+            "warnings": warnings,
+        }
+
+    # 5. OK: checksums 更新（最終 docs から再計算）・work 削除（§6.5）
+    new_checksums = compute_checksums_for_docs(docs, project_root)
+    if not write_checksums_yaml(
+        new_checksums, checksums_file, header_comment=f"ToC checksums for key: {key}"
+    ):
+        warnings.append("failed to write checksums file")
+
+    if not clean_work_dir(store_dir):
+        warnings.append("failed to clean .toc_work")
+
+    # 成功後にバックアップを除去
+    remove_backup(backup_path)
+
+    log(
+        f"merge: added={counts['added']} updated={counts['updated']} "
+        f"deleted={counts['deleted']} unchanged={counts['unchanged']} "
+        f"file_count={len(docs)}"
+    )
+
+    return True, {
+        "error_code": None,
+        "counts": counts,
+        "deleted_paths": deleted,
+        "warnings": warnings,
+    }
 
 
-def main():
-    args = parse_args()
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 
-    # Initialize configuration
-    if not init_config(args.category):
+def parse_args(argv=None):
+    """コマンドライン引数を解析する。"""
+    parser = argparse.ArgumentParser(
+        description="Merge completed pending YAML entries into toc.yaml (key + path I/F)"
+    )
+    parser.add_argument("--key", help="User-specified key (opaque)")
+    parser.add_argument(
+        "--all", action="store_true",
+        help="Single mode: target reserved key 'all' (same as omitting --key)",
+    )
+    parser.add_argument(
+        "--delete-only", action="store_true",
+        help="Apply deletions only (do not merge .toc_work/ pendings)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    project_root = get_project_root()
+
+    # 1. key 解決（--all / --key 省略 → 予約 all、--key all → KEY_RESERVED）
+    try:
+        key = resolve_key_from_args(args)
+    except KeyError_ as e:
+        emit_json(STATUS_ERROR, error_code=e.error_code, message=str(e))
         return 1
 
-    toc_name = f"{CATEGORY}_toc.yaml"
+    store_dir = resolve_store_dir(key, project_root)
+    toc_rel = toc_path_rel(store_dir, project_root)
+    toc_path = store_dir / TOC_FILENAME
 
-    log("=" * 50)
-    log(f"{toc_name} Merge Script")
-    log("=" * 50)
+    # delete-only で toc.yaml が存在しないのはエラー（削除対象が無い）
+    if args.delete_only and not toc_path.exists():
+        emit_json(
+            STATUS_ERROR,
+            error_code=ErrorCode.TOC_NOT_FOUND,
+            message=f"toc.yaml not found for delete-only: {toc_rel}",
+            key=key,
+            toc_path=toc_rel,
+        )
+        return 1
 
-    if args.delete_only:
-        success = delete_only_mode()
-    else:
-        success = merge_toc_files(args.mode)
+    # 通常 merge で work dir も既存 toc も無ければ統合対象が無い。
+    # ただし prepare が「desired 0 件（空 repo / 対象 0 件）」を検出して空意図サイドカーを
+    # 残していれば、それは「空 ToC を冪等出力すべき」意図（DES-005 §9.2 / §9.3 /
+    # REQ-001 NFR-N05 / 受け入れ基準）であり、NO_TARGETS にせず空 toc.yaml を出力する。
+    # 空意図サイドカーが無い（= prepare 未実行で何も準備されていない）場合のみ NO_TARGETS。
+    work_dir = store_dir / WORK_DIRNAME
+    if not args.delete_only:
+        has_pending = work_dir.exists() and any(
+            f for f in work_dir.glob("*.yaml") if not f.name.startswith(".")
+        )
+        has_empty_intent = (work_dir / EMPTY_INTENT_SIDECAR_FILENAME).exists()
+        if not has_pending and not toc_path.exists() and not has_empty_intent:
+            emit_json(
+                STATUS_ERROR,
+                error_code=ErrorCode.NO_TARGETS,
+                message="no pending entries and no existing toc.yaml to merge",
+                key=key,
+                toc_path=toc_rel,
+            )
+            return 1
 
-    return 0 if success else 1
+    ok, payload = run_merge(
+        store_dir, key, project_root, delete_only=args.delete_only
+    )
+
+    status = STATUS_OK if ok else STATUS_ERROR
+    emit_json(
+        status,
+        error_code=payload.get("error_code"),
+        message=payload.get("message"),
+        key=key,
+        toc_path=toc_rel,
+        counts=payload.get("counts"),
+        warnings=payload.get("warnings"),
+        deleted_paths=payload.get("deleted_paths"),
+    )
+    return 0 if ok else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

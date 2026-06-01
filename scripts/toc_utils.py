@@ -7,11 +7,9 @@ doc-advisor プラグインの ToC 生成で使用する共通関数。
 標準ライブラリのみ使用。
 """
 
-import copy
 import fnmatch
 import hashlib
 import os
-import re
 import shutil
 import sys
 import unicodedata
@@ -19,37 +17,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-class ConfigNotReadyError(RuntimeError):
-    """Raised when .doc_structure.yaml is missing or not configured for a category."""
-    pass
-
-
 def log(*args, **kwargs):
     """stderr にログメッセージを出力する。stdout の JSON 出力を汚染しない。"""
     kwargs.setdefault('file', sys.stderr)
     print(*args, **kwargs)
-
-
-# System files that are always excluded (not configurable)
-SYSTEM_EXCLUDE_PATTERNS_RULES = ['.toc_work', 'rules_toc.yaml', '.toc_checksums.yaml']
-SYSTEM_EXCLUDE_PATTERNS_SPECS = ['.toc_work', 'specs_toc.yaml', '.toc_checksums.yaml']
-
-
-def get_system_exclude_patterns(category):
-    """
-    Get system exclude patterns that are always applied.
-
-    Args:
-        category: 'rules' or 'specs'
-
-    Returns:
-        list: System exclude patterns
-    """
-    if category == 'rules':
-        return SYSTEM_EXCLUDE_PATTERNS_RULES.copy()
-    elif category == 'specs':
-        return SYSTEM_EXCLUDE_PATTERNS_SPECS.copy()
-    return []
 
 
 def normalize_path(path_str):
@@ -126,574 +97,142 @@ def validate_path_within_base(path, base_dir):
     return joined
 
 
-def resolve_config_path(config_value, default_base, project_root):
+class PathRejection(ValueError):
+    """path 検証で reject されたことを表す。error_code を保持する。
+
+    error_code は toc_store.py の ErrorCode 定数と整合する文字列。
+    検証フロー（validate_path）の呼び出し側が rejected_paths に
+    `{"path": ..., "reason": error_code}` を積むために使う。
     """
-    Resolve configuration path value.
 
-    Multi-component paths (containing '/') are resolved relative to project_root.
-    Simple names (no '/') are resolved relative to default_base.
+    def __init__(self, message, error_code):
+        super().__init__(message)
+        self.error_code = error_code
 
-    This supports both default paths (.claude/doc-advisor/...) and
-    output_dir-derived paths (e.g., custom_dir/doc-advisor/...) as project-relative,
-    while keeping simple fallback names (.toc_work, .toc_checksums.yaml) as
-    default_base-relative.
+
+def resolve_within_root(path, project_root):
+    """symlink 実体を解決し、project root 配下にあることを保証する（DES-005 §5.2 / NFR-N06）。
+
+    `validate_path_within_base()` が担う論理パス検証（traversal / CWE-22）とは
+    **別ロジック**であり、symlink の実体解決による root 外参照の reject を担う。
+
+    手順:
+    1. `Path.resolve(strict=True)` で symlink を辿り実体を解決する。
+       実体が存在しない場合は `FileNotFoundError` を送出する
+       （呼び出し側で NOT_FOUND 扱いにする。REQ-001 FR-N03-4 の不在 reject と兼ねる）。
+    2. `Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で
+       解決後の実体が project root 配下かを判定する。root 外を指す symlink は reject する。
 
     Args:
-        config_value: Path string from configuration
-        default_base: Default base directory (e.g., SPECS_DIR, RULES_DIR)
-        project_root: Project root directory
+        path: 検証対象パス（str or Path）。絶対 / 相対いずれも resolve される。
+        project_root: project root（str or Path）
 
     Returns:
-        Path: Resolved absolute path
-    """
-    path_str = str(config_value).rstrip('/')
-    if '/' in path_str:
-        return project_root / path_str
-    return default_base / path_str
-
-
-def find_config_file():
-    """
-    Find .doc_structure.yaml at project root.
-
-    Returns:
-        Path: Path to .doc_structure.yaml
+        Path: resolve 済みの実体パス（project root 配下であることが保証される）
 
     Raises:
-        FileNotFoundError: When no configuration file is found
+        FileNotFoundError: 実体が存在しない場合（strict=True）
+        PathRejection: 解決後の実体が project root 外の場合（OUTSIDE_ROOT）
     """
-    project_root = get_project_root()
-    doc_structure = project_root / ".doc_structure.yaml"
-    if doc_structure.exists():
-        return doc_structure
+    resolved = Path(path).resolve(strict=True)
+    root_resolved = Path(project_root).resolve()
+    if not resolved.is_relative_to(root_resolved):
+        raise PathRejection(
+            f"Resolved path escapes project root: {path}",
+            "OUTSIDE_ROOT",
+        )
+    return resolved
 
-    raise FileNotFoundError(
-        ".doc_structure.yaml not found.\n"
-        "Run setup-doc-structure to create it."
-    )
+
+# Markdown 拡張子（非 Markdown reject 判定用。DES-005 §5.1）
+MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 
 
-def _expand_output_dir(section_config, category):
-    """output_dir から個別パスフィールドを導出する。
+def validate_path(path, project_root):
+    """単一 path を REQ-001 §6.1 / DES-005 §5.1 の検証フローに従って検証する。
 
-    output_dir が設定されている場合、固定 convention に従い
-    toc_file, checksums_file, work_dir を導出する。
-    明示的に設定された個別フィールドは上書きしない。
+    検証順（フロー図 §5.1）:
+    1. 絶対パス → reject（ABSOLUTE_PATH）
+    2. NFC 正規化 + `./` 解決
+    3. 論理パス検証（traversal） → reject（PATH_TRAVERSAL）。既存 `validate_path_within_base` を流用
+    4. symlink 実体解決（strict） → 不在は reject（NOT_FOUND）
+    5. root 配下判定 → root 外は reject（OUTSIDE_ROOT）。`resolve_within_root` が担う
+    6. Markdown 判定 → 非 Markdown は reject（NOT_MARKDOWN）
+    7. すべて通れば project-root-relative の正規化済み path を返す（accept）
 
-    Note: output_dir は .doc_structure.yaml v3.0 の公式フィールドではない。
-    forge や品質テストなど内部用途向けの便利機能。
+    `./a.md` と `a.md` は同一視され、いずれも `a.md` に正規化される。
+
+    error_code は toc_store.py の ErrorCode 定数と整合する文字列で
+    PathRejection に保持される。
 
     Args:
-        section_config: rules または specs セクションの設定辞書
-        category: 'rules' or 'specs'
-    """
-    output_dir = section_config.get('output_dir')
-    if not output_dir:
-        return
-    base = output_dir.rstrip('/')
-    derived = {
-        'toc_file': f'{base}/toc/{category}/{category}_toc.yaml',
-        'checksums_file': f'{base}/toc/{category}/.toc_checksums.yaml',
-        'work_dir': f'{base}/toc/{category}/.toc_work/',
-    }
-    for key, value in derived.items():
-        section_config.setdefault(key, value)
-
-
-def load_config(category=None):
-    """
-    Load .doc_structure.yaml and merge with internal defaults.
-
-    .doc_structure.yaml provides document structure (root_dirs, doc_types_map, patterns).
-    Internal defaults provide Doc Advisor settings (toc_file, checksums_file, work_dir, output, common).
-
-    Args:
-        category: 'rules' or 'specs'. If specified, returns only that section
+        path: 検証対象の入力 path（str）。project-root-relative であることを期待する。
+        project_root: project root（str or Path）
 
     Returns:
-        dict: Configuration dictionary
-    """
-    defaults = _get_default_config()
+        str: project-root-relative の正規化済み path（accept 時）
 
+    Raises:
+        PathRejection: 検証失敗時。error_code に reject 理由を保持する。
+    """
+    root = Path(project_root)
+
+    # 1. 絶対パス reject
+    raw = normalize_path(path)
+    if os.path.isabs(raw):
+        raise PathRejection(f"Absolute path is not allowed: {path}", "ABSOLUTE_PATH")
+
+    # 2. NFC 正規化 + ./ 解決（os.path.normpath が "./a.md" → "a.md" を行う）
+    rel_normalized = normalize_path(os.path.normpath(raw))
+
+    # 3. 論理パス検証（traversal）。既存関数を流用（symlink は辿らない）。
     try:
-        config_path = find_config_file()
-        with open(config_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-    except (FileNotFoundError, RuntimeError):
-        if category:
-            return defaults.get(category, {})
-        return defaults
-    except (PermissionError, OSError) as e:
-        print(f"Warning: load_config failed to read config file: {e}", file=sys.stderr)
-        if category:
-            return defaults.get(category, {})
-        return defaults
+        validate_path_within_base(rel_normalized, root)
+    except ValueError as e:
+        raise PathRejection(str(e), "PATH_TRAVERSAL") from e
 
-    doc_structure = _parse_config_yaml(content)
-
-    # Versioned migration: detect version and apply staged migrations (REQ-003)
-    detected_version = _detect_version(content)
-    doc_structure = apply_migrations(doc_structure, detected_version)
-
-    # output_dir から個別パスを導出（deep merge 前）
-    for section in ('rules', 'specs'):
-        if section in doc_structure:
-            _expand_output_dir(doc_structure[section], section)
-
-    # Merge: doc_structure values override defaults
-    config = _deep_merge(defaults, doc_structure)
-
-    # Backward compatibility: root_dir (string) → root_dirs (list)
-    for section in ('rules', 'specs'):
-        if section in config:
-            sec = config[section]
-            if 'root_dir' in sec and 'root_dirs' not in sec:
-                sec['root_dirs'] = [sec.pop('root_dir')]
-
-    if category:
-        return config.get(category, {})
-    return config
-
-
-def _migrate_v1_to_v2(parsed):
-    """
-    Convert v1.0 .doc_structure.yaml format to v2.0 (in-memory only).
-
-    v1.0 format:
-        rules:
-          rule:
-            paths: [rules/]
-        specs:
-          spec:
-            paths: [specs/]
-
-    v2.0 format:
-        rules:
-          root_dirs: [rules/]
-          doc_types_map:
-            rules/: rule
-        specs:
-          root_dirs: [specs/]
-          doc_types_map:
-            specs/: spec
-
-    Detection: a category section has no 'root_dirs' key but has a sub-dict
-    with a 'paths' key (v1.0 doc_type → {paths: [...]}).
-    """
-    for category in ('rules', 'specs'):
-        if category not in parsed:
-            continue
-        section = parsed[category]
-
-        # Already v2.0 format
-        if 'root_dirs' in section:
-            continue
-
-        # Detect v1.0: sub-dicts with 'paths' key
-        root_dirs = []
-        doc_types_map = {}
-        v1_keys = []
-
-        for key, value in section.items():
-            if isinstance(value, dict) and 'paths' in value:
-                v1_keys.append(key)
-                paths = value['paths']
-                if isinstance(paths, list):
-                    for p in paths:
-                        root_dirs.append(p)
-                        doc_types_map[p] = key
-
-        if v1_keys:
-            # Remove v1.0 keys
-            for key in v1_keys:
-                del section[key]
-            # Add v2.0 keys
-            section['root_dirs'] = root_dirs
-            section['doc_types_map'] = doc_types_map
-
-    return parsed
-
-
-def _migrate_v2_to_v3(parsed):
-    """
-    Convert v2.0 .doc_structure.yaml format to v3.0 (in-memory only).
-
-    v2.0 contains internal Doc Advisor fields (toc_file, checksums_file,
-    work_dir, output) that were moved to code defaults in v3.0.
-    Also removes the top-level 'common' section.
-
-    v3.0 format retains only: root_dirs, doc_types_map, patterns.
-    """
-    INTERNAL_FIELDS = {'toc_file', 'checksums_file', 'work_dir', 'output'}
-
-    for category in ('rules', 'specs'):
-        if category not in parsed:
-            continue
-        section = parsed[category]
-        for field in INTERNAL_FIELDS:
-            section.pop(field, None)
-
-    # Remove top-level 'common' section (code default in v3)
-    parsed.pop('common', None)
-
-    return parsed
-
-
-# --- Version Migration Framework (REQ-003) ---
-
-CURRENT_DOC_STRUCTURE_VERSION = 3
-
-MIGRATIONS = {
-    2: _migrate_v1_to_v2,
-    3: _migrate_v2_to_v3,
-}
-
-
-def _detect_version(content):
-    """
-    Detect doc_structure_version from raw file content.
-
-    Scans for '# doc_structure_version: X.0' comment line.
-    Returns integer major version, or 1 if not found (FR-01-2).
-
-    Args:
-        content: Raw .doc_structure.yaml file content (string)
-
-    Returns:
-        int: Detected major version number
-    """
-    # バージョンコメントの位置に関わらず全行を走査する（YAML本文後にある場合も検出できるよう break しない）
-    version_found = None
-    for line in content.split('\n'):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        match = re.match(r'^#\s*doc_structure_version:\s*(\d+)', stripped)
-        if match:
-            version_found = int(match.group(1))
-    if version_found is not None:
-        return version_found
-    return 1  # FR-01-2: default to v1
-
-
-def apply_migrations(parsed, detected_version):
-    """
-    Apply staged migrations from detected_version to CURRENT_DOC_STRUCTURE_VERSION.
-
-    Migrations are applied one version at a time in ascending order (FR-02-1).
-    On error, returns the original data unchanged (FR-04-1).
-    If detected_version >= CURRENT, returns data as-is (FR-04-2).
-
-    Args:
-        parsed: Parsed configuration dictionary
-        detected_version: Integer version detected from file
-
-    Returns:
-        dict: Migrated configuration dictionary
-    """
-    if detected_version >= CURRENT_DOC_STRUCTURE_VERSION:
-        return parsed  # FR-04-2: future/current version, no migration
-
-    targets = [v for v in sorted(MIGRATIONS.keys())
-               if detected_version < v <= CURRENT_DOC_STRUCTURE_VERSION]
-
-    original = copy.deepcopy(parsed)  # FR-04-1: rollback reference
+    # 4-5. symlink 実体解決 + root 配下判定
+    candidate = root / rel_normalized
     try:
-        for v in targets:
-            parsed = MIGRATIONS[v](parsed)
-    except Exception as e:
-        log(f"Warning: Migration from v{detected_version} failed: {e}")
-        log("Fallback: Using original data without migration")
-        return original
+        resolve_within_root(candidate, root)
+    except FileNotFoundError as e:
+        raise PathRejection(f"Path does not exist: {path}", "NOT_FOUND") from e
 
-    return parsed
+    # 6. Markdown 判定（論理パスの拡張子で判定。symlink 先の実体拡張子に依存しない）
+    if Path(rel_normalized).suffix.lower() not in MARKDOWN_SUFFIXES:
+        raise PathRejection(f"Not a Markdown file: {path}", "NOT_MARKDOWN")
+
+    # 7. accept: project-root-relative の正規化済み path
+    return rel_normalized
 
 
-def _deep_merge(base, override):
-    """
-    Deep merge two dictionaries. override values take precedence.
-    Lists are replaced, not merged.
+def detect_case_collisions(normalized_paths):
+    """正規化済み path 集合から case-insensitive 衝突を検出する（DES-005 §5.2）。
+
+    大文字小文字のみが異なる path が混在する場合に warning メッセージを返す。
+    処理は継続する（reject しない）。REQ-001 §6.1「大小衝突」/ NFR-N06。
 
     Args:
-        base: Base dictionary (defaults)
-        override: Override dictionary (.doc_structure.yaml)
+        normalized_paths: 正規化済み path のリスト（validate_path の戻り値）
 
     Returns:
-        dict: Merged dictionary
+        list[str]: warning メッセージのリスト（衝突なしなら空リスト）
     """
-    result = base.copy()
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
+    warnings = []
+    lower_map = {}
+    for p in normalized_paths:
+        lower = p.lower()
+        if lower in lower_map:
+            existing = lower_map[lower]
+            if existing != p:
+                warnings.append(
+                    f"case-insensitive collision: {existing} vs {p}"
+                )
         else:
-            result[key] = value
-    return result
+            lower_map[lower] = p
+    return warnings
 
 
-def _get_default_config():
-    """Return default configuration.
-
-    root_dirs defaults are used as fallback when .doc_structure.yaml is not found
-    (e.g., direct script execution without Pre-check).
-    """
-    return {
-        'rules': {
-            'root_dirs': ['rules/'],
-            'toc_file': '.claude/doc-advisor/toc/rules/rules_toc.yaml',
-            'checksums_file': '.claude/doc-advisor/toc/rules/.toc_checksums.yaml',
-            'work_dir': '.claude/doc-advisor/toc/rules/.toc_work/',
-            'patterns': {
-                'target_glob': '**/*.md',
-                'exclude': []  # User-defined only; system files excluded separately
-            },
-            'output': {
-                'header_comment': 'Development documentation search index for query-rules skill',
-                'metadata_name': 'Development Document Search Index'
-            }
-        },
-        'specs': {
-            'root_dirs': ['specs/'],
-            'toc_file': '.claude/doc-advisor/toc/specs/specs_toc.yaml',
-            'checksums_file': '.claude/doc-advisor/toc/specs/.toc_checksums.yaml',
-            'work_dir': '.claude/doc-advisor/toc/specs/.toc_work/',
-            'patterns': {
-                'target_glob': '**/*.md',
-                'exclude': []  # User-defined only; system files excluded separately
-            },
-            'output': {
-                'header_comment': 'Project specification document search index for query-specs skill',
-                'metadata_name': 'Project Specification Document Search Index'
-            }
-        },
-        'common': {
-            'parallel': {
-                'max_workers': 5,
-                'fallback_to_serial': True
-            }
-        }
-    }
-
-
-# _parse_config_yaml で使用するインデントレベル定数
-_INDENT_LEVEL_ROOT = 0    # トップレベルセクション（rules, specs, common）
-_INDENT_LEVEL_1 = 2       # サブセクション（root_dirs, patterns, output 等）
-_INDENT_LEVEL_2 = 4       # サブサブセクション（target_glob, exclude 等）
-_INDENT_LEVEL_3 = 6       # サブサブセクション内のキー値ペア
-
-
-def _parse_config_yaml(content):
-    """
-    Parse YAML configuration (simple YAML parser)
-
-    Handles up to 4 levels of nesting:
-    - Level 0 (_INDENT_LEVEL_ROOT): Top-level sections (rules, specs, common)
-    - Level 2 (_INDENT_LEVEL_1): Subsections (root_dirs, patterns, output)
-    - Level 4 (_INDENT_LEVEL_2): Sub-subsections (target_glob, exclude)
-    - Level 6 (_INDENT_LEVEL_3): Items (key-value pairs or list items)
-    """
-    result = {}
-    current_section = None
-    current_subsection = None
-    current_subsubsection = None
-    current_list = None
-    current_dict = None
-
-    lines = content.split('\n')
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-
-        # Skip comments and empty lines
-        if not stripped or stripped.startswith('#'):
-            continue
-
-        # Calculate indent level
-        indent = len(line) - len(line.lstrip())
-
-        if ':' in stripped and not stripped.startswith('- '):
-            key, _, value = stripped.partition(':')
-            # Strip whitespace and surrounding quotes from key (YAML allows
-            # quoted keys like "docs/specs/**/design/", which must be unquoted
-            # before they are stored or matched against the filesystem).
-            key = key.strip().strip('"\'')
-            value = value.strip()
-
-            if indent == _INDENT_LEVEL_ROOT:
-                # Top-level section
-                current_section = key
-                result[key] = {}
-                current_subsection = None
-                current_subsubsection = None
-                current_list = None
-                current_dict = None
-            elif indent == _INDENT_LEVEL_1 and current_section:
-                # Subsection
-                current_subsection = key
-                if value:
-                    result[current_section][key] = _parse_value(value)
-                    current_list = None
-                else:
-                    # Look ahead to determine if list or dict
-                    if _lookahead_is_list(lines, i + 1, parent_indent=_INDENT_LEVEL_1):
-                        result[current_section][key] = []
-                        current_list = result[current_section][key]
-                    else:
-                        result[current_section][key] = {}
-                        current_list = None
-                current_subsubsection = None
-                current_dict = None
-            elif indent == _INDENT_LEVEL_2 and current_section and current_subsection:
-                # Sub-subsection - look ahead to determine if list or dict
-                current_subsubsection = key
-                if value:
-                    result[current_section][current_subsection][key] = _parse_value(value)
-                    current_list = None
-                    current_dict = None
-                else:
-                    # Look ahead to determine structure type
-                    is_list = _lookahead_is_list(lines, i + 1)
-                    if is_list:
-                        result[current_section][current_subsection][key] = []
-                        current_list = result[current_section][current_subsection][key]
-                        current_dict = None
-                    else:
-                        result[current_section][current_subsection][key] = {}
-                        current_dict = result[current_section][current_subsection][key]
-                        current_list = None
-            elif indent == _INDENT_LEVEL_3 and current_dict is not None:
-                # Key-value pair inside sub-subsection dict
-                current_dict[key] = _parse_value(value) if value else ''
-        elif stripped.startswith('- ') and current_list is not None:
-            item = stripped[2:].strip().strip('"\'')
-            # Strip inline comments (e.g., "plan  # comment" → "plan")
-            if '  #' in item and not item.startswith('"'):
-                item = item[:item.index('  #')].strip()
-            current_list.append(item)
-
-    return result
-
-
-def _lookahead_is_list(lines, start_idx, parent_indent=4):
-    """
-    Look ahead in lines to determine if the next content is a list or dict.
-
-    Args:
-        lines: List of all lines
-        start_idx: Index to start looking from
-        parent_indent: Indent level of the parent key
-
-    Returns:
-        bool: True if next content is a list (starts with '- ')
-    """
-    for i in range(start_idx, min(start_idx + 10, len(lines))):
-        line = lines[i]
-        stripped = line.strip()
-
-        # Skip comments and empty lines
-        if not stripped or stripped.startswith('#'):
-            continue
-
-        indent = len(line) - len(line.lstrip())
-
-        # If we hit a line with less or equal indent, stop looking
-        if indent <= parent_indent:
-            break
-
-        # Check if it's a list item or key-value
-        if stripped.startswith('- '):
-            return True
-        if ':' in stripped:
-            return False
-
-    # Default to list for backward compatibility
-    return True
-
-
-def _parse_value(value):
-    """Parse value (string, number, boolean, or list including inline list format)."""
-    value = value.strip()
-
-    # Strip inline comments (not inside quotes)
-    if not value.startswith('"') and '  #' in value:
-        value = value[:value.index('  #')].strip()
-
-    # Inline list: [] or [a, b, c]
-    if value.startswith('[') and value.endswith(']'):
-        inner = value[1:-1].strip()
-        if not inner:
-            return []
-        return [item.strip().strip('"\'') for item in inner.split(',')]
-
-    value = value.strip('"\'')
-
-    if value.lower() == 'true':
-        return True
-    if value.lower() == 'false':
-        return False
-
-    try:
-        return int(value)
-    except ValueError:
-        pass
-
-    return value
-
-
-def expand_root_dir_globs(dirs, project_root):
-    """
-    Expand glob patterns in root_dirs paths.
-
-    root_dirs supports patterns like "specs/*/requirements/"
-    which need to be expanded to actual directories before file scanning.
-
-    Args:
-        dirs: List of directory path strings (may contain globs)
-        project_root: Path to project root
-
-    Returns:
-        list: Expanded directory path strings
-    """
-    expanded = []
-    for dir_path in dirs:
-        if '*' in dir_path or '?' in dir_path:
-            pattern = dir_path.rstrip('/')
-            matches = sorted(project_root.glob(pattern))
-            for match in matches:
-                if match.is_dir():
-                    rel = str(match.relative_to(project_root))
-                    expanded.append(rel + '/')
-        else:
-            expanded.append(dir_path)
-    return expanded if expanded else dirs
-
-
-def expand_doc_types_map(doc_types_map, project_root):
-    """
-    Expand glob patterns in doc_types_map keys.
-
-    For each key containing glob characters (* or ?), expand it against
-    the filesystem and create entries for each matching directory.
-    Non-glob keys are passed through unchanged.
-
-    Args:
-        doc_types_map: dict mapping path patterns to doc_type strings
-        project_root: Path to project root
-
-    Returns:
-        dict: Expanded mapping with concrete paths as keys
-    """
-    expanded = {}
-    for path_pattern, doc_type in doc_types_map.items():
-        if '*' in path_pattern or '?' in path_pattern:
-            pattern = path_pattern.rstrip('/')
-            matches = sorted(project_root.glob(pattern))
-            for match in matches:
-                if match.is_dir():
-                    rel = str(match.relative_to(project_root))
-                    expanded[rel + '/'] = doc_type
-        else:
-            expanded[path_pattern] = doc_type
-    return expanded
 
 
 def parse_simple_yaml(content):
@@ -1174,110 +713,3 @@ def rglob_follow_symlinks(root_dir, pattern):
         # 非再帰モードの場合は最初のディレクトリのみ
         if not recursive:
             break
-
-
-def init_common_config(category):
-    """
-    スクリプト共通の設定初期化を行い、計算済みの設定値を辞書で返す。
-
-    各スクリプトの init_config() から呼び出して共通ロジックを集約する。
-
-    Args:
-        category: 'rules' or 'specs'
-
-    Returns:
-        dict: 以下のキーを含む設定辞書
-            - config: load_config() の結果
-            - project_root: プロジェクトルート Path
-            - root_dirs: [(root_dir_path, root_dir_name), ...] のリスト
-            - first_dir: 最初の root_dir（フォールバック用）
-            - patterns_config: patterns セクション dict
-            - target_glob: ターゲット glob パターン
-            - exclude_patterns: 除外パターンリスト
-
-    Raises:
-        RuntimeError: プロジェクトルートが見つからない場合
-        FileNotFoundError: 設定ファイルが見つからない場合
-    """
-    config = load_config(category)
-    project_root = get_project_root()
-
-    default_dir = f'{category}/'
-    root_dirs_config = config.get('root_dirs', [default_dir])
-    if isinstance(root_dirs_config, str):
-        root_dirs_config = [root_dirs_config]
-
-    # デフォルト設定のまま（.doc_structure.yaml 未設定）かつデフォルトディレクトリが存在しない場合は
-    # セットアップが必要と判断する
-    if root_dirs_config == [default_dir]:
-        default_path = project_root / default_dir.rstrip('/')
-        if not default_path.is_dir():
-            raise ConfigNotReadyError(
-                f"Document directories not configured for '{category}'. "
-                f"Run setup-doc-structure to configure."
-            )
-
-    root_dirs_config = expand_root_dir_globs(root_dirs_config, project_root)
-
-    root_dirs = []
-    for entry in root_dirs_config:
-        name = entry.rstrip('/')
-        root_dirs.append((project_root / name, name))
-
-    first_dir = root_dirs[0][0] if root_dirs else project_root / category
-
-    patterns_config = config.get('patterns', {})
-    target_glob = patterns_config.get('target_glob', '**/*.md')
-    exclude_patterns = get_system_exclude_patterns(category) + patterns_config.get('exclude', [])
-
-    doc_types_map = expand_doc_types_map(config.get('doc_types_map', {}), project_root)
-
-    return {
-        'config': config,
-        'project_root': project_root,
-        'root_dirs': root_dirs,
-        'first_dir': first_dir,
-        'patterns_config': patterns_config,
-        'target_glob': target_glob,
-        'exclude_patterns': exclude_patterns,
-        'doc_types_map': doc_types_map,
-    }
-
-
-def get_all_md_files(common_config):
-    """
-    全 root_dirs から対象 .md ファイルを収集する（シンボリックリンク対応）。
-
-    create_pending_yaml.py から移植。グローバル変数依存を除去し、
-    init_common_config() の返り値を引数として受け取る。
-
-    Args:
-        common_config: init_common_config() の返り値 dict。
-            必須キー: root_dirs, target_glob, exclude_patterns
-
-    Returns:
-        tuple: (md_files, file_root_map)
-            - md_files: list[Path] — ソート済みの対象ファイルリスト
-            - file_root_map: dict[Path, (Path, str)] — filepath → (root_dir, root_dir_name)
-    """
-    root_dirs = common_config['root_dirs']
-    target_glob = common_config['target_glob']
-    exclude_patterns = common_config['exclude_patterns']
-
-    md_files = []
-    file_root_map = {}
-
-    for root_dir, root_dir_name in root_dirs:
-        if not root_dir.exists():
-            print(f"Warning: {root_dir} does not exist, skipping")
-            continue
-        for filepath in rglob_follow_symlinks(root_dir, target_glob):
-            if should_exclude(filepath, root_dir, exclude_patterns):
-                continue
-            md_files.append(filepath)
-            file_root_map[filepath] = (root_dir, root_dir_name)
-
-    md_files.sort()
-    return md_files, file_root_map
-
-

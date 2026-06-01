@@ -1,124 +1,108 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""merge_toc.py のユニットテスト。
+"""merge_toc.py のユニットテスト（DES-005 / REQ-001 NFR-N03）。
 
-bash テスト test_merge.sh から移行。
-subprocess.run でスクリプトを呼び出す形式でテスト。
+key + path I/F へ作り替え。category / doc_type 依存テストは廃止。
+
+テスト対象:
+- pending 統合で toc.yaml が生成される（§6.1）
+- deleted 反映（FR-N02-2。サイドカー由来 / 実体不在 stale 由来）
+- backup → validate → restore 異常系（§6.5。validate 失敗時に .bak 復元・
+  checksums 据え置き・.toc_work 保持）
+- metadata.key が meta.yaml の original_key と一致する（§7.2）
+- 原子的書き込み（os.replace 経路で破損なし）
+- JSON 契約（status / error_code enum・counts・deleted_paths）
+- docs 順序の決定性（path 昇順）
+- prepare → write_pending → merge の協調フロー（discover 全体は TASK-008）
+
+テスト方針:
+- in-process import（render_toc_yaml / run_merge 等）
+- subprocess JSON 契約（CLI の status / error_code / counts）
 """
 
+import json
 import os
-import sys
-import subprocess
-import tempfile
 import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-# テスト対象スクリプトのパス
 SCRIPTS_DIR = os.path.abspath(os.path.join(
     os.path.dirname(__file__), '..', '..', 'scripts'
 ))
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
+
+from merge_toc import (
+    render_toc_yaml,
+    write_toc_atomic,
+    load_completed_pendings,
+    detect_deleted,
+    load_deleted_sidecar,
+)
+from toc_store import (
+    resolve_store_dir,
+    read_meta,
+    write_meta,
+    WORK_DIRNAME,
+    CHECKSUMS_FILENAME,
+    DELETED_SIDECAR_FILENAME,
+    ERROR_CODES,
+    STATUSES,
+)
+from toc_utils import load_existing_toc, load_checksums, calculate_file_hash
+
 MERGE_SCRIPT = os.path.join(SCRIPTS_DIR, 'merge_toc.py')
+PREPARE_SCRIPT = os.path.join(SCRIPTS_DIR, 'prepare_toc.py')
+WRITE_PENDING_SCRIPT = os.path.join(SCRIPTS_DIR, 'write_pending.py')
 
 
-class TestMergeTocBase(unittest.TestCase):
-    """merge_toc.py テストの基底クラス。"""
+# ===========================================================================
+# 共通基盤
+# ===========================================================================
+
+class MergeTestBase(unittest.TestCase):
+    """一時 project root と subprocess / pending 生成ヘルパ。"""
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        self.original_env = {}
-        for key in ('CLAUDE_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT'):
-            self.original_env[key] = os.environ.get(key)
-
-        # プロジェクトルート設定
-        os.environ['CLAUDE_PROJECT_DIR'] = self.tmpdir
-        os.environ['CLAUDE_PLUGIN_ROOT'] = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), '..', '..'
-        ))
-
-        # .doc_structure.yaml 作成
-        doc_structure = """\
-# doc_structure_version: 3.0
-
-rules:
-  root_dirs:
-    - rules/
-  doc_types_map:
-    rules/: rule
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-
-specs:
-  root_dirs:
-    - specs/
-  doc_types_map:
-    specs/: spec
-  patterns:
-    target_glob: "**/*.md"
-    exclude: []
-"""
-        with open(os.path.join(self.tmpdir, '.doc_structure.yaml'), 'w') as f:
-            f.write(doc_structure)
-
-        # rules/ ディレクトリとテスト用 .md ファイル
-        rules_dir = os.path.join(self.tmpdir, 'rules')
-        os.makedirs(rules_dir, exist_ok=True)
-        with open(os.path.join(rules_dir, 'coding_standards.md'), 'w') as f:
-            f.write('# Coding Standards\n\nDefine coding practices.\n')
-
-        # specs/ ディレクトリとテスト用 .md ファイル
-        specs_dir = os.path.join(self.tmpdir, 'specs')
-        os.makedirs(specs_dir, exist_ok=True)
-        with open(os.path.join(specs_dir, 'auth_spec.md'), 'w') as f:
-            f.write('# Auth Spec\n\nAuthentication requirements.\n')
-        with open(os.path.join(specs_dir, 'login_spec.md'), 'w') as f:
-            f.write('# Login Spec\n\nLogin requirements.\n')
-
-        # ToC 出力ディレクトリ
-        for cat in ('rules', 'specs'):
-            os.makedirs(os.path.join(self.tmpdir, '.claude', 'doc-advisor', 'toc', cat), exist_ok=True)
+        self.project_root = Path(self.tmpdir)
+        os.makedirs(self.project_root / '.git', exist_ok=True)
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
-        for key, val in self.original_env.items():
-            if val is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = val
 
-    def _run_merge(self, category, mode='full', delete_only=False):
-        """merge_toc.py を subprocess で実行する。"""
-        cmd = [sys.executable, MERGE_SCRIPT, '--category', category]
-        if delete_only:
-            cmd.append('--delete-only')
-        else:
-            cmd.extend(['--mode', mode])
-        return subprocess.run(
-            cmd, capture_output=True, text=True, cwd=self.tmpdir,
-            env={**os.environ, 'PYTHONPATH': SCRIPTS_DIR}
-        )
+    def _write_md(self, rel_path, content='# Title\n\nThis is body content.\n'):
+        full = self.project_root / rel_path
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(content, encoding='utf-8')
+        return full
 
-    def _create_pending_entry(self, category, source_file, title='Test Title',
-                              doc_type='rule', status='completed'):
-        """pending YAML エントリを手動作成する。"""
-        work_dir = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', category, '.toc_work'
-        )
-        os.makedirs(work_dir, exist_ok=True)
+    def _store_dir(self, key):
+        return resolve_store_dir(key, project_root=self.project_root)
 
-        safe_name = source_file.replace('/', '_').replace('.', '_') + '.yaml'
-        entry_path = os.path.join(work_dir, safe_name)
+    def _work_dir(self, key):
+        return self._store_dir(key) / WORK_DIRNAME
 
+    def _toc_path(self, key):
+        return self._store_dir(key) / 'toc.yaml'
+
+    def _write_completed_pending(self, key, source_file, *, title='Test Title'):
+        """充填済み（status: completed）pending YAML を手動作成する。"""
+        work_dir = self._work_dir(key)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        name = hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16] + '.yaml'
         content = f"""\
 _meta:
   source_file: {source_file}
-  doc_type: {doc_type}
-  status: {status}
+  status: completed
   updated_at: "2026-01-31T00:00:00Z"
 
 title: {title}
-purpose: Test purpose for {title}
+purpose: Purpose of {title}
 content_details:
   - Detail 1
   - Detail 2
@@ -128,277 +112,587 @@ content_details:
 applicable_tasks:
   - Task 1
 keywords:
-  - keyword1
-  - keyword2
-  - keyword3
-  - keyword4
-  - keyword5
+  - kw1
+  - kw2
+  - kw3
+  - kw4
+  - kw5
 """
-        with open(entry_path, 'w') as f:
-            f.write(content)
-        return entry_path
+        (work_dir / name).write_text(content, encoding='utf-8')
+        return work_dir / name
+
+    def _write_pending_status(self, key, source_file, status):
+        """任意 status の pending YAML を作成する（completed でないもの等）。"""
+        work_dir = self._work_dir(key)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        name = hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16] + '.yaml'
+        content = f"""\
+_meta:
+  source_file: {source_file}
+  status: {status}
+  updated_at: null
+
+title: null
+purpose: null
+content_details: []
+applicable_tasks: []
+keywords: []
+"""
+        (work_dir / name).write_text(content, encoding='utf-8')
+        return work_dir / name
+
+    def _write_checksums(self, key, mapping):
+        store_dir = self._store_dir(key)
+        store_dir.mkdir(parents=True, exist_ok=True)
+        lines = ["checksums:"]
+        for path, h in mapping.items():
+            lines.append(f"  {path}: {h}")
+        (store_dir / CHECKSUMS_FILENAME).write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )
+
+    def _write_sidecar(self, key, deleted):
+        work_dir = self._work_dir(key)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        (work_dir / DELETED_SIDECAR_FILENAME).write_text(
+            json.dumps(deleted), encoding="utf-8"
+        )
+
+    def _run_merge(self, *args):
+        cmd = [sys.executable, MERGE_SCRIPT] + list(args)
+        env = os.environ.copy()
+        env['CLAUDE_PROJECT_DIR'] = str(self.project_root)
+        env['PYTHONPATH'] = SCRIPTS_DIR
+        return subprocess.run(
+            cmd, capture_output=True, text=True,
+            cwd=str(self.project_root), env=env,
+        )
+
+    def _run(self, script, *args):
+        cmd = [sys.executable, script] + list(args)
+        env = os.environ.copy()
+        env['CLAUDE_PROJECT_DIR'] = str(self.project_root)
+        env['PYTHONPATH'] = SCRIPTS_DIR
+        return subprocess.run(
+            cmd, capture_output=True, text=True,
+            cwd=str(self.project_root), env=env,
+        )
+
+    def _parse_stdout(self, proc):
+        out = proc.stdout.strip()
+        self.assertTrue(out, f"stdout empty; stderr: {proc.stderr}")
+        self.assertEqual(
+            len(out.split("\n")), 1, f"stdout must be single JSON: {out}"
+        )
+        return json.loads(out)
 
 
 # ===========================================================================
-# full モード マージテスト
+# pending 統合（§6.1）
 # ===========================================================================
 
-class TestMergeTocFullMode(TestMergeTocBase):
-    """full モードのマージテスト。"""
+class TestMergePendingIntegration(MergeTestBase):
+    def test_merge_creates_toc(self):
+        """充填済み pending を統合して toc.yaml を生成する。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md", title="Doc A")
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertIsNone(obj["error_code"])
+        self.assertEqual(obj["counts"]["added"], 1)
+        # toc.yaml が生成されている
+        toc = self._toc_path("rules")
+        self.assertTrue(toc.exists())
+        content = toc.read_text(encoding='utf-8')
+        self.assertIn("docs:", content)
+        self.assertIn("docs/a.md", content)
+        self.assertIn("Doc A", content)
 
-    def test_full_mode_rules_exit_code(self):
-        """rules full モードが正常終了する"""
-        self._create_pending_entry('rules', 'rules/coding_standards.md', 'Coding Standards')
-        proc = self._run_merge('rules', mode='full')
-        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
+    def test_merge_no_doc_type_field(self):
+        """toc.yaml に doc_type フィールドが出力されない（§7.1）。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._run_merge('--key', 'rules')
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertNotIn("doc_type", content)
 
-    def test_full_mode_rules_output_created(self):
-        """rules_toc.yaml が作成される"""
-        self._create_pending_entry('rules', 'rules/coding_standards.md', 'Coding Standards')
-        self._run_merge('rules', mode='full')
-        toc_path = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', 'rules_toc.yaml'
-        )
-        self.assertTrue(os.path.exists(toc_path))
+    def test_merge_incremental_keeps_existing(self):
+        """2 回目の merge で既存エントリを保持しつつ追加する。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md", title="Doc A")
+        self._run_merge('--key', 'rules')
 
-    def test_full_mode_rules_has_docs_section(self):
-        """rules_toc.yaml に docs セクションがある"""
-        self._create_pending_entry('rules', 'rules/coding_standards.md', 'Coding Standards')
-        self._run_merge('rules', mode='full')
-        toc_path = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', 'rules_toc.yaml'
-        )
-        with open(toc_path, 'r') as f:
-            content = f.read()
-        self.assertIn('docs:', content)
+        # 既存 a の hash を checksums に持つ状態で b を追加
+        self._write_md("docs/b.md")
+        self._write_completed_pending("rules", "docs/b.md", title="Doc B")
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertIn("docs/a.md", content)
+        self.assertIn("docs/b.md", content)
 
-    def test_full_mode_specs_exit_code(self):
-        """specs full モードが正常終了する"""
-        self._create_pending_entry('specs', 'specs/auth_spec.md', 'Auth Spec', doc_type='spec')
-        proc = self._run_merge('specs', mode='full')
-        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
-
-    def test_full_mode_specs_has_doc_type(self):
-        """specs_toc.yaml に doc_type フィールドがある"""
-        self._create_pending_entry('specs', 'specs/auth_spec.md', 'Auth Spec', doc_type='spec')
-        self._run_merge('specs', mode='full')
-        toc_path = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'specs', 'specs_toc.yaml'
-        )
-        with open(toc_path, 'r') as f:
-            content = f.read()
-        self.assertIn('doc_type:', content)
-
-
-# ===========================================================================
-# incremental モード マージテスト
-# ===========================================================================
-
-class TestMergeTocIncrementalMode(TestMergeTocBase):
-    """incremental モードのマージテスト。"""
-
-    def test_incremental_mode_merges_with_existing(self):
-        """incremental モードで既存エントリに新規エントリが追加される"""
-        # 1. full モードで初期 ToC 作成
-        self._create_pending_entry('rules', 'rules/coding_standards.md', 'Coding Standards')
-        self._run_merge('rules', mode='full')
-
-        # 2. .toc_work をクリアし新規ソースファイルと pending エントリ追加
-        work_dir = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', '.toc_work'
-        )
-        shutil.rmtree(work_dir, ignore_errors=True)
-
-        # 新規ソースファイル作成
-        with open(os.path.join(self.tmpdir, 'rules', 'new_rule.md'), 'w') as f:
-            f.write('# New Rule\n\nNew rule content.\n')
-
-        self._create_pending_entry('rules', 'rules/new_rule.md', 'New Rule')
-
-        # 3. incremental マージ
-        proc = self._run_merge('rules', mode='incremental')
-        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
-
-        # 4. 両エントリが存在すること
-        toc_path = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', 'rules_toc.yaml'
-        )
-        with open(toc_path, 'r') as f:
-            content = f.read()
-        self.assertIn('rules/coding_standards.md', content)
-        self.assertIn('rules/new_rule.md', content)
-
-    def test_incremental_exit_code(self):
-        """incremental モードが正常終了する"""
-        self._create_pending_entry('rules', 'rules/coding_standards.md', 'Coding Standards')
-        proc = self._run_merge('rules', mode='incremental')
-        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
+    def test_non_completed_pending_skipped(self):
+        """status が completed でない pending は統合されない。"""
+        self._write_md("docs/a.md")
+        self._write_pending_status("rules", "docs/a.md", "pending")
+        proc = self._run_merge('--key', 'rules')
+        # pending が未完了 → 統合対象なし、既存 toc も無い → NO_TARGETS ではなく
+        # work dir はあるので merge は走るが docs 空。空 toc を冪等出力。
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertEqual(obj["counts"]["added"], 0)
 
 
 # ===========================================================================
-# delete-only モード テスト
+# metadata.key 転記（§7.2）
 # ===========================================================================
 
-class TestMergeTocDeleteOnly(TestMergeTocBase):
-    """delete-only モードのテスト。"""
+class TestMetadataKey(MergeTestBase):
+    def test_metadata_key_matches_meta_yaml(self):
+        """toc.yaml の metadata.key が meta.yaml の original_key と一致する。"""
+        key = "my rules"  # slug 化される key
+        self._write_md("docs/a.md")
+        # prepare が書く想定の meta.yaml を先に書く
+        write_meta(self._store_dir(key), key)
+        self._write_completed_pending(key, "docs/a.md")
+        proc = self._run_merge('--key', key)
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
 
-    def test_delete_only_removes_deleted_file_entry(self):
-        """削除されたファイルのエントリが ToC から除去される"""
-        # 1. full モードで ToC 作成
-        self._create_pending_entry('rules', 'rules/coding_standards.md', 'Coding Standards')
-        self._run_merge('rules', mode='full')
+        meta = read_meta(self._store_dir(key))
+        self.assertEqual(meta.get("original_key"), key)
 
-        # 2. .toc_work クリア
-        work_dir = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', '.toc_work'
-        )
-        shutil.rmtree(work_dir, ignore_errors=True)
+        content = self._toc_path(key).read_text(encoding='utf-8')
+        # metadata.key 行が original_key と一致
+        self.assertIn(f'key: {self._yaml_key(key)}', content)
 
-        # 3. checksums ファイル作成（削除検知のため）
-        checksums_path = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', '.toc_checksums.yaml'
-        )
-        with open(checksums_path, 'w') as f:
-            f.write('checksums:\n  rules/coding_standards.md: abc123\n')
+    def _yaml_key(self, key):
+        from toc_utils import yaml_escape
+        return yaml_escape(key)
 
-        # 4. ソースファイル削除
-        os.remove(os.path.join(self.tmpdir, 'rules', 'coding_standards.md'))
 
-        # 5. delete-only 実行
-        proc = self._run_merge('rules', delete_only=True)
-        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
+# ===========================================================================
+# deleted 反映（FR-N02-2）
+# ===========================================================================
 
-        # 6. ToC からエントリが消えていること
-        toc_path = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', 'rules_toc.yaml'
-        )
-        with open(toc_path, 'r') as f:
-            content = f.read()
-        self.assertNotIn('rules/coding_standards.md', content)
+class TestDeletedReflection(MergeTestBase):
+    def test_deleted_via_sidecar(self):
+        """サイドカー由来の deleted が toc.yaml から除去される（部分配列 → 残り削除）。"""
+        # 既存 toc に a と c が入っている状態を作る
+        self._write_md("docs/a.md")
+        self._write_md("docs/c.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._write_completed_pending("rules", "docs/c.md")
+        self._run_merge('--key', 'rules')
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertIn("docs/c.md", content)
 
-    def test_delete_only_no_toc_file_fails(self):
-        """ToC ファイルが存在しない場合はエラー"""
-        proc = self._run_merge('rules', delete_only=True)
+        # 今回 desired は a のみ → prepare が c を deleted サイドカーへ。
+        # c.md は実在するが desired から外れる。
+        self._write_completed_pending("rules", "docs/a.md", title="Doc A v2")
+        self._write_sidecar("rules", ["docs/c.md"])
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["counts"]["deleted"], 1)
+        self.assertIn("docs/c.md", obj["deleted_paths"])
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertNotIn("docs/c.md", content)
+        self.assertIn("docs/a.md", content)
+
+    def test_deleted_via_missing_file(self):
+        """実ファイル不在の stale エントリが除去される。"""
+        self._write_md("docs/a.md")
+        self._write_md("docs/gone.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._write_completed_pending("rules", "docs/gone.md")
+        self._run_merge('--key', 'rules')
+        # gone.md を削除し、checksums に残す
+        h = calculate_file_hash(self.project_root / "docs/gone.md")
+        os.remove(self.project_root / "docs/gone.md")
+
+        # 新しい merge: pending は a のみ更新、gone は checksums に残るが不在
+        self._write_completed_pending("rules", "docs/a.md", title="Doc A v2")
+        # checksums に gone を確実に含める（前回 merge が書いたはず）
+        cks = load_checksums(self._store_dir("rules") / CHECKSUMS_FILENAME)
+        self.assertIn("docs/gone.md", cks)
+
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertIn("docs/gone.md", obj["deleted_paths"])
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertNotIn("docs/gone.md", content)
+
+    def test_delete_only_mode(self):
+        """--delete-only で実体不在の stale を除去する（pending を統合しない）。"""
+        self._write_md("docs/a.md")
+        self._write_md("docs/b.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._write_completed_pending("rules", "docs/b.md")
+        self._run_merge('--key', 'rules')
+
+        # b.md を削除
+        os.remove(self.project_root / "docs/b.md")
+        proc = self._run_merge('--key', 'rules', '--delete-only')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertIn("docs/b.md", obj["deleted_paths"])
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertNotIn("docs/b.md", content)
+        self.assertIn("docs/a.md", content)
+
+    def test_delete_only_no_toc_fails(self):
+        """toc.yaml が無い状態の --delete-only は TOC_NOT_FOUND。"""
+        proc = self._run_merge('--key', 'rules', '--delete-only')
         self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "error")
+        self.assertEqual(obj["error_code"], "TOC_NOT_FOUND")
 
 
 # ===========================================================================
-# エラーケース
+# backup → validate → restore 異常系（§6.5、最重要）
 # ===========================================================================
 
-class TestMergeTocErrors(TestMergeTocBase):
-    """エラーケースのテスト。"""
+class TestBackupRestore(MergeTestBase):
+    def _make_invalid_pending(self, key, source_file):
+        """validate を失敗させる pending（必須配列が空）を作る。"""
+        work_dir = self._work_dir(key)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        name = hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16] + '.yaml'
+        # title/purpose はあるが配列が空 → validate_toc が必須配列不正で失敗
+        content = f"""\
+_meta:
+  source_file: {source_file}
+  status: completed
+  updated_at: "2026-01-31T00:00:00Z"
 
-    def test_no_pending_files_fails(self):
-        """pending ファイルがない場合はエラー"""
-        # .toc_work を空で作成
-        work_dir = os.path.join(
-            self.tmpdir, '.claude', 'doc-advisor', 'toc', 'rules', '.toc_work'
-        )
-        os.makedirs(work_dir, exist_ok=True)
-        proc = self._run_merge('rules', mode='full')
+title: Bad Entry
+purpose: Bad purpose
+content_details: []
+applicable_tasks: []
+keywords: []
+"""
+        (work_dir / name).write_text(content, encoding='utf-8')
+        return work_dir / name
+
+    def test_validation_failure_restores_backup(self):
+        """validate 失敗時に .bak から復元され元の toc.yaml が保たれる。"""
+        # まず有効な toc.yaml を作る
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md", title="Good A")
+        self._run_merge('--key', 'rules')
+        good_content = self._toc_path("rules").read_text(encoding='utf-8')
+        good_checksums = load_checksums(self._store_dir("rules") / CHECKSUMS_FILENAME)
+
+        # 次に無効な pending（空配列）で merge → validate 失敗
+        self._write_md("docs/b.md")
+        self._make_invalid_pending("rules", "docs/b.md")
+        proc = self._run_merge('--key', 'rules')
+        self.assertNotEqual(proc.returncode, 0, "validation failure should exit non-zero")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "error")
+        self.assertEqual(obj["error_code"], "INVALID_PATH")
+
+        # toc.yaml は元（good）に復元されている
+        restored = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertEqual(restored, good_content)
+
+    def test_validation_failure_keeps_checksums(self):
+        """validate 失敗時に checksums が据え置かれる。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md", title="Good A")
+        self._run_merge('--key', 'rules')
+        good_checksums = load_checksums(self._store_dir("rules") / CHECKSUMS_FILENAME)
+
+        self._write_md("docs/b.md")
+        self._make_invalid_pending("rules", "docs/b.md")
+        self._run_merge('--key', 'rules')
+
+        after = load_checksums(self._store_dir("rules") / CHECKSUMS_FILENAME)
+        self.assertEqual(after, good_checksums)
+        # b.md は checksums に入っていない（更新されていない）
+        self.assertNotIn("docs/b.md", after)
+
+    def test_validation_failure_preserves_work_dir(self):
+        """validate 失敗時に .toc_work が保持され再実行可能。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md", title="Good A")
+        self._run_merge('--key', 'rules')
+
+        self._write_md("docs/b.md")
+        self._make_invalid_pending("rules", "docs/b.md")
+        self._run_merge('--key', 'rules')
+
+        # work dir が残っている
+        work_dir = self._work_dir("rules")
+        self.assertTrue(work_dir.exists())
+        yamls = [f for f in os.listdir(work_dir)
+                 if f.endswith('.yaml') and not f.startswith('.')]
+        self.assertEqual(len(yamls), 1)
+
+    def test_validation_failure_new_toc_removed(self):
+        """新規生成（backup なし）で validate 失敗時、無効 toc.yaml は除去され不在へ戻る。"""
+        self._write_md("docs/b.md")
+        self._make_invalid_pending("rules", "docs/b.md")
+        proc = self._run_merge('--key', 'rules')
         self.assertNotEqual(proc.returncode, 0)
-
-    def test_pending_not_completed_skipped(self):
-        """status が completed でないエントリはスキップされる"""
-        self._create_pending_entry(
-            'rules', 'rules/coding_standards.md', 'Coding Standards', status='pending'
-        )
-        proc = self._run_merge('rules', mode='full')
-        # エントリが有効でないためエラー（No valid entries）
-        self.assertNotEqual(proc.returncode, 0)
+        # 新規生成だったので toc.yaml は不在に戻る
+        self.assertFalse(self._toc_path("rules").exists())
 
 
 # ===========================================================================
-# write_yaml_output() パラメータ経由テスト（TASK-001: グローバル変数依存排除）
+# 成功時の cleanup（§6.5）
 # ===========================================================================
 
-class TestWriteYamlOutputWithParams(unittest.TestCase):
-    """write_yaml_output() を category / output_config パラメータ経由で呼び出すテスト。
-    グローバル変数に依存せず、パラメータ経由で設定を渡して正常動作することを確認する。
-    """
+class TestSuccessCleanup(MergeTestBase):
+    def test_work_dir_removed_on_success(self):
+        """merge 成功時に .toc_work が削除される。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._run_merge('--key', 'rules')
+        self.assertFalse(self._work_dir("rules").exists())
 
+    def test_checksums_updated_on_success(self):
+        """merge 成功時に checksums が最終 docs から更新される。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._run_merge('--key', 'rules')
+        cks = load_checksums(self._store_dir("rules") / CHECKSUMS_FILENAME)
+        expected = calculate_file_hash(self.project_root / "docs/a.md")
+        self.assertEqual(cks.get("docs/a.md"), expected)
+
+    def test_backup_removed_on_success(self):
+        """成功後に .bak が残らない。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        self._run_merge('--key', 'rules')
+        # 2 回目（backup が作られる経路）
+        self._write_completed_pending("rules", "docs/a.md", title="A v2")
+        self._run_merge('--key', 'rules')
+        bak = self._toc_path("rules").with_name("toc.yaml.bak")
+        self.assertFalse(bak.exists())
+
+
+# ===========================================================================
+# docs 順序の決定性 / 原子的書き込み
+# ===========================================================================
+
+class TestDocsOrderingAndAtomic(unittest.TestCase):
     def setUp(self):
-        if SCRIPTS_DIR not in sys.path:
-            sys.path.insert(0, SCRIPTS_DIR)
         self.tmpdir = tempfile.mkdtemp()
+        self.project_root = Path(self.tmpdir)
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    def test_category_param_used_in_output(self):
-        """category パラメータが ToC ヘッダーに反映される"""
-        from merge_toc import write_yaml_output
-        output_path = Path(os.path.join(self.tmpdir, 'test_toc.yaml'))
+    def test_docs_sorted_by_path(self):
+        """docs が path 昇順で出力される（決定的順序 / FR-N05-2 整合）。"""
         docs = {
-            'rules/test.md': {
-                'title': 'Test',
-                'purpose': 'Test purpose',
-                'doc_type': 'rule',
-                'content_details': ['detail1'],
-                'applicable_tasks': ['task1'],
-                'keywords': ['kw1'],
-            }
+            "docs/zeta.md": {"title": "Z", "purpose": "z",
+                             "content_details": ["x"], "applicable_tasks": ["t"],
+                             "keywords": ["k"]},
+            "docs/alpha.md": {"title": "A", "purpose": "a",
+                              "content_details": ["x"], "applicable_tasks": ["t"],
+                              "keywords": ["k"]},
+            "docs/mid.md": {"title": "M", "purpose": "m",
+                            "content_details": ["x"], "applicable_tasks": ["t"],
+                            "keywords": ["k"]},
         }
-        output_config = {
-            'header_comment': 'Custom Header',
-            'metadata_name': 'Custom Index',
-        }
-        result = write_yaml_output(docs, output_path, category='myrules', output_config=output_config)
-        self.assertTrue(result)
-        content = output_path.read_text(encoding='utf-8')
-        # category がパスとコメントに反映されている
-        self.assertIn('myrules_toc.yaml', content)
-        self.assertIn('Custom Header', content)
-        self.assertIn('Custom Index', content)
-        self.assertIn('create-myrules-toc', content)
+        body = render_toc_yaml(docs, key="rules", toc_rel="x/toc.yaml")
+        i_alpha = body.index("docs/alpha.md")
+        i_mid = body.index("docs/mid.md")
+        i_zeta = body.index("docs/zeta.md")
+        self.assertLess(i_alpha, i_mid)
+        self.assertLess(i_mid, i_zeta)
 
-    def test_output_config_param_overrides_global(self):
-        """output_config パラメータがグローバル変数より優先される"""
-        from merge_toc import write_yaml_output
-        output_path = Path(os.path.join(self.tmpdir, 'test_toc.yaml'))
-        docs = {
-            'specs/api.md': {
-                'title': 'API Spec',
-                'purpose': 'API specification',
-                'doc_type': 'spec',
-                'content_details': ['api detail'],
-                'applicable_tasks': ['api task'],
-                'keywords': ['api'],
-            }
-        }
-        output_config = {
-            'header_comment': 'Overridden Header Comment',
-            'metadata_name': 'Overridden Metadata Name',
-        }
-        result = write_yaml_output(docs, output_path, category='specs', output_config=output_config)
-        self.assertTrue(result)
-        content = output_path.read_text(encoding='utf-8')
-        self.assertIn('Overridden Header Comment', content)
-        self.assertIn('Overridden Metadata Name', content)
+    def test_metadata_has_key(self):
+        """metadata に key が含まれる（§7.2）。"""
+        docs = {"docs/a.md": {"title": "A", "purpose": "a",
+                              "content_details": ["x"], "applicable_tasks": ["t"],
+                              "keywords": ["k"]}}
+        body = render_toc_yaml(docs, key="mykey", toc_rel="x/toc.yaml")
+        self.assertIn("key: mykey", body)
+        self.assertIn("file_count: 1", body)
 
-    def test_docs_content_written_correctly(self):
-        """パラメータ経由でもドキュメントエントリが正しく書き出される"""
-        from merge_toc import write_yaml_output
-        output_path = Path(os.path.join(self.tmpdir, 'test_toc.yaml'))
-        docs = {
-            'rules/coding.md': {
-                'title': 'Coding Standards',
-                'purpose': 'Define coding practices',
-                'doc_type': 'rule',
-                'content_details': ['detail A', 'detail B'],
-                'applicable_tasks': ['coding review'],
-                'keywords': ['coding', 'standards'],
-            }
-        }
-        output_config = {'header_comment': 'Test', 'metadata_name': 'Test Index'}
-        result = write_yaml_output(docs, output_path, category='rules', output_config=output_config)
-        self.assertTrue(result)
-        content = output_path.read_text(encoding='utf-8')
-        self.assertIn('rules/coding.md', content)
-        self.assertIn('doc_type: rule', content)
-        self.assertIn('Coding Standards', content)
-        self.assertIn('file_count: 1', content)
+    def test_atomic_write_creates_file(self):
+        """write_toc_atomic が os.replace 経由でファイルを生成する。"""
+        out = self.project_root / "sub" / "toc.yaml"
+        docs = {"docs/a.md": {"title": "A", "purpose": "a",
+                              "content_details": ["x"], "applicable_tasks": ["t"],
+                              "keywords": ["k"]}}
+        ok = write_toc_atomic(docs, out, key="rules", toc_rel="sub/toc.yaml")
+        self.assertTrue(ok)
+        self.assertTrue(out.exists())
+        # 一時ファイルが残っていない
+        leftovers = [f for f in os.listdir(out.parent) if f.startswith('.toc_')]
+        self.assertEqual(leftovers, [])
+
+
+# ===========================================================================
+# in-process ヘルパ単体
+# ===========================================================================
+
+class TestHelpers(MergeTestBase):
+    def test_load_completed_pendings(self):
+        self._write_completed_pending("rules", "docs/a.md", title="A")
+        self._write_pending_status("rules", "docs/b.md", "pending")
+        entries, errors = load_completed_pendings(self._work_dir("rules"))
+        self.assertIn("docs/a.md", entries)
+        self.assertNotIn("docs/b.md", entries)
+        self.assertTrue(any("docs/b.md" in e or "b.md" in e or "not completed" in e
+                            for e in errors) or len(errors) >= 1)
+
+    def test_load_deleted_sidecar(self):
+        self._write_sidecar("rules", ["docs/x.md", "docs/y.md"])
+        deleted = load_deleted_sidecar(self._work_dir("rules"))
+        self.assertEqual(set(deleted), {"docs/x.md", "docs/y.md"})
+
+    def test_load_deleted_sidecar_missing(self):
+        deleted = load_deleted_sidecar(self._work_dir("rules"))
+        self.assertEqual(deleted, [])
+
+    def test_detect_deleted_combines_sources(self):
+        self._write_md("docs/keep.md")
+        docs = {"docs/keep.md": {}, "docs/stale.md": {}}
+        prev = {"docs/keep.md": "h", "docs/sidecar.md": "h"}
+        deleted = detect_deleted(
+            docs, prev, ["docs/sidecar.md"], self.project_root
+        )
+        # stale（実体不在）と sidecar の両方が deleted
+        self.assertIn("docs/stale.md", deleted)
+        self.assertIn("docs/sidecar.md", deleted)
+        self.assertNotIn("docs/keep.md", deleted)
+
+
+# ===========================================================================
+# JSON 契約（status / error_code enum）
+# ===========================================================================
+
+class TestJsonContract(MergeTestBase):
+    def test_status_and_error_code_enum(self):
+        """status / error_code が enum に含まれる。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("rules", "docs/a.md")
+        proc = self._run_merge('--key', 'rules')
+        obj = self._parse_stdout(proc)
+        self.assertIn(obj["status"], STATUSES)
+        self.assertTrue(obj["error_code"] is None or obj["error_code"] in ERROR_CODES)
+
+    def test_explicit_all_rejected(self):
+        """--key all は KEY_RESERVED で reject。"""
+        proc = self._run_merge('--key', 'all')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["error_code"], "KEY_RESERVED")
+
+    def test_empty_key_rejected(self):
+        """空 key は KEY_EMPTY で reject。"""
+        proc = self._run_merge('--key', '')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["error_code"], "KEY_EMPTY")
+
+    def test_no_targets_when_nothing(self):
+        """pending も既存 toc も無い場合 NO_TARGETS。"""
+        proc = self._run_merge('--key', 'rules')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["error_code"], "NO_TARGETS")
+
+    def test_key_omitted_resolves_all(self):
+        """--key 省略で予約 key all に解決する。"""
+        self._write_md("docs/a.md")
+        self._write_completed_pending("all", "docs/a.md")
+        proc = self._run_merge()
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["key"], "all")
+
+
+# ===========================================================================
+# prepare → write_pending → merge 協調フロー（§13 統合）
+# ===========================================================================
+
+class TestCoordinationFlow(MergeTestBase):
+    def test_prepare_write_pending_merge(self):
+        """prepare → write_pending → merge で toc.yaml が生成される。"""
+        self._write_md("docs/guide.md", content='# Guide\n\nGuide body content here.\n')
+
+        # 1. prepare（key 指定、明示 paths）
+        proc = self._run(
+            PREPARE_SCRIPT, '--key', 'rules', '--paths-json', '["docs/guide.md"]'
+        )
+        self.assertEqual(proc.returncode, 0, f"prepare stderr: {proc.stderr}")
+        prep = self._parse_stdout(proc)
+        self.assertEqual(prep["counts"]["added"], 1)
+
+        # 2. 生成された pending YAML を取得
+        work_dir = self._work_dir("rules")
+        yamls = [f for f in os.listdir(work_dir)
+                 if f.endswith('.yaml') and not f.startswith('.')]
+        self.assertEqual(len(yamls), 1)
+        entry_rel = os.path.relpath(
+            str(work_dir / yamls[0]), str(self.project_root)
+        )
+
+        # 3. write_pending で充填（agent 役）
+        proc = self._run(
+            WRITE_PENDING_SCRIPT, '--key', 'rules',
+            '--entry-file', entry_rel,
+            '--title', 'Guide',
+            '--purpose', 'Guide purpose',
+            '--content-details', 'a ||| b ||| c ||| d ||| e',
+            '--applicable-tasks', 'task1',
+            '--keywords', 'k1 ||| k2 ||| k3 ||| k4 ||| k5',
+        )
+        self.assertEqual(proc.returncode, 0, f"write_pending stderr: {proc.stderr}")
+
+        # 4. merge
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"merge stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertEqual(obj["counts"]["added"], 1)
+
+        # 5. toc.yaml の内容確認
+        docs = load_existing_toc(self._toc_path("rules"))
+        self.assertIn("docs/guide.md", docs)
+        self.assertEqual(docs["docs/guide.md"]["title"], "Guide")
+
+    def test_prepare_deletes_via_sidecar_then_merge(self):
+        """prepare が部分配列で deleted サイドカーを残し、merge が反映する。"""
+        self._write_md("docs/a.md", content='# A\n\nbody a.\n')
+        self._write_md("docs/b.md", content='# B\n\nbody b.\n')
+
+        # 1. a, b 両方を prepare + 充填 + merge して toc に入れる
+        for name in ("docs/a.md", "docs/b.md"):
+            self._write_completed_pending("rules", name, title=name)
+        self._run_merge('--key', 'rules')
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertIn("docs/b.md", content)
+
+        # 2. desired を a のみにして prepare（b はファイル存在のまま desired から外す）
+        proc = self._run(
+            PREPARE_SCRIPT, '--key', 'rules', '--paths-json', '["docs/a.md"]'
+        )
+        self.assertEqual(proc.returncode, 0, f"prepare stderr: {proc.stderr}")
+        prep = self._parse_stdout(proc)
+        self.assertEqual(prep["counts"]["deleted"], 1)
+
+        # 3. merge（a は unchanged で pending なし、b は sidecar で削除）
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"merge stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertIn("docs/b.md", obj["deleted_paths"])
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertNotIn("docs/b.md", content)
+        self.assertIn("docs/a.md", content)
 
 
 if __name__ == '__main__':

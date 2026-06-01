@@ -1,101 +1,69 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ToC 検査スクリプト（rules / specs 共通）
+ToC 検査スクリプト（doc-advisor plugin / key + path I/F）
 
-生成された {category}_toc.yaml の整合性を検査する。
+DES-005 §7.1（doc_type 必須撤廃）/ §4.1（モジュール）/ §3.2（ストア構造）/
+§8（JSON 出力契約）を実装する。
+
+key で解決した store_dir/toc.yaml の整合性を検査する。doc_type は必須としない。
 
 使用方法:
-    python3 validate_toc.py --category rules|specs [--file PATH]
+    python3 validate_toc.py --key K [--file PATH]
+    python3 validate_toc.py --all [--file PATH]
 
 オプション:
-    --category  検査対象カテゴリ（rules または specs）
-    --file      検査対象ファイル（デフォルト: .claude/doc-advisor/toc/{category}/{category}_toc.yaml）
+    --key   検査対象 key（opaque）
+    --all   単体モード（予約 key all）。--key 省略も同義
+    --file  検査対象ファイル（デフォルト: store_dir/toc.yaml）
 
 検査項目:
     1. ファイル読み込み検査
-    2. 必須フィールド検査
+    2. 必須フィールド検査（title/purpose + content_details/applicable_tasks/keywords）
     3. ファイル参照検査
-    4. 重複パス検査
 """
 
 import sys
 import argparse
 from pathlib import Path
 
-from toc_utils import get_project_root, load_config, resolve_config_path, validate_path_within_base, expand_root_dir_globs, load_existing_toc, log
+from toc_utils import (
+    get_project_root,
+    validate_path_within_base,
+    load_existing_toc,
+    log,
+)
+from toc_store import (
+    KeyError_,
+    ErrorCode,
+    STATUS_OK,
+    STATUS_ERROR,
+    resolve_store_dir,
+    resolve_key_from_args,
+    emit_json,
+    toc_path_rel,
+)
 
-# Global configuration (initialized in init_config())
-CATEGORY = None  # 'rules' or 'specs'
-CONFIG = None
-PROJECT_ROOT = None
-CATEGORY_DIR = None
-DEFAULT_TOC_FILE = None
 
-
-def init_config(category):
+def validate_toc(toc_path, *, project_root=None):
     """
-    Initialize configuration for the given category.
+    生成された toc.yaml を検査する（DES-005 §7.1: doc_type 必須なし）
 
-    Args:
-        category: 'rules' or 'specs'
-
-    Returns:
-        bool: True on success, False on failure
-    """
-    global CATEGORY, CONFIG, PROJECT_ROOT, CATEGORY_DIR, DEFAULT_TOC_FILE
-
-    CATEGORY = category
-
-    try:
-        CONFIG = load_config(category)
-        PROJECT_ROOT = get_project_root()
-    except RuntimeError as e:
-        log(f"Error: {e}")
-        return False
-    except FileNotFoundError as e:
-        log(f"Error: {e}")
-        return False
-
-    root_dirs_config = CONFIG.get('root_dirs', [f'{category}/'])
-    if isinstance(root_dirs_config, str):
-        root_dirs_config = [root_dirs_config]
-    # Expand glob patterns in root_dirs (e.g., "specs/*/requirements/")
-    root_dirs_config = expand_root_dir_globs(root_dirs_config, PROJECT_ROOT)
-    # root_dirs_config が空の場合は PROJECT_ROOT / category をフォールバックとして使用する
-    CATEGORY_DIR = (
-        PROJECT_ROOT / root_dirs_config[0].rstrip('/')
-        if root_dirs_config
-        else PROJECT_ROOT / category
-    )
-    DEFAULT_TOC_FILE = resolve_config_path(
-        CONFIG.get('toc_file', f'{category}_toc.yaml'), CATEGORY_DIR, PROJECT_ROOT
-    )
-    return True
-
-
-def validate_toc(toc_path, *, category=None, project_root=None):
-    """
-    生成された toc ファイルを検査する
-    - YAML構文検査
-    - 必須フィールド検査
+    - ファイル読み込み検査
+    - 必須フィールド検査（title/purpose + 3 配列。doc_type は必須としない）
     - ファイル参照検査
-    - 重複パス検査
 
     Args:
         toc_path: 検査対象の ToC ファイルパス
-        category: カテゴリ名（省略時はグローバル変数 CATEGORY にフォールバック）
-        project_root: プロジェクトルートパス（省略時はグローバル変数 PROJECT_ROOT にフォールバック）
-    """
-    _category = category if category is not None else CATEGORY
-    _project_root = project_root if project_root is not None else PROJECT_ROOT
+        project_root: プロジェクトルートパス（省略時は get_project_root()）
 
-    if _project_root is None:
-        print("Error: project_root が未設定です。init_config() を先に実行するか、project_root パラメータを指定してください。", file=sys.stderr)
-        return False
+    Returns:
+        bool: 全チェック OK で True
+    """
+    _project_root = project_root if project_root is not None else get_project_root()
 
     log("=" * 50)
-    log(f"{_category}_toc.yaml 検査")
+    log("toc.yaml 検査")
     log("=" * 50)
     log(f"対象: {toc_path}")
     log()
@@ -128,11 +96,12 @@ def validate_toc(toc_path, *, category=None, project_root=None):
     else:
         log("✓ docs セクション検査: OK")
 
-    # 2. 必須フィールド検査
-    # title/purpose/doc_type が必須（文字列）
+    # 2. 必須フィールド検査（DES-005 §7.1）
+    # title/purpose が必須（文字列）
     # content_details/applicable_tasks/keywords が必須（非空配列）
-    # フォーマット定義: No null, No empty arrays ({CATEGORY}_toc_format.md)
-    required_string_fields = ['title', 'purpose', 'doc_type']
+    # doc_type は必須から除外する（category 廃止により doc_type 自動分類が成立しないため）
+    # フォーマット定義: No null, No empty arrays (formats/toc_format.md)
+    required_string_fields = ['title', 'purpose']
     required_array_fields = ['content_details', 'applicable_tasks', 'keywords']
     field_errors = []
 
@@ -154,7 +123,7 @@ def validate_toc(toc_path, *, category=None, project_root=None):
         errors.extend(field_errors)
 
     # 3. ファイル参照検査
-    # キーはプロジェクトルートからの相対パス（例: {category}/core/doc.md）
+    # キーはプロジェクトルートからの相対パス
     file_errors = []
     for file_path in docs.keys():
         try:
@@ -184,41 +153,81 @@ def validate_toc(toc_path, *, category=None, project_root=None):
         return True
 
 
-def parse_args():
+def parse_args(argv=None):
     """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
-        description='Validate generated ToC YAML file'
+        description='Validate generated ToC YAML file (key + path I/F)'
     )
-    parser.add_argument('--category', required=True, choices=['rules', 'specs'],
-                        help='検査対象カテゴリ: rules or specs')
+    parser.add_argument('--key', help='検査対象 key（opaque）')
+    parser.add_argument('--all', action='store_true',
+                        help="単体モード（予約 key 'all'）。--key 省略も同義")
     parser.add_argument('--file', default=None,
-                        help='検査対象ファイルパス（デフォルト: 設定から自動解決）')
-    return parser.parse_args()
+                        help='検査対象ファイルパス（デフォルト: store_dir/toc.yaml）')
+    return parser.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
 
-    # Initialize configuration
-    if not init_config(args.category):
+    project_root = get_project_root()
+
+    # key 解決（--all / --key 省略 → 予約 all、--key all → KEY_RESERVED）
+    try:
+        key = resolve_key_from_args(args)
+    except KeyError_ as e:
+        emit_json(STATUS_ERROR, error_code=e.error_code, message=str(e))
         return 1
 
-    # --file オプションの処理
-    toc_path = DEFAULT_TOC_FILE
+    store_dir = resolve_store_dir(key, project_root)
+    toc_rel = toc_path_rel(store_dir, project_root)
+
+    # --file 指定があれば優先、なければ store_dir/toc.yaml
     if args.file:
         toc_path = Path(args.file)
         try:
-            toc_path = validate_path_within_base(toc_path, PROJECT_ROOT)
+            toc_path = validate_path_within_base(toc_path, project_root)
         except ValueError:
-            log(f"エラー: 不正なパス: {toc_path}")
+            emit_json(
+                STATUS_ERROR,
+                error_code=ErrorCode.PATH_TRAVERSAL,
+                message=f"不正なパス: {args.file}",
+                key=key,
+                toc_path=toc_rel,
+            )
             return 1
+    else:
+        toc_path = store_dir / "toc.yaml"
 
     if not toc_path.exists():
-        log(f"エラー: ファイルが存在しません: {toc_path}")
+        emit_json(
+            STATUS_ERROR,
+            error_code=ErrorCode.TOC_NOT_FOUND,
+            message=f"ファイルが存在しません: {toc_path}",
+            key=key,
+            toc_path=toc_rel,
+        )
         return 1
 
-    success = validate_toc(toc_path)
-    return 0 if success else 1
+    success = validate_toc(toc_path, project_root=project_root)
+
+    if success:
+        emit_json(
+            STATUS_OK,
+            error_code=None,
+            message="ToC validation passed",
+            key=key,
+            toc_path=toc_rel,
+        )
+        return 0
+
+    emit_json(
+        STATUS_ERROR,
+        error_code=ErrorCode.INVALID_PATH,
+        message="ToC validation failed",
+        key=key,
+        toc_path=toc_rel,
+    )
+    return 1
 
 
 if __name__ == '__main__':

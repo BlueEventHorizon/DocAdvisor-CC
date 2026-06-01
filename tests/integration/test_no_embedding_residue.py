@@ -46,7 +46,7 @@ QUERY_SKILL_FORBIDDEN = [
     "OPENAI",
 ]
 
-QUERY_SKILLS = ["query-rules", "query-specs"]
+QUERY_SKILLS = ["query-docs"]
 
 
 class TestNoEmbeddingResidue(unittest.TestCase):

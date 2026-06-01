@@ -8,10 +8,7 @@
   "repository": "https://github.com/BlueEventHorizon/DocAdvisor",
   "keywords": ["doc-advisor", "search", "toc", "documentation"],
   "skills": [
-    "./skills/setup-doc-structure",
-    "./skills/create-rules-toc",
-    "./skills/create-specs-toc",
-    "./skills/query-rules",
-    "./skills/query-specs"
+    "./skills/index-docs",
+    "./skills/query-docs"
   ]
 }

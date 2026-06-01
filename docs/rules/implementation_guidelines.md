@@ -98,7 +98,7 @@ SKILL.md からの参照には `${CLAUDE_SKILL_DIR}` または `${CLAUDE_PLUGIN_
 
 設計書は実装変更時に追従更新する。実装と設計が乖離したまま放置しない。
 
-- ADR の配置先: `docs/specs/doc-advisor/design/ADR-{NNN}_{topic}.md`
+- ADR の配置先: `docs/specs/base/design/ADR-{NNN}_{topic}.md`
 - 設計書の更新は **コードと同一 PR** で行うのが原則
 - 大きな構造変更は専用の `DES-{NNN}` 設計書を立て、`README.md` / `CLAUDE.md` の説明とも整合させる
 
