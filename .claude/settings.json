@@ -140,10 +140,8 @@
       "mcp__gemini-cli__ask-gemini",
       "mcp__codex__codex",
 
-      "Skill(create-rules-toc)",
-      "Skill(create-specs-toc)",
-      "Skill(query-rules)",
-      "Skill(query-specs)",
+      "Skill(index-docs)",
+      "Skill(query-docs)",
 
       "Bash(python3 scripts/*)",
       "Bash(python3 -m unittest *)",

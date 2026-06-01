@@ -15,13 +15,13 @@ NC='\033[0m' # No Color (リセット)
 
 ## 色の使い分け
 
-| 色       | 用途                              | 例                         |
-| -------- | --------------------------------- | -------------------------- |
-| **緑**   | 成功メッセージ、ヘッダー/フッター | `Setup Complete`, バナー   |
-| **青**   | 設定値、パス、変数の値            | `RULES_DIR: rules`         |
-| **黄**   | ユーザーが実行すべきコマンド      | `/create-rules-toc --full` |
-| **赤**   | 警告、エラー、注意が必要な情報    | `python3 may be wrapped`   |
-| **なし** | ラベル、説明文、通常のテキスト    | `Configuration:`           |
+| 色       | 用途                              | 例                       |
+| -------- | --------------------------------- | ------------------------ |
+| **緑**   | 成功メッセージ、ヘッダー/フッター | `Setup Complete`, バナー |
+| **青**   | 設定値、パス、変数の値            | `RULES_DIR: rules`       |
+| **黄**   | ユーザーが実行すべきコマンド      | `/index-docs --all`      |
+| **赤**   | 警告、エラー、注意が必要な情報    | `python3 may be wrapped` |
+| **なし** | ラベル、説明文、通常のテキスト    | `Configuration:`         |
 
 ## 出力パターン
 
@@ -52,8 +52,8 @@ echo -e "${RED}Warning: File not found${NC}"
 
 ```bash
 echo "Next steps:"
-echo -e "  1. Run ${YELLOW}/create-rules-toc --full${NC} for initial ToC generation"
-echo -e "  2. Run ${YELLOW}/create-specs-toc --full${NC} for initial ToC generation"
+echo -e "  1. Run ${YELLOW}/index-docs --key rules${NC} for initial ToC generation"
+echo -e "  2. Run ${YELLOW}/index-docs --key specs${NC} for initial ToC generation"
 ```
 
 ### 成功メッセージ（緑）

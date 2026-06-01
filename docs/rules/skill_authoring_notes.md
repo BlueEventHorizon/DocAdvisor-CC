@@ -202,11 +202,11 @@ SKILL 内から自身を `Skill` ツールで呼ぶ・「`/<self-skill>` を実�
 
 特に「作業着手前に毎回呼ばれる」以下 SKILL は、SKILL.md 冒頭に明示すること:
 
-- `doc-advisor:query-rules` / `doc-advisor:query-specs`
+- `doc-advisor:query-docs`
 
 ```markdown
-> - ❌ 禁止: `Skill` ツールで `query-rules` / `query-specs` を呼ぶこと（無限再帰でハーネスが詰まる）
-> - ❌ 禁止: 「`/query-rules` を実行します」のように自身を再起動すること
+> - ❌ 禁止: `Skill` ツールで `query-docs` を呼ぶこと（無限再帰でハーネスが詰まる）
+> - ❌ 禁止: 「`/query-docs` を実行します」のように自身を再起動すること
 ```
 
 ---

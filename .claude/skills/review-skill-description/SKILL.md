@@ -56,7 +56,7 @@ SKILL.md の description フィールドと frontmatter を、Claude Code 公式
 
 - 同一プラグイン内・プラグイン間で役割が似たスキルと区別できるか
 - 差分が description から明確に読み取れるか
-- 例: query-rules（プロジェクト文書）vs query-forge-rules（forge 内蔵 docs）
+- 例: query-docs（プロジェクト文書）vs query-forge-rules（forge 内蔵 docs）
 
 ### 5. user-invocable / disable-model-invocation の整合性
 
