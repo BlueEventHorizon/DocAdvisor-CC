@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""validate_toc.py のユニットテスト（key + path I/F / DES-006 §7.1）。
+"""validate_toc.py のユニットテスト（key + path I/F / DES-005 §7.1）。
 
 doc_type 廃止・key ストアパス対応に合わせて改修。
 
@@ -90,7 +90,7 @@ class TestValidateTocBase(unittest.TestCase):
 
 
 class TestValidateTocFields(TestValidateTocBase):
-    """必須フィールド検査（doc_type なし / DES-006 §7.1）"""
+    """必須フィールド検査（doc_type なし / DES-005 §7.1）"""
 
     def test_valid_toc_without_doc_type(self):
         """doc_type なしの正常な ToC → exit code 0 / status ok"""
@@ -166,7 +166,7 @@ docs:
                             f"keywords 欠落で exit 0。stdout: {result.stdout}")
 
     def test_doc_type_not_required(self):
-        """doc_type が無くても valid（doc_type は必須から除外 / DES-006 §7.1）"""
+        """doc_type が無くても valid（doc_type は必須から除外 / DES-005 §7.1）"""
         test_file = os.path.join(self.project_root, 'docs', 'test.md')
         with open(test_file, 'w') as f:
             f.write('# Test\n\nContent.\n')
@@ -396,7 +396,7 @@ docs:
         self.assertFalse(result)
 
     def test_doc_type_not_required_with_params(self):
-        """doc_type フィールドが無くても valid（DES-006 §7.1）"""
+        """doc_type フィールドが無くても valid（DES-005 §7.1）"""
         from validate_toc import validate_toc
         toc_content = """\
 docs:

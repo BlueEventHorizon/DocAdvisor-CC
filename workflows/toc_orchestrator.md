@@ -12,8 +12,8 @@ Orchestrator workflow to generate/update a key's ToC at
 `.claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml` from a `key` and a set of
 project-root-relative `paths` (the complete desired state for that key).
 
-> **Reference**: DES-006 §6.1 (prepare/merge 2-phase), §6.5 (backup/restore), §6.6 (continuation),
-> §9 (single mode), §10 (SKILL/agent). REQ-004 FR-N02 / FR-N04 / FR-N07.
+> **Reference**: DES-005 §6.1 (prepare/merge 2-phase), §6.5 (backup/restore), §6.6 (continuation),
+> §9 (single mode), §10 (SKILL/agent). REQ-001 FR-N02 / FR-N04 / FR-N07.
 
 The orchestrator does **not** read `.doc_structure.yaml` and does **not** classify documents into
 `rules` / `specs` categories. The document set is decided by an upper layer (forge etc.) and passed
@@ -64,7 +64,7 @@ key's `store_dir`, so multiple keys never collide.
 
 ## Orchestrator Processing Flow
 
-### Phase 0: Continuation determination (per key, DES-006 §6.6)
+### Phase 0: Continuation determination (per key, DES-005 §6.6)
 
 Before preparing, decide whether to resume an interrupted run for the target key. Determine the
 key's `store_dir` (from a prior `prepare`/`merge` JSON, or by resolving the key once) and check
@@ -80,7 +80,7 @@ key's `store_dir` (from a prior `prepare`/`merge` JSON, or by resolving the key 
 > `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`).
 > This is an abnormal-recovery action; confirm with the user before discarding filled work.
 
-### Phase 1: prepare (desired-state diff + pending generation, DES-006 §6.1 / §6.2)
+### Phase 1: prepare (desired-state diff + pending generation, DES-005 §6.1 / §6.2)
 
 ```bash
 # key specified (upper-layer driven)
@@ -153,7 +153,7 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
 5. If pending files remain → Return to step 1
 ```
 
-### Phase 3: Merge (integration + deletion reflection, DES-006 §6.5)
+### Phase 3: Merge (integration + deletion reflection, DES-005 §6.5)
 
 `merge_toc.py` performs backup → atomic write (`os.replace`) → validate, and **internally completes**
 checksums update + `.toc_work/` removal on success / backup restore + checksums kept + `.toc_work/`

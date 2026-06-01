@@ -3,10 +3,10 @@
 """
 merge_toc.py — 充填済み pending を統合し toc.yaml を書き出す（doc-advisor plugin / key + path I/F）
 
-DES-006 §6.1（prepare/merge 2 フェーズ）/ §6.2（差分検出）/ §6.3（破壊性）/
+DES-005 §6.1（prepare/merge 2 フェーズ）/ §6.2（差分検出）/ §6.3（破壊性）/
 §6.5（バックアップと異常系: backup → validate → restore）/ §6.6（continuation）/
 §7.1（toc.yaml スキーマ: doc_type なし）/ §7.2（metadata.key 転記）/ §8（JSON 契約）/
-§4.1（モジュール）を実装する。base/DES-005 Phase 3/4 の挙動を key 単位ストアで踏襲する。
+§4.1（モジュール）を実装する。DES-005 §6.5 の挙動を key 単位ストアで踏襲する。
 
 責務（決定的処理。メタデータ抽出はしない / FR-N07-1）:
 - key 解決（toc_store.resolve_key_from_args。--all / --key 省略 → 予約 all、--key all → reject）
@@ -71,17 +71,17 @@ TOC_FILENAME = "toc.yaml"
 # backup ファイル名（§6.5: toc.yaml.bak）
 BACKUP_SUFFIX = ".bak"
 
-# ToC エントリのスカラ / 配列フィールド描画順（DES-006 §7.1: doc_type なし）
+# ToC エントリのスカラ / 配列フィールド描画順（DES-005 §7.1: doc_type なし）
 SCALAR_FIELDS = ("title", "purpose")
 LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
 
 
 # ---------------------------------------------------------------------------
-# toc.yaml 書き出し（DES-006 §7.1 / §7.2 / §6.5 原子的書き込み）
+# toc.yaml 書き出し（DES-005 §7.1 / §7.2 / §6.5 原子的書き込み）
 # ---------------------------------------------------------------------------
 
 def render_toc_yaml(docs, *, key, toc_rel):
-    """docs を toc.yaml の文字列として描画する（DES-006 §7.1 / §7.2）。
+    """docs を toc.yaml の文字列として描画する（DES-005 §7.1 / §7.2）。
 
     docs 順序は **path のソート順** で決定的に出力する（FR-N05-2 整合）。
     get_toc は toc.yaml の定義順をそのまま保持するため、ここでの出力順が
@@ -130,7 +130,7 @@ def render_toc_yaml(docs, *, key, toc_rel):
 
 
 def write_toc_atomic(docs, toc_path, *, key, toc_rel):
-    """toc.yaml を原子的に書き出す（DES-006 §6.5 / 旧 write_yaml_output の os.replace 流用）。
+    """toc.yaml を原子的に書き出す（DES-005 §6.5 / 旧 write_yaml_output の os.replace 流用）。
 
     一時ファイルへ書き込んでから os.replace で置換し、書き込み途中の破損を防ぐ。
 
@@ -166,7 +166,7 @@ def write_toc_atomic(docs, toc_path, *, key, toc_rel):
 
 
 # ---------------------------------------------------------------------------
-# pending 統合（DES-006 §6.1）
+# pending 統合（DES-005 §6.1）
 # ---------------------------------------------------------------------------
 
 def load_completed_pendings(work_dir):
@@ -216,11 +216,11 @@ def load_completed_pendings(work_dir):
 
 
 # ---------------------------------------------------------------------------
-# 削除検出（DES-006 §6.2 / FR-N02-2）
+# 削除検出（DES-005 §6.2 / FR-N02-2）
 # ---------------------------------------------------------------------------
 
 def load_deleted_sidecar(work_dir):
-    """prepare が残した deleted サイドカー（.deleted.json）を読む（DES-006 §6.1 / §6.2）。
+    """prepare が残した deleted サイドカー（.deleted.json）を読む（DES-005 §6.1 / §6.2）。
 
     prepare は `deleted = prev.keys() - desired` を算出し、本サイドカーへ JSON 配列で
     書き出す。merge はこれを desired-state の削除の正として反映する（FR-N02-2）。
@@ -246,7 +246,7 @@ def load_deleted_sidecar(work_dir):
 
 
 def detect_deleted(docs, prev_checksums, sidecar_deleted, project_root):
-    """toc.yaml から除去すべき path を算出する（DES-006 §6.2 / FR-N02-2）。
+    """toc.yaml から除去すべき path を算出する（DES-005 §6.2 / FR-N02-2）。
 
     desired-state モデルの削除は 2 つの源から決まる:
       1. prepare が算出し `.deleted.json` サイドカーへ残した deleted
@@ -277,7 +277,7 @@ def detect_deleted(docs, prev_checksums, sidecar_deleted, project_root):
 
 
 # ---------------------------------------------------------------------------
-# checksums 再計算（DES-006 §6.2 / FR-N02-6）
+# checksums 再計算（DES-005 §6.2 / FR-N02-6）
 # ---------------------------------------------------------------------------
 
 def compute_checksums_for_docs(docs, project_root):
@@ -303,7 +303,7 @@ def compute_checksums_for_docs(docs, project_root):
 
 
 # ---------------------------------------------------------------------------
-# backup / restore（DES-006 §6.5 / base/DES-005 Phase 3/4）
+# backup / restore（DES-005 §6.5）
 # ---------------------------------------------------------------------------
 
 def backup_toc(toc_path):
@@ -376,7 +376,7 @@ def remove_backup(backup_path):
 
 
 # ---------------------------------------------------------------------------
-# merge コア（DES-006 §6.1 / §6.5）
+# merge コア（DES-005 §6.1 / §6.5）
 # ---------------------------------------------------------------------------
 
 def run_merge(store_dir, key, project_root, *, delete_only=False):
@@ -552,8 +552,8 @@ def main(argv=None):
 
     # 通常 merge で work dir も既存 toc も無ければ統合対象が無い。
     # ただし prepare が「desired 0 件（空 repo / 対象 0 件）」を検出して空意図サイドカーを
-    # 残していれば、それは「空 ToC を冪等出力すべき」意図（DES-006 §9.2 / §9.3 /
-    # REQ-004 NFR-N05 / 受け入れ基準）であり、NO_TARGETS にせず空 toc.yaml を出力する。
+    # 残していれば、それは「空 ToC を冪等出力すべき」意図（DES-005 §9.2 / §9.3 /
+    # REQ-001 NFR-N05 / 受け入れ基準）であり、NO_TARGETS にせず空 toc.yaml を出力する。
     # 空意図サイドカーが無い（= prepare 未実行で何も準備されていない）場合のみ NO_TARGETS。
     work_dir = store_dir / WORK_DIRNAME
     if not args.delete_only:

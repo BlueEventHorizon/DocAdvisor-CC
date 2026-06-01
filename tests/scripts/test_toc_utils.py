@@ -399,7 +399,7 @@ class TestGetProjectRoot(unittest.TestCase):
 class TestValidatePathWithinBase(unittest.TestCase):
     """validate_path_within_base() の traversal 検証テスト。
 
-    DES-006 §5.1 / §5.2 で本関数は traversal 専用として流用し、
+    DES-005 §5.1 / §5.2 で本関数は traversal 専用として流用し、
     docstring・論理パス検証ポリシーは変更しない。symlink 厳格化は
     resolve_within_root が担う（両者を分離）。本クラスは流用元の
     挙動が不変であることを固定する。
@@ -428,7 +428,7 @@ class TestValidatePathWithinBase(unittest.TestCase):
 
 
 # ===========================================================================
-# resolve_within_root テスト（新規 symlink 実体解決 / DES-006 §5.2）
+# resolve_within_root テスト（新規 symlink 実体解決 / DES-005 §5.2）
 # ===========================================================================
 
 class TestResolveWithinRoot(unittest.TestCase):
@@ -482,7 +482,7 @@ class TestResolveWithinRoot(unittest.TestCase):
 
 
 # ===========================================================================
-# validate_path テスト（検証フロー 6 系統 / DES-006 §5.1）
+# validate_path テスト（検証フロー 6 系統 / DES-005 §5.1）
 # ===========================================================================
 
 class TestValidatePath(unittest.TestCase):
@@ -581,7 +581,7 @@ class TestValidatePath(unittest.TestCase):
 
 
 # ===========================================================================
-# detect_case_collisions テスト（大小衝突 warning / DES-006 §5.2）
+# detect_case_collisions テスト（大小衝突 warning / DES-005 §5.2）
 # ===========================================================================
 
 class TestDetectCaseCollisions(unittest.TestCase):

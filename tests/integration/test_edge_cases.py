@@ -10,7 +10,7 @@ test_edge_cases.sh からの移行:
 - 存在しないディレクトリでクラッシュしないこと
 
 注: 旧 doc_structure 依存のテスト（load_config / expand_root_dir_globs /
-init_common_config / ConfigNotReadyError）は REQ-004 §6.2 の clean break で
+init_common_config / ConfigNotReadyError）は REQ-001 §6.2 の clean break で
 当該ロジックが削除されたため除去済み（TASK-008）。
 """
 

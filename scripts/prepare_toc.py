@@ -3,7 +3,7 @@
 """
 prepare_toc.py — desired-state 差分検出 + pending YAML 生成（doc-advisor plugin / key + path I/F）
 
-DES-006 §5.1（検証フロー）/ §5.3（単体モード走査）/ §6.1（prepare/merge 2 フェーズ）/
+DES-005 §5.1（検証フロー）/ §5.3（単体モード走査）/ §6.1（prepare/merge 2 フェーズ）/
 §6.2（差分検出アルゴリズム）/ §6.3（破壊性）/ §6.4（work file 名）/ §9（単体モード）/
 §8（JSON 出力契約）/ §4.1（モジュール）を実装する。
 
@@ -68,7 +68,7 @@ from toc_store import (
 # 単体モード（--all）の最大ファイル数 warning 閾値（NFR-N05 / TBD-001 確定値 = 100 件）
 MAX_FILES_WARN_THRESHOLD = 100
 
-# 単体モード固定除外リスト（REQ-004 §6.4 / DES-006 §9.1）。
+# 単体モード固定除外リスト（DES-005 §9.1）。
 # should_exclude はディレクトリ名完全一致 / path 部分文字列マッチで適用する。
 # 生成済み ToC / work files は STORE_ROOT_REL（.claude/doc-advisor/...）配下にあり、
 # ".claude" 除外で同時にカバーされる。
@@ -91,7 +91,7 @@ SYSTEM_EXCLUDE_PATTERNS = [
 # Markdown 走査グロブ（単体モード）
 MARKDOWN_GLOB = "**/*.md"
 
-# pending YAML テンプレート（DES-006 §7.1: doc_type を除去）
+# pending YAML テンプレート（DES-005 §7.1: doc_type を除去）
 PENDING_TEMPLATE = """_meta:
   source_file: {source_file}
   status: pending
@@ -106,7 +106,7 @@ keywords: []
 
 
 # ---------------------------------------------------------------------------
-# has_substantive_content（旧 create_pending_yaml.py から転用 / DES-006 §12）
+# has_substantive_content（旧 create_pending_yaml.py から転用 / DES-005 §12）
 # ---------------------------------------------------------------------------
 
 def has_substantive_content(filepath, min_content_lines=1):
@@ -163,11 +163,11 @@ def has_substantive_content(filepath, min_content_lines=1):
 
 
 # ---------------------------------------------------------------------------
-# work file 名（DES-006 §6.4: sha256(source)[:16].yaml）
+# work file 名（DES-005 §6.4: sha256(source)[:16].yaml）
 # ---------------------------------------------------------------------------
 
 def get_yaml_filename(source_file):
-    """source_file から pending YAML のファイル名を生成する（DES-006 §6.4）。
+    """source_file から pending YAML のファイル名を生成する（DES-005 §6.4）。
 
     SHA256 ハッシュを用いることで以下を回避する:
     - ファイル名長制限（macOS 255 bytes）
@@ -180,7 +180,7 @@ def get_yaml_filename(source_file):
 
 
 def create_pending_yaml(source_file, work_dir):
-    """pending YAML ファイルを生成する（DES-006 §7.1: doc_type なし）。
+    """pending YAML ファイルを生成する（DES-005 §7.1: doc_type なし）。
 
     Args:
         source_file: project-root-relative の source file path
@@ -201,7 +201,7 @@ def create_pending_yaml(source_file, work_dir):
 
 
 # ---------------------------------------------------------------------------
-# paths 検証（DES-006 §5.1 / FR-N03）
+# paths 検証（DES-005 §5.1 / FR-N03）
 # ---------------------------------------------------------------------------
 
 def validate_paths(paths, project_root):
@@ -237,11 +237,11 @@ def validate_paths(paths, project_root):
 
 
 # ---------------------------------------------------------------------------
-# 単体モード走査（DES-006 §5.3 / §9.1 / FR-N04）
+# 単体モード走査（DES-005 §5.3 / §9.1 / FR-N04）
 # ---------------------------------------------------------------------------
 
 def collect_all_markdown(project_root):
-    """project root 以下の Markdown を単体モードで収集する（DES-006 §9.1 / §5.3）。
+    """project root 以下の Markdown を単体モードで収集する（DES-005 §9.1 / §5.3）。
 
     1. rglob_follow_symlinks で **/*.md を列挙
     2. 固定除外（SYSTEM_EXCLUDE_PATTERNS）を should_exclude で適用
@@ -276,11 +276,11 @@ def collect_all_markdown(project_root):
 
 
 # ---------------------------------------------------------------------------
-# desired-state 差分検出（DES-006 §6.2）
+# desired-state 差分検出（DES-005 §6.2）
 # ---------------------------------------------------------------------------
 
 def compute_diff(desired_paths, prev_checksums, project_root):
-    """desired-state 差分を算出する（DES-006 §6.2）。
+    """desired-state 差分を算出する（DES-005 §6.2）。
 
     Args:
         desired_paths: 検証済み desired path のリスト（project-root-relative）
@@ -422,7 +422,7 @@ def main(argv=None):
             return 1
         desired_paths, rejected_paths = validate_paths(input_paths, project_root)
 
-    # 3. 大小衝突 warning（§5.2 / REQ-004 §6.1）
+    # 3. 大小衝突 warning（§5.2 / REQ-001 §6.1）
     warnings = detect_case_collisions(desired_paths)
 
     # 最大ファイル数超過 warning（単体モード / NFR-N05 / TBD-001 = 100）
@@ -468,7 +468,7 @@ def main(argv=None):
     created = []
     failed = 0
 
-    # desired 0 件（空 repo / 対象 0 件）= 空 ToC を意図する状態（DES-006 §9.2 / NFR-N05）。
+    # desired 0 件（空 repo / 対象 0 件）= 空 ToC を意図する状態（DES-005 §9.2 / NFR-N05）。
     # この場合 merge へ「空 toc.yaml を冪等出力すべき」意図を空意図サイドカーで引き渡す。
     # これにより「prepare 実行済みで desired 0 件」と「prepare 未実行（NO_TARGETS）」を
     # merge が痕跡で区別できる（§9.3 の対象 0 件分岐）。

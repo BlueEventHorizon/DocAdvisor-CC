@@ -28,7 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # COMMON-DES-001 §4 規定リスト: fork 型 SKILL（context: fork 必須）
-# new-if（REQ-004 §6.2）で旧 query-rules / query-specs を廃止し、
+# new-if（REQ-001 §6.2）で旧 query-rules / query-specs を廃止し、
 # 汎用検索 SKILL query-docs（fork / read-only、base/ADR-002 継承）へ一本化。
 FORK_TARGET_SKILLS = [
     REPO_ROOT / 'skills' / 'query-docs' / 'SKILL.md',

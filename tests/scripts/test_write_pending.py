@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""write_pending.py のユニットテスト（key + path I/F / DES-006 §7.1）。
+"""write_pending.py のユニットテスト（key + path I/F / DES-005 §7.1）。
 
 doc_type 廃止・--key 対応に合わせて改修。
 - pending YAML（store_dir/.toc_work/ 配下、doc_type なし）への充填
@@ -65,7 +65,7 @@ class TestWritePendingBase(unittest.TestCase):
                 os.environ[key] = val
 
     def _create_pending_yaml(self, source_file):
-        """pending YAML ファイルを作成し、パスを返す（doc_type なし / DES-006 §7.1）。"""
+        """pending YAML ファイルを作成し、パスを返す（doc_type なし / DES-005 §7.1）。"""
         from toc_store import resolve_store_dir, WORK_DIRNAME
         work_dir = resolve_store_dir(self.KEY, self.tmpdir) / WORK_DIRNAME
         safe_name = source_file.replace('/', '_').replace('.', '_') + '.yaml'
@@ -134,7 +134,7 @@ class TestWritePendingNormal(TestWritePendingBase):
         self.assertIn('status: completed', content)
 
     def test_no_doc_type_in_output(self):
-        """書き込み後の出力に doc_type が含まれない（DES-006 §7.1）"""
+        """書き込み後の出力に doc_type が含まれない（DES-005 §7.1）"""
         entry = self._create_pending_yaml('docs/coding_standards.md')
         self._run_write([
             '--key', self.KEY,
@@ -325,7 +325,7 @@ class TestWritePendingErrorMode(TestWritePendingBase):
         self.assertNotIn('status: completed', content)
 
     def test_error_mode_no_doc_type(self):
-        """--error モードの出力に doc_type が含まれない（DES-006 §7.1）"""
+        """--error モードの出力に doc_type が含まれない（DES-005 §7.1）"""
         entry = self._create_pending_yaml('docs/coding_standards.md')
         self._run_write([
             '--key', self.KEY,

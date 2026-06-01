@@ -9,8 +9,8 @@ applicable_when:
 
 # ToC Update Workflow
 
-> **Reference**: DES-006 §6 (desired-state sync), §6.5 (backup/restore), §6.6 (continuation),
-> §10 (SKILL/agent). REQ-004 FR-N02 / FR-N04 / FR-N07.
+> **Reference**: DES-005 §6 (desired-state sync), §6.5 (backup/restore), §6.6 (continuation),
+> §10 (SKILL/agent). REQ-001 FR-N02 / FR-N04 / FR-N07.
 
 ## Overview
 
@@ -39,7 +39,7 @@ There is no `category` (rules/specs) and no `.doc_structure.yaml`. The document 
 ├── meta.yaml            # original_key, created_at, schema_version
 ├── toc.yaml             # Final artifact (after merge)
 ├── .toc_checksums.yaml  # Per-key change-detection checksums
-└── .toc_work/           # Pending entry YAMLs (transient; NOT gitignored — residue signals an abnormal/incomplete merge and is surfaced via git status; see DES-006 §3.2)
+└── .toc_work/           # Pending entry YAMLs (transient; NOT gitignored — residue signals an abnormal/incomplete merge and is surfaced via git status; see DES-005 §3.2)
     ├── <sha256-of-source-path-1>.yaml
     ├── <sha256-of-source-path-2>.yaml
     └── ... (one per added/updated file)
@@ -196,7 +196,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --all
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
 ```
 
-`merge_toc.py` performs (DES-006 §6.5):
+`merge_toc.py` performs (DES-005 §6.5):
 
 1. Backup `toc.yaml` → `toc.yaml.bak`
 2. Merge completed pending entries into `docs`, reflect deletions (paths absent from desired state, and stale entries)

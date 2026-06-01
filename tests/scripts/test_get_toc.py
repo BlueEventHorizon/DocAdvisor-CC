@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""get_toc.py のユニットテスト（DES-006 §13 / REQ-004 NFR-N03 / FR-N05）。
+"""get_toc.py のユニットテスト（DES-005 §13 / REQ-001 NFR-N03 / FR-N05）。
 
 テスト対象:
 - 全体取得（--key / --all）
@@ -57,7 +57,7 @@ from toc_store import (
 GET_TOC_SCRIPT = os.path.join(SCRIPTS_DIR, 'get_toc.py')
 
 
-# 新スキーマ（DES-006 §7.1: doc_type 除去）の toc.yaml。
+# 新スキーマ（DES-005 §7.1: doc_type 除去）の toc.yaml。
 # 定義順は z, a, m とし、出力で sorted されないこと（定義順保持）を観測する。
 SAMPLE_TOC_YAML = """\
 # .claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml
@@ -233,7 +233,7 @@ class TestNoScoreRankFields(unittest.TestCase):
         for entry in payload.values():
             self.assertNotIn("score", entry)
             self.assertNotIn("rank", entry)
-            # doc_type も新スキーマでは除去（DES-006 §7.1）
+            # doc_type も新スキーマでは除去（DES-005 §7.1）
             self.assertNotIn("doc_type", entry)
 
     def test_json_payload_keeps_allowed_fields(self):

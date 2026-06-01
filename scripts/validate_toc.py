@@ -3,7 +3,7 @@
 """
 ToC 検査スクリプト（doc-advisor plugin / key + path I/F）
 
-DES-006 §7.1（doc_type 必須撤廃）/ §4.1（モジュール）/ §3.2（ストア構造）/
+DES-005 §7.1（doc_type 必須撤廃）/ §4.1（モジュール）/ §3.2（ストア構造）/
 §8（JSON 出力契約）を実装する。
 
 key で解決した store_dir/toc.yaml の整合性を検査する。doc_type は必須としない。
@@ -47,7 +47,7 @@ from toc_store import (
 
 def validate_toc(toc_path, *, project_root=None):
     """
-    生成された toc.yaml を検査する（DES-006 §7.1: doc_type 必須なし）
+    生成された toc.yaml を検査する（DES-005 §7.1: doc_type 必須なし）
 
     - ファイル読み込み検査
     - 必須フィールド検査（title/purpose + 3 配列。doc_type は必須としない）
@@ -96,7 +96,7 @@ def validate_toc(toc_path, *, project_root=None):
     else:
         log("✓ docs セクション検査: OK")
 
-    # 2. 必須フィールド検査（DES-006 §7.1）
+    # 2. 必須フィールド検査（DES-005 §7.1）
     # title/purpose が必須（文字列）
     # content_details/applicable_tasks/keywords が必須（非空配列）
     # doc_type は必須から除外する（category 廃止により doc_type 自動分類が成立しないため）

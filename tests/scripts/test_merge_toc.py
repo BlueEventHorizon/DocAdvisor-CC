@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""merge_toc.py のユニットテスト（DES-006 / REQ-004 NFR-N03）。
+"""merge_toc.py のユニットテスト（DES-005 / REQ-001 NFR-N03）。
 
 key + path I/F へ作り替え。category / doc_type 依存テストは廃止。
 

@@ -2,7 +2,9 @@
 
 ## 概要
 
-本設計書では、Doc Advisor における文書の識別方法を定義する。
+本設計書では、doc-advisor における文書の識別方法を定義する。文書はファイルパス（project-root-relative path）で一意に識別し、ファイル名の ID プレフィックスに依存しない。
+
+key + path I/F（REQ-001）では、この原則を **key（ToC 管理単位）+ path（文書識別子）の二層識別** へ拡張する。key は ToC の所属を表す opaque な識別子、path は当該 ToC 内での文書の一意キーである（詳細は § key + path 二層識別）。
 
 ## 現状分析と問題点
 
@@ -110,32 +112,42 @@ flowchart LR
 ### 文書の識別
 
 ```yaml
-# 識別子 = ルートディレクトリからの相対パス
-identifier: "specs/requirements/login.md"
+# 識別子 = project-root-relative path
+identifier: "docs/specs/base/requirements/login.md"
 
 # これだけでファイルが特定できる
-file_path: specs/requirements/login.md
+file_path: docs/specs/base/requirements/login.md
 ```
 
-### `.claude/doc-advisor/toc/specs/.toc_work/` ファイル名生成
+### key + path 二層識別
 
-**現在の実装（変更不要）:**
+key + path I/F（REQ-001）では、識別を 2 層で行う:
+
+| 層       | 役割                                   | 例                           |
+| -------- | -------------------------------------- | ---------------------------- |
+| **key**  | ToC の管理単位（opaque、上位層が決定） | `rules` / `all` / 任意文字列 |
+| **path** | 当該 key の ToC 内での文書の一意キー   | `docs/rules/coding.md`       |
+
+- ToC YAML の `docs` セクションのキーは project-root-relative path であり、引き続きファイルパスが文書の唯一の識別子である（ID プレフィックスに依存しない）。
+- key → 保存パスの変換は `toc_store.py` が決定的に解決する（DES-005 §3.1）。
+
+### `.toc_work/` ファイル名生成
+
+key 単位ストア配下の作業ファイル名は、元パスの SHA-256 から生成する（DES-005 §6.4）:
 
 ```python
-# パスからワークファイル名を生成
-# specs/requirements/login.md → specs_requirements_login.yaml
-work_filename = rel_path.replace("/", "_").replace(".md", ".yaml")
+# store_dir/.toc_work/ のファイル名を元パスのハッシュから生成
+work_filename = hashlib.sha256(source_file_path.encode()).hexdigest()[:16] + ".yaml"
 ```
 
-これは既に正しい実装であり、IDに依存していない。
+ID に依存せず、元パスは YAML 内の `_meta.source_file` で保持される。衝突空間は当該 key の `store_dir` 配下に閉じる。
 
-### 廃止すべき機能
+### 廃止した機能
 
-| 機能                         | 場所                    | 対応                                   |
-| ---------------------------- | ----------------------- | -------------------------------------- |
-| `extract_id_from_filename()` | `toc_utils.py`          | 廃止または非推奨化                     |
-| ID重複チェック               | `validate_specs_toc.py` | パス重複チェックに変更（既に実装済み） |
-| ID抽出コメント               | `default-config.yaml`   | 削除                                   |
+| 機能                         | 場所              | 対応                                            |
+| ---------------------------- | ----------------- | ----------------------------------------------- |
+| `extract_id_from_filename()` | `toc_utils.py`    | **削除済み**（REQ-001 §6.2 clean break で除去） |
+| ID重複チェック               | `validate_toc.py` | パス重複チェックに変更（実装済み）              |
 
 ### 移行計画
 
@@ -145,29 +157,27 @@ flowchart TD
     B --> C[Phase 3: 動作確認]
 
     A --> A1["設計書・README から<br>ID強制の記述を削除"]
-    B --> B1["extract_id_from_filename() を<br>非推奨マーク"]
-    B --> B2["config コメントを更新"]
+    B --> B1["extract_id_from_filename() を<br>削除"]
+    B --> B2["パス重複チェックへ移行"]
     C --> C1["ID なしファイルで<br>ToC 生成テスト"]
 ```
 
 ## 影響範囲
 
-### 変更が必要なファイル
+### 変更が必要なファイル（実施済み）
 
-| ファイル                    | 変更内容                                          |
-| --------------------------- | ------------------------------------------------- |
-| `toc_utils.py`              | `extract_id_from_filename()` に非推奨コメント追加 |
-| `default-config.yaml`       | ID関連コメント削除                                |
-| `create-specs-toc/SKILL.md` | ID抽出の説明を削除                                |
-| `toc_format.md`             | ID要件の記述がないことを確認                      |
+| ファイル                | 変更内容                                           |
+| ----------------------- | -------------------------------------------------- |
+| `toc_utils.py`          | `extract_id_from_filename()` を削除（clean break） |
+| `formats/toc_format.md` | ID 要件・`doc_type` の記述がないことを確認         |
 
 ### 変更不要なファイル
 
-| ファイル                 | 理由                           |
-| ------------------------ | ------------------------------ |
-| `merge_toc.py`           | パスベースで動作している       |
-| `validate_specs_toc.py`  | パス重複チェックは既に実装     |
-| `create_pending_yaml.py` | パスからワークファイル名を生成 |
+| ファイル          | 理由                           |
+| ----------------- | ------------------------------ |
+| `merge_toc.py`    | パスベースで動作している       |
+| `validate_toc.py` | パス重複チェックは実装済み     |
+| `prepare_toc.py`  | パスからワークファイル名を生成 |
 
 ## 結論
 
@@ -176,7 +186,7 @@ flowchart TD
 | 文書の識別子                              | **ファイルパス**（ルートディレクトリからの相対パス） |
 | ファイル名のID                            | **任意**（ユーザーの自由）                           |
 | IDプレフィックス規則                      | **なし**（システムは関知しない）                     |
-| 既存コードの `extract_id_from_filename()` | **非推奨**（後方互換のため残すが使用しない）         |
+| 既存コードの `extract_id_from_filename()` | **削除済み**（REQ-001 §6.2 clean break で除去）      |
 
 ### 推奨するファイル命名
 

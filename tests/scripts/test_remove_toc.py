@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""remove_toc.py のユニットテスト（DES-006 §13 / REQ-004 NFR-N03 / FR-N06）。
+"""remove_toc.py のユニットテスト（DES-005 §13 / REQ-001 NFR-N03 / FR-N06）。
 
 テスト対象:
 - key 全体削除（--key で store_dir 削除。存在/不在冪等 / FR-N06-1）
@@ -54,7 +54,7 @@ from toc_utils import load_existing_toc, load_checksums
 REMOVE_TOC_SCRIPT = os.path.join(SCRIPTS_DIR, 'remove_toc.py')
 
 
-# 新スキーマ（DES-006 §7.1: doc_type 除去）の toc.yaml。
+# 新スキーマ（DES-005 §7.1: doc_type 除去）の toc.yaml。
 # 定義順は z, a, m とし、削除後の順序保持を観測する。
 SAMPLE_TOC_YAML = """\
 # .claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml

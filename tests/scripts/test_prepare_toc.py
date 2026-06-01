@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""prepare_toc.py のユニットテスト（DES-006 §13 / REQ-004 NFR-N03）。
+"""prepare_toc.py のユニットテスト（DES-005 §13 / REQ-001 NFR-N03）。
 
 テスト対象:
 - desired-state 差分検出（added / updated / unchanged / deleted）
-  * 部分配列 → 残りが deleted になる固定（REQ-004 受け入れ基準）
+  * 部分配列 → 残りが deleted になる固定（REQ-001 受け入れ基準）
 - --dry-run（書き込みなしで予定提示）
 - 空 repo / 対象 0 件の冪等空出力（status ok）
 - --all 単体モード（固定除外・root 外 symlink 除外）
@@ -107,7 +107,7 @@ class PrepareTestBase(unittest.TestCase):
 
 
 # ===========================================================================
-# desired-state 差分検出（DES-006 §6.2）— in-process
+# desired-state 差分検出（DES-005 §6.2）— in-process
 # ===========================================================================
 
 class TestComputeDiff(PrepareTestBase):
@@ -153,7 +153,7 @@ class TestComputeDiff(PrepareTestBase):
         self.assertEqual(diff["unchanged"], ["docs/a.md"])
 
     def test_partial_array_deletes_remainder(self):
-        """部分配列を渡すと prev の残りが deleted になる（REQ-004 受け入れ基準・回帰固定）。"""
+        """部分配列を渡すと prev の残りが deleted になる（REQ-001 受け入れ基準・回帰固定）。"""
         self._write_md("docs/a.md")
         self._write_md("docs/b.md")
         # prev には a/b/c が記録されている
@@ -210,7 +210,7 @@ class TestPrepareCli(PrepareTestBase):
         content = (work_dir / yamls[0]).read_text(encoding='utf-8')
         self.assertIn("source_file: docs/a.md", content)
         self.assertIn("status: pending", content)
-        # doc_type は除去されている（DES-006 §7.1）
+        # doc_type は除去されている（DES-005 §7.1）
         self.assertNotIn("doc_type", content)
 
     def test_meta_yaml_written(self):
@@ -313,7 +313,7 @@ class TestDryRun(PrepareTestBase):
 
 
 # ===========================================================================
-# 空 repo / 対象 0 件 冪等空出力（DES-006 §9.2）
+# 空 repo / 対象 0 件 冪等空出力（DES-005 §9.2）
 # ===========================================================================
 
 class TestEmptyRepo(PrepareTestBase):
@@ -355,14 +355,14 @@ class TestEmptyRepo(PrepareTestBase):
 
 
 # ===========================================================================
-# --all 単体モード: 固定除外 / root 外 symlink 除外（DES-006 §9.1 / §5.3）
+# --all 単体モード: 固定除外 / root 外 symlink 除外（DES-005 §9.1 / §5.3）
 # ===========================================================================
 
 class TestSingleModeCollection(PrepareTestBase):
     """collect_all_markdown の固定除外・root 外 symlink 除外（in-process）。"""
 
     def test_fixed_exclude_list_covers_spec(self):
-        """固定除外リストが REQ-004 §6.4 の必須項目を含む。"""
+        """固定除外リストが DES-005 §9.1 の必須項目を含む。"""
         required = {
             ".git", ".claude", ".codex", "node_modules", "vendor", "dist",
             "build", "__pycache__", ".venv", "target", "coverage",
@@ -448,7 +448,7 @@ class TestSingleModeCollection(PrepareTestBase):
 
 
 # ===========================================================================
-# path 検証 reject（DES-006 §5.1 / FR-N03）
+# path 検証 reject（DES-005 §5.1 / FR-N03）
 # ===========================================================================
 
 class TestPathValidation(PrepareTestBase):
@@ -502,7 +502,7 @@ class TestPathValidation(PrepareTestBase):
 
 
 # ===========================================================================
-# key 解決・JSON 契約（DES-006 §3.3 / §8）
+# key 解決・JSON 契約（DES-005 §3.3 / §8）
 # ===========================================================================
 
 class TestKeyAndJsonContract(PrepareTestBase):
@@ -555,7 +555,7 @@ class TestKeyAndJsonContract(PrepareTestBase):
 
 
 # ===========================================================================
-# work file 名（DES-006 §6.4）
+# work file 名（DES-005 §6.4）
 # ===========================================================================
 
 class TestYamlFilename(unittest.TestCase):

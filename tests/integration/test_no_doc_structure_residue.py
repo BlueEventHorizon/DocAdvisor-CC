@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""doc_structure 廃止契約の回帰防止テスト（Issue #15 / REQ-004 / DES-006 §13・§14）。
+"""doc_structure 廃止契約の回帰防止テスト（Issue #15 / REQ-001 / DES-005 §13・§14）。
 
 doc-advisor を key + path 汎用 ToC Provider へ移行し、`.doc_structure.yaml` と
 category（rules/specs）固定の探索・分類ロジックを clean break で全廃した
-（REQ-004 §6.2 / 受け入れ基準「doc_structure 廃止」）。
+（REQ-001 §6.2 / 受け入れ基準「doc_structure 廃止」）。
 
 本テストは、通常実行経路（scripts/ 配下の deterministic script 層）に
 doc_structure 依存が再混入していないことを **静的に** 検査する。
 既存の embedding-removal 回帰テスト（test_no_embedding_residue.py）の
-静的検査スタイルを踏襲する（DES-006 §13: base からの継続）。
+静的検査スタイルを踏襲する（DES-005 §13: base からの継続）。
 
 検査対象（再混入を防ぐ削除契約）:
 - 通常経路スクリプトが `.doc_structure.yaml` を open / 参照しない
@@ -29,7 +29,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# 通常実行経路を構成する deterministic script 層（DES-006 §4.1）。
+# 通常実行経路を構成する deterministic script 層（DES-005 §4.1）。
 # これらは key + paths を直接受け取り、.doc_structure.yaml を読まない。
 NORMAL_PATH_SCRIPTS = [
     "toc_utils.py",
@@ -45,7 +45,7 @@ NORMAL_PATH_SCRIPTS = [
 # 通常経路スクリプトに残ってはならない doc_structure 由来の語。
 # - `.doc_structure.yaml`: 廃止した config ファイル名（通常経路で読まない）
 # - find_config_file / load_config / init_common_config: 廃止した探索・分岐関数
-#   （REQ-004 §6.2 / DES-006 §4.2）
+#   （REQ-001 §6.2 / DES-005 §4.2）
 # - ConfigNotReadyError: doc_structure 未整備時の例外（廃止）
 DOC_STRUCTURE_FORBIDDEN = [
     ".doc_structure.yaml",
@@ -55,7 +55,7 @@ DOC_STRUCTURE_FORBIDDEN = [
     "ConfigNotReadyError",
 ]
 
-# toc_utils.py に定義が残ってはならない削除済みシンボル（DES-006 §4.2）。
+# toc_utils.py に定義が残ってはならない削除済みシンボル（DES-005 §4.2）。
 REMOVED_TOC_UTILS_SYMBOLS = [
     "find_config_file",
     "load_config",

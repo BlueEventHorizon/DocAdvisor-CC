@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""toc_store.py のユニットテスト（DES-006 §13 / REQ-004 NFR-N03）。
+"""toc_store.py のユニットテスト（DES-005 §13 / REQ-001 NFR-N03）。
 
 テスト対象:
 - resolve_store_dir: slug 化・hash サフィックス・予約 key all・空 slug→"k"・
@@ -58,7 +58,7 @@ TOC_STORE_SCRIPT = os.path.join(SCRIPTS_DIR, 'toc_store.py')
 
 
 # ===========================================================================
-# resolve_store_dir（DES-006 §3.1 / FR-N01-3）
+# resolve_store_dir（DES-005 §3.1 / FR-N01-3）
 # ===========================================================================
 
 class TestResolveStoreDir(unittest.TestCase):
@@ -161,7 +161,7 @@ class TestResolveStoreDir(unittest.TestCase):
 
 
 # ===========================================================================
-# key 検証（DES-006 §3.3 / FR-N01-5）
+# key 検証（DES-005 §3.3 / FR-N01-5）
 # ===========================================================================
 
 class TestKeyValidation(unittest.TestCase):
@@ -205,7 +205,7 @@ class TestKeyValidation(unittest.TestCase):
 
 
 # ===========================================================================
-# meta.yaml I/O（DES-006 §3.2 / FR-N01-4）
+# meta.yaml I/O（DES-005 §3.2 / FR-N01-4）
 # ===========================================================================
 
 class TestMetaIO(unittest.TestCase):
@@ -248,7 +248,7 @@ class TestMetaIO(unittest.TestCase):
 
         write_meta は yaml_escape で引用符付き・内部エスケープして書き、
         read_meta は対称にアンエスケープして original_key を復元する
-        （REQ-004 FR-N01-4 / DES-006 §3.2 の「復元・照合可能」契約）。
+        （REQ-001 FR-N01-4 / DES-005 §3.2 の「復元・照合可能」契約）。
         key は opaque な文字列であり、これらは正当な入力。
         """
         cases = [
@@ -270,7 +270,7 @@ class TestMetaIO(unittest.TestCase):
 
 
 # ===========================================================================
-# emit_json（DES-006 §8 / FR-N08）
+# emit_json（DES-005 §8 / FR-N08）
 # ===========================================================================
 
 class TestEmitJson(unittest.TestCase):
@@ -329,7 +329,7 @@ class TestEmitJson(unittest.TestCase):
 
 
 # ===========================================================================
-# promote / clean（in-process / DES-006 §4.1）
+# promote / clean（in-process / DES-005 §4.1）
 # ===========================================================================
 
 class TestPromoteAndClean(unittest.TestCase):
@@ -372,7 +372,7 @@ class TestPromoteAndClean(unittest.TestCase):
 
 
 # ===========================================================================
-# CLI（subprocess JSON 契約 / DES-006 §8）
+# CLI（subprocess JSON 契約 / DES-005 §8）
 # ===========================================================================
 
 class TestCli(unittest.TestCase):

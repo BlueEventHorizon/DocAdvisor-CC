@@ -1,557 +1,484 @@
-# DES-005: ToC 生成フロー設計書
+# DES-005 key + path ToC Provider 設計書
 
-## 概要
+## メタデータ
 
-本設計書では、doc-advisor の ToC（Table of Contents）自動生成システムの全体フロー、変更検出メカニズム、並列分割処理、マージ処理を定義する。
+| 項目     | 値                                          |
+| -------- | ------------------------------------------- |
+| 設計 ID  | DES-005                                     |
+| 関連要件 | REQ-001                                     |
+| 作成日   | 2026-05-30                                  |
+| 参照     | REQ-001, DES-003, DES-004, ADR-002, FNC-002 |
 
-## 関連要件
+## 1. 概要
 
-- REQ-001 FR-02: ToC 自動生成
-- REQ-001 FR-03: 変更検出
-- REQ-001 FR-04: 並列処理
-- REQ-001 FR-06: セットアップ
+REQ-001 が定める「key + project-root-relative paths を入力とする汎用 ToC Provider」を実装するための設計を定義する。旧 category（rules/specs）固定・`.doc_structure.yaml` 探索ベースの実装を、**opaque key 単位のストア**へ再編し、文書集合の決定責務を上位層へ委譲する。決定的処理（path 検証・差分検出・merge）と AI 処理（メタデータ抽出）の境界を script 構成で明示する。
 
----
+採用アプローチ:
 
-## システム構成
+- ToC を `key` 単位のストアディレクトリに分離（category 固定パスを廃止）
+- desired-state sync を `prepare_toc.py`（差分検出 + pending 生成）と `merge_toc.py`（統合）の 2 フェーズに分割し、間に AI メタデータ充填を挟む
+- path 検証は既存の論理パス検証（traversal）を流用しつつ、symlink 実体解決を**新規ロジック**として追加
+- 全 script を単一 JSON の stdout 契約に統一
 
-### コンポーネント一覧
+## 2. アーキテクチャ概要
 
-| コンポーネント     | 役割                  | 実装                                                        |
-| ------------------ | --------------------- | ----------------------------------------------------------- |
-| Orchestrator       | 全体フロー制御        | `skills/create-*-toc/SKILL.md`                              |
-| Subagent           | 個別ファイル処理      | `agents/toc-updater.md`（`--category rules\|specs` で切替） |
-| Checksum Generator | ハッシュ計算          | `create_checksums.py --category rules\|specs`               |
-| Pending Generator  | pending YAML 生成     | `create_pending_yaml.py --category rules\|specs`            |
-| Writer             | pending YAML 書き込み | `write_pending.py --category rules\|specs`                  |
-| Merger             | エントリ統合          | `merge_toc.py --category rules\|specs`                      |
-| Validator          | 出力検証              | `validate_toc.py --category rules\|specs`                   |
+### 2.1 レイヤー構成
 
-> **前提条件**: `.doc_structure.yaml` はプロジェクトルートに配置される文書構造の SSOT である。全スクリプトは `load_config()`（toc_utils.py）を経由して `.doc_structure.yaml` を読み込み、コードデフォルト（toc_file, checksums_file, work_dir, output, common）とマージした設定を使用する。
-
-### データフロー
+REQ-001 FR-N07 のレイヤー責務境界を、deterministic script 層と AI orchestration 層に分離する。
 
 ```mermaid
-flowchart LR
-    subgraph Orchestrator
-        P0[Phase 0<br>起動時<br>バリデーション] --> P1[Phase 1<br>変更検出<br>+ pending生成]
-        P1 --> P2[Phase 2<br>並列処理]
-        P2 --> P3[Phase 3<br>マージ]
-        P3 --> P4[Phase 4<br>バリデーション]
+flowchart TB
+    subgraph Upper["上位層 (forge 等) / 単体利用"]
+        U1[key + paths を決定]
+        U2[--all 単体モード]
     end
 
-    P0 -.- C[.doc_structure.yaml<br>root_dirs]
-    P1 -.- CS[.toc_checksums.yaml]
-    P2 -.- W[.toc_work/]
-    P4 -.- T[*_toc.yaml]
+    subgraph AI["AI orchestration 層 (SKILL / agent)"]
+        S1[index-docs SKILL]
+        S2[query-docs SKILL fork/read-only]
+        A1[toc-updater agent]
+    end
+
+    subgraph Det["deterministic script 層 (標準ライブラリのみ)"]
+        P1[prepare_toc.py]
+        P2[merge_toc.py]
+        P3[get_toc.py]
+        P4[remove_toc.py]
+        C1[toc_store.py 共通]
+    end
+
+    subgraph Store["key 単位 ToC ストア"]
+        ST[.claude/doc-advisor/toc/keys/&lt;slug&gt;-&lt;hash&gt;/]
+    end
+
+    U1 --> S1
+    U2 --> S1
+    U1 --> S2
+    S1 --> P1
+    P1 -->|pending YAML| A1
+    A1 -->|充填| S1
+    S1 --> P2
+    S2 --> P3
+    P1 --> C1
+    P2 --> C1
+    P3 --> C1
+    P4 --> C1
+    C1 --> Store
 ```
 
----
+### 2.2 依存方向規範 [MANDATORY]
 
-## 処理モード
+レイヤード依存とし、下位が上位を参照しない。
 
-### モード一覧
+1. AI 層 → script 層 → 共通モジュール（`toc_store.py` / `toc_utils.py`）→ ストアの単方向
+2. script 層は AI 層を呼ばない（メタデータ抽出は AI 層が `prepare → merge` の間で実施）
+3. 循環依存を作らない。共通ロジックは `toc_utils.py`（既存）と新設 `toc_store.py`（key 解決・ストア I/O）に集約
 
-| モード         | トリガー                                             | 動作                                |
-| -------------- | ---------------------------------------------------- | ----------------------------------- |
-| `full`         | `--full` オプション または ToC 未存在                | 全ファイルスキャン、ToC 新規生成    |
-| `incremental`  | デフォルト                                           | 変更ファイルのみ処理、差分マージ    |
-| `continuation` | `.claude/doc-advisor/toc/{target}/.toc_work/` が存在 | 中断された処理を再開                |
-| `delete-only`  | 変更0件、削除あり                                    | 削除のみ反映（カスタム Agent 不要） |
+fork 型 SKILL と Agent の関係（fork 型 SKILL は Agent を起動できない）を前提とする。生成系 `index-docs` は fork せず（agent 並列起動のため）、検索系 `query-docs` は fork する（ADR-002 継続）。
 
-### モード判定フロー
+## 3. ストレージ設計
+
+### 3.1 key → 保存パス変換
+
+REQ-001 FR-N01-3 の「衝突しない決定的変換」を以下で実現する。
+
+```text
+store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
+```
+
+- `slug`: key を NFC 正規化（既存 `normalize_path`）後、`[a-z0-9_-]` 以外を `_` に置換し、英小文字化・連続 `_` 圧縮・長さ 40 文字で切り詰め。さらに切り詰めの前後で前後の `_` を除去する（識別はサフィックスが担うため安全で、可読性目的の整形）
+- `{sha256(key)[:12]}`: 切り詰め・正規化による衝突を回避する 12 桁 hex サフィックス（original key 全体のハッシュ）
+- slug が空（記号のみ key 等）になる場合は `slug = "k"` とし、識別はサフィックスが担う
+
+衝突しない根拠: サフィックスは original key 全体の SHA-256 から導出するため、slug が衝突しても別ディレクトリに解決される。slug は人間可読性のための前置詞に過ぎない。
+
+### 3.2 ストアディレクトリ構造
+
+```text
+.claude/doc-advisor/toc/keys/{slug}-{hash}/
+├── meta.yaml          # original_key, created_at, schema_version
+├── toc.yaml           # 最終 ToC (metadata + docs)
+├── .toc_checksums.yaml # key 単位の変更検出用チェックサム
+└── .toc_work/         # prepare が生成する pending YAML (一時)
+```
+
+- `meta.yaml` に **original key** を保持（REQ-001 FR-N01-4）。`store_dir` から key を復元・照合可能にする
+- 予約 key `all`（REQ-001 FR-N04）は `store_dir("all")` に解決する。`all` はユーザー任意 key として reject されるため（FR-N01-5）、名前空間衝突は起きない
+- `.toc_work/` は merge 後に削除される一時ディレクトリであり、**`.gitignore` に登録しない**。正常動作では merge 完了時に消えるため、残存は merge 未完・クリーンアップ漏れの異常シグナルである。`.gitignore` で隠すと残存に気づけなくなるので、あえて追跡対象外（untracked）のまま放置し、`git status` で残存を目視検知できることを優先する（§6.6 continuation の再開判定もこの残存可視性に依存する）。誤 commit は `git add` を明示パスに限定する運用で防ぐ
+
+旧 category 別固定パス（`toc/rules/`, `toc/specs/`）は廃止し、本構造へ移行する。既存ストアからの移行は行わず再生成とする（REQ-001 §6.2 clean break / 非目的「自動 migration を持たない」）。
+
+### 3.3 key の検証
+
+| 入力              | 扱い                                                                              |
+| ----------------- | --------------------------------------------------------------------------------- |
+| 空 key            | reject（`error_code: KEY_EMPTY`）                                                 |
+| 過長 key          | slug 切り詰め + hash サフィックスで吸収（reject しない）                          |
+| Unicode key       | NFC 正規化後に slug 化                                                            |
+| `all`（任意指定） | reject（`error_code: KEY_RESERVED`）。`--all` / `--key` 省略のみが予約 key に到達 |
+
+## 4. モジュール設計
+
+### 4.1 モジュール一覧
+
+| モジュール                                                   | 責務                                                                                 | 依存                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------ |
+| `toc_store.py`                                               | key → store_dir 解決、meta.yaml I/O、JSON 出力ヘルパ、予約 key 判定                  | `toc_utils`              |
+| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                 | 標準ライブラリ           |
+| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力           | `toc_store`, `toc_utils` |
+| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力 | `toc_store`, `toc_utils` |
+| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力     | `toc_store`, `toc_utils` |
+| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                 | `toc_store`, `toc_utils` |
+| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）     | `toc_utils`              |
+| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                             | `toc_store`, `toc_utils` |
+
+`create_checksums.py` の `--promote-pending` / `--clean-work-dir` 機能は `toc_store.py` に統合し、key 単位で扱う。
+
+各 script の主な CLI オプション:
+
+| script           | 主なオプション                                                                  |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `prepare_toc.py` | `--key` / `--paths-json` / `--paths-file` / `--all` / `--dry-run`               |
+| `merge_toc.py`   | `--key` / `--all` / `--delete-only`                                             |
+| `get_toc.py`     | `--key` / `--all` / `--paths`（`--all` / `--key all` は REQ-001 FR-N04-4）      |
+| `remove_toc.py`  | `--key` / `--all` / `--paths-json`（`--all` / `--key all` は REQ-001 FR-N04-4） |
+
+### 4.2 toc_utils.py の改修方針
+
+| 廃止 / 改修                                                                                                                                                                                                                       | 理由                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `load_config()` の category 分岐 / `_get_default_config()` の rules/specs 固定キー                                                                                                                                                | REQ-001 §6.2 旧 category ロジック削除                               |
+| `init_common_config()` の `root_dirs` / `doc_types_map` 探索・`ConfigNotReadyError`                                                                                                                                               | doc_structure 探索廃止。key + paths を直接受け取る                  |
+| `find_config_file()`（`.doc_structure.yaml` 探索）                                                                                                                                                                                | 通常経路で `.doc_structure.yaml` を読まない（REQ-001 受け入れ基準） |
+| 流用: `normalize_path` / `calculate_file_hash` / `rglob_follow_symlinks` / `should_exclude` / `load_existing_toc` / `write_yaml_output` / `yaml_escape` / `validate_path_within_base` / `write_checksums_yaml` / `load_checksums` | REQ-001 NFR-N02 既存資産再利用                                      |
+
+### 4.3 主要関数のクラス図（共通モジュール）
+
+```mermaid
+classDiagram
+    class toc_store {
+        +resolve_store_dir(key) Path
+        +read_meta(store_dir) dict
+        +write_meta(store_dir, original_key)
+        +is_reserved_key(key) bool
+        +emit_json(status, ...) None
+        +DEFAULT_KEY : str = "all"
+    }
+    class toc_utils {
+        +validate_path_within_base(path, base) Path
+        +resolve_within_root(path, root) Path
+        +normalize_path(s) str
+        +calculate_file_hash(path) str
+        +rglob_follow_symlinks(root, pattern)
+        +load_existing_toc(path) dict
+        +write_yaml_output(docs, path) bool
+    }
+    toc_store ..> toc_utils : uses
+    prepare_toc ..> toc_store
+    merge_toc ..> toc_store
+    get_toc ..> toc_store
+    remove_toc ..> toc_store
+```
+
+## 5. path 検証設計
+
+REQ-001 §6.1 を実装する。**traversal 検証は既存 `validate_path_within_base()` を流用し、symlink 実体解決は別ロジック `resolve_within_root()` として新規実装する**。
+
+### 5.1 検証フロー
 
 ```mermaid
 flowchart TD
-    A[コマンド実行] --> B{".toc_work/ 存在?"}
-    B -->|Yes| C{"--full 指定?"}
-    C -->|Yes| D[".toc_work/ 削除"]
-    D --> E[full モード]
-    C -->|No| F[continuation モード]
-
-    B -->|No| G{--full 指定?}
-    G -->|Yes| E
-    G -->|No| H{*_toc.yaml 存在?}
-    H -->|No| E
-    H -->|Yes| I[incremental モード]
-
-    I --> J[変更検出]
-    J --> K{変更ファイル数}
-    K -->|N=0, M=0| L[処理不要]
-    K -->|N=0, M>0| M[delete-only モード]
-    K -->|N>0| N[pending YAML 生成]
+    A[入力 path] --> B{絶対パス?}
+    B -->|Yes| R1[reject: ABSOLUTE_PATH]
+    B -->|No| C[NFC 正規化 + ./ 解決 + 重複除去]
+    C --> D[validate_path_within_base 論理パス検証]
+    D -->|traversal 検出| R2[reject: PATH_TRAVERSAL]
+    D -->|OK| E[resolve strict=True 実体解決]
+    E -->|不在| R3[reject: NOT_FOUND]
+    E -->|OK| F{is_relative_to root?}
+    F -->|No| R4[reject: OUTSIDE_ROOT]
+    F -->|Yes| G{Markdown?}
+    G -->|No| R5[reject: NOT_MARKDOWN]
+    G -->|Yes| H[accept normalized_path]
 ```
 
----
+### 5.2 新規ロジック `resolve_within_root()`
 
-## Phase 0: 起動時バリデーション
+- `Path.resolve(strict=True)` で symlink を辿って実体を解決（不在は `FileNotFoundError` → NOT_FOUND として扱い、REQ-001 FR-N03-4 の不在 reject と兼ねる）
+- `Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で root 配下を判定。root 外実体を指す symlink は reject
+- 大文字小文字衝突は正規化後パスの集合で検出し warning（処理は継続）
 
-### 設計思想
+既存 `validate_path_within_base()` の docstring（symlink 先を意図的に許可）は変更せず、traversal 専用として流用する。symlink 厳格化は本新規関数が担う。この分離により旧ポリシー（論理パス検証）と新 I/F の厳格化が両立する。
 
-- **`.doc_structure.yaml` + コードデフォルトがランタイム設定**: `.doc_structure.yaml` はランタイムで直接参照する
-- **スクリプトによる検証**: 各スクリプトは `load_config()`（`toc_utils.py`）経由で `.doc_structure.yaml` を読み込み、対象カテゴリの `root_dirs` が未設定なら `{"status": "config_required", ...}` を返す
-- **SKILL の Error Handling で案内**: スクリプトが `config_required` を返したら、SKILL は `AskUserQuestion` で `/doc-advisor:setup-doc-structure` の実行（または `.doc_structure.yaml` の手動配置）を案内する
+### 5.3 単体モード走査との関係
 
-### .doc_structure.yaml 確立フロー
+`--all` 収集は `rglob_follow_symlinks`（`os.walk(followlinks=True)`）で symlink を follow して列挙するが、**列挙後に各ファイルへ `resolve_within_root()` を適用し、root 外実体を指すものを除外**する。明示 paths 検証（上位層入力）は §5.1 で直接 reject する。両経路とも最終的に「実体が root 配下」を保証する。
 
-`.doc_structure.yaml` の `root_dirs` と `doc_types_map` は `/doc-advisor:setup-doc-structure` スキル、または手動配置で設定される。最終成果物は `.doc_structure.yaml`（プロジェクトルート）である。
+## 6. desired-state sync 設計
 
-```mermaid
-flowchart TD
-    H[create-*-toc スキル起動] --> I[create_pending_yaml.py 実行]
-    I --> J{"root_dirs 設定済み?"}
-    J -->|Yes| K[Phase 1 へ]
-    J -->|No| L["config_required を返す"]
-    L --> M["SKILL の Error Handling が<br>AskUserQuestion で案内"]
-    M --> N["ユーザーが setup-doc-structure 実行<br>または .doc_structure.yaml を手動配置"]
-    N --> O[".doc_structure.yaml 有効"]
-    O --> K
-```
-
-> `.doc_structure.yaml` の作成・分類は `/doc-advisor:setup-doc-structure` が担う（外部スクリプト・追加パッケージに依存せず、Glob / Read / Write / AskUserQuestion のみで完結）。スクリプト側は内容の妥当性を判定せず、`root_dirs` の有無のみを検証する。
-
-### config_required の判定条件
-
-| .doc_structure.yaml | 対象カテゴリの root_dirs 行     | 判定 | スクリプト出力                  |
-| ------------------- | ------------------------------- | ---- | ------------------------------- |
-| 存在しない          | —                               | NG   | `{"status": "config_required"}` |
-| 存在する            | `root_dirs:` あり（空配列含む） | OK   | 通常処理へ                      |
-| 存在する            | コメントアウト or 行なし        | NG   | `{"status": "config_required"}` |
-
-- **入力**: `.doc_structure.yaml`（プロジェクトルート）
-- **副作用**: なし（スクリプトは `.doc_structure.yaml` を変更しない）
-
-### 関連要件
-
-- REQ-001 FR-06: セットアップ
-
----
-
-## Phase 1: 変更検出（ハッシュベース）
-
-### 設計思想
-
-- **Git 非依存**: コミット状態に関係なく、実際のファイル内容で判定
-- **高精度**: SHA-256 ハッシュで変更を確実に検出
-- **チーム共有**: `.claude/doc-advisor/toc/{target}/.toc_checksums.yaml` を Git 管理し、チーム間で差分検出を共有
-
-### チェックサムファイル形式
-
-```yaml
-# .claude/doc-advisor/toc/{target}/.toc_checksums.yaml
-generated_at: 2026-01-22T12:00:00Z
-file_count: 25
-checksums:
-  specs/requirements/app_overview.md: a1b2c3d4e5f6...
-  specs/design/login_screen.md: b2c3d4e5f6a1...
-```
-
-### 変更検出アルゴリズム
-
-```mermaid
-flowchart TD
-    A[現在のファイル一覧取得] --> B[各ファイルのハッシュ計算]
-    B --> C[".toc_checksums.yaml 読み込み"]
-    C --> D{比較}
-
-    D --> E[新規ファイル<br>checksums に無い]
-    D --> F[変更ファイル<br>ハッシュ不一致]
-    D --> G[削除ファイル<br>checksums にあるが<br>ファイル無し]
-    D --> H[変更なし<br>ハッシュ一致]
-
-    E --> I[pending YAML 生成]
-    F --> I
-    G --> J[マージ時に削除]
-    H --> K[スキップ]
-```
-
-### ハッシュ計算処理
-
-```python
-def calculate_file_hash(filepath):
-    """SHA-256 ハッシュを計算"""
-    sha256 = hashlib.sha256()
-    with open(filepath, 'rb') as f:
-        for chunk in iter(lambda: f.read(8192), b''):
-            sha256.update(chunk)
-    return sha256.hexdigest()
-```
-
-### 変更カウントと処理分岐
-
-| 条件     | 処理                                           |
-| -------- | ---------------------------------------------- |
-| N=0, M=0 | 処理終了（変更なし）                           |
-| N=0, M>0 | delete-only モード（マージスクリプトのみ実行） |
-| N>0      | pending YAML 生成 → カスタム Agent → マージ    |
-
-**N** = 新規 + 変更ファイル数、**M** = 削除ファイル数
-
----
-
-## Phase 2: 並列分割処理（個別エントリファイル方式）
-
-### 設計思想
-
-1. **1ファイル = 1 カスタム Agent**: 各ドキュメントを `doc-advisor:toc-updater` カスタム Agent で独立処理
-2. **永続的成果物**: カスタム Agent の出力をファイルとして保存
-3. **中断耐性**: 完了分は保持、未完了分から再開可能
-4. **並列効率**: 最大5並列で処理時間を短縮
-
-### 作業ディレクトリ構造
-
-```
-.claude/doc-advisor/toc/{target}/.toc_work/               # 作業ディレクトリ
-├── a1b2c3d4e5f67890.yaml
-├── f0e1d2c3b4a59678.yaml
-└── ... (対象ファイルごとに1つ)
-```
-
-### ファイル名変換規則
-
-```
-元パス: specs/requirements/login.md
-作業ファイル: <SHA256先頭16文字>.yaml  (例: a1b2c3d4e5f67890.yaml)
-
-変換: SHA256(source_file_path)[:16] + '.yaml'
-```
-
-> ハッシュベースのファイル名を使用する理由:
->
-> - macOS のファイル名長制限（255 バイト）を回避
-> - 大文字小文字を区別しないファイルシステムでの衝突を防止
-> - ディレクトリ名やファイル名の特殊文字によるエスケープ問題を回避
-> - 元パスは YAML 内の `_meta.source_file` で保持される
-
-### pending YAML テンプレート
-
-共通フィールド:
-
-```yaml
-_meta:
-  source_file: specs/requirements/app_overview.md # 処理対象ファイルパス
-  doc_type: requirement # ドキュメント種別（.doc_structure.yaml の doc_types_map から決定）
-  status: pending # pending | completed
-  updated_at: null # 完了時刻
-
-# 以下はカスタム Agent (toc-updater) が埋める
-title: null
-purpose: null
-content_details: []
-applicable_tasks: []
-keywords: []
-```
-
-> **Note**: `doc_type` は `.doc_structure.yaml` の `doc_types_map` から決定される。マップに一致しない場合はディレクトリ名からの推論、最終的にはカテゴリ名（rule/spec）をデフォルトとする。
-
-### 並列処理フロー
+### 6.1 prepare / merge 2 フェーズ（FR-N07-3）
 
 ```mermaid
 sequenceDiagram
-    participant O as Orchestrator
-    participant W as .toc_work/
-    participant S1 as Subagent 1
-    participant S2 as Subagent 2
-    participant S3 as Subagent 3
-    participant S4 as Subagent 4
-    participant S5 as Subagent 5
+    actor Caller as 上位層 / index-docs SKILL
+    participant Prep as prepare_toc.py
+    participant Work as .toc_work/
+    participant Agent as toc-updater agent
+    participant Merge as merge_toc.py
+    participant Store as toc.yaml
 
-    O->>W: pending YAML 生成 (N件)
-
-    loop pending が残っている間
-        O->>W: pending ファイル取得 (最大5件)
-
-        par 並列実行
-            O->>S1: Task(entry_file: file1.yaml)
-            O->>S2: Task(entry_file: file2.yaml)
-            O->>S3: Task(entry_file: file3.yaml)
-            O->>S4: Task(entry_file: file4.yaml)
-            O->>S5: Task(entry_file: file5.yaml)
-        end
-
-        S1->>W: status: completed
-        S2->>W: status: completed
-        S3->>W: status: completed
-        S4->>W: status: completed
-        S5->>W: status: completed
-
-        O->>W: 残り pending 確認
-    end
-
-    O->>O: Phase 3 (マージ) へ
+    Caller->>Prep: --key K --paths-json [...]
+    Prep->>Prep: paths 検証 (§5) + desired-state diff
+    Prep->>Work: 追加/変更分の pending YAML 生成
+    Prep->>Caller: JSON (added/updated/deleted/unchanged, rejected_paths)
+    Note over Caller,Agent: AI 層がメタデータ充填
+    Caller->>Agent: 各 pending を並列処理
+    Agent->>Work: write_pending.py で充填 (status: completed)
+    Caller->>Merge: --key K
+    Merge->>Store: pending 統合 + 削除反映 (原子的書き込み)
+    Merge->>Caller: JSON (file_count, deleted)
 ```
 
-### Subagent 処理内容
+### 6.2 差分検出アルゴリズム
 
-1. pending YAML を読み込み（`_meta.source_file` を取得）
-2. 元ドキュメント（.md）を読み込み
-3. メタデータを抽出:
-   - `title`: H1 見出しから
-   - `purpose`: ドキュメントの目的（1-2行）
-   - `content_details`: 内容詳細（5-10項目）
-   - `applicable_tasks`: 適用タスク
-   - `keywords`: キーワード（5-10語）
-4. `_meta.status: completed`、`_meta.updated_at` を設定
-5. YAML を保存
+paths を当該 key の完全な desired state として扱う（REQ-001 FR-N02）。
 
----
+1. 入力 paths を §5 で検証・正規化 → `desired`（集合）
+2. `store_dir/.toc_checksums.yaml` から前回状態 `prev`（path → hash）を読む
+3. 各カテゴリを算出:
+   - **added**: `desired - prev.keys()`
+   - **updated**: `desired ∩ prev.keys()` かつ現在の SHA-256 が `prev[path]` と不一致
+   - **unchanged**: `desired ∩ prev.keys()` かつ hash 一致
+   - **deleted**: `prev.keys() - desired`
+4. added + updated について pending YAML を生成（merge 待ち）
+5. deleted は merge フェーズで `toc.yaml` から除去
 
-## Phase 3: マージ処理
+`--dry-run` 時は手順 4-5 を行わず、件数と path 一覧のみ JSON 出力（REQ-001 FR-N02-5）。
 
-### マージモード
+### 6.3 desired-state の破壊性（REQ-001 受け入れ基準）
 
-| モード        | 入力                                                           | 処理                  |
-| ------------- | -------------------------------------------------------------- | --------------------- |
-| `full`        | `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` のみ       | 新規生成              |
-| `incremental` | 既存 ToC + `.claude/doc-advisor/toc/{target}/.toc_work/*.yaml` | 差分マージ + 削除反映 |
-| `delete-only` | 既存 ToC のみ                                                  | 削除のみ反映          |
+部分配列を渡すと `prev` の残りが deleted となり ToC から消える。これは仕様であり上位層の責務。`prepare_toc.py` は deleted 件数を JSON に明示し、`--dry-run` で事前確認できるようにする。回帰テストで「部分配列 → 残り削除」を固定する。
 
-### マージフロー
+### 6.4 work file 名
+
+work file 名は `sha256(source_file)[:16].yaml` とする。衝突空間は key 単位ストア配下に閉じる。
+
+### 6.5 バックアップと異常系（merge 失敗時の復元）
+
+REQ-001 NFR-N07 を反映する。`merge_toc.py` は ToC 書き出しの backup → validate → restore フローを key 単位ストアに対して定義する（旧 category 単位フローを key 単位へ再編）。
 
 ```mermaid
 flowchart TD
-    A[マージ開始] --> B{モード}
-
-    B -->|full| C["docs = empty"]
-    B -->|incremental| D[docs = 既存 ToC 読み込み]
-    B -->|delete-only| E[docs = 既存 ToC 読み込み]
-
-    C --> F[".toc_work/*.yaml を追加"]
-    D --> G[削除ファイル検出]
-    G --> H[該当エントリ削除]
-    H --> F
-    E --> G2[削除ファイル検出]
-    G2 --> H2[該当エントリ削除]
-    H2 --> I[出力]
-
-    F --> I
-
-    I --> J[バックアップ作成]
-    J --> K["*_toc.yaml 書き込み"]
-    K --> L[バリデーション実行]
-    L --> M{"検証結果"}
-    M -->|成功| N[チェックサム更新]
-    M -->|失敗| O[バックアップから復元]
-    N --> P[".toc_work/ 削除"]
-    O --> Q[エラー終了]
+    A[merge 開始] --> B[toc.yaml を toc.yaml.bak へバックアップ]
+    B --> C[pending 統合と削除反映を一時ファイルへ書き込み]
+    C --> D[os.replace で toc.yaml を原子的に置換]
+    D --> E[validate_toc.py で検証]
+    E -->|OK| F[.toc_checksums.yaml を更新し .toc_work を削除]
+    E -->|NG| G[toc.yaml.bak から復元し checksums 据え置き .toc_work 保持]
+    G --> H[status error で異常終了]
 ```
 
-### 削除検出ロジック
+- 原子的書き込み（`os.replace`、既存 `write_yaml_output`）で書き込み途中の破損を防ぐ
+- 検証失敗時は `toc.yaml.bak` から復元し、checksums を更新せず `.toc_work/` を保持して再実行可能とする
+- バックアップ・work ファイルは当該 key の `store_dir` 配下に閉じるため、他 key の merge と干渉しない
 
-```python
-# チェックサムファイルに記録されているファイル
-checksum_files = load_checksums(checksums_file)
+### 6.6 中断耐性と continuation（key 単位）
 
-# 現在実際に存在するファイル
-existing_files = get_existing_files()
+continuation モードを key 単位ストアで成立させる。`.toc_work/` を `store_dir/.toc_work/` に置くことで、再開判定と work dir 競合回避を key 単位に閉じる。
 
-# 削除されたファイル = チェックサムにあるが実ファイルがない
-deleted_files = checksum_files - existing_files
+| 状況                                         | 判定                                                         |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| `store_dir/.toc_work/` が存在し pending あり | 当該 key の prepare を再実行せず、残 pending から merge 待ち |
+| `store_dir/.toc_work/` が存在し全 completed  | 当該 key の merge へ直行                                     |
+| `store_dir/.toc_work/` なし                  | 通常の prepare から開始                                      |
 
-# ToC から該当エントリを削除
-for del_file in deleted_files:
-    if del_file in docs:
-        del docs[del_file]
-```
+- 複数 key を同時に処理しても、各 key の `.toc_work/` は別ディレクトリのため競合しない
+- continuation 判定は `index-docs` SKILL が key ごとに行う（orchestrator パターン §10 を key 単位で適用）
 
-### マージ後の出力形式
+## 7. ToC スキーマ設計
+
+### 7.1 doc_type の除去（非目的）
+
+`formats/toc_format.md` から `doc_type` を除去する。category 廃止により doc_type 自動分類が成立しないため。
 
 ```yaml
-# .claude/doc-advisor/toc/{target}/{target}_toc.yaml
+# 改訂後 toc.yaml（doc_type 削除）
 metadata:
-  name: Project Specification Search Index
-  generated_at: 2026-01-22T12:00:00Z
-  file_count: 25
-
+  name: string # key 由来の索引名
+  key: string # original key
+  generated_at: datetime
+  file_count: integer
 docs:
-  specs/requirements/app_overview.md:
-    title: Application Overview
-    purpose: Defines overall requirements
-    content_details:
-      - User authentication
-      - Use cases
-    applicable_tasks:
-      - New feature planning
-    keywords:
-      - application
-      - requirements
+  <project-relative-path>:
+    title: string
+    purpose: string
+    content_details: array[string] # 1..10
+    applicable_tasks: array[string] # 1..10
+    keywords: array[string] # 1..10
 ```
 
----
+- pending YAML の `_meta` からも `doc_type` を削除。`write_pending.py` の `--doc-type` 関連引数を廃止
+- `validate_toc.py` の必須フィールドから `doc_type` を除外（title/purpose + 3 配列のみ必須）
+- 検索（query-docs）は title/purpose/keywords を AI が読む方式（FNC-002 継続）で、doc_type 除去による検索機能影響はない
 
-## Phase 4: バリデーション
+### 7.2 metadata 拡張
 
-### 検証項目
+`metadata.key` に original key を併記し、ToC 単体でも由来 key を追跡可能にする。original key の **SoT は `meta.yaml`**（§3.2）であり、`toc.yaml` の `metadata.key` はその派生コピー（ToC 利用側の自己完結性のため）。`merge_toc.py` は `toc.yaml` 書き出し時に `meta.yaml` の `original_key` を読んで `metadata.key` に転記し、両者の同期を保証する（二重保持による不整合を防ぐ）。
 
-| カテゴリ           | 検証内容                                                    | 実装状況    |
-| ------------------ | ----------------------------------------------------------- | ----------- |
-| YAML 構文          | インデント、コロン、ハイフンの正確性                        | ✅ 実装済み |
-| 必須フィールド     | metadata: name, generated_at, file_count                    | 📋 将来対応 |
-| エントリフィールド | title, purpose, content_details, applicable_tasks, keywords | ✅ 実装済み |
-| ファイル存在       | docs に記載された全ファイルが実在                           | ✅ 実装済み |
+## 8. JSON 出力契約
 
-> **Note**: metadata セクションの必須フィールド検証は現行実装では未対応。エントリレベルの検証のみ実施。
+### 8.1 共通スキーマ（REQ-001 FR-N08）
 
-### バリデーションフロー
+全 script は stdout に単一 JSON、ログ・進捗は stderr（既存 `log()` を踏襲）。ただし `get_toc.py` の `--format yaml` は検索 SKILL が AI に渡す用途の例外で、既定は JSON、`--format yaml` 指定時のみ ToC 本体の生 YAML を stdout に出す（§4.1 の「JSON or YAML 出力」に対応）。
+
+```json
+{
+  "status": "ok | error | partial",
+  "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | null",
+  "message": "human-readable",
+  "key": "rules",
+  "toc_path": ".claude/doc-advisor/toc/keys/rules-<hash>/toc.yaml",
+  "normalized_paths": ["docs/a.md"],
+  "rejected_paths": [{ "path": "../x.md", "reason": "PATH_TRAVERSAL" }],
+  "counts": { "added": 0, "updated": 0, "deleted": 0, "unchanged": 0 },
+  "warnings": ["case-insensitive collision: docs/A.md vs docs/a.md"]
+}
+```
+
+### 8.2 enum 定義
+
+| フィールド   | 値域                                                                                                |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| `status`     | `ok` / `error` / `partial`（一部 path を reject しつつ処理続行した場合）                            |
+| `error_code` | §8.1 の列挙値 + `null`。`toc_store.py` に定数として集約し、テストで enum を固定（REQ-001 FR-N08-2） |
+
+各 script は使うフィールドのみ出力してよいが、`status` / `error_code` は必須。
+
+## 9. 単体モード（all-markdown）設計
+
+REQ-001 FR-N04。`--all` / `--key` 省略時、予約 key `all` に解決し project root 以下の Markdown を対象にする。
+
+### 9.1 走査と除外
+
+- `rglob_follow_symlinks(project_root, "**/*.md")` で列挙
+- 固定除外（**本リストが除外定義の SoT**。要件は REQ-001 FR-N04-3）: `.git/**`, `.claude/**` runtime state, `.codex/**`, `node_modules/**`, `vendor/**`, `dist/**`, `build/**`, `__pycache__/**`, `.venv/**`, `target/**`, `coverage/**`, `.pytest_cache/**`, `.mypy_cache/**`, 生成済み ToC / work files。既存 `should_exclude()`（DES-004）に固定除外リストを渡して適用
+- 列挙後に `resolve_within_root()` で root 外実体を除外（§5.3）
+
+### 9.2 境界条件
+
+- 最大ファイル数超過時は `warnings` に含め処理継続（REQ-001 NFR-N05、閾値は 100 件）
+- 空 repo / 対象 0 件は `error` ではなく空 `toc.yaml` を冪等出力（`status: ok`, `file_count: 0`）
+
+### 9.3 単体モードのシーケンス
 
 ```mermaid
-flowchart TD
-    A[validate_toc.py 実行] --> B[YAML 読み込み]
-    B --> C{構文エラー?}
-    C -->|Yes| Z[exit 1]
-    C -->|No| D[metadata 検証]
-    D --> E{必須項目あり?}
-    E -->|No| Z
-    E -->|Yes| F[docs 検証]
-    F --> G{各エントリ検証}
-    G -->|不正| H[警告出力]
-    G -->|正常| I[次のエントリ]
-    H --> I
-    I --> J{全エントリ完了?}
-    J -->|No| G
-    J -->|Yes| K{重大エラーあり?}
-    K -->|Yes| Z
-    K -->|No| L[exit 0]
+sequenceDiagram
+    actor User
+    participant I as index-docs SKILL
+    participant P as prepare_toc.py --all
+    participant Agent as toc-updater agent
+    participant M as merge_toc.py
+
+    User->>I: index-docs --all
+    I->>P: prepare --all (予約 key all)
+    P->>P: rglob_follow_symlinks + 固定除外
+    P->>P: resolve_within_root で root 外実体を除外
+    P->>P: desired-state diff (§6.2)
+    alt 対象 0 件
+        P->>I: status ok / file_count 0 (空 ToC 冪等出力)
+    else 対象あり
+        P->>I: pending 生成 + JSON (counts, warnings)
+        I->>Agent: 各 pending を並列充填
+        I->>M: merge --all
+        M->>I: toc.yaml 書き出し + JSON
+    end
+    I->>User: 完了レポート
 ```
 
-### 検証失敗時の動作
+## 10. SKILL / agent 設計
 
-1. バックアップファイル（`*.yaml.bak`）から復元
-2. チェックサムは更新しない
-3. `.claude/doc-advisor/toc/{target}/.toc_work/` は削除しない（再実行可能）
-4. エラー内容を報告
+REQ-001 §6.2 の clean break に従い、旧 SKILL（`query-rules` / `query-specs` / `create-rules-toc` / `create-specs-toc` / `setup-doc-structure`）を全廃し、以下へ一本化する。
 
----
+| コンポーネント | 種別                      | 責務                                                                       |
+| -------------- | ------------------------- | -------------------------------------------------------------------------- |
+| `index-docs`   | SKILL（fork なし）        | `prepare_toc` → toc-updater 並列 → `merge_toc` を駆動。`--key` / `--all`   |
+| `query-docs`   | SKILL（fork / read-only） | `get_toc` を呼び ToC を取得、AI が関連判断。`--key` 省略時は予約 key `all` |
+| `toc-updater`  | Agent（Read, Bash）       | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填   |
 
-## エラーハンドリングと再開
+ADR-002（query SKILL の fork / read-only 隔離）を `query-docs` が継承する。orchestrator パターン（Phase 2 並列・中断耐性・continue モード、§6.6）を `index-docs` が用いる。
 
-### エラー種別と対応
+## 11. ユースケース設計
 
-| エラー種別             | 発生箇所  | 対応                                                         |
-| ---------------------- | --------- | ------------------------------------------------------------ |
-| ファイル読み込みエラー | Subagent  | エラーメッセージ出力、該当 YAML は pending のまま            |
-| YAML 構文エラー        | Merger    | 該当ファイルをスキップ、警告出力                             |
-| バリデーションエラー   | Validator | バックアップ復元、処理中断                                   |
-| マージエラー           | Merger    | .claude/doc-advisor/toc/{target}/.toc_work/ 保持、再実行可能 |
+### 11.1 ユースケース一覧
 
-### Subagent エラー時の扱い
+| ユースケース             | アクター        | 入口                                |
+| ------------------------ | --------------- | ----------------------------------- |
+| key の ToC を生成・更新  | 上位層 / 利用者 | `index-docs --key K`                |
+| 単体で全 Markdown を索引 | 利用者          | `index-docs --all`                  |
+| key の ToC を検索        | 利用者 / Claude | `query-docs --key K` / `query-docs` |
+| key の ToC を削除        | 上位層 / 利用者 | `remove_toc.py --key K`             |
+| desired-state の事前確認 | 上位層          | `prepare_toc.py --key K --dry-run`  |
 
-- エラーは標準出力に報告
-- 該当 entry は pending のまま（error status は使用しない）
-
-### 再開（Continuation）処理
+### 11.2 検索ユースケースのシーケンス（query-docs）
 
 ```mermaid
-flowchart TD
-    A[コマンド実行] --> B{".toc_work/ 存在?"}
-    B -->|No| C[通常処理]
-    B -->|Yes| D[pending ファイル検索]
-    D --> E{"pending あり?"}
-    E -->|Yes| F[Phase 2 から再開]
-    E -->|No| G{"completed あり?"}
-    G -->|Yes| H[Phase 3 マージへ]
-    G -->|No| I[".toc_work/ 削除して終了"]
+sequenceDiagram
+    actor User
+    participant Q as query-docs SKILL (fork)
+    participant G as get_toc.py
+    participant Store as toc.yaml
+
+    User->>Q: query-docs --key K "タスク記述"
+    Q->>G: --key K (全体 or --paths)
+    G->>Store: toc.yaml 読み込み
+    G->>Q: JSON/YAML (docs エントリ, ranking なし)
+    Q->>Q: AI が全エントリを読み関連候補を判断
+    Q->>User: 関連文書パスリスト
 ```
 
-### 中断耐性の実現
+`get_toc.py` は lexical ranking / score を行わず ToC の定義順を保持する（REQ-001 FR-N05-2）。最終的な関連判断は AI（SKILL）が担う。
 
-| 状況         | 保持されるもの                                            | 再開時の動作         |
-| ------------ | --------------------------------------------------------- | -------------------- |
-| Phase 1 中断 | なし                                                      | 最初から実行         |
-| Phase 2 中断 | completed な YAML                                         | pending から処理再開 |
-| Phase 3 中断 | .claude/doc-advisor/toc/{target}/.toc_work/、バックアップ | マージから再実行     |
+## 12. 使用する既存コンポーネント
 
----
+| コンポーネント                                | ファイルパス                    | 用途                                                  |
+| --------------------------------------------- | ------------------------------- | ----------------------------------------------------- |
+| `validate_path_within_base()`                 | `scripts/toc_utils.py`          | traversal 検証（流用、§5.1）                          |
+| `normalize_path()`                            | `scripts/toc_utils.py`          | NFC 正規化（§5.1）                                    |
+| `calculate_file_hash()`                       | `scripts/toc_utils.py`          | SHA-256 変更検出（§6.2）                              |
+| `rglob_follow_symlinks()`                     | `scripts/toc_utils.py`          | 単体モード走査（§9.1）                                |
+| `should_exclude()`                            | `scripts/toc_utils.py`          | 固定除外適用（§9.1 / DES-004）                        |
+| `load_existing_toc()`                         | `scripts/toc_utils.py`          | toc.yaml 読み込み（§6 / get_toc）                     |
+| `write_yaml_output()`                         | `scripts/merge_toc.py`          | 原子的 ToC 書き込み（§6）                             |
+| `write_checksums_yaml()` / `load_checksums()` | `scripts/toc_utils.py`          | key 単位 checksums I/O（§6.2）                        |
+| `yaml_escape()`                               | `scripts/toc_utils.py`          | YAML エスケープ                                       |
+| `has_substantive_content()`                   | `scripts/prepare_toc.py`        | 空ファイルスキップ（旧 create_pending_yaml から転用） |
+| orchestrator パターン                         | `workflows/toc_orchestrator.md` | index-docs の並列・中断耐性                           |
 
-## 処理統計と完了レポート
+再利用しない判断: `find_config_file()` / `load_config()` の category 分岐は doc_structure 廃止に伴い削除（再利用せず）。理由は REQ-001 §6.2。
 
-### 完了レポート形式
+## 13. テスト設計
 
-```
-✅ {target}_toc.yaml has been updated
+REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテストを伴う。
 
-[Summary]
-- Mode: incremental
-- Files processed: 5
-- Deleted: 1
+- **単体テスト対象**:
+  - `toc_store.resolve_store_dir()`: slug 化・hash サフィックス・予約 key `all`・空/過長/Unicode key
+  - path 検証: 絶対パス / traversal / root 外 symlink / 不在 / 非 Markdown / `./a.md`↔`a.md` 同一視 / 大小衝突 warning
+  - desired-state diff: added/updated/unchanged/deleted の算出、**部分配列が残りを削除する固定**（REQ-001 受け入れ基準）
+  - JSON 契約: status / error_code enum の固定
+  - 単体モード: 固定除外の適用、空 repo の冪等空出力、root 外 symlink 除外
+- **統合テスト対象**:
+  - `prepare → write_pending → merge` の協調フローで toc.yaml が生成される
+  - `remove --key` でストアが削除される
+  - 旧 doc_structure 依存が通常経路に残っていないことの回帰テスト（embedding-removal 回帰テストに倣う）
 
-[Cleanup]
-- Deleted .claude/doc-advisor/toc/{target}/.toc_work/
-```
+## 14. 移行に伴う設計上の注意
 
-### エラーレポート形式
+- 既存 `toc/{rules,specs}/` から `toc/keys/` への自動移行は行わない（clean break、REQ-001 §6.2 / 非目的で確定）。再生成で対応
+- README / SKILL / workflow から `setup-doc-structure` 前提の記述を削除（REQ-001 受け入れ基準、コードと同一 PR）
 
-```
-⚠️ {target}_toc.yaml generation completed with warnings
+## 改定履歴
 
-[Summary]
-- Mode: full
-- Files processed: 23
-- Errors: 2
-
-[Error Files]
-- specs_requirements_broken.yaml: File read error
-- specs_design_invalid.yaml: Invalid YAML syntax
-
-[Action Required]
-- Review error files manually
-- Re-run /doc-advisor:create-specs-toc to retry
-```
-
----
-
-## 性能考慮
-
-### 並列処理の効果
-
-| ファイル数 | 直列処理 | 5並列処理 | 短縮率 |
-| ---------- | -------- | --------- | ------ |
-| 5          | 5T       | T         | 80%    |
-| 25         | 25T      | 5T        | 80%    |
-| 100        | 100T     | 20T       | 80%    |
-
-**T** = 1ファイルあたりの処理時間
-
-### ボトルネック
-
-1. **LLM API 呼び出し**: カスタム Agent の処理時間の大部分
-2. **ファイル I/O**: ハッシュ計算、YAML 読み書き
-3. **マージ処理**: 大量エントリの結合
-
-### 最適化ポイント
-
-- 並列数はコードデフォルト（toc_utils.py の _get_default_config()）で定義
-- incremental モードで変更ファイルのみ処理
-- チェックサムファイルで不要な再計算を回避
-
----
-
-## Skill / Agent 設計根拠
-
-### コンポーネントの使い分け
-
-| コンポーネント                         | 種別                        | 根拠                                                                                                     |
-| -------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `query-rules`, `query-specs`           | **Skill** (`context: fork`) | ユーザー呼び出し (`/query-*`)、Claude 自動トリガー、隔離実行が必要                                       |
-| `create-rules-toc`, `create-specs-toc` | **Skill** (fork なし)       | ユーザー呼び出し (`/create-*-toc`) が必要。agent を並列起動するため fork 不可                            |
-| `toc-updater`                          | **Agent**                   | ツール制限 (`Read, Bash` のみ)、並列起動、system prompt の確実性が必要。`--category rules\|specs` で分岐 |
-
-### 重要な制約: fork 型 SKILL と Agent の関係
-
-```
-メイン会話 ─── 継承型 SKILL ──→ Agent ツール (汎用/カスタム Agent) ✅ 可能
-メイン会話 ─── fork 型 SKILL ──→ Agent ツール (汎用/カスタム Agent) ❌ 不可能
-                                  ↑ fork 型 SKILL は Agent を起動できない
-```
-
-このため、orchestrator (`create-*-toc`) は fork **しない**（カスタム Agent を並列起動するため）。
-検索 (`query-*`) は fork **する**（Agent 起動不要、コンテキスト隔離が有益）。
-
----
-
-## 関連設計書
-
-| 設計書  | 内容                         |
-| ------- | ---------------------------- |
-| DES-003 | 文書識別子の設計             |
-| DES-004 | ドキュメントモデルと設定仕様 |
+| 日付       | バージョン | 内容                                                                                                                                                                                                     |
+| ---------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-30 | 0.1        | 初版作成（追加 feature new-if の DES-006 として）。REQ-004 を実装する設計を定義                                                                                                                          |
+| 2026-06-01 | 0.2        | `/forge:merge-specs` により DES-006 を本 DES-005 へ溶融（additive_development_spec §4）。旧 ToC 生成フロー設計（Phase 0 config_required 等）を key + path provider 設計へ全面再編。参照は REQ-001 へ更新 |

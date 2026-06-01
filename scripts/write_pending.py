@@ -3,13 +3,13 @@
 """
 pending YAML write script (doc-advisor plugin / key + path I/F)
 
-DES-006 §7.1（doc_type 除去）/ §4.1（モジュール）を実装する。
+DES-005 §7.1（doc_type 除去）/ §4.1（モジュール）を実装する。
 
 toc-updater agent の分析結果を pending YAML（store_dir/.toc_work/ 配下）に
 書き込み、status を completed に更新する。doc_type は扱わない。
 
 充填するフィールド: title / purpose / content_details / applicable_tasks / keywords
-（DES-006 §7.1: doc_type なし）。
+（DES-005 §7.1: doc_type なし）。
 
 Usage:
     python3 write_pending.py --key K \
@@ -114,7 +114,7 @@ def validate_array(name, items, min_count):
 
 def write_error_yaml(filepath, meta, error_message):
     """
-    Write error status to entry YAML file (DES-006 §7.1: doc_type なし)
+    Write error status to entry YAML file (DES-005 §7.1: doc_type なし)
 
     Args:
         filepath: Output file path
@@ -154,7 +154,7 @@ def write_error_yaml(filepath, meta, error_message):
 
 def write_entry_yaml(filepath, meta, entry):
     """
-    Write entry YAML file (DES-006 §7.1: doc_type なし)
+    Write entry YAML file (DES-005 §7.1: doc_type なし)
 
     Args:
         filepath: Output file path
@@ -283,7 +283,7 @@ def main(argv=None):
     if not valid:
         return 3
 
-    # Update _meta (doc_type なし / DES-006 §7.1)
+    # Update _meta (doc_type なし / DES-005 §7.1)
     updated_meta = {
         'source_file': meta['source_file'],
         'status': 'completed',

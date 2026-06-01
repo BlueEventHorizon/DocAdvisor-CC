@@ -3,7 +3,7 @@
 """
 ToC ストア共通モジュール（doc-advisor plugin / key + path I/F）
 
-DES-006 §3.1 / §3.2 / §4.1 / §8 を実装する。
+DES-005 §3.1 / §3.2 / §4.1 / §8 を実装する。
 
 責務:
 - key → store_dir の決定的変換（safe slug + sha256 サフィックス）
@@ -58,26 +58,26 @@ PENDING_CHECKSUMS_FILENAME = ".toc_checksums_pending.yaml"
 CHECKSUMS_FILENAME = ".toc_checksums.yaml"
 
 # prepare → merge の協調で deleted（desired から外れた path）を引き渡すサイドカー。
-# store_dir/.toc_work/ 配下に置き、merge が読んで toc.yaml から除去する（DES-006 §6.1 / §6.2 / FR-N02-2）。
+# store_dir/.toc_work/ 配下に置き、merge が読んで toc.yaml から除去する（DES-005 §6.1 / §6.2 / FR-N02-2）。
 DELETED_SIDECAR_FILENAME = ".deleted.json"
 
 # prepare → merge の協調で「desired 0 件（空 repo / 対象 0 件）」の意図を引き渡すサイドカー。
 # prepare が desired 0 件を検出した場合に store_dir/.toc_work/ 配下へ残し、merge は
 # pending も既存 toc も無い場合でもこのマーカーがあれば空 toc.yaml を冪等出力する
-# （DES-006 §9.2 / §9.3 / REQ-004 NFR-N05 / 受け入れ基準「空 repo で空 ToC を冪等出力」）。
+# （DES-005 §9.2 / §9.3 / REQ-001 NFR-N05 / 受け入れ基準「空 repo で空 ToC を冪等出力」）。
 # これにより「prepare 実行済みで desired 0 件（空にすべき）」と「prepare 未実行で
 # 何も準備されていない（NO_TARGETS）」を痕跡で区別し取り違えを防ぐ。
 EMPTY_INTENT_SIDECAR_FILENAME = ".empty_intent"
 
-# slug の最大長（DES-006 §3.1）
+# slug の最大長（DES-005 §3.1）
 SLUG_MAX_LEN = 40
 
-# sha256 サフィックスの桁数（DES-006 §3.1）
+# sha256 サフィックスの桁数（DES-005 §3.1）
 HASH_SUFFIX_LEN = 12
 
 
 class ErrorCode:
-    """JSON 出力契約の error_code enum（DES-006 §8.1 / §8.2）。
+    """JSON 出力契約の error_code enum（DES-005 §8.1 / §8.2）。
 
     テストで enum を固定する（FR-N08-2）。null は None で表現する。
     """
@@ -108,7 +108,7 @@ ERROR_CODES = frozenset({
     ErrorCode.NO_TARGETS,
 })
 
-# status の有効値集合（DES-006 §8.2）。
+# status の有効値集合（DES-005 §8.2）。
 STATUS_OK = "ok"
 STATUS_ERROR = "error"
 STATUS_PARTIAL = "partial"
@@ -127,11 +127,11 @@ class KeyError_(ValueError):
 
 
 # ---------------------------------------------------------------------------
-# key → 保存パス変換（DES-006 §3.1 / FR-N01-3）
+# key → 保存パス変換（DES-005 §3.1 / FR-N01-3）
 # ---------------------------------------------------------------------------
 
 def _slugify(key):
-    """key を safe slug に変換する（DES-006 §3.1）。
+    """key を safe slug に変換する（DES-005 §3.1）。
 
     手順:
     1. NFC 正規化（既存 normalize_path 流用）
@@ -173,7 +173,7 @@ def _slugify(key):
 
 
 def _key_hash(key):
-    """original key 全体の sha256 から 12 桁 hex サフィックスを得る（DES-006 §3.1）。
+    """original key 全体の sha256 から 12 桁 hex サフィックスを得る（DES-005 §3.1）。
 
     NFC 正規化後の key を対象とし、正規化前後の差で別ディレクトリに
     解決されないようにする（Unicode key の冪等性）。
@@ -191,7 +191,7 @@ def store_root(project_root=None):
 
 
 def resolve_store_dir(key, project_root=None):
-    """key から store_dir を決定的に解決する（DES-006 §3.1 / FR-N01-3）。
+    """key から store_dir を決定的に解決する（DES-005 §3.1 / FR-N01-3）。
 
     store_dir(key) = {project_root}/.claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
 
@@ -212,11 +212,11 @@ def resolve_store_dir(key, project_root=None):
 
 
 # ---------------------------------------------------------------------------
-# key 検証（DES-006 §3.3 / FR-N01-5）
+# key 検証（DES-005 §3.3 / FR-N01-5）
 # ---------------------------------------------------------------------------
 
 def is_reserved_key(key):
-    """予約 key `all` かどうかを判定する（DES-006 §4.3）。
+    """予約 key `all` かどうかを判定する（DES-005 §4.3）。
 
     NFC 正規化して比較する。
     """
@@ -226,7 +226,7 @@ def is_reserved_key(key):
 
 
 def validate_user_key(key):
-    """ユーザーが任意指定した key を検証する（DES-006 §3.3 / FR-N01-5）。
+    """ユーザーが任意指定した key を検証する（DES-005 §3.3 / FR-N01-5）。
 
     呼び出し側（CLI の --key 指定）が使うヘルパ。
     - 空 key → KeyError_(KEY_EMPTY)
@@ -259,7 +259,7 @@ def validate_user_key(key):
 
 
 # ---------------------------------------------------------------------------
-# meta.yaml I/O（DES-006 §3.2 / FR-N01-4）
+# meta.yaml I/O（DES-005 §3.2 / FR-N01-4）
 # ---------------------------------------------------------------------------
 
 def write_meta(store_dir, original_key):
@@ -345,7 +345,7 @@ def _unescape_yaml_value(value):
 
 
 def read_meta(store_dir):
-    """meta.yaml を読み込む（DES-006 §3.2）。
+    """meta.yaml を読み込む（DES-005 §3.2）。
 
     Args:
         store_dir: store_dir の Path
@@ -385,7 +385,7 @@ def read_meta(store_dir):
 
 
 # ---------------------------------------------------------------------------
-# JSON 出力契約（DES-006 §8 / FR-N08）
+# JSON 出力契約（DES-005 §8 / FR-N08）
 # ---------------------------------------------------------------------------
 
 def emit_json(
@@ -402,7 +402,7 @@ def emit_json(
     warnings=None,
     stream=None,
 ):
-    """stdout に単一 JSON を出力する（DES-006 §8.1 / FR-N08-1）。
+    """stdout に単一 JSON を出力する（DES-005 §8.1 / FR-N08-1）。
 
     status / error_code は必須フィールド（error_code は値が無ければ null）。
     その他のフィールドは指定されたもののみ出力する。
@@ -459,7 +459,7 @@ def toc_path_rel(store_dir, project_root=None):
 
 
 # ---------------------------------------------------------------------------
-# promote / clean（key 単位。旧 create_checksums.py から統合 / DES-006 §4.1）
+# promote / clean（key 単位。旧 create_checksums.py から統合 / DES-005 §4.1）
 # ---------------------------------------------------------------------------
 
 def promote_pending(store_dir):

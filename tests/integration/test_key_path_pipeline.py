@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-script 層 統合テスト（key + path I/F / DES-006 §13 統合テスト対象）。
+script 層 統合テスト（key + path I/F / DES-005 §13 統合テスト対象）。
 
-検証する協調フロー（FR-N07-3 / DES-006 §6.1）:
+検証する協調フロー（FR-N07-3 / DES-005 §6.1）:
     prepare_toc.py --key K --paths-json [...]
         → .toc_work/ の pending を write_pending.py --key K で充填（status: completed）
         → merge_toc.py --key K
@@ -150,7 +150,7 @@ class PipelineTestBase(unittest.TestCase):
 
 
 # ===========================================================================
-# 協調フロー: prepare → write_pending → merge（DES-006 §6.1 / §13）
+# 協調フロー: prepare → write_pending → merge（DES-005 §6.1 / §13）
 # ===========================================================================
 
 class TestPrepareFillMergePipeline(PipelineTestBase):
@@ -257,7 +257,7 @@ class TestPrepareFillMergePipeline(PipelineTestBase):
 
 
 # ===========================================================================
-# 単体モード（--all）の協調フロー（FR-N04 / DES-006 §9.3）
+# 単体モード（--all）の協調フロー（FR-N04 / DES-005 §9.3）
 # ===========================================================================
 
 class TestSingleModePipeline(PipelineTestBase):
@@ -286,14 +286,14 @@ class TestSingleModePipeline(PipelineTestBase):
 
 
 # ===========================================================================
-# 空 repo / 対象 0 件の冪等空出力（DES-006 §9.2 / §9.3 / REQ-004 NFR-N05 / 受け入れ基準）
+# 空 repo / 対象 0 件の冪等空出力（DES-005 §9.2 / §9.3 / REQ-001 NFR-N05 / 受け入れ基準）
 # ===========================================================================
 
 class TestEmptyRepoPipeline(PipelineTestBase):
     """空 repo（対象 0 件）で prepare → merge → get が error にならず空 ToC を冪等出力する。
 
-    REQ-004 受け入れ基準「空 repo で空 ToC を冪等出力する（error にしない）」/
-    DES-006 §9.2「status: ok, file_count: 0」を固定する。
+    REQ-001 受け入れ基準「空 repo で空 ToC を冪等出力する（error にしない）」/
+    DES-005 §9.2「status: ok, file_count: 0」を固定する。
     """
 
     def test_all_mode_empty_repo_emits_empty_toc(self):
@@ -379,7 +379,7 @@ class TestEmptyRepoPipeline(PipelineTestBase):
 
 
 # ===========================================================================
-# 削除（remove --key / FR-N06-1 / DES-006 §13）
+# 削除（remove --key / FR-N06-1 / DES-005 §13）
 # ===========================================================================
 
 class TestRemovePipeline(PipelineTestBase):

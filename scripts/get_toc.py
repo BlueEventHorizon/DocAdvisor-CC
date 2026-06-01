@@ -3,8 +3,8 @@
 """
 get_toc.py — ToC 取得・抽出（doc-advisor plugin / key + path I/F）
 
-DES-006 §4.1（モジュール）/ §7（ToC スキーマ）/ §8（JSON 出力契約）/
-§11.2（検索ユースケースのシーケンス）/ REQ-004 §6.3 を実装する。
+DES-005 §4.1（モジュール）/ §7（ToC スキーマ）/ §8（JSON 出力契約）/
+§11.2（検索ユースケースのシーケンス）を実装する。
 旧 filter_toc.py の paths 抽出機能を本 script に統合・新設する。
 
 責務（決定的処理。lexical ranking / score 付けはしない / FR-N05-2）:
@@ -53,7 +53,7 @@ from toc_store import (
 # toc.yaml ファイル名
 TOC_FILENAME = "toc.yaml"
 
-# ToC エントリのフィールド描画順（DES-006 §7.1: doc_type を除去）。
+# ToC エントリのフィールド描画順（DES-005 §7.1: doc_type を除去）。
 # score / rank は持たない（FR-N05-2）。
 SCALAR_FIELDS = ("title", "purpose")
 LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
@@ -90,11 +90,11 @@ def filter_docs_by_paths(docs, requested_paths):
 
 
 # ---------------------------------------------------------------------------
-# YAML 出力（検索 SKILL が AI に渡す用途 / DES-006 §7.1 スキーマ）
+# YAML 出力（検索 SKILL が AI に渡す用途 / DES-005 §7.1 スキーマ）
 # ---------------------------------------------------------------------------
 
 def render_toc_yaml(docs, *, key, toc_rel, full_count):
-    """docs を YAML 文字列として描画する（DES-006 §7.1: doc_type 除去）。
+    """docs を YAML 文字列として描画する（DES-005 §7.1: doc_type 除去）。
 
     ToC の定義順を保持する（docs の挿入順をそのまま使う。sorted しない）。
     score / rank フィールドは描画しない（FR-N05-2）。
@@ -141,7 +141,7 @@ def render_toc_yaml(docs, *, key, toc_rel, full_count):
 
 
 def build_docs_payload(docs):
-    """JSON 出力用に docs を整形する（DES-006 §7.1: doc_type 除去）。
+    """JSON 出力用に docs を整形する（DES-005 §7.1: doc_type 除去）。
 
     ToC の定義順を保持する（dict 挿入順）。score / rank フィールドは持たせない。
     title/purpose と 3 配列のみを既定順に整形した dict を返す。

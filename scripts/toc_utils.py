@@ -111,7 +111,7 @@ class PathRejection(ValueError):
 
 
 def resolve_within_root(path, project_root):
-    """symlink 実体を解決し、project root 配下にあることを保証する（DES-006 §5.2 / NFR-N06）。
+    """symlink 実体を解決し、project root 配下にあることを保証する（DES-005 §5.2 / NFR-N06）。
 
     `validate_path_within_base()` が担う論理パス検証（traversal / CWE-22）とは
     **別ロジック**であり、symlink の実体解決による root 外参照の reject を担う。
@@ -119,8 +119,8 @@ def resolve_within_root(path, project_root):
     手順:
     1. `Path.resolve(strict=True)` で symlink を辿り実体を解決する。
        実体が存在しない場合は `FileNotFoundError` を送出する
-       （呼び出し側で NOT_FOUND 扱いにする。REQ-004 FR-N03-4 の不在 reject と兼ねる）。
-    2. `Path.is_relative_to(project_root)`（Python 3.9+、REQ-004 NFR-N01 で下限確定）で
+       （呼び出し側で NOT_FOUND 扱いにする。REQ-001 FR-N03-4 の不在 reject と兼ねる）。
+    2. `Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で
        解決後の実体が project root 配下かを判定する。root 外を指す symlink は reject する。
 
     Args:
@@ -144,12 +144,12 @@ def resolve_within_root(path, project_root):
     return resolved
 
 
-# Markdown 拡張子（非 Markdown reject 判定用。DES-006 §5.1）
+# Markdown 拡張子（非 Markdown reject 判定用。DES-005 §5.1）
 MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 
 
 def validate_path(path, project_root):
-    """単一 path を REQ-004 §6.1 / DES-006 §5.1 の検証フローに従って検証する。
+    """単一 path を REQ-001 §6.1 / DES-005 §5.1 の検証フローに従って検証する。
 
     検証順（フロー図 §5.1）:
     1. 絶対パス → reject（ABSOLUTE_PATH）
@@ -207,10 +207,10 @@ def validate_path(path, project_root):
 
 
 def detect_case_collisions(normalized_paths):
-    """正規化済み path 集合から case-insensitive 衝突を検出する（DES-006 §5.2）。
+    """正規化済み path 集合から case-insensitive 衝突を検出する（DES-005 §5.2）。
 
     大文字小文字のみが異なる path が混在する場合に warning メッセージを返す。
-    処理は継続する（reject しない）。REQ-004 §6.1「大小衝突」/ NFR-N06。
+    処理は継続する（reject しない）。REQ-001 §6.1「大小衝突」/ NFR-N06。
 
     Args:
         normalized_paths: 正規化済み path のリスト（validate_path の戻り値）

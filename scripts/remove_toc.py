@@ -3,8 +3,8 @@
 """
 remove_toc.py — ToC 削除（doc-advisor plugin / key + path I/F）
 
-DES-006 §4.1（モジュール）/ §3.2（ストア構造）/ §8（JSON 出力契約）/
-§11.1（ユースケース）/ REQ-004 FR-N06（削除）/ FR-N04-4（`--all` / `--key all`
+DES-005 §4.1（モジュール）/ §3.2（ストア構造）/ §8（JSON 出力契約）/
+§11.1（ユースケース）/ REQ-001 FR-N06（削除）/ FR-N04-4（`--all` / `--key all`
 解決規則）/ FR-N08（JSON 契約）を実装する。
 
 責務（決定的処理。メタデータ抽出はしない / FR-N07-1）:
@@ -61,7 +61,7 @@ from toc_store import (
 # toc.yaml ファイル名
 TOC_FILENAME = "toc.yaml"
 
-# ToC エントリのフィールド描画順（DES-006 §7.1: doc_type を除去。get_toc と同一）。
+# ToC エントリのフィールド描画順（DES-005 §7.1: doc_type を除去。get_toc と同一）。
 SCALAR_FIELDS = ("title", "purpose")
 LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
 
@@ -71,7 +71,7 @@ LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
 # ---------------------------------------------------------------------------
 
 def read_toc_metadata(toc_path):
-    """toc.yaml の metadata セクションを読み取る（DES-006 §7.1）。
+    """toc.yaml の metadata セクションを読み取る（DES-005 §7.1）。
 
     load_existing_toc は docs のみ返し metadata を捨てるため、書き戻し時に
     metadata.name / metadata.key を保持できるよう本関数で別途読み取る。
@@ -117,11 +117,11 @@ def read_toc_metadata(toc_path):
 
 
 # ---------------------------------------------------------------------------
-# toc.yaml の書き戻し（DES-006 §7.1 スキーマ / 原子的書き込み）
+# toc.yaml の書き戻し（DES-005 §7.1 スキーマ / 原子的書き込み）
 # ---------------------------------------------------------------------------
 
 def render_toc_doc(docs, *, key, name):
-    """docs を toc.yaml 本体の文字列として描画する（DES-006 §7.1: doc_type 除去）。
+    """docs を toc.yaml 本体の文字列として描画する（DES-005 §7.1: doc_type 除去）。
 
     docs の定義順（dict 挿入順）をそのまま保持する（sorted しない / FR-N06-2）。
 
