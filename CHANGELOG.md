@@ -4,6 +4,23 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.1] - 2026-06-02
+
+### Added
+
+- `index-docs` に単体モード `--all`（予約 key `all`）を追加し、project root 以下の全 Markdown を一括索引可能に
+- `index-docs` に `--dirs-json`（ディレクトリ指定）を追加し、ディレクトリ配下の Markdown を展開して索引可能に
+- ローカル開発用 skill（配布対象外）`index-rules` / `index-specs` / `query-rules` / `query-specs` を追加（key + path I/F のドッグフーディング・forge 上位層のデモ）
+
+### Changed
+
+- ToC ストアのディレクトリ構造を簡素化（`keys/` 階層と `meta.yaml` を廃止し store_dir パスを短縮）
+
+### Fixed
+
+- `query-docs` のエラーを修正
+- `.version-config.yaml` の `tag_format` を既存タグ運用（`v` 接頭辞なし）に整合
+
 ## [0.4.0] - 2026-06-01
 
 ### Added
