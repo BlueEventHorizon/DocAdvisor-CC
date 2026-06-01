@@ -213,14 +213,6 @@ class TestPrepareCli(PrepareTestBase):
         # doc_type は除去されている（DES-005 §7.1）
         self.assertNotIn("doc_type", content)
 
-    def test_meta_yaml_written(self):
-        """prepare 後に meta.yaml に original key が保持される。"""
-        self._write_md("docs/a.md")
-        self._run('--key', 'rules', '--paths-json', '["docs/a.md"]')
-        meta = self._store_dir("rules") / "meta.yaml"
-        self.assertTrue(meta.exists())
-        self.assertIn("original_key: rules", meta.read_text(encoding='utf-8'))
-
     def test_updated_detected_against_prev(self):
         """prev と hash 不一致なら updated になる。"""
         self._write_md("docs/a.md")
@@ -296,10 +288,9 @@ class TestDryRun(PrepareTestBase):
         self.assertEqual(obj["status"], "ok")
         self.assertEqual(obj["counts"]["added"], 1)
         self.assertEqual(obj["normalized_paths"], ["docs/a.md"])
-        # work dir も meta.yaml も作られない
+        # work dir は作られない
         store_dir = self._store_dir("rules")
         self.assertFalse((store_dir / WORK_DIRNAME).exists())
-        self.assertFalse((store_dir / "meta.yaml").exists())
 
     def test_dry_run_reports_deleted(self):
         """--dry-run で deleted 予定が提示される。"""

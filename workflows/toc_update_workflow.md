@@ -14,7 +14,7 @@ applicable_when:
 
 ## Overview
 
-Workflow for updating a key's ToC at `.claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml`.
+Workflow for updating a key's ToC at `.claude/doc-advisor/toc/<slug>/toc.yaml`.
 Uses the **per-key pending entry file method**: `prepare_toc.py` generates one pending YAML per
 added/updated document, each is filled independently by a `doc-advisor:toc-updater` custom Agent,
 then `merge_toc.py` integrates them and reflects deletions.
@@ -35,8 +35,7 @@ There is no `category` (rules/specs) and no `.doc_structure.yaml`. The document 
 ### Store Directory Structure
 
 ```
-.claude/doc-advisor/toc/keys/<slug>-<hash>/
-├── meta.yaml            # original_key, created_at, schema_version
+.claude/doc-advisor/toc/<slug>/
 ├── toc.yaml             # Final artifact (after merge)
 ├── .toc_checksums.yaml  # Per-key change-detection checksums
 └── .toc_work/           # Pending entry YAMLs (transient; NOT gitignored — residue signals an abnormal/incomplete merge and is surfaced via git status; see DES-005 §3.2)
@@ -140,11 +139,11 @@ Read `store_dir/.toc_work/*.yaml` (exclude hidden `.`-prefixed files) and identi
 ```
 # Orchestrator calls multiple Task tools in one message
 # key specified
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/keys/<slug>-<hash>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
 ... (up to 5 simultaneously)
 
 # single mode (reserved key all): pass `all` instead of a key
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/keys/all-<hash>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 **Note**: Do not use `xargs` for file listing — it fails with long Japanese filenames.
@@ -200,7 +199,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
 
 1. Backup `toc.yaml` → `toc.yaml.bak`
 2. Merge completed pending entries into `docs`, reflect deletions (paths absent from desired state, and stale entries)
-3. Atomic write (`os.replace`) of `toc.yaml`; transcribe `meta.yaml` `original_key` into `metadata.key`
+3. Atomic write (`os.replace`) of `toc.yaml`; write `--key` argument value into `metadata.key`
 4. Validate
 5. **On success**: recompute and write `.toc_checksums.yaml` from final docs, then remove `.toc_work/`
 6. **On failure**: restore from `toc.yaml.bak`, keep checksums, preserve `.toc_work/` for retry; emit `status: error`
@@ -261,7 +260,7 @@ After generation/update, verify:
 - [ ] YAML syntax is correct (indentation, colons, hyphens)
 - [ ] `metadata.generated_at` is ISO 8601 format
 - [ ] `metadata.file_count` matches the actual entry count
-- [ ] `metadata.key` matches the original key (from `meta.yaml`)
+- [ ] `metadata.key` matches the original key
 
 ---
 

@@ -85,8 +85,9 @@ PR 作成・Issue 更新・README 編集等）は親 Claude の指示があっ�
      ```
 3. **エラーハンドリング**:
    - `{"status": "error", "error_code": "TOC_NOT_FOUND", ...}`（ToC 未生成）の場合:
-     AskUserQuestion を使用して `/doc-advisor:index-docs`（`--key {key}` または `--all`）での
-     ToC 生成を案内する。**空の docs（ToC はあるが該当文書なし）と混同しない**。
+     AskUserQuestion を使用して ToC 生成を案内する。key が `all`（省略時のデフォルト）なら
+     `/doc-advisor:index-docs --all` を、任意 key なら `/doc-advisor:index-docs --key {key}` を案内する
+     （`--key all` は予約語衝突で reject されるため使わない）。**空の docs（ToC はあるが該当文書なし）と混同しない**。
    - `{"status": "error", "error_code": "KEY_RESERVED", ...}`（`--key all` を任意指定した）の場合:
      AskUserQuestion を使用して、単体モードは `--key` を省略するか `--all` を使う旨を案内する。
 4. **関連判断（見落としゼロ / FR-N05-3）**: get_toc が返した **全エントリ**

@@ -97,7 +97,7 @@ claude --plugin-dir ./DocAdvisor
 
 ## 開発者向け情報
 
-このリポジトリ自体での開発フロー・テスト・フォーマットについては [`CLAUDE.md`](CLAUDE.md) を参照。
+このリポジトリ自体での開発・デバッグ・テスト・フォーマット・リリース手順は [`DEVELOPMENT.md`](DEVELOPMENT.md) を参照。`--plugin-dir` を使ったローカルデバッグなどを記載している。
 
 このリポジトリは `BlueEventHorizon/bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。
 

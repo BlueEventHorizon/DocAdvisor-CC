@@ -713,3 +713,30 @@ def rglob_follow_symlinks(root_dir, pattern):
         # 非再帰モードの場合は最初のディレクトリのみ
         if not recursive:
             break
+
+
+# ---------------------------------------------------------------------------
+# 公開定数（他スクリプトから共有）
+# ---------------------------------------------------------------------------
+
+# 固定除外パターン（DES-005 §9.1）。
+# should_exclude はディレクトリ名完全一致 / path 部分文字列マッチで適用する。
+# ".claude" 除外で生成済み ToC / work files も同時にカバーされる。
+SYSTEM_EXCLUDE_PATTERNS = [
+    ".git",            # .git/**
+    ".claude",         # .claude/** runtime state + 生成済み ToC / work files
+    ".codex",          # .codex/**
+    "node_modules",    # node_modules/**
+    "vendor",          # vendor/**
+    "dist",            # dist/**
+    "build",           # build/**
+    "__pycache__",     # __pycache__/**
+    ".venv",           # .venv/**
+    "target",          # target/**
+    "coverage",        # coverage/**
+    ".pytest_cache",   # .pytest_cache/**
+    ".mypy_cache",     # .mypy_cache/**
+]
+
+# Markdown 走査グロブ
+MARKDOWN_GLOB = "**/*.md"

@@ -6,7 +6,6 @@
 - resolve_store_dir: slug 化・hash サフィックス・予約 key all・空 slug→"k"・
   過長/Unicode key・同一 key の決定的解決・slug 衝突時の別ディレクトリ解決
 - key 検証: validate_user_key（KEY_EMPTY / 任意 all の KEY_RESERVED）・is_reserved_key
-- meta.yaml I/O: original_key 保持・schema_version・created_at 据え置き
 - emit_json: JSON 契約（status / error_code enum）
 - promote / clean: 冪等動作（in-process）
 - CLI: subprocess での JSON 契約（空 key / 任意 all / promote / clean）
@@ -37,7 +36,6 @@ import toc_store
 from toc_store import (
     DEFAULT_KEY,
     STORE_ROOT_REL,
-    SCHEMA_VERSION,
     ErrorCode,
     ERROR_CODES,
     STATUSES,
@@ -47,8 +45,6 @@ from toc_store import (
     resolve_store_dir,
     is_reserved_key,
     validate_user_key,
-    write_meta,
-    read_meta,
     emit_json,
     promote_pending,
     clean_work_dir,
@@ -96,7 +92,6 @@ class TestResolveStoreDir(unittest.TestCase):
         """大文字・記号を含む key の slug は英小文字 + '_' になる。"""
         d = resolve_store_dir("My Rules!Key", project_root=self.root)
         slug = d.name.rsplit("-", 1)[0]
-        # 空白・'!' は '_' に、大文字は小文字に
         self.assertEqual(slug, "my_rules_key")
 
     def test_consecutive_underscore_compressed(self):
@@ -131,12 +126,11 @@ class TestResolveStoreDir(unittest.TestCase):
         d2 = resolve_store_dir("a" * 61, project_root=self.root)
         slug1 = d1.name.rsplit("-", 1)[0]
         slug2 = d2.name.rsplit("-", 1)[0]
-        self.assertEqual(slug1, slug2)  # slug は同一（40文字に切り詰め）
-        self.assertNotEqual(d1, d2)     # サフィックスで別ディレクトリ
+        self.assertEqual(slug1, slug2)
+        self.assertNotEqual(d1, d2)
 
     def test_slug_collision_resolves_to_distinct_dirs(self):
         """slug が衝突する異なる key は別ディレクトリに解決される。"""
-        # "foo bar" と "foo/bar" はどちらも slug "foo_bar" になる
         d1 = resolve_store_dir("foo bar", project_root=self.root)
         d2 = resolve_store_dir("foo/bar", project_root=self.root)
         slug1 = d1.name.rsplit("-", 1)[0]
@@ -149,7 +143,7 @@ class TestResolveStoreDir(unittest.TestCase):
         import unicodedata
         nfc = unicodedata.normalize('NFC', 'プラグイン')
         nfd = unicodedata.normalize('NFD', 'プラグイン')
-        self.assertNotEqual(nfc, nfd)  # バイト列としては異なる
+        self.assertNotEqual(nfc, nfd)
         d_nfc = resolve_store_dir(nfc, project_root=self.root)
         d_nfd = resolve_store_dir(nfd, project_root=self.root)
         self.assertEqual(d_nfc, d_nfd)
@@ -202,71 +196,6 @@ class TestKeyValidation(unittest.TestCase):
         long_unicode = "仕様" * 100
         result = validate_user_key(long_unicode)
         self.assertTrue(result)  # 例外を投げない
-
-
-# ===========================================================================
-# meta.yaml I/O（DES-005 §3.2 / FR-N01-4）
-# ===========================================================================
-
-class TestMetaIO(unittest.TestCase):
-    """meta.yaml の読み書きテスト。"""
-
-    def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.store_dir = Path(self.tmpdir) / "store"
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-
-    def test_write_then_read(self):
-        self.assertTrue(write_meta(self.store_dir, "rules"))
-        meta = read_meta(self.store_dir)
-        self.assertEqual(meta["original_key"], "rules")
-        self.assertEqual(meta["schema_version"], SCHEMA_VERSION)
-        self.assertIn("created_at", meta)
-
-    def test_read_missing_returns_empty(self):
-        self.assertEqual(read_meta(self.store_dir), {})
-
-    def test_original_key_preserves_special_chars(self):
-        """original key に空白・記号が含まれても保持・復元できる。"""
-        original = "foo bar: baz"
-        write_meta(self.store_dir, original)
-        meta = read_meta(self.store_dir)
-        self.assertEqual(meta["original_key"], original)
-
-    def test_created_at_preserved_on_rewrite(self):
-        """再書き込み時に created_at が据え置かれる。"""
-        write_meta(self.store_dir, "rules")
-        first = read_meta(self.store_dir)["created_at"]
-        write_meta(self.store_dir, "rules")
-        second = read_meta(self.store_dir)["created_at"]
-        self.assertEqual(first, second)
-
-    def test_original_key_roundtrip_escaped_chars(self):
-        """引用符・改行・タブ・バックスラッシュ・コロンを含む key も完全往復する。
-
-        write_meta は yaml_escape で引用符付き・内部エスケープして書き、
-        read_meta は対称にアンエスケープして original_key を復元する
-        （REQ-001 FR-N01-4 / DES-005 §3.2 の「復元・照合可能」契約）。
-        key は opaque な文字列であり、これらは正当な入力。
-        """
-        cases = [
-            'say "hi" now',        # ダブルクォート入り
-            'line\nbreak',         # 改行入り
-            'tab\there',           # タブ入り
-            'carriage\rreturn',    # CR 入り
-            'back\\slash',         # 単独バックスラッシュ（プレーン書き出し経路）
-            'mix "q" \\ \n end',   # 引用符・バックスラッシュ・改行の混在
-            'foo bar: baz',        # コロン+スペース（yaml_escape が引用符化）
-            'plain',               # プレーン文字列（引用符なし経路）
-        ]
-        for original in cases:
-            with self.subTest(original=repr(original)):
-                shutil.rmtree(self.store_dir, ignore_errors=True)
-                self.assertTrue(write_meta(self.store_dir, original))
-                meta = read_meta(self.store_dir)
-                self.assertEqual(meta["original_key"], original)
 
 
 # ===========================================================================
@@ -482,7 +411,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(obj["status"], "error")
 
     def test_toc_path_in_output(self):
-        """成功時の JSON に toc_path（keys/ 配下）が含まれる。"""
+        """成功時の JSON に toc_path が含まれる。"""
         proc = self._run('--key', 'rules', '--clean-work-dir')
         obj = self._parse_stdout(proc)
         self.assertIn("toc_path", obj)

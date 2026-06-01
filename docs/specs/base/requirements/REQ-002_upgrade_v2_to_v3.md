@@ -14,7 +14,7 @@ doc-advisor は以下の構造変更を経てきた:
 | 検索         | agent (`rules-advisor`, `specs-advisor`) | skill (`/query-rules`, `/query-specs`) | skill (`/query-docs`)                    |
 | 文書構造設定 | `doc-advisor/config.yaml`                | `.doc_structure.yaml`                  | **なし**（上位層が key + paths を渡す）  |
 | 分類         | category + target_dirs                   | category + `doc_types_map`             | opaque `key`（category / doc_type 廃止） |
-| ToC 出力先   | `doc-advisor/rules/`                     | `doc-advisor/toc/{rules,specs}/`       | `doc-advisor/toc/keys/{slug}-{hash}/`    |
+| ToC 出力先   | `doc-advisor/rules/`                     | `doc-advisor/toc/{rules,specs}/`       | `doc-advisor/toc/{slug}/`           |
 | ToC ファイル | `rules_toc.yaml` / `specs_toc.yaml`      | 同左（`toc/{rules,specs}/` 配下）      | `toc.yaml`（key 単位ストア配下）         |
 
 現行版は **clean break**（REQ-001 §6.2）であり、旧 category 別 ToC・`.doc_structure.yaml`・旧 SKILL は廃止された。旧バージョンからアップグレードするユーザーは、旧ファイルの整理と ToC の再生成が必要になる。
@@ -90,7 +90,7 @@ Doc Advisor がプラグインとして配布される環境では、ファイ�
 
 ### REQ-002-03: 旧 ToC・設定からの移行
 
-**説明**: 旧 category 別 ToC（`toc/rules/`, `toc/specs/`）は現行の key 単位ストア（`toc/keys/`）へ**自動移行しない**（clean break、REQ-001 §6.2 / 非目的）。再生成で対応する
+**説明**: 旧 category 別 ToC（`toc/rules/`, `toc/specs/`）は現行の key 単位ストア（`toc/`）へ**自動移行しない**（clean break、REQ-001 §6.2 / 非目的）。再生成で対応する
 
 **受入条件**:
 
@@ -131,7 +131,7 @@ Doc Advisor がプラグインとして配布される環境では、ファイ�
 - [ ] `.claude/doc-advisor/toc/` 配下の生成物は削除されない
 - [ ] 旧 category 別 ToC は再生成（`/doc-advisor:index-docs`）で現行ストアへ移行する
 
-> **Note**: 旧バージョンの ToC（`doc-advisor/rules/` や `doc-advisor/toc/{rules,specs}/`）はパス構造が現行（`toc/keys/`）と異なる。現行版で直接利用できないため、初回は `/doc-advisor:index-docs` での再生成を推奨する。
+> **Note**: 旧バージョンの ToC（`doc-advisor/rules/` や `doc-advisor/toc/{rules,specs}/`）はパス構造が現行（`toc/`）と異なる。現行版で直接利用できないため、初回は `/doc-advisor:index-docs` での再生成を推奨する。
 
 ### REQ-002-NF-02: 識別子対応
 

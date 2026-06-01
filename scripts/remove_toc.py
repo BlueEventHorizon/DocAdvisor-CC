@@ -134,7 +134,7 @@ def render_toc_doc(docs, *, key, name):
         str: toc.yaml 文字列（末尾改行付き）
     """
     lines = []
-    lines.append("# .claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml")
+    lines.append("# .claude/doc-advisor/toc/<slug>/toc.yaml")
     lines.append("# Document Search Index (key-based ToC)")
     lines.append("# Auto-generated - Do not edit directly")
     lines.append("")

@@ -7,7 +7,6 @@ DES-005 §3.1 / §3.2 / §4.1 / §8 を実装する。
 
 責務:
 - key → store_dir の決定的変換（safe slug + sha256 サフィックス）
-- meta.yaml の I/O（original_key 保持・schema_version）
 - 予約 key `all` の判定・空 key / 任意 all の reject 用ヘルパ
 - JSON 出力契約（emit_json）と error_code enum 定数の集約
 - key 単位の promote-pending / clean-work-dir（旧 create_checksums.py から統合）
@@ -44,13 +43,7 @@ from toc_utils import (
 DEFAULT_KEY = "all"
 
 # ストアルート（project root からの相対）
-STORE_ROOT_REL = ".claude/doc-advisor/toc/keys"
-
-# meta.yaml のスキーマバージョン
-SCHEMA_VERSION = 1
-
-# meta.yaml ファイル名
-META_FILENAME = "meta.yaml"
+STORE_ROOT_REL = ".claude/doc-advisor/toc"
 
 # work dir / pending / promote 先のファイル名（key 単位ストア配下に閉じる）
 WORK_DIRNAME = ".toc_work"
@@ -145,7 +138,7 @@ def _slugify(key):
         key: original key（NFC 正規化前でよい）
 
     Returns:
-        str: slug（人間可読性のための前置詞。識別はサフィックスが担う）
+        str: slug（store_dir の識別子。同一 key は常に同一 slug に変換される）
     """
     normalized = normalize_path(key).lower()
 
@@ -162,7 +155,7 @@ def _slugify(key):
                 prev_underscore = True
 
     slug = "".join(out_chars)
-    # 先頭・末尾の '_' は見た目のため除去（識別はサフィックスが担うため安全）
+    # 先頭・末尾の '_' は見た目のため除去（slug = store_dir 名そのものなので整形しても安全）
     slug = slug.strip("_")
     slug = slug[:SLUG_MAX_LEN]
     slug = slug.strip("_")
@@ -173,11 +166,7 @@ def _slugify(key):
 
 
 def _key_hash(key):
-    """original key 全体の sha256 から 12 桁 hex サフィックスを得る（DES-005 §3.1）。
-
-    NFC 正規化後の key を対象とし、正規化前後の差で別ディレクトリに
-    解決されないようにする（Unicode key の冪等性）。
-    """
+    """original key 全体の sha256 から 12 桁 hex サフィックスを得る（DES-005 §3.1）。"""
     normalized = normalize_path(key)
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return digest[:HASH_SUFFIX_LEN]
@@ -193,10 +182,9 @@ def store_root(project_root=None):
 def resolve_store_dir(key, project_root=None):
     """key から store_dir を決定的に解決する（DES-005 §3.1 / FR-N01-3）。
 
-    store_dir(key) = {project_root}/.claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
+    store_dir(key) = {project_root}/.claude/doc-advisor/toc/{slug}-{sha256(key)[:12]}/
 
-    衝突しない根拠: サフィックスは original key 全体の SHA-256 から導出するため、
-    slug が衝突しても別ディレクトリに解決される。
+    slug が衝突しても sha256 サフィックスで別ディレクトリに解決される。
 
     Args:
         key: original key（空文字は呼び出し側で validate_key により reject 済みである前提だが、
@@ -231,7 +219,7 @@ def validate_user_key(key):
     呼び出し側（CLI の --key 指定）が使うヘルパ。
     - 空 key → KeyError_(KEY_EMPTY)
     - 任意の `all` 指定 → KeyError_(KEY_RESERVED)
-    - 過長 / Unicode → reject しない（slug 切り詰め + hash で吸収）
+    - 過長 / Unicode → reject しない（slug 切り詰めで吸収）
 
     予約 key `all` への到達は `--all` / `--key` 省略のみが許される。
     その経路は本関数を通さず DEFAULT_KEY を直接使う（呼び出し側で区別）。
@@ -258,130 +246,6 @@ def validate_user_key(key):
     return normalized
 
 
-# ---------------------------------------------------------------------------
-# meta.yaml I/O（DES-005 §3.2 / FR-N01-4）
-# ---------------------------------------------------------------------------
-
-def write_meta(store_dir, original_key):
-    """meta.yaml を書き出す（original_key / created_at / schema_version）。
-
-    既存 meta.yaml がある場合、created_at は据え置く（再生成で初回作成日時を保つ）。
-
-    Args:
-        store_dir: store_dir の Path
-        original_key: 保持する original key
-
-    Returns:
-        bool: True on success, False on failure
-    """
-    store_dir = Path(store_dir)
-    meta_path = store_dir / META_FILENAME
-
-    created_at = None
-    existing = read_meta(store_dir)
-    if existing:
-        created_at = existing.get("created_at")
-    if not created_at:
-        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    lines = [
-        "# doc-advisor key ToC store metadata",
-        "# Auto-generated - do not edit",
-        f"original_key: {yaml_escape(normalize_path(original_key))}",
-        f"created_at: {created_at}",
-        f"schema_version: {SCHEMA_VERSION}",
-    ]
-    try:
-        store_dir.mkdir(parents=True, exist_ok=True)
-        with open(meta_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-        return True
-    except (IOError, OSError, PermissionError) as e:
-        log(f"Error: Failed to write meta.yaml: {meta_path} - {e}")
-        return False
-
-
-def _unescape_yaml_value(value):
-    """meta.yaml の値を `toc_utils.yaml_escape` と対称にデコードする。
-
-    `write_meta` は値を `yaml_escape` で書き出す。`yaml_escape` は引用符が
-    必要な値のみ `"..."` で囲み、内部を `\\` → `\\\\` / `"` → `\\"` /
-    改行 → `\\n` / CR → `\\r` / タブ → `\\t` の順でエスケープする。引用符が
-    不要な素の値（プレーンスカラ）はエスケープせずそのまま書く。
-
-    本関数はこの規則の逆変換を行う:
-    - 両端がダブルクォートで囲まれている場合のみアンエスケープを適用する
-      （write 側で引用符が付くのはエスケープした場合に限るため）。
-    - 引用符なしのプレーン値はそのまま返す（例: 単独バックスラッシュを含む
-      `back\\slash` は引用符が付かないので素のまま保持する）。
-
-    バックスラッシュをエスケープ導入文字として左から走査するため、
-    `yaml_escape` の置換順序に依存せず正しく復元できる（FR-N01-4 の
-    「original key を復元・照合可能にする」往復契約）。
-
-    Args:
-        value: meta.yaml の `key: value` から取り出した（strip 済み）値文字列
-
-    Returns:
-        str: アンエスケープ済みの値
-    """
-    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
-        inner = value[1:-1]
-        unescape_map = {'"': '"', '\\': '\\', 'n': '\n', 'r': '\r', 't': '\t'}
-        out = []
-        i = 0
-        length = len(inner)
-        while i < length:
-            ch = inner[i]
-            if ch == '\\' and i + 1 < length:
-                nxt = inner[i + 1]
-                out.append(unescape_map.get(nxt, nxt))
-                i += 2
-                continue
-            out.append(ch)
-            i += 1
-        return ''.join(out)
-    return value
-
-
-def read_meta(store_dir):
-    """meta.yaml を読み込む（DES-005 §3.2）。
-
-    Args:
-        store_dir: store_dir の Path
-
-    Returns:
-        dict: original_key / created_at / schema_version を含む。
-              ファイル不在・読込失敗時は空 dict。
-    """
-    meta_path = Path(store_dir) / META_FILENAME
-    if not meta_path.exists():
-        return {}
-
-    try:
-        with open(meta_path, "r", encoding="utf-8") as f:
-            content = f.read()
-    except (IOError, OSError, PermissionError) as e:
-        log(f"Warning: Failed to read meta.yaml: {meta_path} - {e}")
-        return {}
-
-    meta = {}
-    for line in content.split("\n"):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if ":" not in stripped:
-            continue
-        key, _, value = stripped.partition(":")
-        key = key.strip()
-        value = _unescape_yaml_value(value.strip())
-        if key == "schema_version":
-            try:
-                value = int(value)
-            except ValueError:
-                pass
-        meta[key] = value
-    return meta
 
 
 # ---------------------------------------------------------------------------
