@@ -13,7 +13,7 @@ DES-005 §6.1（prepare/merge 2 フェーズ）/ §6.2（差分検出）/ §6.3�
 - store_dir/.toc_work/ の充填済み pending（status: completed）を既存 toc.yaml の docs とマージ
 - desired-state の deleted（prepare 算出 / checksums と現状の差）を toc.yaml から除去（FR-N02-2）
 - backup → 原子的書き込み → validate → OK で checksums 更新 + work 削除 / NG で復元（§6.5）
-- meta.yaml の original_key を toc.yaml の metadata.key へ転記し同期を保証（§7.2）
+- --key 引数の値を toc.yaml の metadata.key へ書き出す（§7.2）
 - added/updated/deleted/unchanged 件数と deleted paths を JSON 出力（FR-N02-4 / FR-N08）
 
 CLI:
@@ -54,7 +54,6 @@ from toc_store import (
     STATUS_ERROR,
     resolve_store_dir,
     resolve_key_from_args,
-    read_meta,
     emit_json,
     toc_path_rel,
     clean_work_dir,
@@ -88,7 +87,7 @@ def render_toc_yaml(docs, *, key, toc_rel):
     そのまま検索結果順になる。再現可能な順序として path 昇順を採用する。
 
     metadata は name / key / generated_at / file_count（§7.1 スキーマ、doc_type なし）。
-    metadata.key には meta.yaml の original_key を転記する（§7.2、呼び出し側で解決）。
+    metadata.key には --key 引数の値を書き出す（§7.2）。
 
     Args:
         docs: source_file -> entry の dict

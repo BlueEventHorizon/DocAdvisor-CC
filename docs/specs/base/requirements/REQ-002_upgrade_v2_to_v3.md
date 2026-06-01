@@ -14,7 +14,7 @@ doc-advisor は以下の構造変更を経てきた:
 | 検索         | agent (`rules-advisor`, `specs-advisor`) | skill (`/query-rules`, `/query-specs`) | skill (`/query-docs`)                    |
 | 文書構造設定 | `doc-advisor/config.yaml`                | `.doc_structure.yaml`                  | **なし**（上位層が key + paths を渡す）  |
 | 分類         | category + target_dirs                   | category + `doc_types_map`             | opaque `key`（category / doc_type 廃止） |
-| ToC 出力先   | `doc-advisor/rules/`                     | `doc-advisor/toc/{rules,specs}/`       | `doc-advisor/toc/keys/{slug}-{hash}/`    |
+| ToC 出力先   | `doc-advisor/rules/`                     | `doc-advisor/toc/{rules,specs}/`       | `doc-advisor/toc/keys/{slug}/`           |
 | ToC ファイル | `rules_toc.yaml` / `specs_toc.yaml`      | 同左（`toc/{rules,specs}/` 配下）      | `toc.yaml`（key 単位ストア配下）         |
 
 現行版は **clean break**（REQ-001 §6.2）であり、旧 category 別 ToC・`.doc_structure.yaml`・旧 SKILL は廃止された。旧バージョンからアップグレードするユーザーは、旧ファイルの整理と ToC の再生成が必要になる。

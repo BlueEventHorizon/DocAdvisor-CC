@@ -48,7 +48,7 @@ flowchart TB
     end
 
     subgraph Store["key 単位 ToC ストア"]
-        ST[.claude/doc-advisor/toc/keys/&lt;slug&gt;-&lt;hash&gt;/]
+        ST[.claude/doc-advisor/toc/keys/&lt;slug&gt;/]
     end
 
     U1 --> S1
@@ -80,29 +80,26 @@ fork 型 SKILL と Agent の関係（fork 型 SKILL は Agent を起動できな
 
 ### 3.1 key → 保存パス変換
 
-REQ-001 FR-N01-3 の「衝突しない決定的変換」を以下で実現する。
+REQ-001 FR-N01-3 の「決定的変換」を以下で実現する。
 
 ```text
-store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
+store_dir(key) = .claude/doc-advisor/toc/keys/{slug}/
 ```
 
-- `slug`: key を NFC 正規化（既存 `normalize_path`）後、`[a-z0-9_-]` 以外を `_` に置換し、英小文字化・連続 `_` 圧縮・長さ 40 文字で切り詰め。さらに切り詰めの前後で前後の `_` を除去する（識別はサフィックスが担うため安全で、可読性目的の整形）
-- `{sha256(key)[:12]}`: 切り詰め・正規化による衝突を回避する 12 桁 hex サフィックス（original key 全体のハッシュ）
-- slug が空（記号のみ key 等）になる場合は `slug = "k"` とし、識別はサフィックスが担う
-
-衝突しない根拠: サフィックスは original key 全体の SHA-256 から導出するため、slug が衝突しても別ディレクトリに解決される。slug は人間可読性のための前置詞に過ぎない。
+- `slug`: key を NFC 正規化（既存 `normalize_path`）後、`[a-z0-9_-]` 以外を `_` に置換し、英小文字化・連続 `_` 圧縮・長さ 40 文字で切り詰め。切り詰めの前後で前後の `_` を除去する
+- slug が空（記号のみ key 等）になる場合は `slug = "k"`
+- 同一 key は常に同一 slug → 同一 store_dir に解決される（決定的）
 
 ### 3.2 ストアディレクトリ構造
 
 ```text
 .claude/doc-advisor/toc/keys/{slug}-{hash}/
-├── meta.yaml          # original_key, created_at, schema_version
 ├── toc.yaml           # 最終 ToC (metadata + docs)
 ├── .toc_checksums.yaml # key 単位の変更検出用チェックサム
 └── .toc_work/         # prepare が生成する pending YAML (一時)
 ```
 
-- `meta.yaml` に **original key** を保持（REQ-001 FR-N01-4）。`store_dir` から key を復元・照合可能にする
+- original key は `toc.yaml` の `metadata.key` に保持される（REQ-001 FR-N01-4）
 - 予約 key `all`（REQ-001 FR-N04）は `store_dir("all")` に解決する。`all` はユーザー任意 key として reject されるため（FR-N01-5）、名前空間衝突は起きない
 - `.toc_work/` は merge 後に削除される一時ディレクトリであり、**`.gitignore` に登録しない**。正常動作では merge 完了時に消えるため、残存は merge 未完・クリーンアップ漏れの異常シグナルである。`.gitignore` で隠すと残存に気づけなくなるので、あえて追跡対象外（untracked）のまま放置し、`git status` で残存を目視検知できることを優先する（§6.6 continuation の再開判定もこの残存可視性に依存する）。誤 commit は `git add` を明示パスに限定する運用で防ぐ
 
@@ -113,9 +110,11 @@ store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
 | 入力              | 扱い                                                                              |
 | ----------------- | --------------------------------------------------------------------------------- |
 | 空 key            | reject（`error_code: KEY_EMPTY`）                                                 |
-| 過長 key          | slug 切り詰め + hash サフィックスで吸収（reject しない）                          |
+| 過長 key          | slug 切り詰めで吸収（reject しない）                                              |
 | Unicode key       | NFC 正規化後に slug 化                                                            |
 | `all`（任意指定） | reject（`error_code: KEY_RESERVED`）。`--all` / `--key` 省略のみが予約 key に到達 |
+
+> **slug 衝突について**: 異なる key が同一 slug に変換される場合（例: `"foo bar"` と `"foo/bar"` → どちらも `"foo_bar"`）、同一 store_dir を共有する。先に生成した key の ToC が上書きされてもエラーは発生しない。上位層は key の命名が slug 衝突を起こさないよう管理する責任を持つ。実用上 `rules` / `specs` / `all` のような単純な key を使う限り問題は生じない。
 
 ## 4. モジュール設計
 
@@ -123,7 +122,7 @@ store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
 
 | モジュール                                                   | 責務                                                                                 | 依存                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------ |
-| `toc_store.py`                                               | key → store_dir 解決、meta.yaml I/O、JSON 出力ヘルパ、予約 key 判定                  | `toc_utils`              |
+| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                 | `toc_utils`              |
 | `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                 | 標準ライブラリ           |
 | `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力           | `toc_store`, `toc_utils` |
 | `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力 | `toc_store`, `toc_utils` |
@@ -158,8 +157,6 @@ store_dir(key) = .claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
 classDiagram
     class toc_store {
         +resolve_store_dir(key) Path
-        +read_meta(store_dir) dict
-        +write_meta(store_dir, original_key)
         +is_reserved_key(key) bool
         +emit_json(status, ...) None
         +DEFAULT_KEY : str = "all"
@@ -323,7 +320,7 @@ docs:
 
 ### 7.2 metadata 拡張
 
-`metadata.key` に original key を併記し、ToC 単体でも由来 key を追跡可能にする。original key の **SoT は `meta.yaml`**（§3.2）であり、`toc.yaml` の `metadata.key` はその派生コピー（ToC 利用側の自己完結性のため）。`merge_toc.py` は `toc.yaml` 書き出し時に `meta.yaml` の `original_key` を読んで `metadata.key` に転記し、両者の同期を保証する（二重保持による不整合を防ぐ）。
+`metadata.key` に original key を併記し、ToC 単体でも由来 key を追跡可能にする。`merge_toc.py` は `--key` 引数の値を `metadata.key` に書き出す。
 
 ## 8. JSON 出力契約
 
@@ -461,7 +458,7 @@ sequenceDiagram
 REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテストを伴う。
 
 - **単体テスト対象**:
-  - `toc_store.resolve_store_dir()`: slug 化・hash サフィックス・予約 key `all`・空/過長/Unicode key
+  - `toc_store.resolve_store_dir()`: slug 化・予約 key `all`・空/過長/Unicode key
   - path 検証: 絶対パス / traversal / root 外 symlink / 不在 / 非 Markdown / `./a.md`↔`a.md` 同一視 / 大小衝突 warning
   - desired-state diff: added/updated/unchanged/deleted の算出、**部分配列が残りを削除する固定**（REQ-001 受け入れ基準）
   - JSON 契約: status / error_code enum の固定

@@ -74,7 +74,7 @@ dprint check    # チェックのみ
 
 ```bash
 # セッション限定でロード
-claude --plugin-dir /Users/moons/data/dev/moons/ai_tools/DocAdvisor
+claude --plugin-dir ~/path/to/DocAdvisor
 
 # GitHub 経由
 /plugin marketplace add BlueEventHorizon/DocAdvisor

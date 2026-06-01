@@ -20,8 +20,8 @@ doc-advisor のドキュメントモデルは以下に集約される（詳細�
 | 項目               | 定義                                                                                         | 参照               |
 | ------------------ | -------------------------------------------------------------------------------------------- | ------------------ |
 | 管理単位           | opaque な `key`（rule/spec のような分類意味を持たない）                                      | REQ-001 FR-N01     |
-| key → 保存パス変換 | `.claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/`（衝突しない決定的変換）            | DES-005 §3.1       |
-| ストアディレクトリ | `meta.yaml` / `toc.yaml` / `.toc_checksums.yaml` / `.toc_work/`                              | DES-005 §3.2       |
+| key → 保存パス変換 | `.claude/doc-advisor/toc/keys/{slug}/`（決定的変換）                                          | DES-005 §3.1       |
+| ストアディレクトリ | `toc.yaml` / `.toc_checksums.yaml` / `.toc_work/`                                            | DES-005 §3.2       |
 | path 検証          | 絶対パス / traversal / root 外 symlink / 不在 / 非 Markdown を reject                        | DES-005 §5         |
 | ToC スキーマ       | `title` / `purpose` / `content_details` / `applicable_tasks` / `keywords`（`doc_type` なし） | DES-005 §7         |
 | 入力               | 上位層が渡す `key` + `paths`、または `--all` 単体モード                                      | REQ-001 FR-N03/N04 |

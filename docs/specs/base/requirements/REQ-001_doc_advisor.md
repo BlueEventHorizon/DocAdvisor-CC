@@ -34,9 +34,9 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FR-N01-1 | doc-advisor は ToC を opaque な `key` 単位で管理する                                                                                                                         |
 | FR-N01-2 | doc-advisor は `key` の意味（rules / specs 等の分類意味）を解釈しない。ただし予約 key `all` のみ単体モード用に特別扱いする                                                   |
-| FR-N01-3 | `key` から保存パスへの変換は衝突しない決定的変換とする（safe slug + hash suffix。詳細は DES-005）                                                                            |
+| FR-N01-3 | `key` から保存パスへの変換は決定的変換とする（safe slug。詳細は DES-005）                                                                                                   |
 | FR-N01-4 | original key は ToC の metadata に保持し、復元・照合可能とする                                                                                                               |
-| FR-N01-5 | 空 key は reject する。長すぎる key は slug 切り詰め + hash suffix で吸収する。Unicode key は NFC 正規化後に slug 化する。予約語 `all` はユーザー任意 key として使用できない |
+| FR-N01-5 | 空 key は reject する。長すぎる key は slug 切り詰めで吸収する。Unicode key は NFC 正規化後に slug 化する。予約語 `all` はユーザー任意 key として使用できない                |
 
 ### FR-N02: desired-state sync（ToC 生成・更新）
 

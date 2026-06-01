@@ -10,7 +10,7 @@ applicable_when:
 
 ## Purpose
 
-`.claude/doc-advisor/toc/keys/{slug}-{hash}/toc.yaml` is the **single source of truth** for the `query-docs` search SKILL to identify documents needed for tasks.
+`.claude/doc-advisor/toc/keys/{slug}/toc.yaml` is the **single source of truth** for the `query-docs` search SKILL to identify documents needed for tasks.
 
 ToC is managed per opaque `key` (decided by the upper layer, or the reserved key `all` in single mode). doc-advisor does not interpret the meaning of a key (e.g., rules / specs). There is no `category` concept and no `doc_type` field.
 
@@ -52,7 +52,7 @@ Structure definition for the pending work files generated per entry by `prepare_
 ### File Layout
 
 ```
-.claude/doc-advisor/toc/keys/{slug}-{hash}/.toc_work/   # Work directory (per-key, removed by merge_toc.py on success)
+.claude/doc-advisor/toc/keys/{slug}/.toc_work/   # Work directory (per-key, removed by merge_toc.py on success)
 ├── {sha256_hash_16chars}.yaml
 └── ... (for each target file)
 ```
@@ -111,14 +111,14 @@ keywords: []
 ```yaml
 metadata:
   name: string # Index name (derived from the key)
-  key: string # Original key (copied from the store's meta.yaml original_key)
+  key: string # Original key (written from the --key argument)
   generated_at: datetime # Generation time (ISO 8601 format)
   file_count: integer # Total target file count
 
 docs: object # Document entries (key: project-root-relative file path)
 ```
 
-The `metadata.key` field holds the **original key** so the ToC is self-contained for consumers. The source of truth for the original key is `meta.yaml` in the store directory; `merge_toc.py` copies it into `metadata.key` when writing `toc.yaml`.
+The `metadata.key` field holds the **original key** so the ToC is self-contained for consumers. `merge_toc.py` writes the `--key` argument value into `metadata.key` when writing `toc.yaml`.
 
 ---
 

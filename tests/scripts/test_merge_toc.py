@@ -9,7 +9,7 @@ key + path I/F へ作り替え。category / doc_type 依存テストは廃止。
 - deleted 反映（FR-N02-2。サイドカー由来 / 実体不在 stale 由来）
 - backup → validate → restore 異常系（§6.5。validate 失敗時に .bak 復元・
   checksums 据え置き・.toc_work 保持）
-- metadata.key が meta.yaml の original_key と一致する（§7.2）
+- metadata.key が --key 引数と一致する（§7.2）
 - 原子的書き込み（os.replace 経路で破損なし）
 - JSON 契約（status / error_code enum・counts・deleted_paths）
 - docs 順序の決定性（path 昇順）
@@ -44,8 +44,6 @@ from merge_toc import (
 )
 from toc_store import (
     resolve_store_dir,
-    read_meta,
-    write_meta,
     WORK_DIRNAME,
     CHECKSUMS_FILENAME,
     DELETED_SIDECAR_FILENAME,
@@ -252,21 +250,15 @@ class TestMergePendingIntegration(MergeTestBase):
 # ===========================================================================
 
 class TestMetadataKey(MergeTestBase):
-    def test_metadata_key_matches_meta_yaml(self):
-        """toc.yaml の metadata.key が meta.yaml の original_key と一致する。"""
-        key = "my rules"  # slug 化される key
+    def test_metadata_key_set_from_arg(self):
+        """toc.yaml の metadata.key が --key 引数と一致する。"""
+        key = "my rules"
         self._write_md("docs/a.md")
-        # prepare が書く想定の meta.yaml を先に書く
-        write_meta(self._store_dir(key), key)
         self._write_completed_pending(key, "docs/a.md")
         proc = self._run_merge('--key', key)
         self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
 
-        meta = read_meta(self._store_dir(key))
-        self.assertEqual(meta.get("original_key"), key)
-
         content = self._toc_path(key).read_text(encoding='utf-8')
-        # metadata.key 行が original_key と一致
         self.assertIn(f'key: {self._yaml_key(key)}', content)
 
     def _yaml_key(self, key):
