@@ -48,7 +48,7 @@ flowchart TB
     end
 
     subgraph Store["key 単位 ToC ストア"]
-        ST[.claude/doc-advisor/toc/keys/&lt;slug&gt;/]
+        ST[.claude/doc-advisor/toc/&lt;slug&gt;/]
     end
 
     U1 --> S1
@@ -83,7 +83,7 @@ fork 型 SKILL と Agent の関係（fork 型 SKILL は Agent を起動できな
 REQ-001 FR-N01-3 の「決定的変換」を以下で実現する。
 
 ```text
-store_dir(key) = .claude/doc-advisor/toc/keys/{slug}/
+store_dir(key) = .claude/doc-advisor/toc/{slug}/
 ```
 
 - `slug`: key を NFC 正規化（既存 `normalize_path`）後、`[a-z0-9_-]` 以外を `_` に置換し、英小文字化・連続 `_` 圧縮・長さ 40 文字で切り詰め。切り詰めの前後で前後の `_` を除去する
@@ -93,7 +93,7 @@ store_dir(key) = .claude/doc-advisor/toc/keys/{slug}/
 ### 3.2 ストアディレクトリ構造
 
 ```text
-.claude/doc-advisor/toc/keys/{slug}-{hash}/
+.claude/doc-advisor/toc/{slug}-{hash}/
 ├── toc.yaml           # 最終 ToC (metadata + docs)
 ├── .toc_checksums.yaml # key 単位の変更検出用チェックサム
 └── .toc_work/         # prepare が生成する pending YAML (一時)
@@ -334,7 +334,7 @@ docs:
   "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | null",
   "message": "human-readable",
   "key": "rules",
-  "toc_path": ".claude/doc-advisor/toc/keys/rules-<hash>/toc.yaml",
+  "toc_path": ".claude/doc-advisor/toc/rules-<hash>/toc.yaml",
   "normalized_paths": ["docs/a.md"],
   "rejected_paths": [{ "path": "../x.md", "reason": "PATH_TRAVERSAL" }],
   "counts": { "added": 0, "updated": 0, "deleted": 0, "unchanged": 0 },
@@ -470,7 +470,7 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 
 ## 14. 移行に伴う設計上の注意
 
-- 既存 `toc/{rules,specs}/` から `toc/keys/` への自動移行は行わない（clean break、REQ-001 §6.2 / 非目的で確定）。再生成で対応
+- 既存 `toc/{rules,specs}/` から `toc/` への自動移行は行わない（clean break、REQ-001 §6.2 / 非目的で確定）。再生成で対応
 
 ## 改定履歴
 

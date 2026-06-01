@@ -10,7 +10,7 @@ applicable_when:
 
 ## Purpose
 
-`.claude/doc-advisor/toc/keys/{slug}/toc.yaml` is the **single source of truth** for the `query-docs` search SKILL to identify documents needed for tasks.
+`.claude/doc-advisor/toc/{slug}/toc.yaml` is the **single source of truth** for the `query-docs` search SKILL to identify documents needed for tasks.
 
 ToC is managed per opaque `key` (decided by the upper layer, or the reserved key `all` in single mode). doc-advisor does not interpret the meaning of a key (e.g., rules / specs). There is no `category` concept and no `doc_type` field.
 
@@ -52,7 +52,7 @@ Structure definition for the pending work files generated per entry by `prepare_
 ### File Layout
 
 ```
-.claude/doc-advisor/toc/keys/{slug}/.toc_work/   # Work directory (per-key, removed by merge_toc.py on success)
+.claude/doc-advisor/toc/{slug}/.toc_work/   # Work directory (per-key, removed by merge_toc.py on success)
 ├── {sha256_hash_16chars}.yaml
 └── ... (for each target file)
 ```
@@ -225,7 +225,7 @@ docs:
 ### Rules-style key ToC
 
 ```yaml
-# .claude/doc-advisor/toc/keys/rules-<hash>/toc.yaml
+# .claude/doc-advisor/toc/rules-<hash>/toc.yaml
 
 metadata:
   name: Development Documentation Search Index
@@ -276,7 +276,7 @@ docs:
 ### Specs-style key ToC
 
 ```yaml
-# .claude/doc-advisor/toc/keys/specs-<hash>/toc.yaml
+# .claude/doc-advisor/toc/specs-<hash>/toc.yaml
 
 metadata:
   name: Project Specification Document Search Index

@@ -411,7 +411,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(obj["status"], "error")
 
     def test_toc_path_in_output(self):
-        """成功時の JSON に toc_path（keys/ 配下）が含まれる。"""
+        """成功時の JSON に toc_path が含まれる。"""
         proc = self._run('--key', 'rules', '--clean-work-dir')
         obj = self._parse_stdout(proc)
         self.assertIn("toc_path", obj)

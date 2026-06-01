@@ -43,7 +43,7 @@ from toc_utils import (
 DEFAULT_KEY = "all"
 
 # ストアルート（project root からの相対）
-STORE_ROOT_REL = ".claude/doc-advisor/toc/keys"
+STORE_ROOT_REL = ".claude/doc-advisor/toc"
 
 # work dir / pending / promote 先のファイル名（key 単位ストア配下に閉じる）
 WORK_DIRNAME = ".toc_work"
@@ -182,7 +182,7 @@ def store_root(project_root=None):
 def resolve_store_dir(key, project_root=None):
     """key から store_dir を決定的に解決する（DES-005 §3.1 / FR-N01-3）。
 
-    store_dir(key) = {project_root}/.claude/doc-advisor/toc/keys/{slug}-{sha256(key)[:12]}/
+    store_dir(key) = {project_root}/.claude/doc-advisor/toc/{slug}-{sha256(key)[:12]}/
 
     slug が衝突しても sha256 サフィックスで別ディレクトリに解決される。
 

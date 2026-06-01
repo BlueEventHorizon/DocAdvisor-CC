@@ -14,7 +14,7 @@ applicable_when:
 
 ## Overview
 
-Workflow for updating a key's ToC at `.claude/doc-advisor/toc/keys/<slug>/toc.yaml`.
+Workflow for updating a key's ToC at `.claude/doc-advisor/toc/<slug>/toc.yaml`.
 Uses the **per-key pending entry file method**: `prepare_toc.py` generates one pending YAML per
 added/updated document, each is filled independently by a `doc-advisor:toc-updater` custom Agent,
 then `merge_toc.py` integrates them and reflects deletions.
@@ -35,7 +35,7 @@ There is no `category` (rules/specs) and no `.doc_structure.yaml`. The document 
 ### Store Directory Structure
 
 ```
-.claude/doc-advisor/toc/keys/<slug>/
+.claude/doc-advisor/toc/<slug>/
 ├── toc.yaml             # Final artifact (after merge)
 ├── .toc_checksums.yaml  # Per-key change-detection checksums
 └── .toc_work/           # Pending entry YAMLs (transient; NOT gitignored — residue signals an abnormal/incomplete merge and is surfaced via git status; see DES-005 §3.2)
@@ -139,11 +139,11 @@ Read `store_dir/.toc_work/*.yaml` (exclude hidden `.`-prefixed files) and identi
 ```
 # Orchestrator calls multiple Task tools in one message
 # key specified
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/keys/<slug>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
 ... (up to 5 simultaneously)
 
 # single mode (reserved key all): pass `all` instead of a key
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/keys/all-<hash>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 **Note**: Do not use `xargs` for file listing — it fails with long Japanese filenames.
