@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "DocAdvisor",
+  "owner": { "name": "moons" },
+  "metadata": {
+    "description": "AI-searchable document index (ToC) generator for Claude Code",
+    "version": "0.4.0"
+  },
+  "plugins": [
+    {
+      "name": "doc-advisor",
+      "source": "./",
+      "description": "AI-searchable document index (ToC) generator for Claude Code",
+      "author": { "name": "moons" },
+      "license": "MIT",
+      "homepage": "https://github.com/BlueEventHorizon/DocAdvisor",
+      "repository": "https://github.com/BlueEventHorizon/DocAdvisor",
+      "keywords": ["doc-advisor", "search", "toc", "documentation"]
+    }
+  ]
+}
