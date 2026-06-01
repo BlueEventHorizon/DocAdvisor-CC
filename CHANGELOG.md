@@ -4,7 +4,26 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
-## [Unreleased]
+## [0.4.0] - 2026-06-01
+
+### Added
+
+- key + path インターフェースによる ToC Provider 基盤 `toc_store.py` を新設。`key`（任意文字列）と project-root-relative の `paths` で ToC を決定的に生成・参照する方式へ移行 (Issue #15)
+- embedding 撤去・doc_structure 残存防止の回帰テスト、および GitHub Actions ワークフローを追加
+
+### Changed
+
+- ToC の生成・検索インターフェースを key + path 方式へ全面移行し、script 層・SKILL・agent を新方式に一本化 (Issue #15)
+- 配布スキルを `index-docs` / `query-docs` の 2 種へ統合（旧 `create-rules-toc` / `create-specs-toc` / `query-rules` / `query-specs` / `setup-doc-structure` を置換）
+- `.doc_structure.yaml` を前提としない汎用 ToC Provider へ一般化。`key` の分類（rules / specs 等）を解釈せず、与えられた key と paths に対して決定的に動作する
+
+### Removed
+
+- OpenAI Embedding API によるセマンティック検索を撤去し、ToC-only 構成へ復帰 (Issue #13)
+- `index_file` 設定・embedding 関連キーワード・dead code の `grep_docs.py` を削除
+- doc_structure 概念をランタイム配布物（SKILL / workflow / formats / agent / README）から撤去 (Issue #15 フェーズ④)
+
+## [0.3.0] - 2026-05-28
 
 ### Changed
 
