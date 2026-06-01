@@ -56,7 +56,6 @@ from toc_store import (
     STATUS_PARTIAL,
     resolve_store_dir,
     resolve_key_from_args,
-    write_meta,
     emit_json,
     toc_path_rel,
 )
@@ -534,9 +533,6 @@ def main(argv=None):
             empty_intent.unlink()
         except (OSError, PermissionError):
             pass
-
-    # meta.yaml を書き出し original key を保持（FR-N01-4）
-    write_meta(store_dir, key)
 
     if failed > 0:
         warnings.append(f"{failed} pending YAML(s) failed to write")

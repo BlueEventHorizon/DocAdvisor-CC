@@ -18,12 +18,11 @@
 
 ### 適用例（適用可能な対象）
 
-| データ形式  | バージョン識別方法          | 適用箇所                           |
-| ----------- | --------------------------- | ---------------------------------- |
-| `meta.yaml` | `schema_version` フィールド | `toc_store.py`（key 単位ストア）   |
-| `toc.yaml`  | `metadata.schema_version`   | `merge_toc.py` / `validate_toc.py` |
+| データ形式 | バージョン識別方法        | 適用箇所                           |
+| ---------- | ------------------------- | ---------------------------------- |
+| `toc.yaml` | `metadata.schema_version` | `merge_toc.py` / `validate_toc.py` |
 
-> **Note（Issue #15）**: 本フレームワークは当初 `.doc_structure.yaml`（`# doc_structure_version: X.0` コメント）の版管理を例に策定された。Issue #15 で `.doc_structure.yaml` は廃止され（REQ-001 §6.2、`load_config()` も除去）、現行の版を持つデータは key 単位ストアの `meta.yaml` / `toc.yaml`（`schema_version`、DES-005 §3.2）である。将来これらの構造変更で段階的マイグレーションが必要になった場合、本フレームワークを適用する。フレームワーク自体（段階的適用・レジストリ・冪等性・副作用なし）は版管理対象に依存しない汎用設計として継続する。
+> **Note（Issue #15）**: 本フレームワークは当初 `.doc_structure.yaml`（`# doc_structure_version: X.0` コメント）の版管理を例に策定された。Issue #15 で `.doc_structure.yaml` は廃止され（REQ-001 §6.2、`load_config()` も除去）、現行の版を持つデータは key 単位ストアの `toc.yaml`（`schema_version`、DES-005 §3.2）である。将来これらの構造変更で段階的マイグレーションが必要になった場合、本フレームワークを適用する。フレームワーク自体（段階的適用・レジストリ・冪等性・副作用なし）は版管理対象に依存しない汎用設計として継続する。
 
 ## 機能要件
 

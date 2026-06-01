@@ -57,7 +57,7 @@ REMOVE_TOC_SCRIPT = os.path.join(SCRIPTS_DIR, 'remove_toc.py')
 # 新スキーマ（DES-005 §7.1: doc_type 除去）の toc.yaml。
 # 定義順は z, a, m とし、削除後の順序保持を観測する。
 SAMPLE_TOC_YAML = """\
-# .claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml
+# .claude/doc-advisor/toc/keys/<slug>/toc.yaml
 # Auto-generated - Do not edit directly
 
 metadata:
@@ -127,15 +127,12 @@ class RemoveTocTestBase(unittest.TestCase):
         return resolve_store_dir(key, project_root=self.project_root)
 
     def _write_store(self, key, toc=SAMPLE_TOC_YAML, checksums=SAMPLE_CHECKSUMS_YAML):
-        """store_dir に toc.yaml / .toc_checksums.yaml / meta.yaml を書き出す。"""
+        """store_dir に toc.yaml / .toc_checksums.yaml を書き出す。"""
         store_dir = self._store_dir(key)
         store_dir.mkdir(parents=True, exist_ok=True)
         (store_dir / "toc.yaml").write_text(toc, encoding="utf-8")
         if checksums is not None:
             (store_dir / CHECKSUMS_FILENAME).write_text(checksums, encoding="utf-8")
-        (store_dir / "meta.yaml").write_text(
-            f"original_key: {key}\nschema_version: 1\n", encoding="utf-8"
-        )
         return store_dir
 
     def _run(self, *args):

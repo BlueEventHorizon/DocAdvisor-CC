@@ -40,7 +40,6 @@ if SCRIPTS_DIR not in sys.path:
 
 from toc_store import (
     resolve_store_dir,
-    read_meta,
     WORK_DIRNAME,
     STATUSES,
     ERROR_CODES,
@@ -199,12 +198,9 @@ class TestPrepareFillMergePipeline(PipelineTestBase):
         self.assertEqual(entry["purpose"], SAMPLE_PURPOSE)
         self.assertEqual(len(entry["keywords"]), 5)
 
-        # 5. metadata.key が original key と一致する（§7.2 / FR-N01-4）
-        #    toc.yaml の metadata は 2 スペースインデントのネストなので行で確認する。
+        # 5. metadata.key が original key と一致する（§7.2）
         toc_text = toc_path.read_text(encoding="utf-8")
         self.assertIn(f"  key: {key}", toc_text.split("\n"))
-        # meta.yaml にも original key が保持される（SoT）
-        self.assertEqual(read_meta(self._store_dir(key)).get("original_key"), key)
 
         # 6. validate_toc が valid（merge 内部検証と独立に再確認）
         val = self._run(VALIDATE_SCRIPT, "--key", key)

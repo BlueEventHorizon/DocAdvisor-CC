@@ -12,7 +12,7 @@ description: |
   - "Index docs", "Rebuild the ToC for key X", "Index all Markdown"
 allowed-tools: Bash, Read, Task
 user-invocable: true
-argument-hint: "--key <key> --paths-json '[...]' | --all"
+argument-hint: "--key <key> --paths-json '[...]' | --all | (no args = --all)"
 ---
 
 # index-docs
@@ -50,7 +50,7 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 
 ## Execution Flow
 
-`toc_orchestrator.md` のオーケストレーター手順に従って、以下の協調フローを駆動する。スクリプトパスはすべて `${CLAUDE_PLUGIN_ROOT}/scripts/` を使う。`$ARGUMENTS` から `--key` / `--paths-json` / `--paths-file` / `--all` を解釈する。
+`toc_orchestrator.md` のオーケストレーター手順に従って、以下の協調フローを駆動する。スクリプトパスはすべて `${CLAUDE_PLUGIN_ROOT}/scripts/` を使う。`$ARGUMENTS` から `--key` / `--paths-json` / `--paths-file` / `--all` を解釈する。引数が空（`$ARGUMENTS` なし）の場合は `--all` として扱う。
 
 ### Step 0: 中断耐性・continuation の判定（key 単位 / §6.6）
 
@@ -62,7 +62,7 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 | `store_dir/.toc_work/` が存在し全 `completed`                    | 充填済み。merge（Step 3）へ直行する                                                    |
 | `store_dir/.toc_work/` なし                                      | 通常どおり Step 1（prepare）から開始する                                               |
 
-`store_dir` は `prepare_toc.py` / `merge_toc.py` の JSON 出力 `toc_path`（`.claude/doc-advisor/toc/keys/<slug>-<hash>/toc.yaml`）の親ディレクトリとして特定できる。`.toc_work/` の存在は Bash の `test -d` で確認する。
+`store_dir` は `prepare_toc.py` / `merge_toc.py` の JSON 出力 `toc_path`（`.claude/doc-advisor/toc/keys/<slug>/toc.yaml`）の親ディレクトリとして特定できる。`.toc_work/` の存在は Bash の `test -d` で確認する。
 
 ### Step 1: prepare（desired-state 差分検出 + pending 生成 / §6.1 / §6.2）
 
@@ -100,7 +100,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 
 ```
 # key 指定時（1 メッセージで最大 5 件並列）
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/keys/<slug>-<hash>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/keys/<slug>/.toc_work/<sha256>.yaml")
 ...（最大 5 件）
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
