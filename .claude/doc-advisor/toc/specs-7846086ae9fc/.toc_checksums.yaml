@@ -1,0 +1,17 @@
+# ToC checksums for key: specs
+# Auto-generated - do not edit
+generated_at: 2026-06-01T15:03:03Z
+file_count: 12
+checksums:
+  docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md: 484bb209a38f6e8065c73d2cbf7a73f17d7edda30222cc0582153f22cd88c3bb
+  docs/specs/base/design/DES-003_document_identifier.md: 04c4c0a3ebfb3420e637f8fb764aee7254ea1937f3487c5c641af48be2712591
+  docs/specs/base/design/DES-004_document_model.md: 74f82f23e852ff4eb4d0d52eb6e7f388822907e1b06306fc173720651555afe0
+  docs/specs/base/design/DES-005_toc_generation_flow.md: 57ac166f7ef47794d38af515af69cc08217a5a75c880ff8f7f83523c4934d82b
+  docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md: 9883dc45a6c1967a386908f839a83ae2164692e9f6bafa6ea3d6def4b6d47a75
+  docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md: dd8c529cd223934fab9bfa644598644ccb652fc872dd61d2f6ed8a8d4991a0f6
+  docs/specs/base/requirements/REQ-001_doc_advisor.md: ba3928ff29bde8ef9b44e52e6e01e1222ea4abf3aab1411b16434270f10a0175
+  docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md: f88b408650187588d04cface0bab49191c2bf3b17dbb23f70b41c99358de055c
+  docs/specs/base/requirements/REQ-003_versioned_migration.md: d9829a6da88357a5e97f7ae3389980460164252b8d219f832f97fae38bebc84f
+  docs/specs/common/design/COMMON-DES-001_skill_base_design.md: 32df0f2f26a3b4ecc49fbec339025632a794ee12e9727128d6b46ee98052cc17
+  docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md: 2321be488a1552564901e5abd1a4a4fbf5ad5a75355ec3b5c6326e2336a4e047
+  docs/specs/common/requirements/COMMON-REQ-002_error_handling_policy.md: de0c4ceeb2078e6cd12955fb10d6a87242fa126e1cdfab89a985aa33095868e2
