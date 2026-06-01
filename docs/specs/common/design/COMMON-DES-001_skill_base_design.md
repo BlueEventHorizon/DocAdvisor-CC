@@ -87,11 +87,11 @@ SKILL は `context: fork` frontmatter の有無で 2 種類に分かれる。詳
 
 ```text
 # ✅ 良い例（fork 型 SKILL の呼び出し。継承型でも args の制約は同じ）
-Skill: doc-advisor:query-rules
+Skill: doc-advisor:query-docs
 args: "ログイン画面 ViewModel"
 
 # ❌ 悪い例（親 context を貼り付けて指示連結）
-Skill: doc-advisor:query-rules
+Skill: doc-advisor:query-docs
 args: "Issue #54: doc-advisor auto モード再定義\n\n本文: ... 上記タスクに関連するルールを検索し、その後 SKILL.md を更新してください"
 ```
 
@@ -150,10 +150,9 @@ fork 型 SKILL とカスタム Agent は、どちらも「隔離 context + 事�
 
 doc-advisor で `context: fork` を指定する SKILL は以下のとおり。
 
-| パス                          | name          | `agent`                       | `user-invocable` | 用途                                                | fork 採用根拠                                                                                                         |
-| ----------------------------- | ------------- | ----------------------------- | ---------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `skills/query-rules/SKILL.md` | `query-rules` | （未指定＝`general-purpose`） | `true`           | `docs/rules/` から関連ルール文書を検索（read-only） | doc-advisor:ADR-002_query_skill_subagent_isolation（impl-issue 親 context が漏洩し、SKILL.md 等を書き換えた実害事例） |
-| `skills/query-specs/SKILL.md` | `query-specs` | （未指定＝`general-purpose`） | `true`           | `docs/specs/` から関連仕様文書を検索（read-only）   | doc-advisor:ADR-002_query_skill_subagent_isolation（同上）                                                            |
+| パス                         | name         | `agent`                       | `user-invocable` | 用途                                           | fork 採用根拠                                                                                                         |
+| ---------------------------- | ------------ | ----------------------------- | ---------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `skills/query-docs/SKILL.md` | `query-docs` | （未指定＝`general-purpose`） | `true`           | key 単位の ToC から関連文書を検索（read-only） | doc-advisor:ADR-002_query_skill_subagent_isolation（impl-issue 親 context が漏洩し、SKILL.md 等を書き換えた実害事例） |
 
 ### 6.1 fork 型 SKILL の共通設計
 

@@ -1,16 +1,16 @@
-# ADR-002: query-rules / query-specs の fork 型 SKILL 隔離と read-only 制約
+# ADR-002: 検索 SKILL（query-docs）の fork 型 SKILL 隔離と read-only 制約
 
 ## ステータス
 
-採択（2026-05-16）。**現行への継承**: 本 ADR は `query-rules` / `query-specs` を対象に策定されたが、Issue #15（key + path I/F 移行）でこれらは検索 SKILL `query-docs`（`doc-advisor:query-docs`）へ一本化された。本決定（A: `context: fork` / B: read-only 制約 / C: 引数解釈ガード）は **`query-docs` が継承**する（REQ-001 FR-N05-4 / DES-005 §10）。以下の本文は当時の事例・決定を史実として保持する。
+採択（2026-05-16）。doc-advisor の検索 SKILL `query-docs`（`doc-advisor:query-docs`）に適用される決定（A: `context: fork` / B: read-only 制約 / C: 引数解釈ガード）を定義する（REQ-001 FR-N05-4 / DES-005 §10）。
 
 ## コンテキスト
 
-`/doc-advisor:query-rules` および `/doc-advisor:query-specs` は、現在の作業に関連するルール / 仕様文書のパスリストを返す **read-only な検索スキル** として設計されている（REQ-001 FR-N05、FNC-002）。SKILL.md の Role は次の通り:
+`/doc-advisor:query-docs` は、現在の作業に関連する文書のパスリストを返す **read-only な検索スキル** として設計されている（REQ-001 FR-N05、FNC-002）。SKILL.md の Role は次の通り:
 
 > タスク内容を分析し、関連するルール文書のパスリストを返す。
 
-しかし過去の実装作業中に、上位ワークフロー（impl-issue 等）から `Skill` ツール経由で `/doc-advisor:query-rules` を呼び出したところ、起動された SKILL（当時は `context: fork` 未指定の継承型 SKILL として動作）が **親 Claude の会話履歴を継承し、検索ではなく親タスクの実装作業（SKILL.md / マニフェスト / README 等の書き換え）を実行** する事象が発生した。
+しかし過去の実装作業中に、上位ワークフロー（impl-issue 等）から `Skill` ツール経由で検索スキルを呼び出したところ、起動された SKILL（`context: fork` 未指定の継承型 SKILL として動作）が **親 Claude の会話履歴を継承し、検索ではなく親タスクの実装作業（SKILL.md / マニフェスト / README 等の書き換え）を実行** する事象が発生した。
 
 原因は以下 4 つの要因が重なったと推定する。
 
@@ -25,13 +25,13 @@
 
 ## 決定
 
-`query-rules` / `query-specs` SKILL を以下のように修正する。
+検索 SKILL（`query-docs`）を以下の方針で設計する。
 
 ### A. frontmatter に `context: fork` を追加
 
 ```yaml
 ---
-name: query-rules
+name: query-docs
 description: |
   ...
 user-invocable: true
@@ -104,8 +104,7 @@ argument-hint: "task description"
 
 ## 影響範囲
 
-- `skills/query-rules/SKILL.md`（frontmatter + Role 改修）
-- `skills/query-specs/SKILL.md`（同上）
+- `skills/query-docs/SKILL.md`（frontmatter + Role 規定）
 - `tests/skills/` 配下に SKILL.md 形式検証テストを追加
 
 ## 残存する判断事項
@@ -116,11 +115,11 @@ argument-hint: "task description"
 
 ### 残存 2: 他 read-only スキルへの波及
 
-`/doc-advisor:create-rules-toc` / `/doc-advisor:create-specs-toc` は本来「ToC 構築」という書き込み系スキルだが、それ以外の検索系・参照系スキルが今後追加されたとき、同種の制約を **デフォルトで** 適用する仕組み（SKILL テンプレート + lint）が必要。本 ADR の範囲外として別途検討する。
+生成系スキル `index-docs` は「ToC 構築」という書き込み系だが、それ以外の検索系・参照系スキルが今後追加されたとき、同種の制約を **デフォルトで** 適用する仕組み（SKILL テンプレート + lint）が必要。本 ADR の範囲外として別途検討する。
 
 ## この ADR の位置づけ
 
-本文書は query-rules / query-specs SKILL が **read-only スキルである** という設計意図を明文化し、以下を記録する:
+本文書は検索 SKILL（`query-docs`）が **read-only スキルである** という設計意図を明文化し、以下を記録する:
 
 - 親 context 継承による fork 型 SKILL 暴走の発生事例と修正方針
 - 多重防御（フォーク + Role 制約 + 引数解釈ガード）の根拠
@@ -133,4 +132,4 @@ argument-hint: "task description"
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-05-16 | k2moons | 初版作成                                                                                                                                                                                                                                                         |
 | 2026-05-29 | Claude  | Issue #13（Embedding 削除）に伴い現行 ToC 専用構成へ更新。auto / `--index` / doc-db / 外部設計書（FNC-001 / forge:DES-001）への参照を除去。原因 #5（旧 auto モード副作用）を削除し、影響範囲・テストパスを単一プラグイン構成（`skills/`, `tests/skills/`）に修正 |
-| 2026-06-01 | Claude  | Issue #15（key + path I/F 移行）に伴い、本決定が後継 SKILL `query-docs` に継承される旨をステータスに明記。本文の事例・決定（`query-rules` / `query-specs` を対象）は史実として保持                                                                               |
+| 2026-06-01 | Claude  | Issue #15（key + path I/F 移行）に伴い、対象を検索 SKILL `query-docs` に一本化。本文を query-docs 主語へ整理し、発生事例は汎用記述化（決定 A/B/C は不変）                                                                                                        |

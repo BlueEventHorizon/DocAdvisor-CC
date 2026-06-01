@@ -397,7 +397,7 @@ sequenceDiagram
 
 ## 10. SKILL / agent 設計
 
-REQ-001 §6.2 の clean break に従い、旧 SKILL（`query-rules` / `query-specs` / `create-rules-toc` / `create-specs-toc` / `setup-doc-structure`）を全廃し、以下へ一本化する。
+key + path 汎用化（REQ-001 §6.2）に伴い、SKILL / agent を以下の 3 コンポーネントへ一本化する。
 
 | コンポーネント | 種別                      | 責務                                                                       |
 | -------------- | ------------------------- | -------------------------------------------------------------------------- |
@@ -474,7 +474,6 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 ## 14. 移行に伴う設計上の注意
 
 - 既存 `toc/{rules,specs}/` から `toc/keys/` への自動移行は行わない（clean break、REQ-001 §6.2 / 非目的で確定）。再生成で対応
-- README / SKILL / workflow から `setup-doc-structure` 前提の記述を削除（REQ-001 受け入れ基準、コードと同一 PR）
 
 ## 改定履歴
 

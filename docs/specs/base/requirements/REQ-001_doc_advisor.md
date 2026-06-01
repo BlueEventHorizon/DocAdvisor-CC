@@ -8,7 +8,7 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 
 検索方式は **ToC 検索のみ**。Embedding（セマンティック）検索は doc-advisor の責務外であり、query-docs プラグイン側で扱う（`BlueEventHorizon/bw-cc-plugins#77`）。
 
-> **旧モデルからの移行**: かつて doc-advisor は `.doc_structure.yaml` と `rule` / `spec` の 2 カテゴリに依存して文書を探索していた。Issue #15 でこのモデルを廃止し、key + path I/F へ移行した（clean break / §6.2）。`.doc_structure.yaml` / `setup-doc-structure` / category / `doc_type` は通常経路では使用しない。
+> **適用範囲の境界**: doc-advisor は `.doc_structure.yaml` / category / `doc_type` を通常経路では使用しない。文書集合の分類・決定は上位層（forge 等）の責務であり、doc-advisor は `key + project-root-relative paths` のみで決定的に動作する（§6.2）。
 
 ## 背景とスコープ
 
@@ -126,20 +126,17 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 
 > **symlink を厳格化する根拠**: 旧モデルは「project-configured symlink が base 外を指すのは_意図的に許可_」というポリシーだった。新 I/F は上位層が**個別 path を明示的に渡す** desired-state モデルであり、symlink を経由せず実体パスを直接渡せるため、root 外 symlink を許可する技術的理由がない。漏洩防止（root 外ファイルの不意なインデックス化）を優先し、**旧ポリシーから意図的に変更**する。サポート下限を Python 3.9 に確定する（`Path.is_relative_to`、README に明記）。実体解決の実装詳細は DES-005 §5 に委ねる。
 
-### 6.2 旧 SKILL migration policy【確定】
+### 6.2 SKILL 構成【確定】
 
-doc_structure 廃止に伴い、category 固有 SKILL を**全廃し、汎用 SKILL へ一本化する（clean break）**。`implementation_guidelines.md`「使わないコードは削除 [MANDATORY]」に従い、不使用ロジックは非推奨残存させず削除する。
+doc-advisor は category 固有の SKILL を持たず、汎用 SKILL 2 種へ一本化する。`key` の分類的意味（rules / specs 等）は解釈せず、与えられた `key` と `paths` に対して決定的に動作する。`implementation_guidelines.md`「使わないコードは削除 [MANDATORY]」に従い、category 依存ロジックは残さない。
 
-| 旧 SKILL / 機能                         | 確定方針                                                                                                                           |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `setup-doc-structure`                   | **廃止**。`.doc_structure.yaml` 生成・config_required 案内導線を削除する                                                           |
-| `create-rules-toc` / `create-specs-toc` | **廃止**。汎用生成 SKILL `index-docs` へ一本化する                                                                                 |
-| `query-rules` / `query-specs`           | **廃止**。汎用検索 SKILL `query-docs`（`doc-advisor:query-docs`）へ一本化する。category 別の検索体験は提供しない                   |
-| 汎用検索 SKILL（新設）                  | **`query-docs`**。`get_toc` を呼び、`--key` 省略時は予約 key `all` を検索する。`context: fork` / read-only（ADR-002 継続）         |
-| 汎用生成 SKILL（新設）                  | **`index-docs`**。agent 並列起動のため fork しない。`prepare_toc` → agent 充填 → `merge_toc` を駆動                                |
-| 旧 category 内部ロジック                | **削除**。`load_config()` の category 分岐、`_get_default_config()` の rules/specs 固定キー、`extract_id_from_filename()` 等を除去 |
+| SKILL / 機能          | 確定方針                                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 汎用検索 `query-docs` | `get_toc` を呼び、`--key` 省略時は予約 key `all` を検索する。`context: fork` / read-only（ADR-002）。FR-N05（タスク関連パスリストの返却）契約を担う |
+| 汎用生成 `index-docs` | agent 並列起動のため fork しない。`prepare_toc` → agent 充填 → `merge_toc` を駆動する                                                               |
+| category 内部ロジック | 持たない。`load_config()` の category 分岐、`_get_default_config()` の rules/specs 固定キー、`extract_id_from_filename()` 等は存在しない            |
 
-> **確定の含意と影響**: category の意味づけは doc-advisor の責務外となり、`rules` / `specs` を分けて検索する体験は doc-advisor から消える。これを必要とする利用者は、上位層（forge）が任意の key で生成・検索を駆動するか、`query-docs`（key 省略 = `all`）で project 全体を横断検索する運用へ移行する。後方互換の意図的破壊であり、受容を前提とする。FR-N05（タスク関連パスリストの返却）契約自体は `query-docs` が継承する。検索 SKILL 名 `query-docs` は別プラグイン `query-docs`（bw-cc-plugins#77）と語が重複するが、plugin namespace（`doc-advisor:query-docs`）で区別され、衝突を許容する。
+> **category 非対応の含意**: category の意味づけは doc-advisor の責務外であり、`rules` / `specs` を分けて検索する体験は提供しない。これを必要とする利用者は、上位層（forge）が任意の key で生成・検索を駆動するか、`query-docs`（key 省略 = `all`）で project 全体を横断検索する。検索 SKILL 名 `query-docs` は別プラグイン `query-docs`（bw-cc-plugins#77）と語が重複するが、plugin namespace（`doc-advisor:query-docs`）で区別する。
 
 ### 6.3 script 協調の方針【確定】
 
@@ -187,7 +184,7 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 
 - [ ] 通常実行経路で `.doc_structure.yaml` を読まない
 - [ ] `toc_utils.py` から doc_structure 前提の探索・分類ロジックを削除する（非推奨残存させない）
-- [ ] README / SKILL / workflow から `setup-doc-structure` 前提の案内を削除する
+- [ ] README / SKILL / workflow から doc_structure 前提のセットアップ案内を削除する
 - [ ] ToC スキーマから `doc_type` フィールドを除去し、`formats/toc_format.md` を改訂する
 
 ### 汎用 key + paths I/F
