@@ -1,174 +1,105 @@
 # CLAUDE.md
 
-このファイルは、Claude Code がこのリポジトリで作業する際のガイダンスを提供します。
+> **Scope**: このファイルは **doc-advisor 自体を開発するためのリポジトリガイド** であり、エンドユーザの実行時コンテキストには **ロードされない**。プラグイン利用者は本ファイルを参照しない（インストール先には配布されるが Claude Code が plugin context として読み込まない）。
+>
+> エンドユーザ向けの動作仕様は [`skills/*/SKILL.md`](skills/) / [`workflows/`](workflows/) / [`formats/`](formats/) / [`README.md`](README.md) に置く。本ファイルにランタイム前提の指示を書かないこと。
 
-## プロジェクト概要
+This file provides guidance to Claude Code (claude.ai/code) when working on **this repository's source code**.
 
-Doc Advisor は、Claude Code 向けのドキュメント検索基盤ツール。
-プロジェクトのドキュメント（`.md`）を解析し、AI が検索可能な ToC（Table of Contents）YAML インデックスを自動生成する。
+## Project Overview
 
-**このリポジトリの役割**: テンプレートとセットアップスクリプトを提供するインストーラー。
-`templates/` 配下にコピー元テンプレート（プレースホルダー `{{...}}` 付き）があり、`setup.sh` でターゲットプロジェクトの `.claude/` 配下にコピー・変数置換される。
+`doc-advisor` プラグイン本体のリポジトリ。Claude Code 公式仕様の単一プラグイン構成（リポジトリルートに `.claude-plugin/plugin.json`）。
 
-### アーキテクチャ
+ToC（キーワード／メタデータ）でルール・仕様文書をインデックス化し、AI が必要なコンテキストを自動発見できるようにする。
 
-```
-DocAdvisor-CC/
-├── templates/          ← コピー元テンプレート（修正対象はここ）
-│   ├── doc-advisor/    ← config, docs, scripts
-│   ├── agents/         ← ワーカーエージェント定義
-│   └── skills/         ← スキル定義
-├── setup.sh            ← インストーラー（テンプレート → ターゲットへコピー・置換）
-├── tests/              ← テスト用プロジェクト群（検証はここで行う）
-├── specs/              ← Doc Advisor 自体の仕様書
-└── rules/              ← Doc Advisor 自体の開発ルール
-```
+詳細は [README.md](README.md) を参照。
 
-**`.claude/` について**: 本プロジェクト自体の開発用に、現行バージョンの Doc Advisor がインストールされている。修正対象ではない。テンプレートの修正は必ず `templates/` に対して行う。
+## 重要規約 [MANDATORY]
 
-## 必読ドキュメント
+- **作業開始時に `/doc-advisor:query-docs --key rules` を実行**: プロジェクトルールを最初に確認する（`docs/rules/` を索引した `key=rules` を検索）。ToC 未生成時は先に `/doc-advisor:index-docs --key rules` で生成する
+- **ルールは `docs/rules/` で管理**: CLAUDE.md にルールを詰め込まない（コンテキスト肥大化防止）
+- **設計文書は `docs/specs/base/{requirements,design}/` に保存**: plan モードで作成した重要設計は ID プレフィックス（REQ-, DES-, ADR-）で命名
+- **プラグインランタイム文書の境界**: `workflows/` `formats/` 配下は SKILL.md がランタイム Read する配布物。`docs/` 配下はプロジェクト自身のメタ文書
 
-作業開始前に以下を必ず読むこと：
+## Repository Layout
 
-| ドキュメント                 | 内容                                 |
-| ---------------------------- | ------------------------------------ |
-| `README.md` / `README_ja.md` | プロジェクト概要、設計意図、コマンド |
-| `specs/requirements/**/*.md` | 要件定義書（実装の根拠）             |
+単一プラグイン構成。リポジトリルート全体が `${CLAUDE_PLUGIN_ROOT}` として end user に配布される。
 
-## 言語ルール
+| Path                         | 役割                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `.claude-plugin/plugin.json` | プラグインマニフェスト                                                    |
+| `skills/{skill}/SKILL.md`    | 配布 SKILL（2 件: index-docs / query-docs。key+path で ToC を生成・検索） |
+| `agents/toc-updater.md`      | 配布 agent（ToC 更新の並列処理用）                                        |
+| `scripts/`                   | SKILL から呼ばれる Python スクリプト                                      |
+| `workflows/`                 | SKILL がランタイム Read する手順文書                                      |
+| `formats/`                   | SKILL がランタイム Read するスキーマ文書                                  |
+| `docs/rules/`                | プロジェクトルール（`query-docs --key rules` 対象）                       |
+| `docs/specs/base/`           | doc-advisor 基盤仕様の要件・設計文書                                      |
+| `docs/specs/common/`         | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                     |
+| `docs/readme/`               | ユーザ向けガイド（日英併記）                                              |
+| `tests/`                     | 単体テスト・統合テスト・golden set                                        |
+| `.claude/`                   | このリポジトリのローカル設定（プラグイン配布物ではない）                  |
+| `.claude/skills/`            | ローカル限定 skill（配布対象外: swap-doc-config 等）                      |
+| `.agents/skills/`            | agent 向け補助 skill                                                      |
+| `.doc_structure.yaml`        | このリポジトリ自身の rules/specs 検索設定                                 |
+| `.version-config.yaml`       | バージョン一括更新設定                                                    |
+| `dprint.jsonc`               | フォーマッタ設定                                                          |
+| `AGENTS.md`                  | `CLAUDE.md` への symlink（Codex 等向け、内容は同一）                      |
 
-| 対象              | 言語   |
-| ----------------- | ------ |
-| CLAUDE.md         | 日本語 |
-| .claude/**/*.md   | 日本語 |
-| README_ja.md      | 日本語 |
-| meta/**/*.md      | 日本語 |
-| rules/**/*.md     | 日本語 |
-| specs/**/*.md     | 日本語 |
-| README.md         | 英語   |
-| templates/**/*.md | 英語   |
-| その他            | 英語   |
+## Information Sources
 
-## 開発ルール [必須]
+| 対象                           | 入口                                                  |
+| ------------------------------ | ----------------------------------------------------- |
+| ユーザ向け説明                 | `README.md` / `README_en.md`                          |
+| プロジェクトルール             | `/doc-advisor:query-docs --key rules` → `docs/rules/` |
+| プロジェクト仕様（要件・設計） | `/doc-advisor:query-docs --key specs` → `docs/specs/` |
+| プラグイン内部仕様             | `workflows/*.md`, `formats/*.md`                      |
+| Claude Code / SDK / API 仕様   | `claude-code-guide` agent                             |
+| 最新の変更意図                 | `git log main..HEAD` / `CHANGELOG.md`                 |
 
-- **タスク開始時に `/query-rules` を実行する**: 新しいタスクに取り掛かる前にルール文書を確認すること
-- **要件定義書優先**: `specs/requirements/**/*.md` がすべてのドキュメント・実装に優先
-- **不明点は人間に確認**: 推測より確認を優先
-- **小さく試してから展開**: 1つを完成させてから次へ進む
-- **品質最優先**: 複雑な正規表現での一括置換禁止、手抜きしない
-- **外部仕様は必ず確認**: Claude Code プラグイン仕様など外部システムの仕様は、実装前に公式ドキュメントで確認すること
+## Development
 
-## Claude Code 仕様に関する作業 [必須]
+外部依存なし。Python は標準ライブラリのみで動作。
 
-Claude Code の仕様（commands, agents, skills, hooks, settings 等）に関わる作業を行う場合は、**必ず `claude-code-guide` エージェントを使用して最新の仕様を取得し、深く理解してから作業すること**。
+### フォーマット
 
-```
-Task(subagent_type: claude-code-guide, prompt: "調査したい内容")
-```
-
-理由:
-
-- Claude Code の仕様は頻繁に更新される
-- 古い知識に基づく実装は動作しない可能性がある
-- 公式ドキュメントの最新情報を確認することで、正確な実装が可能になる
-
-## ファイルヘッダー [必須]
-
-新規作成ファイルの `Created by` は git 定義の作者名を使用:
+JSON / TOML / Markdown / YAML は [dprint](https://dprint.dev/) でフォーマット。設定は `dprint.jsonc`。
 
 ```bash
-git config user.name
+dprint fmt      # フォーマット適用
+dprint check    # チェックのみ
 ```
 
-## 主要ファイル
-
-### テンプレート（setup.sh で対象プロジェクトにコピーされる）
-
-| ファイル                                              | 役割                                       |
-| ----------------------------------------------------- | ------------------------------------------ |
-| `templates/doc-advisor/config.yaml`                   | プロジェクト設定テンプレート               |
-| `templates/doc-advisor/docs/*_toc_format.md`          | ToC スキーマ定義（Single Source of Truth） |
-| `templates/doc-advisor/docs/*_toc_update_workflow.md` | ToC 更新の詳細ワークフロー                 |
-| `templates/doc-advisor/docs/*_orchestrator.md`        | オーケストレーター手順                     |
-| `templates/doc-advisor/scripts/`                      | Python スクリプト群                        |
-| `templates/skills/query-{rules,specs}/SKILL.md`       | ドキュメント検索スキル                     |
-| `templates/skills/create-{rules,specs}-toc/SKILL.md`  | ToC 生成スキル                             |
-| `templates/agents/`                                   | ワーカーエージェント（toc-updater）        |
-
-### プロジェクト固有
-
-| ファイル              | 役割                                             |
-| --------------------- | ------------------------------------------------ |
-| `setup.sh`            | ターゲットプロジェクトへのセットアップスクリプト |
-| `specs/requirements/` | Doc Advisor 自体の要件定義書                     |
-| `specs/design/`       | Doc Advisor 自体の設計書                         |
-| `rules/`              | 開発ルール文書                                   |
-
-## 禁止事項
-
-### システムディレクトリへの書き込み禁止
-
-以下のディレクトリにファイルやディレクトリを作成してはいけない:
-
-- `/tmp`
-- `/var`
-- `/etc`
-- `/usr`
-- `/` 直下全般
-
-理由:
-
-- セキュリティリスクがある
-- 他のユーザーやプロセスと競合する可能性がある
-- シンボリックリンク攻撃の対象になりやすい
-- 予測可能な名前だと悪用される可能性がある
-
-代替案:
-
-- プロジェクトの隣のディレクトリに作成する
-- ユーザーのワーキングディレクトリ配下で作業する
-- どうしても一時ディレクトリが必要な場合は `mktemp -d` を使用する
-
-### サンドボックス制限
-
-Bash の `mkdir` コマンドはサンドボックス制限でエラーになる場合がある。
-
-```
-mkdir: /path/to/dir: Operation not permitted
-```
-
-**回避策**: Write ツールは親ディレクトリを自動作成するため、ディレクトリ作成が必要な場合は Write ツールで `.gitkeep` 等を作成する。
-
-```
-# NG: Bash mkdir
-mkdir -p path/to/new/dir
-
-# OK: Write ツールでファイル作成（ディレクトリも自動作成）
-Write path/to/new/dir/.gitkeep
-```
-
-### シンボリックリンク配下の探索
-
-ファイル検索は Glob ツールを優先するが、**Glob はシンボリックリンクを辿れない**。
-`meta/`, `rules/`, `specs/`, `.claude/` がシンボリックリンクの場合、Glob の結果は空になる。
-
-**対策**: シンボリックリンク配下の探索には `find -L` または `rg -L` を使うこと。
+### プラグインのローカルテスト
 
 ```bash
-find -L specs -name "*.md" -type f
-rg -L --files specs --glob "*.md"
+# セッション限定でロード
+claude --plugin-dir /Users/moons/data/dev/moons/ai_tools/DocAdvisor
+
+# GitHub 経由
+/plugin marketplace add BlueEventHorizon/DocAdvisor
+/plugin install doc-advisor@DocAdvisor
 ```
 
-<!-- doc-advisor-section-start -->
+## Testing [MANDATORY]
 
-## Doc Advisor ルール [MANDATORY]
+`scripts/` 配下の Python スクリプトにはテストが必須。SKILL.md はテスト困難なため例外。
+`.claude/` 配下のローカル skill はテスト対象外。
 
-### ToC ファイルの直接修正禁止
+### テスト実行
 
-`.claude/doc-advisor/toc/` 配下のファイルを直接編集・修正してはいけない。
-ToC の生成・更新には、必ず Doc Advisor の Skill/Agent を使用すること：
+```bash
+# 一括実行
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 
-- `/create-rules-toc` — rules の ToC を生成・更新
-- `/create-specs-toc` — specs の ToC を生成・更新
+# 特定モジュールのみ
+python3 -m unittest tests.scripts.test_toc_utils -v
+```
 
-<!-- doc-advisor-section-end -->
+### 品質評価テスト
+
+検索品質（precision/recall）は `tests/goldenset_test/` および `tests/golden_set/queries.yaml` で測定する。詳細は `tests/golden_set/test_golden_set.py` を参照。
+
+## Debugging [MANDATORY]
+
+コード読解による推論で 2〜3 回修正しても解決しない場合は、**ログ挿入で実際の状態を観測する**。推測に基づく修正を繰り返さず、`print()` / 変数ダンプで実際に何が起こっているかを確認してから次の修正を行う。観測後にログを除去すること。

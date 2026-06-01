@@ -1,0 +1,42 @@
+name: Feature Request
+description: 新機能を提案する
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したい課題
+      description: |
+        この機能が必要な背景や課題を説明してください。
+        「〜したいのに、現状では〜できない」の形式だと伝わりやすいです。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する解決策
+      description: どのような機能・挙動を実現したいか、具体的に説明してください。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 検討した代替案
+      description: 他に検討した解決策や回避方法があれば記載してください。
+    validations:
+      required: false
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: ユースケース
+      description: この機能が役立つ具体的なシナリオがあれば記載してください。
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: 参考リンク、モックアップ、関連する Issue など。
+    validations:
+      required: false

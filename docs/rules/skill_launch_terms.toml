@@ -1,0 +1,13 @@
+[metadata]
+source_doc = "docs/rules/skill_launch_paths_definitions.md"
+
+[launch_context]
+terms = [
+  "汎用 Agent",
+  "カスタム Agent",
+  "継承型 SKILL",
+  "fork 型 SKILL",
+  "Bash subprocess",
+  "Skill ツール",
+  "Agent ツール",
+]

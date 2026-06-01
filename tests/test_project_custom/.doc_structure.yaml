@@ -1,6 +1,0 @@
-rules:
-  rule:
-    paths: [guidelines/]
-specs:
-  spec:
-    paths: [documents/]

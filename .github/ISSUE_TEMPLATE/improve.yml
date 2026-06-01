@@ -1,0 +1,48 @@
+name: Improvement
+description: 既存機能の改善を提案する
+title: "[Improve]: "
+labels: ["improvement", "triage"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: 改善カテゴリ
+      description: 改善の種類を選択してください。
+      options:
+        - パフォーマンス / 速度
+        - 使いやすさ / UX
+        - 出力品質 / 精度
+        - エラーメッセージ / ログ
+        - ドキュメント
+        - コード品質 / リファクタリング
+        - その他
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: 現状の課題
+      description: 現在の動作のどこに改善の余地があるか説明してください。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 改善提案
+      description: どのように改善できるか、具体的に説明してください。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案
+      description: 他の改善アプローチがあれば記載してください。
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: 補足情報
+      description: 関連する Issue、参考リンク、ベンチマーク結果など。
+    validations:
+      required: false
