@@ -326,7 +326,7 @@ class TestValidateTocWithParams(unittest.TestCase):
         docs_dir = self.project_root / 'docs'
         docs_dir.mkdir(parents=True, exist_ok=True)
         (docs_dir / 'test.md').write_text('# Test Rule\n\nContent.\n', encoding='utf-8')
-        self.store_dir = self.project_root / '.claude' / 'doc-advisor' / 'toc' / 'keys' / 'mystore'
+        self.store_dir = self.project_root / '.claude' / 'doc-advisor' / 'toc' / 'mystore'
         self.store_dir.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self):

@@ -174,7 +174,7 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 - lexical 検索 script（ranking / score）の新規実装
 - `.doc_structure.yaml` の新仕様化（廃止対象であり再定義しない）
 - forge 側の文書探索ロジックの実装
-- 既存 `.claude/doc-advisor/toc/{rules,specs}/` から `keys/` 配下への自動 migration（§6.2 clean break により持たない）
+- 既存 `.claude/doc-advisor/toc/{rules,specs}/` から新パス配下への自動 migration（§6.2 clean break により持たない）
 - doc_type 自動分類の維持（category 廃止に伴い doc-advisor の責務外。ToC スキーマからも除去）
 - category 別検索体験（rules / specs を分けた検索）の維持
 

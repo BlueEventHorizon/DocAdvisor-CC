@@ -62,7 +62,7 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 | `store_dir/.toc_work/` が存在し全 `completed`                    | 充填済み。merge（Step 3）へ直行する                                                    |
 | `store_dir/.toc_work/` なし                                      | 通常どおり Step 1（prepare）から開始する                                               |
 
-`store_dir` は `prepare_toc.py` / `merge_toc.py` の JSON 出力 `toc_path`（`.claude/doc-advisor/toc/keys/<slug>/toc.yaml`）の親ディレクトリとして特定できる。`.toc_work/` の存在は Bash の `test -d` で確認する。
+`store_dir` は `prepare_toc.py` / `merge_toc.py` の JSON 出力 `toc_path`（`.claude/doc-advisor/toc/<slug>/toc.yaml`）の親ディレクトリとして特定できる。`.toc_work/` の存在は Bash の `test -d` で確認する。
 
 ### Step 1: prepare（desired-state 差分検出 + pending 生成 / §6.1 / §6.2）
 
@@ -100,11 +100,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 
 ```
 # key 指定時（1 メッセージで最大 5 件並列）
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/keys/<slug>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
 ...（最大 5 件）
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/keys/all-<hash>/.toc_work/<sha256>.yaml")
+Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
