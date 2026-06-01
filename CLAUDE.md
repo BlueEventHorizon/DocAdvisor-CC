@@ -16,7 +16,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 
 ## 重要規約 [MANDATORY]
 
-- **作業開始時に `/doc-advisor:query-docs --key rules` を実行**: プロジェクトルールを最初に確認する（`docs/rules/` を索引した `key=rules` を検索）。ToC 未生成時は先に `/doc-advisor:index-docs --key rules` で生成する
+- **プロジェクト文書の参照には `/doc-advisor:query-docs` を使う**: タスクに関連するルール・仕様等の文書を検索する。検索対象を絞る key は、その都度の状況に応じて指定するオプションであり、CLAUDE.md では固定しない。対象 key の ToC が未生成なら先に `/doc-advisor:index-docs` で生成する
 - **ルールは `docs/rules/` で管理**: CLAUDE.md にルールを詰め込まない（コンテキスト肥大化防止）
 - **設計文書は `docs/specs/base/{requirements,design}/` に保存**: plan モードで作成した重要設計は ID プレフィックス（REQ-, DES-, ADR-）で命名
 - **プラグインランタイム文書の境界**: `workflows/` `formats/` 配下は SKILL.md がランタイム Read する配布物。`docs/` 配下はプロジェクト自身のメタ文書
@@ -25,37 +25,37 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 
 単一プラグイン構成。リポジトリルート全体が `${CLAUDE_PLUGIN_ROOT}` として end user に配布される。
 
-| Path                         | 役割                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------- |
-| `.claude-plugin/plugin.json` | プラグインマニフェスト                                                    |
-| `skills/{skill}/SKILL.md`    | 配布 SKILL（2 件: index-docs / query-docs。key+path で ToC を生成・検索） |
-| `agents/toc-updater.md`      | 配布 agent（ToC 更新の並列処理用）                                        |
-| `scripts/`                   | SKILL から呼ばれる Python スクリプト                                      |
-| `workflows/`                 | SKILL がランタイム Read する手順文書                                      |
-| `formats/`                   | SKILL がランタイム Read するスキーマ文書                                  |
-| `docs/rules/`                | プロジェクトルール（`query-docs --key rules` 対象）                       |
-| `docs/specs/base/`           | doc-advisor 基盤仕様の要件・設計文書                                      |
-| `docs/specs/common/`         | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                     |
-| `docs/readme/`               | ユーザ向けガイド（日英併記）                                              |
-| `tests/`                     | 単体テスト・統合テスト・golden set                                        |
-| `.claude/`                   | このリポジトリのローカル設定（プラグイン配布物ではない）                  |
-| `.claude/skills/`            | ローカル限定 skill（配布対象外: swap-doc-config 等）                      |
-| `.agents/skills/`            | agent 向け補助 skill                                                      |
-| `.doc_structure.yaml`        | このリポジトリ自身の rules/specs 検索設定                                 |
-| `.version-config.yaml`       | バージョン一括更新設定                                                    |
-| `dprint.jsonc`               | フォーマッタ設定                                                          |
-| `AGENTS.md`                  | `CLAUDE.md` への symlink（Codex 等向け、内容は同一）                      |
+| Path                         | 役割                                                                              |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| `.claude-plugin/plugin.json` | プラグインマニフェスト                                                            |
+| `skills/{skill}/SKILL.md`    | 配布 SKILL（2 件: index-docs / query-docs。key+path で ToC を生成・検索）         |
+| `agents/toc-updater.md`      | 配布 agent（ToC 更新の並列処理用）                                                |
+| `scripts/`                   | SKILL から呼ばれる Python スクリプト                                              |
+| `workflows/`                 | SKILL がランタイム Read する手順文書                                              |
+| `formats/`                   | SKILL がランタイム Read するスキーマ文書                                          |
+| `docs/rules/`                | プロジェクトルール（`query-docs` で参照）                                         |
+| `docs/specs/base/`           | doc-advisor 基盤仕様の要件・設計文書                                              |
+| `docs/specs/common/`         | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                             |
+| `docs/readme/`               | ユーザ向けガイド（日英併記）                                                      |
+| `tests/`                     | 単体テスト・統合テスト・golden set                                                |
+| `.claude/`                   | このリポジトリのローカル設定（プラグイン配布物ではない）                          |
+| `.claude/skills/`            | ローカル限定 skill（配布対象外: swap-doc-config 等）                              |
+| `.agents/skills/`            | agent 向け補助 skill                                                              |
+| `.doc_structure.yaml`        | 上位層（forge 等）が rules/specs を解決するための設定（doc-advisor 自体は未使用） |
+| `.version-config.yaml`       | バージョン一括更新設定                                                            |
+| `dprint.jsonc`               | フォーマッタ設定                                                                  |
+| `AGENTS.md`                  | `CLAUDE.md` への symlink（Codex 等向け、内容は同一）                              |
 
 ## Information Sources
 
-| 対象                           | 入口                                                  |
-| ------------------------------ | ----------------------------------------------------- |
-| ユーザ向け説明                 | `README.md` / `README_en.md`                          |
-| プロジェクトルール             | `/doc-advisor:query-docs --key rules` → `docs/rules/` |
-| プロジェクト仕様（要件・設計） | `/doc-advisor:query-docs --key specs` → `docs/specs/` |
-| プラグイン内部仕様             | `workflows/*.md`, `formats/*.md`                      |
-| Claude Code / SDK / API 仕様   | `claude-code-guide` agent                             |
-| 最新の変更意図                 | `git log main..HEAD` / `CHANGELOG.md`                 |
+| 対象                           | 入口                                      |
+| ------------------------------ | ----------------------------------------- |
+| ユーザ向け説明                 | `README.md` / `README_en.md`              |
+| プロジェクトルール             | `/doc-advisor:query-docs` → `docs/rules/` |
+| プロジェクト仕様（要件・設計） | `/doc-advisor:query-docs` → `docs/specs/` |
+| プラグイン内部仕様             | `workflows/*.md`, `formats/*.md`          |
+| Claude Code / SDK / API 仕様   | `claude-code-guide` agent                 |
+| 最新の変更意図                 | `git log main..HEAD` / `CHANGELOG.md`     |
 
 ## Development
 
