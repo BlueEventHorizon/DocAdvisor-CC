@@ -85,6 +85,7 @@ class ErrorCode:
     KEY_RESERVED = "KEY_RESERVED"
     TOC_NOT_FOUND = "TOC_NOT_FOUND"
     NO_TARGETS = "NO_TARGETS"
+    UNSUPPORTED_ARG = "UNSUPPORTED_ARG"
 
 
 # error_code の有効値集合（None を含む）。テスト・バリデーションで参照する。
@@ -99,6 +100,7 @@ ERROR_CODES = frozenset({
     ErrorCode.KEY_RESERVED,
     ErrorCode.TOC_NOT_FOUND,
     ErrorCode.NO_TARGETS,
+    ErrorCode.UNSUPPORTED_ARG,
 })
 
 # status の有効値集合（DES-005 §8.2）。

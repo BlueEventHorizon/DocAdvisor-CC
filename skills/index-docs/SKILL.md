@@ -10,7 +10,7 @@ description: |
   Trigger:
   - After an upper layer decides a key and its desired-state paths
   - "Index docs", "Rebuild the ToC for key X", "Index all Markdown"
-allowed-tools: Bash, Read, Task
+allowed-tools: Bash, Read, Agent
 user-invocable: true
 argument-hint: "--key <key> --paths-json '[...]' | --key <key> --dirs-json '[...]' | --all | (no args = --all)"
 ---
@@ -33,14 +33,14 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 /doc-advisor:index-docs --all
 ```
 
-| Argument                | Description                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| `--key <key>`           | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）            |
-| `--paths-json '[...]'`  | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                  |
-| `--dirs-json '[...]'`   | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する   |
-| `--exclude-json '[...]'`| `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）           |
-| `--paths-file <path>`   | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                              |
-| `--all`                 | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする |
+| Argument                 | Description                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）            |
+| `--paths-json '[...]'`   | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                  |
+| `--dirs-json '[...]'`    | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する   |
+| `--exclude-json '[...]'` | `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）           |
+| `--paths-file <path>`    | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                              |
+| `--all`                  | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする |
 
 > **desired-state の破壊性 [MANDATORY]**: `--paths-json` / `--paths-file` で渡す paths は当該 key の **完全な desired state** である。前回 ToC に存在し今回 paths に含まれない path は **削除** される（部分配列を渡すと残りが消える）。上位層の責務であり、不安な場合は先に `prepare_toc.py --dry-run` で削除予定を確認すること（後述）。
 
@@ -119,17 +119,17 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 
 `store_dir/.toc_work/*.yaml`（隠しファイル `.` 始まりは除く）のうち `_meta.status: pending` のものを、`doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
 
-- **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Task 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
+- **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Agent 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
 - **`run_in_background: true` は使わない**（Phase 2 ループが壊れる）。
 - 各カスタム Agent には key と entry_file を渡す。`subagent_type` には `doc-advisor:toc-updater` を指定する。
 
 ```
 # key 指定時（1 メッセージで最大 5 件並列）
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
 ...（最大 5 件）
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。

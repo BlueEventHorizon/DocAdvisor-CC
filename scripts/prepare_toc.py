@@ -327,6 +327,18 @@ def parse_args(argv=None):
         "--dry-run", action="store_true",
         help="Compute diff without generating pending YAML",
     )
+    # 誤用ガード: ディレクトリ展開は prepare_toc の責務ではなく expand_dirs.py / index-docs
+    # SKILL が担う。argparse の不親切な "unrecognized arguments" を、実行可能な誘導エラーに
+    # 変えるために認識だけして main で UNSUPPORTED_ARG として弾く。
+    parser.add_argument(
+        "--dirs-json",
+        help="NOT supported here. Expand dirs with expand_dirs.py first, "
+             "or use the index-docs skill which orchestrates expansion.",
+    )
+    parser.add_argument(
+        "--exclude-json",
+        help="NOT supported here (only meaningful with --dirs-json). See expand_dirs.py.",
+    )
     return parser.parse_args(argv)
 
 
@@ -367,6 +379,21 @@ def load_input_paths(args):
 def main(argv=None):
     args = parse_args(argv)
     project_root = get_project_root()
+
+    # 0. 誤用ガード: --dirs-json / --exclude-json は prepare_toc の責務外（DES-005 §5.1）。
+    #    expand_dirs.py で paths に展開してから --paths-json で渡すか、index-docs SKILL を使う。
+    if args.dirs_json is not None or args.exclude_json is not None:
+        emit_json(
+            STATUS_ERROR,
+            error_code=ErrorCode.UNSUPPORTED_ARG,
+            message=(
+                "prepare_toc.py does not expand directories. "
+                "Run expand_dirs.py first and pass its 'paths' output via --paths-json, "
+                "or use the index-docs skill which orchestrates expansion automatically "
+                "(--dirs-json/--exclude-json are handled there, not here)."
+            ),
+        )
+        return 1
 
     # 1. key 解決（--all / --key 省略 → 予約 all、--key all → KEY_RESERVED）
     try:

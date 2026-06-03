@@ -526,6 +526,24 @@ class TestKeyAndJsonContract(PrepareTestBase):
         obj = self._parse_stdout(proc)
         self.assertEqual(obj["error_code"], "INVALID_PATH")
 
+    def test_dirs_json_rejected_with_guidance(self):
+        """--dirs-json は誤用ガードで UNSUPPORTED_ARG を返し、誘導文を含む。"""
+        proc = self._run('--key', 'rules', '--dirs-json', '["docs/rules/"]')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "error")
+        self.assertEqual(obj["error_code"], "UNSUPPORTED_ARG")
+        # 実行可能な誘導: expand_dirs.py と index-docs を案内する
+        self.assertIn("expand_dirs.py", obj["message"])
+        self.assertIn("index-docs", obj["message"])
+
+    def test_exclude_json_rejected_with_guidance(self):
+        """--exclude-json 単独でも誤用ガードで UNSUPPORTED_ARG を返す。"""
+        proc = self._run('--key', 'rules', '--exclude-json', '["docs/draft/"]')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["error_code"], "UNSUPPORTED_ARG")
+
     def test_paths_file_input(self):
         """--paths-file から JSON を読み込める。"""
         self._write_md("docs/a.md")
