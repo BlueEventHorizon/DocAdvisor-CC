@@ -137,13 +137,13 @@ Read `store_dir/.toc_work/*.yaml` (exclude hidden `.`-prefixed files) and identi
 **Parallel count**: default 5.
 
 ```
-# Orchestrator calls multiple Task tools in one message
+# Orchestrator calls multiple Agent tools in one message
 # key specified
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
 ... (up to 5 simultaneously)
 
 # single mode (reserved key all): pass `all` instead of a key
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 **Note**: Do not use `xargs` for file listing — it fails with long Japanese filenames.

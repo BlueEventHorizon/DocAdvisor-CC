@@ -249,7 +249,7 @@ class TestEmitJson(unittest.TestCase):
         expected = {
             "INVALID_PATH", "PATH_TRAVERSAL", "ABSOLUTE_PATH", "OUTSIDE_ROOT",
             "NOT_FOUND", "NOT_MARKDOWN", "KEY_EMPTY", "KEY_RESERVED",
-            "TOC_NOT_FOUND", "NO_TARGETS",
+            "TOC_NOT_FOUND", "NO_TARGETS", "UNSUPPORTED_ARG",
         }
         self.assertEqual(set(ERROR_CODES), expected)
 

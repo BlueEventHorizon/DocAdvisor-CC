@@ -143,7 +143,7 @@ Use `ls .toc_work/*.yaml` or `while read` loops instead.
 2. If no pending files → Go to Phase 3 (merge)
     ↓
 3. Use max_workers = 5 (default).
-   CRITICAL: Launch up to N Task tool calls in a SINGLE assistant message.
+   CRITICAL: Launch up to N Agent tool calls in a SINGLE assistant message.
    Do NOT launch them one at a time in separate messages — this defeats parallelism.
    Pass key (or `all` for single mode) and the entry_file (project-root-relative).
     ↓
@@ -182,12 +182,12 @@ Read the stdout JSON: `status` / `counts` / `deleted_paths` / `warnings`.
 ```
 # Launch 5 in parallel (filenames are SHA256 hashes of the source paths)
 # key specified
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml")
 ... (up to 5)
 
 # single mode (reserved key all): pass `all` instead of a key
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > In single mode the agent uses `write_pending.py --all` (`--key all` is rejected as a user-specified key).
