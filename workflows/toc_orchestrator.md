@@ -90,23 +90,30 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-file 
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 ```
 
-`prepare_toc.py` validates paths (rejecting traversal / absolute / out-of-root symlink / missing /
-non-Markdown), runs desired-state diff, and generates pending YAMLs for added + updated entries
-under `store_dir/.toc_work/`. Read the single stdout JSON:
+`prepare_toc.py` validates paths (rejecting traversal / absolute / missing / non-Markdown;
+out-of-root symlinks are default-deny and require explicit confirmation), runs desired-state diff,
+and generates pending YAMLs for added + updated entries under `store_dir/.toc_work/`. Read the
+single stdout JSON:
 
-- `status` (`ok` / `partial` / `error`) / `error_code`
+- `status` (`ok` / `partial` / `needs_confirmation` / `error`) / `error_code`
 - `toc_path` (→ identifies `store_dir` and `.toc_work/`)
 - `counts.added` / `counts.updated` / `counts.deleted` / `counts.unchanged`
 - `rejected_paths` (path + reason) / `warnings`
+- `external_pending` when `status == needs_confirmation`
 
 Decision logic:
 
-| Condition                                          | Action                                                                     |
-| -------------------------------------------------- | -------------------------------------------------------------------------- |
-| `status == error`                                  | Report `error_code` / `message`; ask the user how to proceed               |
-| `added == 0` and `updated == 0` and `deleted == 0` | Idempotent success (including empty ToC). Done (no Phase 2/3 needed)       |
-| `added == 0` and `updated == 0` and `deleted > 0`  | Delete-only. Skip Phase 2; go to Phase 3 with `merge_toc.py --delete-only` |
-| `added > 0` or `updated > 0`                       | Proceed to Phase 2                                                         |
+| Condition                                          | Action                                                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `status == error`                                  | Report `error_code` / `message`; ask the user how to proceed                                      |
+| `status == needs_confirmation`                     | Show `external_pending` resolved targets/counts, ask approval, then re-run with approved symlinks |
+| `added == 0` and `updated == 0` and `deleted == 0` | Idempotent success (including empty ToC). Done (no Phase 2/3 needed)                              |
+| `added == 0` and `updated == 0` and `deleted > 0`  | Delete-only. Skip Phase 2; go to Phase 3 with `merge_toc.py --delete-only`                        |
+| `added > 0` or `updated > 0`                       | Proceed to Phase 2                                                                                |
+
+For `status == needs_confirmation`, re-run `prepare_toc.py` with the same arguments plus
+`--allow-external-json '["<approved_symlink>", ...]'`. Use `[]` to reject all external symlinks;
+unapproved external paths are then dropped with warnings and processing continues for the rest.
 
 > **Dry-run (optional)**: add `--dry-run` to `prepare_toc.py` to print `counts` and path lists
 > without writing. If destructive deletions are unexpected, confirm with the user before continuing.

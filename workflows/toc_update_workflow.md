@@ -112,13 +112,16 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json 
 
 `prepare_toc.py` handles:
 
-1. Path validation (reject absolute / traversal / out-of-root symlink / missing / non-Markdown; reported in `rejected_paths`)
+1. Path validation (reject absolute / traversal / missing / non-Markdown; out-of-root symlinks produce `needs_confirmation` unless explicitly approved)
 2. Desired-state diff vs `store_dir/.toc_checksums.yaml`: categorize as added / updated / unchanged / deleted (SHA-256 content hash)
 3. Pending YAML generation for added + updated files (filename = SHA-256 of the source path)
 
 Read the single stdout JSON (`status`, `error_code`, `toc_path`, `counts`, `rejected_paths`,
-`warnings`). Branch on counts per the orchestrator decision table (no-change → done; delete-only →
-merge `--delete-only`; added/updated > 0 → Phase 2).
+`warnings`, and `external_pending` when `status == needs_confirmation`). Branch on status first:
+`error` → ask the user how to proceed; `needs_confirmation` → show resolved external symlink
+targets/counts, ask approval, then re-run with `--allow-external-json`; otherwise branch on counts
+per the orchestrator decision table (no-change → done; delete-only → merge `--delete-only`;
+added/updated > 0 → Phase 2).
 
 **Pending template format**: see the "Intermediate File Schema" section in
 `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md`.
