@@ -101,7 +101,21 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 python3 -m unittest tests.scripts.test_toc_utils -v
 ```
 
-検索品質（precision / recall）の評価用ゴールデンセットは、リポジトリ外のローカルワークスペース `meta/DocAdvisor/golden_set_test/`（リポジトリの `meta` symlink 経由・gitignore 対象）に置く。クエリ定義は `test_manage/queries.yaml`（パス基準はそのファイル冒頭コメントを参照）、測定結果は `test_manage/results/` に出力する。query-docs は LLM 駆動のため、測定は agent で query-docs を実行して返却パスを記録する方式で行う。
+### 検索品質テスト（ゴールデンセット）
+
+検索品質（FN/FP）の評価用ゴールデンセットは、リポジトリ外のローカルワークスペース `meta/DocAdvisor/golden_set_test/`（リポジトリの `meta` symlink 経由・gitignore 対象）に置く。**手順の正本は同ワークスペースの `test_manage/RUNBOOK.md`** に集約し、ここでは方式の要点と入口だけを示す（手順の二重管理を避ける）。
+
+方式は **「別 key 隔離 + 結果 diff」**。本物の ToC を一切上書きしない:
+
+- **project_root = ワークスペース自身**にして測る。`golden_set_test/` を project_root にすれば `rules/` `specs/` は素のサブディレクトリになり symlink 越境は起きず、ToC store もワークスペース内に隔離される。呼び出し単位で `CLAUDE_PROJECT_DIR=<ワークスペース絶対パス>` をインライン指定し、**セッションの env は汚さない**。
+- 別条件（guidance 等）を測るときだけ、reference（key=`rules`/`specs`）を残したまま**テスト専用 key**（`gs-rules`/`gs-specs`）で index を生成し、後始末は `remove_toc.py --key …`。
+- **LLM とスクリプトの境界**: index 構築（toc-updater agent）と query-docs 実行は LLM 工程。採点（FN/FP・カテゴリ別集計）と baseline 対比は決定論で、`test_manage/score.py`（`report` / `diff`）が担う。
+
+入口:
+
+- クエリ定義: `test_manage/queries.yaml`（パス基準は同ファイル冒頭コメント）
+- 採点・対比: `test_manage/score.py`（使い方は RUNBOOK.md）
+- 測定結果: `test_manage/results/`
 
 > `python3` が失敗する環境では `/opt/homebrew/bin/python3` を使う。
 
