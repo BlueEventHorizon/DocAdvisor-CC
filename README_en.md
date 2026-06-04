@@ -13,6 +13,14 @@ As a project grows, rules, conventions, and design documents accumulate. AI cann
 - **Before implementation** — gather project-specific coding rules and relevant specs before writing a line of code.
 - **During review** — add applicable rules as review perspectives so reviews check against your actual standards, not generic best practices.
 
+### Nobody can maintain "which documents must I read for this task" (doc-advisor's reason to exist)
+
+For a stable rule document, a fixed "follow this" reference is fine — the rule itself rarely changes, so the cost is low. But **implementation tasks** are different. The **set of documents you must read to implement a feature changes from task to task** ("to implement this you need documents A, B, and C").
+
+That raises the real problem — **who works out that set and tells the implementer?** Hand-authoring a "read these" list for every conceivable task, and updating it every time documents are added, moved, or revised, is not realistic. **Maintenance cost explodes.**
+
+doc-advisor exists precisely to build that "task → documents to read" mapping **dynamically from the task description, rather than writing it down in advance**. So a document only needs to carry **what it depends on (concepts, IDs)**; _which_ documents to read for a given task is assembled on demand by `query-docs`. As a result, hard-coding a directory-path "look here" reference into a document becomes **unnecessary in the first place** (path references rot when files move or are renamed, adding to maintenance cost).
+
 ## Skills
 
 doc-advisor is a generic ToC Provider that manages document sets per `key` (an arbitrary string). It does not interpret the meaning of a `key` (rules / specs classification); it operates deterministically on the given `key` and project-root-relative `paths`.
