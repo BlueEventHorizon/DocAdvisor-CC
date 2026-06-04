@@ -38,7 +38,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 | `docs/specs/base/`           | doc-advisor 基盤仕様の要件・設計文書                                              |
 | `docs/specs/common/`         | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                             |
 | `docs/readme/`               | ユーザ向けガイド（日英併記）                                                      |
-| `tests/`                     | 単体テスト・統合テスト・golden set                                                |
+| `tests/`                     | 単体テスト・統合テスト                                                            |
 | `.claude/`                   | このリポジトリのローカル設定（プラグイン配布物ではない）                          |
 | `.claude/skills/`            | ローカル限定 skill（配布対象外: swap-doc-config 等）                              |
 | `.agents/skills/`            | agent 向け補助 skill                                                              |
@@ -99,7 +99,7 @@ python3 -m unittest tests.scripts.test_toc_utils -v
 
 ### 品質評価テスト
 
-検索品質（precision/recall）は `tests/goldenset_test/` および `tests/golden_set/queries.yaml` で測定する。詳細は `tests/golden_set/test_golden_set.py` を参照。
+検索品質（ゴールデンセット）の場所・実行方法は [`DEVELOPMENT.md`](DEVELOPMENT.md) に集約。
 
 ## Debugging [MANDATORY]
 

@@ -482,6 +482,62 @@ class TestResolveWithinRoot(unittest.TestCase):
 
 
 # ===========================================================================
+# find_escaping_symlink テスト（越境 symlink prefix 特定 / NFR-N06）
+# ===========================================================================
+
+class TestFindEscapingSymlink(unittest.TestCase):
+    """find_escaping_symlink() が越境 symlink の最上位 prefix を返すことを固定する。"""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.outside = Path(tempfile.mkdtemp()).resolve()
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+        shutil.rmtree(self.outside, ignore_errors=True)
+
+    def test_no_symlink_returns_none(self):
+        (self.root / 'docs').mkdir()
+        (self.root / 'docs' / 'a.md').write_text('# a\n', encoding='utf-8')
+        self.assertIsNone(toc_utils.find_escaping_symlink('docs/a.md', self.root))
+
+    def test_file_symlink_to_outside(self):
+        target = self.outside / 'x.md'
+        target.write_text('# x\n', encoding='utf-8')
+        link = self.root / 'linked.md'
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        self.assertEqual(
+            toc_utils.find_escaping_symlink('linked.md', self.root), 'linked.md'
+        )
+
+    def test_dir_symlink_returns_topmost_prefix(self):
+        """ディレクトリ symlink 配下の深いパスでも、越境点（dir symlink）を返す。"""
+        (self.outside / 'sub').mkdir()
+        (self.outside / 'sub' / 'y.md').write_text('# y\n', encoding='utf-8')
+        link = self.root / 'ext'
+        try:
+            link.symlink_to(self.outside)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        self.assertEqual(
+            toc_utils.find_escaping_symlink('ext/sub/y.md', self.root), 'ext'
+        )
+
+    def test_internal_symlink_not_escaping(self):
+        """root 内を指す symlink は越境ではない → None。"""
+        (self.root / 'real.md').write_text('# r\n', encoding='utf-8')
+        link = self.root / 'alias.md'
+        try:
+            link.symlink_to(self.root / 'real.md')
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        self.assertIsNone(toc_utils.find_escaping_symlink('alias.md', self.root))
+
+
+# ===========================================================================
 # validate_path テスト（検証フロー 6 系統 / DES-005 §5.1）
 # ===========================================================================
 
@@ -528,9 +584,10 @@ class TestValidatePath(unittest.TestCase):
             toc_utils.validate_path('docs/missing.md', self.root)
         self.assertEqual(ctx.exception.error_code, 'NOT_FOUND')
 
-    # --- 4. root 外 symlink ---
+    # --- 4. root 外 symlink（default-deny → 確認待ち / 承認で受理。NFR-N06）---
 
-    def test_outside_root_symlink_rejected(self):
+    def test_outside_root_symlink_needs_confirmation(self):
+        """未承認の越境 symlink は ExternalSymlinkPending（reject ではなく確認待ち）。"""
         target = self.outside / 'secret.md'
         target.write_text('# secret\n', encoding='utf-8')
         link = self.root / 'link.md'
@@ -538,9 +595,23 @@ class TestValidatePath(unittest.TestCase):
             link.symlink_to(target)
         except (OSError, NotImplementedError):
             self.skipTest('symlink not supported on this platform')
-        with self.assertRaises(toc_utils.PathRejection) as ctx:
+        with self.assertRaises(toc_utils.ExternalSymlinkPending) as ctx:
             toc_utils.validate_path('link.md', self.root)
-        self.assertEqual(ctx.exception.error_code, 'OUTSIDE_ROOT')
+        self.assertEqual(ctx.exception.symlink, 'link.md')
+
+    def test_outside_root_symlink_approved_accepted(self):
+        """allow_external で承認された越境 symlink は受理される。"""
+        target = self.outside / 'secret.md'
+        target.write_text('# secret\n', encoding='utf-8')
+        link = self.root / 'link.md'
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        result = toc_utils.validate_path(
+            'link.md', self.root, allow_external={'link.md'}
+        )
+        self.assertEqual(result, 'link.md')
 
     # --- 5. 非 Markdown ---
 

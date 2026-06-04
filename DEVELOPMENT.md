@@ -101,7 +101,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 python3 -m unittest tests.scripts.test_toc_utils -v
 ```
 
-検索品質（precision / recall）は `tests/golden_set/` および `tests/goldenset_test/` で測定する。詳細は `tests/golden_set/test_golden_set.py` を参照。
+検索品質（precision / recall）の評価用ゴールデンセットは、リポジトリ外のローカルワークスペース `meta/DocAdvisor/golden_set_test/`（リポジトリの `meta` symlink 経由・gitignore 対象）に置く。クエリ定義は `test_manage/queries.yaml`（パス基準はそのファイル冒頭コメントを参照）、測定結果は `test_manage/results/` に出力する。query-docs は LLM 駆動のため、測定は agent で query-docs を実行して返却パスを記録する方式で行う。
 
 > `python3` が失敗する環境では `/opt/homebrew/bin/python3` を使う。
 
