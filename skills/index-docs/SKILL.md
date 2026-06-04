@@ -100,20 +100,37 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-file 
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 ```
 
-`prepare_toc.py` は paths 検証（traversal / 絶対パス / root 外 symlink / 不在 / 非 Markdown を reject）と desired-state 差分検出を行い、added + updated 分の pending YAML を `store_dir/.toc_work/` に生成する。stdout の単一 JSON から以下を読む:
+`prepare_toc.py` は paths 検証（traversal / 絶対パス / 不在 / 非 Markdown を reject。root 外を指す symlink は default-deny で確認待ちにする）と desired-state 差分検出を行い、added + updated 分の pending YAML を `store_dir/.toc_work/` に生成する。stdout の単一 JSON から以下を読む:
 
-- `status`（`ok` / `partial` / `error`）/ `error_code`
+- `status`（`ok` / `partial` / `needs_confirmation` / `error`）/ `error_code`
 - `toc_path`（→ `store_dir` と `.toc_work/` の特定に使う）
 - `counts.added` / `counts.updated` / `counts.deleted` / `counts.unchanged`
 - `rejected_paths`（reject された path と理由）/ `warnings`
+- `external_pending`（`status == needs_confirmation` 時。root 外を指す未承認 symlink の `[{symlink, resolved, affected_count}]`）
 
 判断:
 
 - `status == error` → エラー内容を報告し、AskUserQuestion を使用してユーザーに対応を確認する
+- `status == needs_confirmation` → **Step 1.5（越境 symlink の承認）** へ。書き込みは行われていない
 - `counts.added == 0` かつ `counts.updated == 0` → 充填対象なし。`counts.deleted > 0` なら Step 3（merge）へ直行して削除を反映、両方 0 なら冪等成功（空 ToC を含む）として完了
 - `counts.added > 0` または `counts.updated > 0` → Step 2 へ
 
 > **事前確認（任意）**: 削除予定が不安な場合、`prepare_toc.py` に `--dry-run` を付けて実行すると、書き込みなしで `counts` と path 一覧のみ JSON 出力する。破壊的削除が想定外であれば、AskUserQuestion を使用して続行可否をユーザーに確認する。
+
+### Step 1.5: 越境 symlink の承認（`status == needs_confirmation` 時のみ / NFR-N06）
+
+明示 paths が **project root の外を指す symlink** を含む場合、不意のインデックス漏洩を防ぐため既定では索引しない（default-deny）。`external_pending` の各エントリ（越境している symlink ひとつに集約済み。配下に何ファイルあっても承認単位は symlink 1 個）について、**解決先の実体パス（`resolved`）と件数（`affected_count`）を提示**し、AskUserQuestion でユーザーに許可・不許可を確認する。
+
+承認が決まったら、**承認した symlink の `symlink` 値だけを並べて** `--allow-external-json` を付け、`prepare_toc.py` を **同じ引数で再実行**する:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json '{paths_json}' \
+  --allow-external-json '["{approved_symlink_1}", "{approved_symlink_2}"]'
+```
+
+- すべて拒否する場合は `--allow-external-json '[]'`（越境分は drop され、残りで通常処理される）
+- 再実行は decided モードになり、未承認の越境 path は drop（warning に列挙）されるため `needs_confirmation` でループしない
+- 再実行の結果（`status == ok` / `partial` など）に応じて以降の Step（2 / 3）へ進む
 
 ### Step 2: toc-updater カスタム Agent による並列充填
 

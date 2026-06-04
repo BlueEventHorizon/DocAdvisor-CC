@@ -17,14 +17,14 @@ doc-advisor は ToC を **opaque な `key` 単位**で管理する。Issue #15 �
 
 doc-advisor のドキュメントモデルは以下に集約される（詳細設計は DES-005）:
 
-| 項目               | 定義                                                                                         | 参照               |
-| ------------------ | -------------------------------------------------------------------------------------------- | ------------------ |
-| 管理単位           | opaque な `key`（rule/spec のような分類意味を持たない）                                      | REQ-001 FR-N01     |
-| key → 保存パス変換 | `.claude/doc-advisor/toc/{slug}/`（決定的変換）                                          | DES-005 §3.1       |
-| ストアディレクトリ | `toc.yaml` / `.toc_checksums.yaml` / `.toc_work/`                                            | DES-005 §3.2       |
-| path 検証          | 絶対パス / traversal / root 外 symlink / 不在 / 非 Markdown を reject                        | DES-005 §5         |
-| ToC スキーマ       | `title` / `purpose` / `content_details` / `applicable_tasks` / `keywords`（`doc_type` なし） | DES-005 §7         |
-| 入力               | 上位層が渡す `key` + `paths`、または `--all` 単体モード                                      | REQ-001 FR-N03/N04 |
+| 項目               | 定義                                                                                            | 参照               |
+| ------------------ | ----------------------------------------------------------------------------------------------- | ------------------ |
+| 管理単位           | opaque な `key`（rule/spec のような分類意味を持たない）                                         | REQ-001 FR-N01     |
+| key → 保存パス変換 | `.claude/doc-advisor/toc/{slug}/`（決定的変換）                                                 | DES-005 §3.1       |
+| ストアディレクトリ | `toc.yaml` / `.toc_checksums.yaml` / `.toc_work/`                                               | DES-005 §3.2       |
+| path 検証          | 絶対パス / traversal / 不在 / 非 Markdown を reject。root 外 symlink は default-deny + 明示承認 | DES-005 §5         |
+| ToC スキーマ       | `title` / `purpose` / `content_details` / `applicable_tasks` / `keywords`（`doc_type` なし）    | DES-005 §7         |
+| 入力               | 上位層が渡す `key` + `paths`、または `--all` 単体モード                                         | REQ-001 FR-N03/N04 |
 
 > 旧モデルの category 別固定パス（`toc/rules/`, `toc/specs/`）・`.doc_structure.yaml` スキーマ・`doc_types_map`・`doc_type` 分類は廃止した（REQ-001 §6.2 clean break）。
 

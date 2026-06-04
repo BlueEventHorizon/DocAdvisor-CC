@@ -40,9 +40,7 @@
 tests/
 ├── scripts/                # scripts/ 配下のスクリプトのテスト
 ├── skills/                 # skills/ 配下のスキルのテスト
-├── integration/            # プラグイン全体の統合テスト
-├── golden_set/             # 検索品質評価のゴールデンセット
-└── goldenset_test/         # 評価実行用 fixture
+└── integration/            # プラグイン全体の統合テスト
 ```
 
 命名規則: `test_{module}.py`（例: `test_toc_utils.py`）

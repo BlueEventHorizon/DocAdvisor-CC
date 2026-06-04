@@ -254,7 +254,9 @@ class TestEmitJson(unittest.TestCase):
         self.assertEqual(set(ERROR_CODES), expected)
 
     def test_status_enum_fixed(self):
-        self.assertEqual(set(STATUSES), {"ok", "error", "partial"})
+        self.assertEqual(
+            set(STATUSES), {"ok", "error", "partial", "needs_confirmation"}
+        )
 
 
 # ===========================================================================

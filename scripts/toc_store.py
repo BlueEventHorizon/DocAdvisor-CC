@@ -107,7 +107,15 @@ ERROR_CODES = frozenset({
 STATUS_OK = "ok"
 STATUS_ERROR = "error"
 STATUS_PARTIAL = "partial"
-STATUSES = frozenset({STATUS_OK, STATUS_ERROR, STATUS_PARTIAL})
+# needs_confirmation: 未承認の root 外 symlink があり、上位層の承認を待つ状態（NFR-N06）。
+# error ではなく、--allow-external-json での再実行を促す中間状態。
+STATUS_NEEDS_CONFIRMATION = "needs_confirmation"
+STATUSES = frozenset({
+    STATUS_OK,
+    STATUS_ERROR,
+    STATUS_PARTIAL,
+    STATUS_NEEDS_CONFIRMATION,
+})
 
 
 class KeyError_(ValueError):
@@ -266,6 +274,7 @@ def emit_json(
     counts=None,
     deleted_paths=None,
     warnings=None,
+    external_pending=None,
     stream=None,
 ):
     """stdout に単一 JSON を出力する（DES-005 §8.1 / FR-N08-1）。
@@ -285,6 +294,8 @@ def emit_json(
         counts: {added, updated, deleted, unchanged} の dict
         deleted_paths: 削除された path のリスト（merge の FR-N02-4）
         warnings: warning 文字列リスト
+        external_pending: 未承認の越境 symlink リスト
+            [{symlink, resolved, affected_count}]（needs_confirmation 時。NFR-N06）
         stream: 出力先（省略時 sys.stdout。テスト用）
     """
     payload = {
@@ -307,6 +318,8 @@ def emit_json(
         payload["deleted_paths"] = deleted_paths
     if warnings is not None:
         payload["warnings"] = warnings
+    if external_pending is not None:
+        payload["external_pending"] = external_pending
 
     out = stream if stream is not None else sys.stdout
     out.write(json.dumps(payload, ensure_ascii=False))

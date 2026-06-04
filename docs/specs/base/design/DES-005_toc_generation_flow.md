@@ -193,23 +193,29 @@ flowchart TD
     D -->|OK| E[resolve strict=True 実体解決]
     E -->|不在| R3[reject: NOT_FOUND]
     E -->|OK| F{is_relative_to root?}
-    F -->|No| R4[reject: OUTSIDE_ROOT]
     F -->|Yes| G{Markdown?}
+    F -->|No| X[find_escaping_symlink で越境 symlink 特定]
+    X -->|symlink 介さず越境| R4[reject: OUTSIDE_ROOT]
+    X -->|allow_external に承認済| G
+    X -->|未承認| P[ExternalSymlinkPending → external_pending に集約]
     G -->|No| R5[reject: NOT_MARKDOWN]
     G -->|Yes| H[accept normalized_path]
 ```
 
-### 5.2 新規ロジック `resolve_within_root()`
+明示 paths モードで `external_pending` が空でなく、かつ承認指定（`--allow-external-json`）が無い場合、`prepare_toc.py` は書き込みをせず `status: needs_confirmation` を返す（§8.2）。上位層は越境 symlink を提示して承認を取り、承認 prefix を `--allow-external-json` に並べて再実行する（decided モード）。
 
-- `Path.resolve(strict=True)` で symlink を辿って実体を解決（不在は `FileNotFoundError` → NOT_FOUND として扱い、REQ-001 FR-N03-4 の不在 reject と兼ねる）
-- `Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で root 配下を判定。root 外実体を指す symlink は reject
+### 5.2 新規ロジック `resolve_within_root()` / `find_escaping_symlink()`
+
+- `resolve_within_root()`: `Path.resolve(strict=True)` で symlink を辿って実体を解決（不在は `FileNotFoundError` → NOT_FOUND として扱い、REQ-001 FR-N03-4 の不在 reject と兼ねる）。`Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で root 配下を判定し、root 外実体は `PathRejection(OUTSIDE_ROOT)` を送出する低レベル primitive。
+- `find_escaping_symlink(rel_path, root)`: root から path コンポーネントを順に辿り、最初に「symlink かつ実体が root 配下でない」prefix（= 承認の単位）を返す。越境 symlink が無ければ None。
+- `validate_path(path, root, allow_external)`: `resolve_within_root()` の OUTSIDE_ROOT を捕捉し、`find_escaping_symlink` で越境点を特定する。承認済み（`allow_external`）なら受理、未承認なら `ExternalSymlinkPending`（reject ではない確認待ち信号）、symlink を介さない真の越境なら OUTSIDE_ROOT を再送出する。
 - 大文字小文字衝突は正規化後パスの集合で検出し warning（処理は継続）
 
-既存 `validate_path_within_base()` の docstring（symlink 先を意図的に許可）は変更せず、traversal 専用として流用する。symlink 厳格化は本新規関数が担う。この分離により旧ポリシー（論理パス検証）と新 I/F の厳格化が両立する。
+既存 `validate_path_within_base()` の docstring（symlink 先を意図的に許可）は変更せず、traversal 専用として流用する。越境 symlink の default-deny + 明示承認は `validate_path` / `find_escaping_symlink` が担う。
 
 ### 5.3 単体モード走査との関係
 
-`--all` 収集は `rglob_follow_symlinks`（`os.walk(followlinks=True)`）で symlink を follow して列挙するが、**列挙後に各ファイルへ `resolve_within_root()` を適用し、root 外実体を指すものを除外**する。明示 paths 検証（上位層入力）は §5.1 で直接 reject する。両経路とも最終的に「実体が root 配下」を保証する。
+`--all` 収集は `rglob_follow_symlinks`（`os.walk(followlinks=True)`）で symlink を follow して列挙するが、**列挙後に各ファイルへ `resolve_within_root()` を適用する**。root 外実体を指すものは、承認済み（`allow_external`）なら収集対象に含め、未承認なら収集から外して `external_pending` に集約する。`--all` は非対話のバルク索引のため、未承認の越境 symlink は `needs_confirmation` でブロックせず **skip し warning に列挙**する（取り込みたい場合は `--allow-external-json` で明示承認）。明示 paths モードは §5.1 のとおり `needs_confirmation` でブロックする。両経路とも最終的に「実体が root 配下、または明示承認された越境 symlink 配下」を保証する。
 
 ## 6. desired-state sync 設計
 
@@ -330,7 +336,7 @@ docs:
 
 ```json
 {
-  "status": "ok | error | partial",
+  "status": "ok | error | partial | needs_confirmation",
   "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | null",
   "message": "human-readable",
   "key": "rules",
@@ -338,18 +344,26 @@ docs:
   "normalized_paths": ["docs/a.md"],
   "rejected_paths": [{ "path": "../x.md", "reason": "PATH_TRAVERSAL" }],
   "counts": { "added": 0, "updated": 0, "deleted": 0, "unchanged": 0 },
-  "warnings": ["case-insensitive collision: docs/A.md vs docs/a.md"]
+  "warnings": ["case-insensitive collision: docs/A.md vs docs/a.md"],
+  "external_pending": [
+    {
+      "symlink": "meta",
+      "resolved": "/abs/path/outside/root",
+      "affected_count": 12
+    }
+  ]
 }
 ```
 
 ### 8.2 enum 定義
 
-| フィールド   | 値域                                                                                                |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| `status`     | `ok` / `error` / `partial`（一部 path を reject しつつ処理続行した場合）                            |
-| `error_code` | §8.1 の列挙値 + `null`。`toc_store.py` に定数として集約し、テストで enum を固定（REQ-001 FR-N08-2） |
+| フィールド         | 値域                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status`           | `ok` / `error` / `partial`（一部 path を reject しつつ処理続行）/ `needs_confirmation`（未承認の root 外 symlink があり、書き込みをせず承認を待つ。NFR-N06） |
+| `error_code`       | §8.1 の列挙値 + `null`。`toc_store.py` に定数として集約し、テストで enum を固定（REQ-001 FR-N08-2）                                                          |
+| `external_pending` | `status: needs_confirmation` 時に出力。`[{symlink, resolved, affected_count}]`（越境 symlink 単位に集約。`--all` で skip した場合は warning にも列挙）       |
 
-各 script は使うフィールドのみ出力してよいが、`status` / `error_code` は必須。
+各 script は使うフィールドのみ出力してよいが、`status` / `error_code` は必須。越境 symlink 関連の `OUTSIDE_ROOT` は「symlink を介さない真の root 外」専用に残し、symlink 経由の越境は `needs_confirmation` + `external_pending` で扱う。
 
 ## 9. 単体モード（all-markdown）設計
 
@@ -359,7 +373,7 @@ REQ-001 FR-N04。`--all` / `--key` 省略時、予約 key `all` に解決し pro
 
 - `rglob_follow_symlinks(project_root, "**/*.md")` で列挙
 - 固定除外（**本リストが除外定義の SoT**。要件は REQ-001 FR-N04-3）: `.git/**`, `.claude/**` runtime state, `.codex/**`, `node_modules/**`, `vendor/**`, `dist/**`, `build/**`, `__pycache__/**`, `.venv/**`, `target/**`, `coverage/**`, `.pytest_cache/**`, `.mypy_cache/**`, 生成済み ToC / work files。既存 `should_exclude()`（DES-004）に固定除外リストを渡して適用
-- 列挙後に `resolve_within_root()` で root 外実体を除外（§5.3）
+- 列挙後に `resolve_within_root()` を適用し、root 外実体の symlink は未承認なら skip して `external_pending` に集約・warning 化、承認済み（`--allow-external-json`）なら収集対象に含める（§5.3 / NFR-N06）
 
 ### 9.2 境界条件
 
@@ -379,7 +393,7 @@ sequenceDiagram
     User->>I: index-docs --all
     I->>P: prepare --all (予約 key all)
     P->>P: rglob_follow_symlinks + 固定除外
-    P->>P: resolve_within_root で root 外実体を除外
+    P->>P: resolve_within_root（未承認の root 外 symlink は skip + warning）
     P->>P: desired-state diff (§6.2)
     alt 対象 0 件
         P->>I: status ok / file_count 0 (空 ToC 冪等出力)
@@ -459,10 +473,11 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 
 - **単体テスト対象**:
   - `toc_store.resolve_store_dir()`: slug 化・予約 key `all`・空/過長/Unicode key
-  - path 検証: 絶対パス / traversal / root 外 symlink / 不在 / 非 Markdown / `./a.md`↔`a.md` 同一視 / 大小衝突 warning
+  - path 検証: 絶対パス / traversal / 不在 / 非 Markdown / `./a.md`↔`a.md` 同一視 / 大小衝突 warning
+  - 越境 symlink: 未承認は `ExternalSymlinkPending`（`external_pending` 集約 / `needs_confirmation`）、承認（`--allow-external-json`）で受理、`find_escaping_symlink` の越境点特定・ディレクトリ symlink の単一集約
   - desired-state diff: added/updated/unchanged/deleted の算出、**部分配列が残りを削除する固定**（REQ-001 受け入れ基準）
   - JSON 契約: status / error_code enum の固定
-  - 単体モード: 固定除外の適用、空 repo の冪等空出力、root 外 symlink 除外
+  - 単体モード: 固定除外の適用、空 repo の冪等空出力、未承認 root 外 symlink の skip + warning / 承認時の取り込み
 - **統合テスト対象**:
   - `prepare → write_pending → merge` の協調フローで toc.yaml が生成される
   - `remove --key` でストアが削除される

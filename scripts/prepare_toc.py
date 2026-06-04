@@ -28,6 +28,7 @@ CLI:
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -40,8 +41,10 @@ from toc_utils import (
     should_exclude,
     resolve_within_root,
     validate_path,
+    find_escaping_symlink,
     detect_case_collisions,
     PathRejection,
+    ExternalSymlinkPending,
     log,
     SYSTEM_EXCLUDE_PATTERNS,
     MARKDOWN_GLOB,
@@ -56,6 +59,7 @@ from toc_store import (
     STATUS_OK,
     STATUS_ERROR,
     STATUS_PARTIAL,
+    STATUS_NEEDS_CONFIRMATION,
     resolve_store_dir,
     resolve_key_from_args,
     emit_json,
@@ -182,7 +186,29 @@ def create_pending_yaml(source_file, work_dir):
 # paths 検証（DES-005 §5.1 / FR-N03）
 # ---------------------------------------------------------------------------
 
-def validate_paths(paths, project_root):
+def _build_external_pending(external_counts, project_root):
+    """越境 symlink prefix → 件数 の dict を JSON 出力用リストに整形する（NFR-N06）。
+
+    Returns:
+        list[{"symlink", "resolved", "affected_count"}]（symlink 昇順）
+    """
+    root = Path(project_root)
+    out = []
+    for sym in sorted(external_counts):
+        resolved = None
+        try:
+            resolved = str((root / sym).resolve())
+        except (OSError, RuntimeError):
+            pass
+        out.append({
+            "symlink": sym,
+            "resolved": resolved,
+            "affected_count": external_counts[sym],
+        })
+    return out
+
+
+def validate_paths(paths, project_root, allow_external=None):
     """入力 paths を §5.1 の検証フローで検証する。
 
     重複（正規化後同一）は除去し、初出順を保持する。
@@ -190,19 +216,29 @@ def validate_paths(paths, project_root):
     Args:
         paths: 入力 path 文字列のリスト
         project_root: project root（Path）
+        allow_external: 承認済み越境 symlink prefix の集合（str iterable）。
+            None は承認なし（= 越境 symlink はすべて external_pending に積む）。
 
     Returns:
-        tuple: (normalized_paths, rejected_paths)
+        tuple: (normalized_paths, rejected_paths, external_pending)
             normalized_paths: 検証を通過した project-root-relative path（重複除去・順序保持）
             rejected_paths: [{"path": <入力>, "reason": <error_code>}] のリスト
+            external_pending: 未承認の越境 symlink リスト
+                [{symlink, resolved, affected_count}]（NFR-N06）
     """
+    allowed = set(allow_external) if allow_external else set()
     normalized_paths = []
     seen = set()
     rejected_paths = []
+    external_counts = {}
 
     for p in paths:
         try:
-            norm = validate_path(p, project_root)
+            norm = validate_path(p, project_root, allow_external=allowed)
+        except ExternalSymlinkPending as e:
+            sym = e.symlink or str(p)
+            external_counts[sym] = external_counts.get(sym, 0) + 1
+            continue
         except PathRejection as e:
             rejected_paths.append({"path": str(p), "reason": e.error_code})
             continue
@@ -211,46 +247,70 @@ def validate_paths(paths, project_root):
         seen.add(norm)
         normalized_paths.append(norm)
 
-    return normalized_paths, rejected_paths
+    external_pending = _build_external_pending(external_counts, project_root)
+    return normalized_paths, rejected_paths, external_pending
 
 
 # ---------------------------------------------------------------------------
 # 単体モード走査（DES-005 §5.3 / §9.1 / FR-N04）
 # ---------------------------------------------------------------------------
 
-def collect_all_markdown(project_root):
+def collect_all_markdown(project_root, allow_external=None):
     """project root 以下の Markdown を単体モードで収集する（DES-005 §9.1 / §5.3）。
 
     1. rglob_follow_symlinks で **/*.md を列挙
     2. 固定除外（SYSTEM_EXCLUDE_PATTERNS）を should_exclude で適用
-    3. 列挙後に resolve_within_root で root 外実体（symlink 先）を除外（§5.3）
+    3. root 外実体（symlink 先）の扱い:
+       - 越境 symlink が `allow_external` で承認済み → 収集対象に含める
+       - 未承認 → 収集から外し external_pending に集計（§5.3 / NFR-N06）
+
+    `--all` は非対話のバルク索引のため、未承認の越境 symlink は **skip** し
+    （needs_confirmation でブロックしない）、external_pending を warning として
+    上位層に提示する。取り込みたい場合は `--allow-external-json` で明示承認する。
 
     Args:
         project_root: project root（Path）
+        allow_external: 承認済み越境 symlink prefix の集合（str iterable）。None は承認なし。
 
     Returns:
-        list[str]: project-root-relative の正規化済み path（昇順）
+        tuple: (paths, external_pending)
+            paths: project-root-relative の正規化済み path（昇順）
+            external_pending: skip した未承認越境 symlink
+                [{symlink, resolved, affected_count}]（昇順）
     """
     root = Path(project_root)
+    allowed = set(allow_external) if allow_external else set()
     collected = set()
+    external_counts = {}
 
     for md_file in rglob_follow_symlinks(root, MARKDOWN_GLOB):
         # 固定除外（ディレクトリ名 / path 部分文字列マッチ）
         if should_exclude(md_file, root, SYSTEM_EXCLUDE_PATTERNS):
-            continue
-        # root 外実体（symlink 先が root 外）を除外
-        try:
-            resolve_within_root(md_file, root)
-        except (FileNotFoundError, PathRejection):
             continue
         try:
             rel = normalize_path(md_file.relative_to(root))
         except ValueError:
             # root 配下でない（理論上ここには来ないが防御的に除外）
             continue
+        # root 外実体（symlink 先が root 外）の判定
+        try:
+            resolve_within_root(md_file, root)
+        except FileNotFoundError:
+            continue
+        except PathRejection:
+            # 越境 symlink を特定し、承認状態で分岐
+            sym = find_escaping_symlink(rel, root)
+            if sym is None:
+                continue
+            if sym in allowed:
+                collected.add(rel)
+            else:
+                external_counts[sym] = external_counts.get(sym, 0) + 1
+            continue
         collected.add(rel)
 
-    return sorted(collected)
+    external_pending = _build_external_pending(external_counts, root)
+    return sorted(collected), external_pending
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +387,12 @@ def parse_args(argv=None):
         "--dry-run", action="store_true",
         help="Compute diff without generating pending YAML",
     )
+    parser.add_argument(
+        "--allow-external-json",
+        help="JSON array of approved external symlink prefixes (root 外を指す symlink の承認)。"
+             "未指定=discovery（越境を検出したら needs_confirmation）。"
+             "指定=decided（列挙分のみ許可、他の越境は drop）。空配列 '[]' は全拒否。",
+    )
     # 誤用ガード: ディレクトリ展開は prepare_toc の責務ではなく expand_dirs.py / index-docs
     # SKILL が担う。argparse の不親切な "unrecognized arguments" を、実行可能な誘導エラーに
     # 変えるために認識だけして main で UNSUPPORTED_ARG として弾く。
@@ -376,6 +442,28 @@ def load_input_paths(args):
     return data
 
 
+def parse_allow_external(args):
+    """--allow-external-json を解釈する（NFR-N06）。
+
+    Returns:
+        None: 未指定（discovery モード。越境検出で needs_confirmation）
+        list[str]: 指定（decided モード。正規化済み prefix の集合。[] は全拒否）
+
+    Raises:
+        ValueError: JSON 不正・型不正
+    """
+    if args.allow_external_json is None:
+        return None
+    try:
+        data = json.loads(args.allow_external_json)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON for --allow-external-json: {e}") from e
+    if not isinstance(data, list) or not all(isinstance(s, str) for s in data):
+        raise ValueError("--allow-external-json must be a JSON array of strings")
+    # path として正規化（symlink prefix は project-root-relative）
+    return [normalize_path(os.path.normpath(s)) for s in data]
+
+
 def main(argv=None):
     args = parse_args(argv)
     project_root = get_project_root()
@@ -407,10 +495,26 @@ def main(argv=None):
     checksums_file = store_dir / CHECKSUMS_FILENAME
     toc_rel = toc_path_rel(store_dir, project_root)
 
+    # 1.5 越境 symlink 承認リスト（NFR-N06）。None=discovery / list=decided。
+    try:
+        allow_external = parse_allow_external(args)
+    except ValueError as e:
+        emit_json(
+            STATUS_ERROR,
+            error_code=ErrorCode.INVALID_PATH,
+            message=str(e),
+            key=key,
+            toc_path=toc_rel,
+        )
+        return 1
+    decided = allow_external is not None
+    allow_set = set(allow_external or ())
+
     # 2. desired paths の決定
     if single_mode:
-        # --all 単体モード: project root 以下の Markdown を収集（§9.1 / §5.3）
-        desired_paths = collect_all_markdown(project_root)
+        # --all 単体モード: project root 以下の Markdown を収集（§9.1 / §5.3）。
+        # 越境 symlink は非対話で skip し external_pending を warning に回す。
+        desired_paths, external_pending = collect_all_markdown(project_root, allow_set)
         rejected_paths = []
     else:
         # 明示 paths 入力（--paths-json / --paths-file）の検証（§5.1）
@@ -425,10 +529,42 @@ def main(argv=None):
                 toc_path=toc_rel,
             )
             return 1
-        desired_paths, rejected_paths = validate_paths(input_paths, project_root)
+        desired_paths, rejected_paths, external_pending = validate_paths(
+            input_paths, project_root, allow_set
+        )
+
+    # 2.5 未承認の越境 symlink がある場合の分岐（NFR-N06）。
+    if external_pending:
+        if single_mode:
+            # --all は非対話: skip した越境 symlink を warning として提示し処理続行。
+            pass
+        elif not decided:
+            # 明示 paths の discovery モード: 承認を取るため確認を要求し、書き込みはしない。
+            emit_json(
+                STATUS_NEEDS_CONFIRMATION,
+                error_code=None,
+                message=(
+                    "Some paths cross the project root via a symlink and need approval. "
+                    "Review the resolved targets, then re-run with "
+                    "--allow-external-json '[\"<symlink>\", ...]' listing the symlinks you approve "
+                    "(omit any you reject; pass '[]' to reject all)."
+                ),
+                key=key,
+                toc_path=toc_rel,
+                external_pending=external_pending,
+            )
+            return 0
+        # decided モード（明示 paths）: 未承認分は drop 済み。warning で透明化して続行。
 
     # 3. 大小衝突 warning（§5.2 / REQ-001 §6.1）
     warnings = detect_case_collisions(desired_paths)
+
+    # 越境 symlink を skip / drop した場合の透明化 warning（no silent caps）
+    for ext in external_pending:
+        warnings.append(
+            f"external symlink not indexed (needs approval): {ext['symlink']} "
+            f"-> {ext['resolved']} ({ext['affected_count']} file(s))"
+        )
 
     # 最大ファイル数超過 warning（単体モード / NFR-N05 / TBD-001 = 100）
     if single_mode and len(desired_paths) > MAX_FILES_WARN_THRESHOLD:
