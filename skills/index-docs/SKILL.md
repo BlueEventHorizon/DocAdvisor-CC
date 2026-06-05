@@ -49,7 +49,6 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 処理前に以下を読むこと:
 
 - `${CLAUDE_PLUGIN_ROOT}/workflows/toc_orchestrator.md` — オーケストレーター手順（key 単位・並列・中断耐性・continuation）
-- `${CLAUDE_PLUGIN_ROOT}/workflows/toc_update_workflow.md` — 詳細ワークフロー（prepare → 充填 → merge、checksums/work dir 責務）
 - `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` — ToC スキーマ定義（`doc_type` は除去済み。生成側も `doc_type` を抽出・出力しない）
 
 ## Execution Flow
