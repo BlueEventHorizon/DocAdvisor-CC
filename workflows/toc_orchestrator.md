@@ -65,15 +65,23 @@ key's `store_dir`, so multiple keys never collide.
 
 ### Phase 0: Continuation determination (per key, DES-005 §6.6)
 
-Before preparing, decide whether to resume an interrupted run for the target key. Determine the
-key's `store_dir` (from a prior `prepare`/`merge` JSON, or by resolving the key once) and check
-`store_dir/.toc_work/` with `test -d`.
+Before preparing, decide whether to resume an interrupted run. **Do not derive `store_dir`, run
+`test -d`, or read `_meta.status` by hand** — run the deterministic helper and follow `next_action`
+(Issue #22):
 
-| Condition                                                      | Action                                                                                                |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `store_dir/.toc_work/` exists with pending (`status: pending`) | Do **not** re-run `prepare_toc.py`. Resume parallel fill (Phase 2) from remaining pending, then merge |
-| `store_dir/.toc_work/` exists with all `completed`             | Already filled. Go directly to merge (Phase 3)                                                        |
-| `store_dir/.toc_work/` does not exist                          | Normal start from Phase 1 (prepare)                                                                   |
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status   # single mode: --all
+```
+
+It emits JSON with `next_action` / `pending` (project-root-relative entry_files) / `completed` /
+`error_pending` / `has_work_dir`.
+
+| `next_action` | Meaning                                                 | Action                                                      |
+| ------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| `prepare`     | no `.toc_work/`                                         | Normal start from Phase 1 (prepare)                         |
+| `fill`        | fillable pending exist                                  | Do **not** re-run `prepare_toc.py`. Resume Phase 2 (fill)   |
+| `blocked`     | no fillable pending but `error_pending` exist           | **Do not silently merge.** Go to Phase 2.5 (error handling) |
+| `merge`       | no pending and no error_pending (all completed / empty) | Go directly to Phase 3 (merge)                              |
 
 > To discard `.toc_work/` and re-prepare from scratch (e.g. corrupted pending), use
 > `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`).
@@ -140,24 +148,33 @@ unapproved external paths are then dropped with warnings and processing continue
 >   `store_dir/.toc_work/` with completed entries is preserved; Phase 0 detects it and
 >   resumes from pending files only (per-key continuation)
 
-**Note**: Do not use `xargs` for file listing — it fails with long Japanese filenames.
-Use `ls .toc_work/*.yaml` or `while read` loops instead.
+**Note**: Do not hand-list or hand-filter the work dir. Get the pending entry_files from
+`toc_store.py --work-status` (`pending` field) — never `ls .toc_work/*.yaml` + `_meta.status`
+reading by the AI.
 
 ```
-1. Identify pending-status files from store_dir/.toc_work/*.yaml
-   (exclude hidden `.`-prefixed files; only those with _meta.status: pending)
+1. Take `pending` (project-root-relative entry_files) from `--work-status`.
     ↓
-2. If no pending files → Go to Phase 3 (merge)
-    ↓
-3. Use max_workers = 5 (default).
+2. Use max_workers = 5 (default).
    CRITICAL: Launch up to N Agent tool calls in a SINGLE assistant message.
    Do NOT launch them one at a time in separate messages — this defeats parallelism.
    Pass key (or `all` for single mode) and the entry_file (project-root-relative).
     ↓
-4. Wait for all N tasks to complete; output a brief progress summary
+3. Wait for all N tasks to complete; output a brief progress summary.
     ↓
-5. If pending files remain → Return to step 1
+4. Re-run `--work-status`. If `next_action: fill` → return to step 1;
+   `merge` → Phase 3; `blocked` → Phase 2.5 (error handling).
 ```
+
+### Phase 2.5: Fill-error handling (`next_action: blocked` only)
+
+`pending` is empty but `error_pending` (entries that failed to fill) remain. **Do not merge silently:**
+merge keeps only completed docs and removes `.toc_work/` on success, so errored docs drop out of this
+run's ToC — and an errored **updated** doc gets a current-content checksum written, so the next prepare
+sees "unchanged" and never re-indexes it (silent staleness). Present each `error_pending` entry_file +
+`error_message` and ask (AskUserQuestion): **retry** the error_pending entry_files (re-launch toc-updater
+→ back to step 1), **merge anyway** (accept the dropped docs; report them in the completion summary), or
+**abort** (fix the source documents and re-run).
 
 ### Phase 3: Merge (integration + deletion reflection, DES-005 §6.5)
 

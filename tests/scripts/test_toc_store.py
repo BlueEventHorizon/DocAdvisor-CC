@@ -352,7 +352,8 @@ class TestWorkStatus(unittest.TestCase):
         self.assertEqual(r["completed"], 2)
         self.assertEqual(r["pending"], [])
 
-    def test_error_pending_classified_and_not_blocking_merge(self):
+    def test_error_pending_blocks_merge(self):
+        # 失敗 pending が残るときは silent merge せず blocked を返す（脱落/stale 防止）。
         self._write_entry("aaa.yaml", status="completed")
         self._write_entry("err.yaml", status="pending",
                           error_message="extraction failed")
@@ -361,8 +362,16 @@ class TestWorkStatus(unittest.TestCase):
         self.assertEqual(len(r["error_pending"]), 1)
         self.assertEqual(r["error_pending"][0]["entry_file"], "store/.toc_work/err.yaml")
         self.assertEqual(r["pending"], [])
-        # 充填可能 pending が無いので merge へ（error は試行済み）
-        self.assertEqual(r["next_action"], "merge")
+        self.assertEqual(r["next_action"], "blocked")
+
+    def test_pending_takes_precedence_over_error(self):
+        # 充填可能 pending があれば（error が併存しても）fill を優先。
+        self._write_entry("aaa.yaml", status="pending")
+        self._write_entry("err.yaml", status="pending", error_message="boom")
+        r = work_status(self.store_dir, self.root)
+        self.assertEqual(r["next_action"], "fill")
+        self.assertEqual(r["pending"], ["store/.toc_work/aaa.yaml"])
+        self.assertEqual(len(r["error_pending"]), 1)
 
     def test_hidden_files_excluded(self):
         self.work_dir.mkdir(parents=True, exist_ok=True)

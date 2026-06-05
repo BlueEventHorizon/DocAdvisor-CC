@@ -427,7 +427,15 @@ def work_status(store_dir, project_root):
             pending (list[str]): 未充填 entry_file（project-root 相対）。toc-updater 起動対象
             completed (int): status == 'completed' の件数
             error_pending (list[dict]): [{entry_file, error_message}]（充填試行済みエラー）
-            next_action (str): 'prepare'（work-dir なし）/ 'fill'（pending あり）/ 'merge'（pending なし）
+            next_action (str):
+                'prepare' — work-dir なし
+                'fill'    — 充填可能な pending あり
+                'blocked' — 充填可能 pending は無いが error_pending あり。**silent merge 禁止**。
+                            merge は completed のみ採用し成功時に .toc_work を削除するため、
+                            errored doc は今回 ToC から脱落し、**updated doc は現内容 checksum が
+                            書かれて次回も再索引されず stale 固定**になる。上位層が
+                            retry / 承知で merge / 中止 を選ぶ（Issue #22 レビュー対応）。
+                'merge'   — pending も error_pending も無い（全 completed / 空）
     """
     store_dir = Path(store_dir)
     work_dir = store_dir / WORK_DIRNAME
@@ -465,8 +473,16 @@ def work_status(store_dir, project_root):
         else:
             result["pending"].append(rel)
 
-    # 継続判定: 充填可能な pending が残れば fill、無ければ（completed/error/空のみ）merge。
-    result["next_action"] = "fill" if result["pending"] else "merge"
+    # 継続判定:
+    #   pending あり          → fill
+    #   pending 無 + error あり → blocked（silent merge せず上位層が判断。脱落/stale 防止）
+    #   どちらも無し           → merge
+    if result["pending"]:
+        result["next_action"] = "fill"
+    elif result["error_pending"]:
+        result["next_action"] = "blocked"
+    else:
+        result["next_action"] = "merge"
     return result
 
 

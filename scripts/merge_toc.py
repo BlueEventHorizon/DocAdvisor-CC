@@ -279,23 +279,44 @@ def detect_deleted(docs, prev_checksums, sidecar_deleted, project_root):
 # checksums 再計算（DES-005 §6.2 / FR-N02-6）
 # ---------------------------------------------------------------------------
 
-def compute_checksums_for_docs(docs, project_root):
+def compute_checksums_for_docs(docs, project_root, completed_paths=None, prev_checksums=None):
     """toc.yaml の最終 docs から checksums（path -> hash）を再計算する。
 
-    desired-state の最終結果（merge 後の docs キー集合）を checksums の正とする。
+    **重要（Issue #22 レビュー対応）**: 今回の run で実際に充填された（completed）doc のみ
+    現内容ハッシュを書く。それ以外（既存からの持ち越し entry）は **前回 checksum を引き継ぐ**。
+    こうしないと、改訂されたが充填に失敗した updated doc に対し「現内容ハッシュ」を書いてしまい、
+    次回 prepare が「変更なし」と誤判定して**改訂が二度と索引されない（stale 固定）**。
+    持ち越し doc に前回値を残せば、現内容と差が出る限り次回 prepare が「updated」と検知して再充填する。
+
+    - completed_paths に含まれる path → 現内容の sha256（充填済み＝entry は現内容由来）
+    - それ以外で prev_checksums に値あり → 前回値を引き継ぐ（unchanged は現内容と同値、
+      errored-updated は旧値が残り次回再検知される）
+    - どちらでもない（前回値なしの持ち越し。通常起きない）→ フォールバックで現内容ハッシュ
+
     実体が読めない path は除外する（検証で別途検出される）。
 
     Args:
         docs: 最終 docs（source_file -> entry）
         project_root: project root（Path）
+        completed_paths: 今回 run で充填された path の集合（None 互換: 全て現内容ハッシュ＝旧挙動）
+        prev_checksums: 前回 checksums（path -> hash）。持ち越し doc の引き継ぎ元
 
     Returns:
         dict: path -> sha256 hash
     """
     root = Path(project_root)
+    completed_paths = set(completed_paths) if completed_paths is not None else None
+    prev_checksums = prev_checksums or {}
     checksums = {}
     for path in docs.keys():
-        h = calculate_file_hash(root / path)
+        if completed_paths is None or path in completed_paths:
+            # 充填済み（または旧 API 互換）→ 現内容ハッシュ
+            h = calculate_file_hash(root / path)
+        else:
+            # 持ち越し entry → 前回値を引き継ぐ（現内容を「索引済み」と詐称しない）
+            h = prev_checksums.get(path)
+            if h is None:
+                h = calculate_file_hash(root / path)
         if h is not None:
             checksums[path] = h
     return checksums
@@ -475,8 +496,11 @@ def run_merge(store_dir, key, project_root, *, delete_only=False):
             "warnings": warnings,
         }
 
-    # 5. OK: checksums 更新（最終 docs から再計算）・work 削除（§6.5）
-    new_checksums = compute_checksums_for_docs(docs, project_root)
+    # 5. OK: checksums 更新（§6.5）。今回充填した doc のみ現内容ハッシュ、持ち越しは前回値を
+    #    引き継ぐ（errored-updated の stale 固定を防ぐ / Issue #22 レビュー対応）。
+    new_checksums = compute_checksums_for_docs(
+        docs, project_root, completed_paths=set(completed.keys()), prev_checksums=prev_checksums
+    )
     if not write_checksums_yaml(
         new_checksums, checksums_file, header_comment=f"ToC checksums for key: {key}"
     ):
