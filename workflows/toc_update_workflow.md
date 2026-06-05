@@ -153,8 +153,9 @@ Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .
 Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
-**Note**: Do not use `xargs` for file listing — it fails with long Japanese filenames.
-Use `ls .toc_work/*.yaml` or `while read` loops instead.
+**Note**: Manual work-dir listing is obsolete. Do **not** `ls .toc_work/*.yaml` or read
+`_meta.status` by hand — take the `pending` entry_files from `toc_store.py --work-status`
+(Step 2.1). The orchestrator only launches Agents on those entry_files.
 
 ### Step 2.3: Custom Agent processing
 
