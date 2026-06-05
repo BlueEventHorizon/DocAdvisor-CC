@@ -60,15 +60,21 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 
 ### Step 0: 中断耐性・continuation の判定（key 単位 / §6.6）
 
-各 key の `.toc_work/` は当該 key の `store_dir/.toc_work/` に分離される（key ごとに別ディレクトリのため、複数 key を扱っても競合しない）。処理開始時に当該 key の `.toc_work/` 残存を判定する。
+各 key の `.toc_work/` は当該 key の `store_dir/.toc_work/` に分離される（key ごとに別ディレクトリのため、複数 key を扱っても競合しない）。**判定は手作業（`test -d` / YAML の手読み）で行わず、`toc_store.py --work-status` の出力に従う**（決定論処理は script に委ねる）:
 
-| 状況                                                             | 判定                                                                                   |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `store_dir/.toc_work/` が存在し pending（`status: pending`）あり | `prepare_toc.py` を **再実行せず**、残 pending の充填（Step 2）から再開し merge へ進む |
-| `store_dir/.toc_work/` が存在し全 `completed`                    | 充填済み。merge（Step 3）へ直行する                                                    |
-| `store_dir/.toc_work/` なし                                      | 通常どおり Step 1（prepare）から開始する                                               |
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status   # 単体モードは --all
+```
 
-`store_dir` は `prepare_toc.py` / `merge_toc.py` の JSON 出力 `toc_path`（`.claude/doc-advisor/toc/<slug>/toc.yaml`）の親ディレクトリとして特定できる。`.toc_work/` の存在は Bash の `test -d` で確認する。
+stdout の JSON から `next_action` / `pending` / `completed` / `error_pending` / `has_work_dir` を読み、`next_action` に従う:
+
+| `next_action` | 意味                                          | 動作                                                                     |
+| ------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| `prepare`     | `.toc_work/` なし                             | 通常どおり Step 1（prepare）から開始する                                 |
+| `fill`        | 充填可能な pending あり                       | `prepare_toc.py` を **再実行せず** Step 2（充填）から再開し merge へ進む |
+| `merge`       | pending なし（全 completed / error 記録済み） | Step 3（merge）へ直行する                                                |
+
+> `store_dir` の特定や `.toc_work/` の有無・pending 列挙を AI が手で導出・走査しない。`--work-status` が `pending`（project-root 相対の entry_file 一覧）まで返すため、Step 2 はそのリストをそのまま使う。
 
 ### Step 0.5: ディレクトリ展開（`--dirs-json` 指定時のみ）
 
@@ -134,7 +140,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json 
 
 ### Step 2: toc-updater カスタム Agent による並列充填
 
-`store_dir/.toc_work/*.yaml`（隠しファイル `.` 始まりは除く）のうち `_meta.status: pending` のものを、`doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
+充填対象は **`toc_store.py --work-status` の `pending`（project-root 相対の entry_file 一覧）**を使う。AI が `ls .toc_work/*.yaml` や YAML の `_meta.status` 手読みで列挙しない（決定論は script が担う）。`pending` の各 entry_file を `doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
 
 - **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Agent 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
 - **`run_in_background: true` は使わない**（Phase 2 ループが壊れる）。
@@ -151,7 +157,7 @@ Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
 
-各バッチ完了後、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力し、pending が残る限り並列起動を繰り返す。すべて `completed`（またはエラー記録済み pending）になったら Step 3 へ。ファイル一覧に `xargs` を使わない（長い日本語ファイル名で失敗する）。`ls .toc_work/*.yaml` か `while read` ループを使う。
+各バッチ完了後、**`toc_store.py --work-status` を再実行して残 `pending` を取得**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`pending` が空（`next_action: merge`）になったら Step 3 へ。エラー記録済み pending は `error_pending` に分類され充填対象から外れる。
 
 ### Step 3: merge（統合 + 削除反映 / §6.5）
 
