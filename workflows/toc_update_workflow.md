@@ -80,17 +80,19 @@ Phase 3: merge — integration + deletion reflection (merge_toc.py)
 
 ## Phase 0: Continuation determination (Orchestrator)
 
-Check the target key's `store_dir/.toc_work/`:
+Run the deterministic helper and follow `next_action` — **do not `test -d` or read `_meta.status`
+by hand** (Issue #22):
 
 ```bash
-test -d "{store_dir}/.toc_work" && echo "EXISTS" || echo "NOT_EXISTS"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status   # single mode: --all
 ```
 
-| Condition                            | Processing                                                                   |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| `.toc_work/` exists + pending remain | Continuation: resume Phase 2 from existing pending YAMLs (do not re-prepare) |
-| `.toc_work/` exists + all completed  | Go directly to merge (Phase 3)                                               |
-| `.toc_work/` does not exist          | Normal start: Phase 1 (prepare)                                              |
+| `next_action` | Processing                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| `prepare`     | Normal start: Phase 1 (prepare)                                                                  |
+| `fill`        | Continuation: resume Phase 2 from `pending` entry_files (do not re-prepare)                      |
+| `blocked`     | `error_pending` remain — **do not silently merge**; handle errors (retry / merge-anyway / abort) |
+| `merge`       | Go directly to merge (Phase 3)                                                                   |
 
 > To discard a corrupted `.toc_work/` and re-prepare from scratch:
 > `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`).
@@ -132,8 +134,10 @@ added/updated > 0 → Phase 2).
 
 ### Step 2.1: Identify pending YAMLs
 
-Read `store_dir/.toc_work/*.yaml` (exclude hidden `.`-prefixed files) and identify entries with
-`_meta.status: pending`.
+Take the `pending` list (project-root-relative entry_files) from `toc_store.py --work-status`.
+**Do not hand-list `store_dir/.toc_work/*.yaml` or read `_meta.status` by hand.** After each batch,
+re-run `--work-status`: `fill` → continue, `merge` → Phase 3, `blocked` → fill-error handling
+(error_pending must not be silently merged — see toc_orchestrator.md Phase 2.5).
 
 ### Step 2.2: Launch custom Agents in parallel
 

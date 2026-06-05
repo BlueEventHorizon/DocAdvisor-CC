@@ -68,11 +68,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status  
 
 stdout の JSON から `next_action` / `pending` / `completed` / `error_pending` / `has_work_dir` を読み、`next_action` に従う:
 
-| `next_action` | 意味                                          | 動作                                                                     |
-| ------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
-| `prepare`     | `.toc_work/` なし                             | 通常どおり Step 1（prepare）から開始する                                 |
-| `fill`        | 充填可能な pending あり                       | `prepare_toc.py` を **再実行せず** Step 2（充填）から再開し merge へ進む |
-| `merge`       | pending なし（全 completed / error 記録済み） | Step 3（merge）へ直行する                                                |
+| `next_action` | 意味                                            | 動作                                                          |
+| ------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `prepare`     | `.toc_work/` なし                               | 通常どおり Step 1（prepare）から開始する                      |
+| `fill`        | 充填可能な pending あり                         | `prepare_toc.py` を **再実行せず** Step 2（充填）から再開する |
+| `blocked`     | 充填可能 pending は無いが `error_pending` あり  | **silent merge 禁止。Step 2.5（エラー対応）** へ              |
+| `merge`       | pending も error_pending も無い（全 completed） | Step 3（merge）へ直行する                                     |
 
 > `store_dir` の特定や `.toc_work/` の有無・pending 列挙を AI が手で導出・走査しない。`--work-status` が `pending`（project-root 相対の entry_file 一覧）まで返すため、Step 2 はそのリストをそのまま使う。
 
@@ -157,9 +158,24 @@ Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
 
-各バッチ完了後、**`toc_store.py --work-status` を再実行して残 `pending` を取得**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`pending` が空（`next_action: merge`）になったら Step 3 へ。
+各バッチ完了後、**`toc_store.py --work-status` を再実行**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`next_action` が `merge` になったら Step 3 へ、`blocked` なら Step 2.5 へ。
 
-> **error_pending の扱い**: 充填に失敗した entry は `write_error_yaml` が `status: pending` + `error_message` を記録する。`--work-status` はこれを `error_pending` に分類し `pending` から除外するため、**同一 run 内では再試行されない**（無限ループ防止）。これらは merge では completed のみ採用され除外される（Step 3）。再試行したい場合は、元文書を修正のうえ `toc_store.py --key {key} --clean-work-dir` で work-dir を破棄してから `index-docs` を再実行（再 prepare）する。`merge_toc.py` 成功時は `.toc_work/` ごと削除されるため、次回は自然に再 prepare される。
+### Step 2.5: 充填エラーの対応（`next_action: blocked` 時のみ）
+
+`pending` は空だが `error_pending`（充填に失敗した entry）が残る状態。**そのまま merge してはならない。** merge は completed のみ採用し成功時に `.toc_work/` を削除するため:
+
+- errored doc は **今回の ToC から脱落**する。
+- とくに **updated（既存文書の改訂）が errored の場合**、merge が現内容の checksum を書くため、**次回 prepare で「変更なし」と誤判定され、改訂が二度と索引されない（stale 固定）**。
+
+したがって `error_pending` を握りつぶさず、`error_pending` の各 `entry_file` と `error_message` を提示し、AskUserQuestion で対応を確認する:
+
+| 選択             | 動作                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| **再試行**       | `error_pending` の `entry_file` に対し toc-updater を再起動（transient 失敗の救済）→ Step 2 へ戻る     |
+| **承知で merge** | 失敗分の脱落（および updated の stale 化）を承知のうえ Step 3（merge）。完了レポートで脱落 path を明示 |
+| **中止**         | merge せず終了。元文書を修正して再実行を促す                                                           |
+
+> 失敗が恒常的（元文書の問題）なら「再試行」は無限に成功しない。その場合は元文書を直してから再実行するか、「承知で merge」を選ぶ。
 
 ### Step 3: merge（統合 + 削除反映 / §6.5）
 
