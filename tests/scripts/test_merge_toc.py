@@ -41,6 +41,7 @@ from merge_toc import (
     load_completed_pendings,
     detect_deleted,
     load_deleted_sidecar,
+    compute_checksums_for_docs,
 )
 from toc_store import (
     resolve_store_dir,
@@ -685,6 +686,56 @@ class TestCoordinationFlow(MergeTestBase):
         content = self._toc_path("rules").read_text(encoding='utf-8')
         self.assertNotIn("docs/b.md", content)
         self.assertIn("docs/a.md", content)
+
+
+class TestComputeChecksumsCarryForward(unittest.TestCase):
+    """compute_checksums_for_docs: completed のみ現内容、持ち越しは前回値引き継ぎ（Issue #22）。"""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = Path(self.tmpdir)
+        (self.root / "docs").mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, rel, content):
+        p = self.root / rel
+        p.write_text(content, encoding="utf-8")
+        return calculate_file_hash(p)
+
+    def test_completed_uses_current_hash(self):
+        cur = self._write("docs/a.md", "new content")
+        docs = {"docs/a.md": {"title": "A"}}
+        cs = compute_checksums_for_docs(
+            docs, self.root, completed_paths={"docs/a.md"}, prev_checksums={"docs/a.md": "OLD"}
+        )
+        self.assertEqual(cs["docs/a.md"], cur)  # 充填済み→現内容
+
+    def test_carried_over_keeps_prev_not_current(self):
+        # 改訂されたが充填失敗（completed でない）→ 現内容ではなく前回(旧)値を残す。
+        self._write("docs/a.md", "MODIFIED content")
+        docs = {"docs/a.md": {"title": "A(old)"}}
+        cs = compute_checksums_for_docs(
+            docs, self.root, completed_paths=set(), prev_checksums={"docs/a.md": "OLDHASH"}
+        )
+        # 現内容ハッシュ（MODIFIED）を詐称せず、旧値を残す → 次回 prepare が「変更あり」と検知
+        self.assertEqual(cs["docs/a.md"], "OLDHASH")
+
+    def test_carried_over_without_prev_falls_back_to_current(self):
+        cur = self._write("docs/a.md", "x")
+        docs = {"docs/a.md": {"title": "A"}}
+        cs = compute_checksums_for_docs(
+            docs, self.root, completed_paths=set(), prev_checksums={}
+        )
+        self.assertEqual(cs["docs/a.md"], cur)
+
+    def test_legacy_none_completed_all_current(self):
+        # 旧 API 互換: completed_paths=None なら全件現内容（後方互換）。
+        cur = self._write("docs/a.md", "y")
+        docs = {"docs/a.md": {"title": "A"}}
+        cs = compute_checksums_for_docs(docs, self.root)
+        self.assertEqual(cs["docs/a.md"], cur)
 
 
 if __name__ == '__main__':
