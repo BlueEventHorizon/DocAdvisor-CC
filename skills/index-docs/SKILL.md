@@ -109,7 +109,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 `prepare_toc.py` は paths 検証（traversal / 絶対パス / 不在 / 非 Markdown を reject。root 外を指す symlink は default-deny で確認待ちにする）と desired-state 差分検出を行い、added + updated 分の pending YAML を `store_dir/.toc_work/` に生成する。stdout の単一 JSON から以下を読む:
 
 - `status`（`ok` / `partial` / `needs_confirmation` / `error`）/ `error_code`
-- `toc_path`（→ `store_dir` と `.toc_work/` の特定に使う）
+- `toc_path`（生成された toc.yaml の project-relative パス。報告用。`.toc_work/` の所在・pending は AI が手で導出せず Step 2 で `--work-status` から取得する）
 - `counts.added` / `counts.updated` / `counts.deleted` / `counts.unchanged`
 - `rejected_paths`（reject された path と理由）/ `warnings`
 - `external_pending`（`status == needs_confirmation` 時。root 外を指す未承認 symlink の `[{symlink, resolved, affected_count}]`）
@@ -157,7 +157,9 @@ Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
 
-各バッチ完了後、**`toc_store.py --work-status` を再実行して残 `pending` を取得**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`pending` が空（`next_action: merge`）になったら Step 3 へ。エラー記録済み pending は `error_pending` に分類され充填対象から外れる。
+各バッチ完了後、**`toc_store.py --work-status` を再実行して残 `pending` を取得**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`pending` が空（`next_action: merge`）になったら Step 3 へ。
+
+> **error_pending の扱い**: 充填に失敗した entry は `write_error_yaml` が `status: pending` + `error_message` を記録する。`--work-status` はこれを `error_pending` に分類し `pending` から除外するため、**同一 run 内では再試行されない**（無限ループ防止）。これらは merge では completed のみ採用され除外される（Step 3）。再試行したい場合は、元文書を修正のうえ `toc_store.py --key {key} --clean-work-dir` で work-dir を破棄してから `index-docs` を再実行（再 prepare）する。`merge_toc.py` 成功時は `.toc_work/` ごと削除されるため、次回は自然に再 prepare される。
 
 ### Step 3: merge（統合 + 削除反映 / §6.5）
 
