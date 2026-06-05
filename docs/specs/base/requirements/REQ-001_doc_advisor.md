@@ -79,12 +79,12 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 
 ### FR-N05: ToC 取得・検索
 
-| ID       | 要件                                                                                                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-N05-1 | `get_toc` は対象 key の ToC を取得する（全体取得、または `--paths` 指定で縮小抽出）                                                                                        |
-| FR-N05-2 | script は **lexical ranking / score 付けを行わない**（ToC 抽出のみ）。出力は ToC の定義順を保持し、score / rank フィールドを持たない。最終的な関連判断は SKILL / AI が担う |
-| FR-N05-3 | 検索の見落としゼロ方針（false negative 最小化）を踏襲する（FNC-002 を継続）                                                                                                |
-| FR-N05-4 | ドキュメント検索 SKILL `query-docs` は `context: fork` の read-only 隔離実行を踏襲する（ADR-002 を継続）                                                                   |
+| ID       | 要件                                                                                                                                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-N05-1 | `get_toc` は対象 key の ToC を取得する（全体取得、または `--paths` 指定で縮小抽出）                                                                                                                                                                                                               |
+| FR-N05-2 | script は **lexical ranking / score 付けを行わない**（ToC 抽出のみ）。出力は ToC の定義順を保持し、score / rank フィールドを持たない。最終的な関連判断は SKILL / AI が担う                                                                                                                        |
+| FR-N05-3 | 検索の見落としゼロ方針（false negative 最小化）を踏襲する（FNC-002 を継続）                                                                                                                                                                                                                       |
+| FR-N05-4 | ドキュメント検索 `query-docs` は継承型 dispatcher SKILL とし、実検索は read-only な `doc-advisor:query-worker` カスタム Agent に隔離する（ADR-002 改訂版）。dispatcher は `$ARGUMENTS`・親 context・guidance から検索依頼を構築し、worker が ToC 読解・関連判断・`Required documents:` 返却を行う |
 
 ### FR-N06: 削除
 
@@ -142,11 +142,11 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 
 doc-advisor は category 固有の SKILL を持たず、汎用 SKILL 2 種へ一本化する。`key` の分類的意味（rules / specs 等）は解釈せず、与えられた `key` と `paths` に対して決定的に動作する。`implementation_guidelines.md`「使わないコードは削除 [MANDATORY]」に従い、category 依存ロジックは残さない。
 
-| SKILL / 機能          | 確定方針                                                                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 汎用検索 `query-docs` | `get_toc` を呼び、`--key` 省略時は予約 key `all` を検索する。`context: fork` / read-only（ADR-002）。FR-N05（タスク関連パスリストの返却）契約を担う |
-| 汎用生成 `index-docs` | agent 並列起動のため fork しない。`prepare_toc` → agent 充填 → `merge_toc` を駆動する                                                               |
-| category 内部ロジック | 持たない。`load_config()` の category 分岐、`_get_default_config()` の rules/specs 固定キー、`extract_id_from_filename()` 等は存在しない            |
+| SKILL / 機能          | 確定方針                                                                                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 汎用検索 `query-docs` | 継承型 dispatcher SKILL。`--key` 省略時は予約 key `all`。実検索は read-only な `query-worker` カスタム Agent に隔離し、worker が `get_toc` を呼ぶ（ADR-002 改訂版）。FR-N05（タスク関連パスリストの返却）契約を担う |
+| 汎用生成 `index-docs` | agent 並列起動のため fork しない。`prepare_toc` → agent 充填 → `merge_toc` を駆動する                                                                                                                               |
+| category 内部ロジック | 持たない。`load_config()` の category 分岐、`_get_default_config()` の rules/specs 固定キー、`extract_id_from_filename()` 等は存在しない                                                                            |
 
 > **category 非対応の含意**: category の意味づけは doc-advisor の責務外であり、`rules` / `specs` を分けて検索する体験は提供しない。これを必要とする利用者は、上位層（forge）が任意の key で生成・検索を駆動するか、`query-docs`（key 省略 = `all`）で project 全体を横断検索する。検索 SKILL 名 `query-docs` は別プラグイン `query-docs`（bw-cc-plugins#77）と語が重複するが、plugin namespace（`doc-advisor:query-docs`）で区別する。
 
@@ -267,12 +267,13 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 | 予約 key `all` | `--key` 省略 / `--all` 指定時に解決される単体モード用の予約 key。ユーザー任意 key には使えない |
 | 上位層         | doc-advisor を呼び出し paths を決定する側（forge 等）                                          |
 | ToC            | Table of Contents — ドキュメントのメタデータ検索インデックスファイル（YAML）                   |
-| `query-docs`   | 汎用検索 SKILL（`doc-advisor:query-docs`、fork / read-only）                                   |
+| `query-docs`   | 汎用検索 SKILL（`doc-advisor:query-docs`、継承型 dispatcher。実検索は `query-worker` に隔離）  |
+| `query-worker` | read-only 検索カスタム Agent（`doc-advisor:query-worker`）。ToC 読解・関連判断・パス返却を担う |
 | `index-docs`   | 汎用生成 SKILL（`doc-advisor:index-docs`、prepare→agent→merge を駆動。fork しない）            |
 
 ## 関連文書
 
-- ADR-002: query-docs の fork 型 SKILL 隔離と read-only 制約
+- ADR-002: query-docs の guidance-aware dispatcher と read-only worker 隔離
 - FNC-002: 見落としゼロの検索精度
 - DES-003: 文書識別子の設計（key + path 二層識別）
 - DES-004: ドキュメントモデル設計書（スキャン対象・除外ルール）

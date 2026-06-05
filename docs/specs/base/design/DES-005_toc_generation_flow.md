@@ -35,8 +35,9 @@ flowchart TB
 
     subgraph AI["AI orchestration 層 (SKILL / agent)"]
         S1[index-docs SKILL]
-        S2[query-docs SKILL fork/read-only]
+        S2[query-docs dispatcher SKILL inherited]
         A1[toc-updater agent]
+        A2[query-worker agent read-only]
     end
 
     subgraph Det["deterministic script 層 (標準ライブラリのみ)"]
@@ -58,7 +59,8 @@ flowchart TB
     P1 -->|pending YAML| A1
     A1 -->|充填| S1
     S1 --> P2
-    S2 --> P3
+    S2 -->|検索依頼| A2
+    A2 --> P3
     P1 --> C1
     P2 --> C1
     P3 --> C1
@@ -74,7 +76,7 @@ flowchart TB
 2. script 層は AI 層を呼ばない（メタデータ抽出は AI 層が `prepare → merge` の間で実施）
 3. 循環依存を作らない。共通ロジックは `toc_utils.py`（既存）と新設 `toc_store.py`（key 解決・ストア I/O）に集約
 
-fork 型 SKILL と Agent の関係（fork 型 SKILL は Agent を起動できない）を前提とする。生成系 `index-docs` は fork せず（agent 並列起動のため）、検索系 `query-docs` は fork する（ADR-002 継続）。
+生成系 `index-docs` と検索系 `query-docs` はいずれも継承型 SKILL であり、カスタム Agent を Agent ツールで起動する（fork 型 SKILL は Agent を起動できないため）。`index-docs` は `toc-updater` を並列起動し、`query-docs` dispatcher は read-only な `query-worker` を起動して実検索を隔離する（ADR-002 改訂版）。
 
 ## 3. ストレージ設計
 
@@ -408,15 +410,16 @@ sequenceDiagram
 
 ## 10. SKILL / agent 設計
 
-key + path 汎用化（REQ-001 §6.2）に伴い、SKILL / agent を以下の 3 コンポーネントへ一本化する。
+key + path 汎用化（REQ-001 §6.2）に伴い、SKILL / agent を以下のコンポーネントへ一本化する。
 
-| コンポーネント | 種別                      | 責務                                                                       |
-| -------------- | ------------------------- | -------------------------------------------------------------------------- |
-| `index-docs`   | SKILL（fork なし）        | `prepare_toc` → toc-updater 並列 → `merge_toc` を駆動。`--key` / `--all`   |
-| `query-docs`   | SKILL（fork / read-only） | `get_toc` を呼び ToC を取得、AI が関連判断。`--key` 省略時は予約 key `all` |
-| `toc-updater`  | Agent（Read, Bash）       | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填   |
+| コンポーネント | 種別                            | 責務                                                                                                          |
+| -------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `index-docs`   | SKILL（継承型）                 | `prepare_toc` → toc-updater 並列 → `merge_toc` を駆動。`--key` / `--all`                                      |
+| `query-docs`   | SKILL（継承型 dispatcher）      | `$ARGUMENTS`・親 context・guidance から検索依頼を構築し `query-worker` を起動。`--key` 省略時は予約 key `all` |
+| `query-worker` | Agent（Read, Grep, Glob, Bash） | `get_toc` を呼び ToC 全エントリ読解・関連判断・`Required documents:` 返却（read-only）                        |
+| `toc-updater`  | Agent（Read, Bash）             | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填                                      |
 
-ADR-002（query SKILL の fork / read-only 隔離）を `query-docs` が継承する。orchestrator パターン（Phase 2 並列・中断耐性・continue モード、§6.6）を `index-docs` が用いる。
+ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-docs` / `query-worker` が実装する。orchestrator パターン（Phase 2 並列・中断耐性・continue モード、§6.6）を `index-docs` が用いる。
 
 ## 11. ユースケース設計
 
@@ -435,19 +438,23 @@ ADR-002（query SKILL の fork / read-only 隔離）を `query-docs` が継承�
 ```mermaid
 sequenceDiagram
     actor User
-    participant Q as query-docs SKILL (fork)
+    participant Q as query-docs dispatcher SKILL (継承型)
+    participant W as query-worker agent (read-only)
     participant G as get_toc.py
     participant Store as toc.yaml
 
     User->>Q: query-docs --key K "タスク記述"
-    Q->>G: --key K (全体 or --paths)
+    Q->>Q: $ARGUMENTS・親 context・guidance から検索依頼を正規化
+    Q->>W: Agent ツールで起動（正規化済み検索依頼）
+    W->>G: --key K (全体 or --paths)
     G->>Store: toc.yaml 読み込み
-    G->>Q: JSON/YAML (docs エントリ, ranking なし)
-    Q->>Q: AI が全エントリを読み関連候補を判断
-    Q->>User: 関連文書パスリスト
+    G->>W: JSON/YAML (docs エントリ, ranking なし)
+    W->>W: 全エントリを読み関連候補を判断・文書本文を確認
+    W->>Q: Required documents 形式のパスリスト
+    Q->>User: 関連文書パスリスト（形式検査して返す）
 ```
 
-`get_toc.py` は lexical ranking / score を行わず ToC の定義順を保持する（REQ-001 FR-N05-2）。最終的な関連判断は AI（SKILL）が担う。
+`get_toc.py` は lexical ranking / score を行わず ToC の定義順を保持する（REQ-001 FR-N05-2）。最終的な関連判断は read-only worker（AI）が担い、dispatcher は検索依頼の構築と結果の形式検査に限定される（ADR-002 改訂版）。
 
 ## 12. 使用する既存コンポーネント
 
