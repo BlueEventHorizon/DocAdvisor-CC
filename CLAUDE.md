@@ -40,7 +40,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 | `docs/readme/`               | ユーザ向けガイド（日英併記）                                                      |
 | `tests/`                     | 単体テスト・統合テスト                                                            |
 | `.claude/`                   | このリポジトリのローカル設定（プラグイン配布物ではない）                          |
-| `.claude/skills/`            | ローカル限定 skill（配布対象外: swap-doc-config 等）                              |
+| `.claude/skills/`            | ローカル限定 skill（配布対象外: review-skill-description 等）                     |
 | `.agents/skills/`            | agent 向け補助 skill                                                              |
 | `.doc_structure.yaml`        | 上位層（forge 等）が rules/specs を解決するための設定（doc-advisor 自体は未使用） |
 | `.version-config.yaml`       | バージョン一括更新設定                                                            |
