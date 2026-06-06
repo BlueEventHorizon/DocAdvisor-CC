@@ -6,9 +6,5 @@
   "license": "MIT",
   "homepage": "https://github.com/BlueEventHorizon/DocAdvisor",
   "repository": "https://github.com/BlueEventHorizon/DocAdvisor",
-  "keywords": ["doc-advisor", "search", "toc", "documentation"],
-  "skills": [
-    "./skills/index-docs",
-    "./skills/query-docs"
-  ]
+  "keywords": ["doc-advisor", "search", "toc", "documentation"]
 }
