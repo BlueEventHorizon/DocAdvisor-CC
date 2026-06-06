@@ -34,7 +34,7 @@ Generates / updates the ToC for the key as a desired state. Any path present in 
 | `--key <key>`      | Key of the ToC to search. When omitted, searches the reserved key `all`   |
 | `task description` | Keywords or a natural-language task description to find relevant docs for |
 
-Searches the ToC (keyword / metadata index) to identify documents relevant to a task. The AI reads every ToC entry, decides which document paths are relevant to the task description, and returns only the matching paths — the calling agent decides how to read them. Runs in isolation with `context: fork` / read-only.
+Searches the ToC (keyword / metadata index) to identify documents relevant to a task. `query-docs` runs as an inherited-context dispatcher that builds a normalized search request, and delegates the actual search to a read-only custom agent (`doc-advisor:query-worker`). The worker reads every ToC entry, decides which document paths are relevant, and returns only the matching paths — the calling agent decides how to read them.
 
 ## Requirements
 

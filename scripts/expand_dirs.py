@@ -10,7 +10,7 @@ prepare_toc.py へ渡す --paths-json を生成するために呼び出す。
 - --dirs-json のディレクトリを rglob で展開し Markdown を収集
 - SYSTEM_EXCLUDE_PATTERNS を常時適用（--exclude-json の有無に関わらず）
 - --exclude-json で指定したパス・ディレクトリを追加除外
-- root 外 symlink を除外
+- root 外 symlink は論理 path を後段へ渡し、prepare_toc.py の承認フローに委ねる
 - --paths-json の明示ファイルと結合・重複除去
 - stdout に単一 JSON を出力（NFR / FR-N08）
 
@@ -33,6 +33,7 @@ from toc_utils import (
     rglob_follow_symlinks,
     should_exclude,
     resolve_within_root,
+    validate_path_within_base,
     PathRejection,
     log,
     SYSTEM_EXCLUDE_PATTERNS,
@@ -57,10 +58,13 @@ def _emit(status, *, paths=None, rejected_dirs=None, warnings=None, error_code=N
 
 
 def _resolve_dir(rel_dir, project_root):
-    """ディレクトリ相対パスを絶対パスに解決し、存在するディレクトリかを検証する。
+    """ディレクトリ相対パスを論理 path として検証し、存在するディレクトリか確認する。
+
+    symlink 実体が project root 外でもここでは拒否しない。展開結果の論理 path を
+    prepare_toc.py に渡し、外部 symlink の承認確認は後段の path 検証に委ねる。
 
     Returns:
-        Path: 絶対パス
+        Path: project root から辿れるディレクトリ path（symlink は未解決）
     Raises:
         ValueError: 不在・非ディレクトリ・traversal の場合
     """
@@ -68,20 +72,15 @@ def _resolve_dir(rel_dir, project_root):
     p = Path(normalized)
     if p.is_absolute():
         raise ValueError(f"絶対パスは使用できません: {rel_dir}")
-    resolved = (project_root / p).resolve()
     try:
-        project_root.resolve().relative_to(project_root.resolve())
-    except ValueError:
-        pass
-    try:
-        resolved.relative_to(project_root.resolve())
-    except ValueError:
-        raise ValueError(f"project root 外のディレクトリです: {rel_dir}")
-    if not resolved.exists():
+        abs_dir = validate_path_within_base(normalized, project_root)
+    except ValueError as e:
+        raise ValueError(str(e)) from e
+    if not abs_dir.exists():
         raise ValueError(f"存在しません: {rel_dir}")
-    if not resolved.is_dir():
+    if not abs_dir.is_dir():
         raise ValueError(f"ディレクトリではありません: {rel_dir}")
-    return resolved
+    return abs_dir
 
 
 def _build_exclude_set(exclude_list, project_root):
@@ -143,16 +142,16 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
             # システム固定除外
             if should_exclude(md_file, project_root, SYSTEM_EXCLUDE_PATTERNS):
                 continue
-            # root 外 symlink を除外
+            # project-root-relative の論理 path を prepare_toc.py へ渡す。
+            # root 外 symlink はここで除外せず、後段の default-deny + 明示承認に委ねる。
             try:
-                resolved = resolve_within_root(md_file, project_root)
-            except PathRejection:
-                continue
-            # project-root-relative に変換
-            try:
-                rel = normalize_path(str(resolved.relative_to(project_root)))
+                rel = normalize_path(str(md_file.relative_to(project_root)))
             except ValueError:
                 continue
+            try:
+                resolve_within_root(md_file, project_root)
+            except PathRejection:
+                pass
             # ユーザー指定除外
             if _is_user_excluded(rel, exclude_set):
                 continue

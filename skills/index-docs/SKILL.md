@@ -10,7 +10,7 @@ description: |
   Trigger:
   - After an upper layer decides a key and its desired-state paths
   - "Index docs", "Rebuild the ToC for key X", "Index all Markdown"
-allowed-tools: Bash, Read, Task
+allowed-tools: Bash, Read, Agent
 user-invocable: true
 argument-hint: "--key <key> --paths-json '[...]' | --key <key> --dirs-json '[...]' | --all | (no args = --all)"
 ---
@@ -33,14 +33,14 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 /doc-advisor:index-docs --all
 ```
 
-| Argument                | Description                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| `--key <key>`           | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）            |
-| `--paths-json '[...]'`  | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                  |
-| `--dirs-json '[...]'`   | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する   |
-| `--exclude-json '[...]'`| `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）           |
-| `--paths-file <path>`   | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                              |
-| `--all`                 | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする |
+| Argument                 | Description                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）            |
+| `--paths-json '[...]'`   | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                  |
+| `--dirs-json '[...]'`    | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する   |
+| `--exclude-json '[...]'` | `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）           |
+| `--paths-file <path>`    | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                              |
+| `--all`                  | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする |
 
 > **desired-state の破壊性 [MANDATORY]**: `--paths-json` / `--paths-file` で渡す paths は当該 key の **完全な desired state** である。前回 ToC に存在し今回 paths に含まれない path は **削除** される（部分配列を渡すと残りが消える）。上位層の責務であり、不安な場合は先に `prepare_toc.py --dry-run` で削除予定を確認すること（後述）。
 
@@ -49,7 +49,6 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 処理前に以下を読むこと:
 
 - `${CLAUDE_PLUGIN_ROOT}/workflows/toc_orchestrator.md` — オーケストレーター手順（key 単位・並列・中断耐性・continuation）
-- `${CLAUDE_PLUGIN_ROOT}/workflows/toc_update_workflow.md` — 詳細ワークフロー（prepare → 充填 → merge、checksums/work dir 責務）
 - `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` — ToC スキーマ定義（`doc_type` は除去済み。生成側も `doc_type` を抽出・出力しない）
 
 ## Execution Flow
@@ -60,15 +59,22 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 
 ### Step 0: 中断耐性・continuation の判定（key 単位 / §6.6）
 
-各 key の `.toc_work/` は当該 key の `store_dir/.toc_work/` に分離される（key ごとに別ディレクトリのため、複数 key を扱っても競合しない）。処理開始時に当該 key の `.toc_work/` 残存を判定する。
+各 key の `.toc_work/` は当該 key の `store_dir/.toc_work/` に分離される（key ごとに別ディレクトリのため、複数 key を扱っても競合しない）。**判定は手作業（`test -d` / YAML の手読み）で行わず、`toc_store.py --work-status` の出力に従う**（決定論処理は script に委ねる）:
 
-| 状況                                                             | 判定                                                                                   |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `store_dir/.toc_work/` が存在し pending（`status: pending`）あり | `prepare_toc.py` を **再実行せず**、残 pending の充填（Step 2）から再開し merge へ進む |
-| `store_dir/.toc_work/` が存在し全 `completed`                    | 充填済み。merge（Step 3）へ直行する                                                    |
-| `store_dir/.toc_work/` なし                                      | 通常どおり Step 1（prepare）から開始する                                               |
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status   # 単体モードは --all
+```
 
-`store_dir` は `prepare_toc.py` / `merge_toc.py` の JSON 出力 `toc_path`（`.claude/doc-advisor/toc/<slug>/toc.yaml`）の親ディレクトリとして特定できる。`.toc_work/` の存在は Bash の `test -d` で確認する。
+stdout の JSON から `next_action` / `pending` / `completed` / `error_pending` / `has_work_dir` を読み、`next_action` に従う:
+
+| `next_action` | 意味                                            | 動作                                                          |
+| ------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `prepare`     | `.toc_work/` なし                               | 通常どおり Step 1（prepare）から開始する                      |
+| `fill`        | 充填可能な pending あり                         | `prepare_toc.py` を **再実行せず** Step 2（充填）から再開する |
+| `blocked`     | 充填可能 pending は無いが `error_pending` あり  | **silent merge 禁止。Step 2.5（エラー対応）** へ              |
+| `merge`       | pending も error_pending も無い（全 completed） | Step 3（merge）へ直行する                                     |
+
+> `store_dir` の特定や `.toc_work/` の有無・pending 列挙を AI が手で導出・走査しない。`--work-status` が `pending`（project-root 相対の entry_file 一覧）まで返すため、Step 2 はそのリストをそのまま使う。
 
 ### Step 0.5: ディレクトリ展開（`--dirs-json` 指定時のみ）
 
@@ -100,41 +106,75 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-file 
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 ```
 
-`prepare_toc.py` は paths 検証（traversal / 絶対パス / root 外 symlink / 不在 / 非 Markdown を reject）と desired-state 差分検出を行い、added + updated 分の pending YAML を `store_dir/.toc_work/` に生成する。stdout の単一 JSON から以下を読む:
+`prepare_toc.py` は paths 検証（traversal / 絶対パス / 不在 / 非 Markdown を reject。root 外を指す symlink は default-deny で確認待ちにする）と desired-state 差分検出を行い、added + updated 分の pending YAML を `store_dir/.toc_work/` に生成する。stdout の単一 JSON から以下を読む:
 
-- `status`（`ok` / `partial` / `error`）/ `error_code`
-- `toc_path`（→ `store_dir` と `.toc_work/` の特定に使う）
+- `status`（`ok` / `partial` / `needs_confirmation` / `error`）/ `error_code`
+- `toc_path`（生成された toc.yaml の project-relative パス。報告用。`.toc_work/` の所在・pending は AI が手で導出せず Step 2 で `--work-status` から取得する）
 - `counts.added` / `counts.updated` / `counts.deleted` / `counts.unchanged`
 - `rejected_paths`（reject された path と理由）/ `warnings`
+- `external_pending`（`status == needs_confirmation` 時。root 外を指す未承認 symlink の `[{symlink, resolved, affected_count}]`）
 
 判断:
 
 - `status == error` → エラー内容を報告し、AskUserQuestion を使用してユーザーに対応を確認する
+- `status == needs_confirmation` → **Step 1.5（越境 symlink の承認）** へ。書き込みは行われていない
 - `counts.added == 0` かつ `counts.updated == 0` → 充填対象なし。`counts.deleted > 0` なら Step 3（merge）へ直行して削除を反映、両方 0 なら冪等成功（空 ToC を含む）として完了
 - `counts.added > 0` または `counts.updated > 0` → Step 2 へ
 
 > **事前確認（任意）**: 削除予定が不安な場合、`prepare_toc.py` に `--dry-run` を付けて実行すると、書き込みなしで `counts` と path 一覧のみ JSON 出力する。破壊的削除が想定外であれば、AskUserQuestion を使用して続行可否をユーザーに確認する。
 
+### Step 1.5: 越境 symlink の承認（`status == needs_confirmation` 時のみ / NFR-N06）
+
+明示 paths が **project root の外を指す symlink** を含む場合、不意のインデックス漏洩を防ぐため既定では索引しない（default-deny）。`external_pending` の各エントリ（越境している symlink ひとつに集約済み。配下に何ファイルあっても承認単位は symlink 1 個）について、**解決先の実体パス（`resolved`）と件数（`affected_count`）を提示**し、AskUserQuestion でユーザーに許可・不許可を確認する。
+
+承認が決まったら、**承認した symlink の `symlink` 値だけを並べて** `--allow-external-json` を付け、`prepare_toc.py` を **同じ引数で再実行**する:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json '{paths_json}' \
+  --allow-external-json '["{approved_symlink_1}", "{approved_symlink_2}"]'
+```
+
+- すべて拒否する場合は `--allow-external-json '[]'`（越境分は drop され、残りで通常処理される）
+- 再実行は decided モードになり、未承認の越境 path は drop（warning に列挙）されるため `needs_confirmation` でループしない
+- 再実行の結果（`status == ok` / `partial` など）に応じて以降の Step（2 / 3）へ進む
+
 ### Step 2: toc-updater カスタム Agent による並列充填
 
-`store_dir/.toc_work/*.yaml`（隠しファイル `.` 始まりは除く）のうち `_meta.status: pending` のものを、`doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
+充填対象は **`toc_store.py --work-status` の `pending`（project-root 相対の entry_file 一覧）**を使う。AI が `ls .toc_work/*.yaml` や YAML の `_meta.status` 手読みで列挙しない（決定論は script が担う）。`pending` の各 entry_file を `doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
 
-- **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Task 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
+- **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Agent 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
 - **`run_in_background: true` は使わない**（Phase 2 ループが壊れる）。
 - 各カスタム Agent には key と entry_file を渡す。`subagent_type` には `doc-advisor:toc-updater` を指定する。
 
 ```
 # key 指定時（1 メッセージで最大 5 件並列）
-Task(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
 ...（最大 5 件）
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
-Task(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
 
-各バッチ完了後、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力し、pending が残る限り並列起動を繰り返す。すべて `completed`（またはエラー記録済み pending）になったら Step 3 へ。ファイル一覧に `xargs` を使わない（長い日本語ファイル名で失敗する）。`ls .toc_work/*.yaml` か `while read` ループを使う。
+各バッチ完了後、**`toc_store.py --work-status` を再実行**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`next_action` が `merge` になったら Step 3 へ、`blocked` なら Step 2.5 へ。
+
+### Step 2.5: 充填エラーの対応（`next_action: blocked` 時のみ）
+
+`pending` は空だが `error_pending`（充填に失敗した entry）が残る状態。**そのまま merge してはならない。** merge は completed のみ採用し成功時に `.toc_work/` を削除するため:
+
+- errored doc は **今回の ToC から脱落**する。
+- とくに **updated（既存文書の改訂）が errored の場合**、merge が現内容の checksum を書くため、**次回 prepare で「変更なし」と誤判定され、改訂が二度と索引されない（stale 固定）**。
+
+したがって `error_pending` を握りつぶさず、`error_pending` の各 `entry_file` と `error_message` を提示し、AskUserQuestion で対応を確認する:
+
+| 選択             | 動作                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| **再試行**       | `error_pending` の `entry_file` に対し toc-updater を再起動（transient 失敗の救済）→ Step 2 へ戻る     |
+| **承知で merge** | 失敗分の脱落（および updated の stale 化）を承知のうえ Step 3（merge）。完了レポートで脱落 path を明示 |
+| **中止**         | merge せず終了。元文書を修正して再実行を促す                                                           |
+
+> 失敗が恒常的（元文書の問題）なら「再試行」は無限に成功しない。その場合は元文書を直してから再実行するか、「承知で merge」を選ぶ。
 
 ### Step 3: merge（統合 + 削除反映 / §6.5）
 

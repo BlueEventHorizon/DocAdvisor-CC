@@ -8,7 +8,7 @@
 - --paths-json との併用・重複除去
 - システム固定除外（node_modules 等）が常時適用される
 - 不在ディレクトリが rejected_dirs に列挙される（処理継続）
-- root 外 symlink が除外される
+- root 外 symlink は prepare_toc.py の承認フローに渡される
 - JSON 出力契約（status / paths / rejected_dirs / warnings）
 """
 
@@ -30,6 +30,7 @@ if SCRIPTS_DIR not in sys.path:
 from expand_dirs import expand
 
 EXPAND_SCRIPT = os.path.join(SCRIPTS_DIR, 'expand_dirs.py')
+PREPARE_SCRIPT = os.path.join(SCRIPTS_DIR, 'prepare_toc.py')
 
 
 # ===========================================================================
@@ -54,6 +55,13 @@ class ExpandTestBase(unittest.TestCase):
 
     def _run(self, *args):
         cmd = [sys.executable, EXPAND_SCRIPT] + list(args)
+        env = os.environ.copy()
+        env['CLAUDE_PROJECT_DIR'] = str(self.project_root)
+        env['PYTHONPATH'] = SCRIPTS_DIR
+        return subprocess.run(cmd, capture_output=True, text=True, cwd=str(self.project_root), env=env)
+
+    def _run_prepare(self, *args):
+        cmd = [sys.executable, PREPARE_SCRIPT] + list(args)
         env = os.environ.copy()
         env['CLAUDE_PROJECT_DIR'] = str(self.project_root)
         env['PYTHONPATH'] = SCRIPTS_DIR
@@ -227,10 +235,10 @@ class TestRejectedDirs(ExpandTestBase):
 # ===========================================================================
 
 class TestSymlinks(ExpandTestBase):
-    """root 外 symlink の除外。"""
+    """root 外 symlink は後段の承認フローに渡す。"""
 
-    def test_symlink_outside_root_excluded(self):
-        """root 外を指す symlink は展開結果に含まれない。"""
+    def test_file_symlink_outside_root_passed_to_prepare(self):
+        """root 外を指す file symlink は論理 path のまま展開される。"""
         outside = Path(tempfile.mkdtemp()).resolve()
         try:
             target = outside / "secret.md"
@@ -242,7 +250,67 @@ class TestSymlinks(ExpandTestBase):
             except (OSError, NotImplementedError):
                 self.skipTest("symlink not supported")
             result = expand(["docs/"], project_root=self.project_root)
-            self.assertNotIn("docs/link.md", result["paths"])
+            self.assertIn("docs/link.md", result["paths"])
+            self.assertEqual(result["warnings"], [])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_dir_symlink_outside_root_passed_to_prepare(self):
+        """root 外を指す directory symlink 配下の Markdown も論理 path で展開される。"""
+        outside = Path(tempfile.mkdtemp()).resolve()
+        try:
+            target = outside / "secret.md"
+            target.write_text("# secret\n\nBody.\n", encoding="utf-8")
+            (self.project_root / "docs").mkdir()
+            link = self.project_root / "docs" / "external"
+            try:
+                link.symlink_to(outside, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink not supported")
+            result = expand(["docs/"], project_root=self.project_root)
+            self.assertIn("docs/external/secret.md", result["paths"])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_external_symlink_dir_can_be_dirs_json_root(self):
+        """--dirs-json が外部 symlink ディレクトリ自体でも traversal reject せず展開する。"""
+        outside = Path(tempfile.mkdtemp()).resolve()
+        try:
+            target = outside / "secret.md"
+            target.write_text("# secret\n\nBody.\n", encoding="utf-8")
+            link = self.project_root / "external"
+            try:
+                link.symlink_to(outside, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink not supported")
+            result = expand(["external/"], project_root=self.project_root)
+            self.assertIn("external/secret.md", result["paths"])
+            self.assertEqual(result["rejected_dirs"], [])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_expanded_external_symlink_triggers_prepare_confirmation(self):
+        """展開結果を prepare_toc.py に渡すと needs_confirmation になる。"""
+        outside = Path(tempfile.mkdtemp()).resolve()
+        try:
+            target = outside / "secret.md"
+            target.write_text("# secret\n\nBody.\n", encoding="utf-8")
+            (self.project_root / "docs").mkdir()
+            link = self.project_root / "docs" / "external"
+            try:
+                link.symlink_to(outside, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink not supported")
+
+            expanded = expand(["docs/"], project_root=self.project_root)
+            proc = self._run_prepare(
+                "--key", "rules",
+                "--paths-json", json.dumps(expanded["paths"]),
+            )
+            self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+            obj = self._parse_stdout(proc)
+            self.assertEqual(obj["status"], "needs_confirmation")
+            self.assertEqual(obj["external_pending"][0]["symlink"], "docs/external")
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 

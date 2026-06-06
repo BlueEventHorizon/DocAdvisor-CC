@@ -368,7 +368,7 @@ class TestSingleModeCollection(PrepareTestBase):
         self._write_md("node_modules/pkg/skip.md")
         self._write_md(".claude/state/skip.md")
         self._write_md("__pycache__/skip.md")
-        result = collect_all_markdown(self.project_root)
+        result, _ext = collect_all_markdown(self.project_root)
         self.assertIn("docs/keep.md", result)
         self.assertNotIn(".git/should_skip.md", result)
         self.assertNotIn("node_modules/pkg/skip.md", result)
@@ -382,7 +382,7 @@ class TestSingleModeCollection(PrepareTestBase):
         store = self._store_dir("rules")
         (store / WORK_DIRNAME).mkdir(parents=True, exist_ok=True)
         (store / WORK_DIRNAME / "pending.md").write_text("# x\n\nbody\n", encoding="utf-8")
-        result = collect_all_markdown(self.project_root)
+        result, _ext = collect_all_markdown(self.project_root)
         self.assertIn("docs/keep.md", result)
         self.assertFalse(any(".claude" in p for p in result))
 
@@ -401,10 +401,35 @@ class TestSingleModeCollection(PrepareTestBase):
                 os.symlink(str(outside_md), str(link))
             except (OSError, NotImplementedError):
                 self.skipTest("symlink not supported on this platform")
-            result = collect_all_markdown(self.project_root)
+            result, ext = collect_all_markdown(self.project_root)
             self.assertIn("docs/keep.md", result)
-            # root 外実体を指す symlink は除外
+            # root 外実体を指す symlink は収集対象外（--all は非対話で skip）
             self.assertNotIn("docs/linked.md", result)
+            # skip した越境 symlink は external_pending に集計される（NFR-N06）
+            self.assertEqual([e["symlink"] for e in ext], ["docs/linked.md"])
+            self.assertEqual(ext[0]["affected_count"], 1)
+        finally:
+            shutil.rmtree(outside_dir, ignore_errors=True)
+
+    def test_root_external_symlink_included_when_approved(self):
+        """承認済み（allow_external）の越境 symlink は --all でも収集対象に含まれる。"""
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside_dir = tempfile.mkdtemp()
+        try:
+            outside_md = Path(outside_dir) / "external.md"
+            outside_md.write_text("# External\n\nbody\n", encoding="utf-8")
+            self._write_md("docs/keep.md")
+            link = self.project_root / "docs" / "linked.md"
+            try:
+                os.symlink(str(outside_md), str(link))
+            except (OSError, NotImplementedError):
+                self.skipTest("symlink not supported on this platform")
+            result, ext = collect_all_markdown(
+                self.project_root, allow_external={"docs/linked.md"}
+            )
+            self.assertIn("docs/linked.md", result)
+            self.assertEqual(ext, [])
         finally:
             shutil.rmtree(outside_dir, ignore_errors=True)
 
@@ -418,7 +443,7 @@ class TestSingleModeCollection(PrepareTestBase):
             os.symlink(str(target), str(link))
         except (OSError, NotImplementedError):
             self.skipTest("symlink not supported on this platform")
-        result = collect_all_markdown(self.project_root)
+        result, _ext = collect_all_markdown(self.project_root)
         # real.md か alias.md のいずれか（inode 重複排除で 1 つ）が含まれる
         self.assertTrue("docs/real.md" in result or "alias.md" in result)
 
@@ -446,35 +471,35 @@ class TestPathValidation(PrepareTestBase):
     """validate_paths と CLI reject のテスト。"""
 
     def test_absolute_path_rejected(self):
-        norm, rejected = validate_paths(["/etc/passwd.md"], self.project_root)
+        norm, rejected, _ext = validate_paths(["/etc/passwd.md"], self.project_root)
         self.assertEqual(norm, [])
         self.assertEqual(rejected[0]["reason"], "ABSOLUTE_PATH")
 
     def test_traversal_rejected(self):
-        norm, rejected = validate_paths(["../outside.md"], self.project_root)
+        norm, rejected, _ext = validate_paths(["../outside.md"], self.project_root)
         self.assertEqual(norm, [])
         self.assertEqual(rejected[0]["reason"], "PATH_TRAVERSAL")
 
     def test_nonexistent_rejected(self):
-        norm, rejected = validate_paths(["docs/missing.md"], self.project_root)
+        norm, rejected, _ext = validate_paths(["docs/missing.md"], self.project_root)
         self.assertEqual(norm, [])
         self.assertEqual(rejected[0]["reason"], "NOT_FOUND")
 
     def test_non_markdown_rejected(self):
         self._write_md("docs/note.txt", content='plain text')
-        norm, rejected = validate_paths(["docs/note.txt"], self.project_root)
+        norm, rejected, _ext = validate_paths(["docs/note.txt"], self.project_root)
         self.assertEqual(norm, [])
         self.assertEqual(rejected[0]["reason"], "NOT_MARKDOWN")
 
     def test_valid_path_normalized(self):
         self._write_md("docs/a.md")
-        norm, rejected = validate_paths(["./docs/a.md"], self.project_root)
+        norm, rejected, _ext = validate_paths(["./docs/a.md"], self.project_root)
         self.assertEqual(norm, ["docs/a.md"])
         self.assertEqual(rejected, [])
 
     def test_duplicate_paths_deduped(self):
         self._write_md("docs/a.md")
-        norm, rejected = validate_paths(["docs/a.md", "./docs/a.md"], self.project_root)
+        norm, rejected, _ext = validate_paths(["docs/a.md", "./docs/a.md"], self.project_root)
         self.assertEqual(norm, ["docs/a.md"])
 
     def test_cli_rejected_paths_partial_status(self):
@@ -490,6 +515,155 @@ class TestPathValidation(PrepareTestBase):
         self.assertIn("PATH_TRAVERSAL", reasons)
         self.assertIn("ABSOLUTE_PATH", reasons)
         self.assertEqual(obj["counts"]["added"], 1)
+
+
+# ===========================================================================
+# 越境 symlink の default-deny + 明示承認（NFR-N06）
+# ===========================================================================
+
+class TestExternalSymlinkConsent(PrepareTestBase):
+    """root 外を指す symlink の確認フロー（default-deny → 明示承認）。"""
+
+    def _link_external_file(self, link_rel):
+        """project root 外の .md を指す symlink を link_rel に作る。outside_dir を返す。"""
+        outside_dir = tempfile.mkdtemp()
+        ext_md = Path(outside_dir) / "ext.md"
+        ext_md.write_text("# External\n\nbody\n", encoding="utf-8")
+        link = self.project_root / link_rel
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(str(ext_md), str(link))
+        except (OSError, NotImplementedError):
+            shutil.rmtree(outside_dir, ignore_errors=True)
+            self.skipTest("symlink not supported on this platform")
+        return outside_dir
+
+    def _link_external_dir(self, link_rel, files):
+        """project root 外のディレクトリ（複数 .md 入り）を指す symlink を作る。"""
+        outside_dir = tempfile.mkdtemp()
+        for name in files:
+            p = Path(outside_dir) / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("# E\n\nbody\n", encoding="utf-8")
+        link = self.project_root / link_rel
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(str(outside_dir), str(link))
+        except (OSError, NotImplementedError):
+            shutil.rmtree(outside_dir, ignore_errors=True)
+            self.skipTest("symlink not supported on this platform")
+        return outside_dir
+
+    # --- in-process: validate_paths ---
+
+    def test_unapproved_external_goes_to_pending(self):
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_file("linked.md")
+        try:
+            norm, rejected, ext = validate_paths(["linked.md"], self.project_root)
+            self.assertEqual(norm, [])
+            self.assertEqual(rejected, [])  # reject ではなく pending
+            self.assertEqual([e["symlink"] for e in ext], ["linked.md"])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_approved_external_accepted(self):
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_file("linked.md")
+        try:
+            norm, rejected, ext = validate_paths(
+                ["linked.md"], self.project_root, allow_external={"linked.md"}
+            )
+            self.assertEqual(norm, ["linked.md"])
+            self.assertEqual(ext, [])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_dir_symlink_aggregates_to_single_approval(self):
+        """ディレクトリ symlink 配下の複数ファイルは symlink 1 個に集約される（承認単位）。"""
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_dir("ext", ["x.md", "y.md", "z.md"])
+        try:
+            norm, rejected, pend = validate_paths(
+                ["ext/x.md", "ext/y.md", "ext/z.md"], self.project_root
+            )
+            self.assertEqual(norm, [])
+            self.assertEqual(len(pend), 1)
+            self.assertEqual(pend[0]["symlink"], "ext")
+            self.assertEqual(pend[0]["affected_count"], 3)
+            # 承認すると配下すべてが通る
+            norm2, _, pend2 = validate_paths(
+                ["ext/x.md", "ext/y.md", "ext/z.md"],
+                self.project_root, allow_external={"ext"},
+            )
+            self.assertEqual(norm2, ["ext/x.md", "ext/y.md", "ext/z.md"])
+            self.assertEqual(pend2, [])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    # --- CLI: needs_confirmation / allow / deny ---
+
+    def test_cli_discovery_emits_needs_confirmation(self):
+        """明示 paths の discovery モードで越境を検出 → needs_confirmation（書き込みなし）。"""
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_file("linked.md")
+        try:
+            proc = self._run('--key', 'rules', '--paths-json', '["linked.md"]')
+            self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+            obj = self._parse_stdout(proc)
+            self.assertEqual(obj["status"], "needs_confirmation")
+            self.assertIsNone(obj["error_code"])
+            self.assertEqual(
+                [e["symlink"] for e in obj["external_pending"]], ["linked.md"]
+            )
+            # 書き込みされていない（store_dir に toc work なし）
+            self.assertFalse((self._store_dir("rules") / WORK_DIRNAME).exists())
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_cli_allow_external_accepts(self):
+        """--allow-external-json で承認すると通常処理（status ok / added）。"""
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_file("linked.md")
+        try:
+            proc = self._run(
+                '--key', 'rules', '--paths-json', '["linked.md"]',
+                '--allow-external-json', '["linked.md"]',
+            )
+            self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+            obj = self._parse_stdout(proc)
+            self.assertEqual(obj["status"], "ok")
+            self.assertEqual(obj["counts"]["added"], 1)
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_cli_deny_all_drops_with_warning(self):
+        """--allow-external-json '[]' は decided（全拒否）。drop して warning に列挙、status ok。"""
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_file("linked.md")
+        try:
+            self._write_md("docs/a.md")
+            proc = self._run(
+                '--key', 'rules',
+                '--paths-json', '["docs/a.md", "linked.md"]',
+                '--allow-external-json', '[]',
+            )
+            self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+            obj = self._parse_stdout(proc)
+            self.assertEqual(obj["status"], "ok")
+            self.assertEqual(obj["counts"]["added"], 1)  # docs/a.md のみ
+            self.assertTrue(
+                any("external symlink not indexed" in w for w in obj["warnings"]),
+                f"warnings: {obj.get('warnings')}",
+            )
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
 
 
 # ===========================================================================
@@ -525,6 +699,24 @@ class TestKeyAndJsonContract(PrepareTestBase):
         self.assertNotEqual(proc.returncode, 0)
         obj = self._parse_stdout(proc)
         self.assertEqual(obj["error_code"], "INVALID_PATH")
+
+    def test_dirs_json_rejected_with_guidance(self):
+        """--dirs-json は誤用ガードで UNSUPPORTED_ARG を返し、誘導文を含む。"""
+        proc = self._run('--key', 'rules', '--dirs-json', '["docs/rules/"]')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "error")
+        self.assertEqual(obj["error_code"], "UNSUPPORTED_ARG")
+        # 実行可能な誘導: expand_dirs.py と index-docs を案内する
+        self.assertIn("expand_dirs.py", obj["message"])
+        self.assertIn("index-docs", obj["message"])
+
+    def test_exclude_json_rejected_with_guidance(self):
+        """--exclude-json 単独でも誤用ガードで UNSUPPORTED_ARG を返す。"""
+        proc = self._run('--key', 'rules', '--exclude-json', '["docs/draft/"]')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["error_code"], "UNSUPPORTED_ARG")
 
     def test_paths_file_input(self):
         """--paths-file から JSON を読み込める。"""

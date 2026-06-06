@@ -1,7 +1,9 @@
 # ToC 検索ワークフロー（key + path I/F）
 
 ToC（キーワード/メタデータ）ベースで、タスクに関連する文書の候補パスを取得する。
-**候補パスの取得まで**が本ワークフローの責務。ファイル本文の Read・最終判定は呼び出し元（`query-docs` SKILL）が行う。
+本ワークフローは **`doc-advisor:query-worker` カスタム Agent** が読み、ToC 取得・全エントリ読解・候補抽出・
+文書本文の Read・最終判定までを隔離 context で実行するための手順である。worker は `query-docs` 継承型
+dispatcher SKILL から Agent ツールで起動される（base/ADR-002 改訂版）。
 
 > 本ワークフローは DES-005 §11.2（検索ユースケースのシーケンス）/ REQ-001 FR-N05 を実装する。
 > ToC は opaque な `key` 単位で管理され、category（rules / specs）の区別は持たない。
@@ -9,11 +11,11 @@ ToC（キーワード/メタデータ）ベースで、タスクに関連する�
 
 ## パラメータ
 
-| 変数             | 説明                                                                                                                      |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `{key}`          | 検索対象の ToC を示す key。`query-docs` の `--key` 引数。省略時は予約 key `all`（単体モード索引）に解決する（FR-N04-4）。 |
-| `{task}`         | 検索対象タスクの説明（関連判断のためのクエリ）。                                                                          |
-| `{filter_paths}` | （任意）縮小抽出対象のパスをカンマ区切り。ToC が大きく全文を読みきれない場合に呼び出し元が利用する。                      |
+| 変数             | 説明                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `{key}`          | 検索対象の ToC を示す key。dispatcher が渡す `--key` 相当の指定。省略時は予約 key `all`（単体モード索引）に解決する（FR-N04-4）。 |
+| `{task}`         | 検索対象タスクの説明（関連判断のためのクエリ）。dispatcher が正規化した検索依頼として渡される。                                   |
+| `{filter_paths}` | （任意）縮小抽出対象のパスをカンマ区切り。ToC が大きく全文を読みきれない場合に worker が利用する。                                |
 
 ## Procedure
 
@@ -27,11 +29,12 @@ ToC（キーワード/メタデータ）ベースで、タスクに関連する�
      python3 ${CLAUDE_PLUGIN_ROOT}/scripts/get_toc.py --all --format yaml
      ```
 3. 出力を判定する:
-   - `{"status": "error", "error_code": "TOC_NOT_FOUND", ...}`（ToC 未生成）の場合: `missing_toc` 状態を返す。
-     これは「ToC は存在するが該当文書がない（空の docs）」とは **明確に区別** する。呼び出し元はこれを受けて
+   - `{"status": "error", "error_code": "TOC_NOT_FOUND", ...}`（ToC 未生成）の場合: `Query error:` ブロック
+     （`code: TOC_NOT_FOUND` + `key`）を dispatcher に返す。これは「ToC は存在するが該当文書がない（空の docs）」
+     とは **明確に区別** する（空の docs は空の `Required documents:` ブロックで返す）。dispatcher はこれを受けて
      ToC 生成（`/doc-advisor:index-docs --key {key}` または `--all`）を案内する。
-   - `{"status": "error", "error_code": "KEY_RESERVED", ...}`（`--key all` の任意指定）の場合: `reserved_key` 状態を返す。
-     呼び出し元は単体モードでは `--key` を省略するか `--all` を使う旨を案内する。
+   - `{"status": "error", "error_code": "KEY_RESERVED", ...}`（`--key all` の任意指定）の場合: `Query error:` ブロック
+     （`code: KEY_RESERVED` + `key`）を dispatcher に返す。dispatcher は単体モードでは `--key` を省略するか `--all` を使う旨を案内する。
    - 正常時（`--format yaml`）: stdout に得られた ToC YAML を読み込み対象とする。
 4. 全エントリ（`docs:` 配下の title / purpose / content_details / keywords）を深く理解し、タスク内容から関連候補を特定する。
 5. 関連の可能性があるパスを候補リストとして保持する。

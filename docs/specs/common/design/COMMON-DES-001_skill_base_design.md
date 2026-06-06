@@ -150,9 +150,11 @@ fork 型 SKILL とカスタム Agent は、どちらも「隔離 context + 事�
 
 doc-advisor で `context: fork` を指定する SKILL は以下のとおり。
 
-| パス                         | name         | `agent`                       | `user-invocable` | 用途                                           | fork 採用根拠                                                                                                         |
-| ---------------------------- | ------------ | ----------------------------- | ---------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `skills/query-docs/SKILL.md` | `query-docs` | （未指定＝`general-purpose`） | `true`           | key 単位の ToC から関連文書を検索（read-only） | doc-advisor:ADR-002_query_skill_subagent_isolation（impl-issue 親 context が漏洩し、SKILL.md 等を書き換えた実害事例） |
+| パス         | name | `agent` | `user-invocable` | 用途 | fork 採用根拠 |
+| ------------ | ---- | ------- | ---------------- | ---- | ------------- |
+| （現状なし） | —    | —       | —                | —    | —             |
+
+> `query-docs` は当初本リストに掲載されていたが、ADR-002 改訂版（2026-06-05）により継承型 dispatcher + read-only カスタム Agent 構成へ移行し、本リストから除外された（§6.2 参照）。
 
 ### 6.1 fork 型 SKILL の共通設計
 
@@ -162,7 +164,8 @@ doc-advisor で `context: fork` を指定する SKILL は以下のとおり。
 
 ### 6.2 継承型に再分類された SKILL
 
-（doc-advisor 単独プラグイン化により、過去 bw-cc-plugins 時代の継承型再分類事例 `forge:query-forge-rules` は本リポジトリ管理対象外となった。継承型再分類が必要な事例が doc-advisor で発生した場合、本セクションに記録する。）
+- **`query-docs`**（2026-06-05 / doc-advisor:ADR-002 改訂版）: fork 型 SKILL を Skill ツール経由でプログラム起動すると `$ARGUMENTS` が欠落する既知制約（anthropics/claude-code#34164）を踏むため、`context: fork` を廃止し継承型 dispatcher SKILL へ再分類した。実検索の隔離は read-only カスタム Agent `doc-advisor:query-worker`（`agents/query-worker.md`）が担い、安全境界を fork 境界から worker 分離へ移した。dispatcher / worker の制約検証は `tests/skills/test_query_skill_isolation.py` が担う。
+- （doc-advisor 単独プラグイン化により、過去 bw-cc-plugins 時代の継承型再分類事例 `forge:query-forge-rules` は本リポジトリ管理対象外となった。）
 
 ### 6.3 リスト変更の手順
 
@@ -229,12 +232,14 @@ doc-advisor:ADR-002_query_skill_subagent_isolation で採択した多重防御�
 
 ### 9.1 静的検証
 
-`tests/skills/` 配下に SKILL.md 形式検証を実装している（doc-advisor:ADR-002_query_skill_subagent_isolation §E）:
+`tests/skills/` 配下に SKILL / カスタム Agent の形式検証を実装している（doc-advisor:ADR-002_query_skill_subagent_isolation §E / §F）:
 
-- fork 型 SKILL の frontmatter に `context: fork` が含まれていることを検証
-- SKILL.md 本文に「Edit / Write / MultiEdit / NotebookEdit」「read-only」等の制約文言が含まれていることを検証
+- fork 型 SKILL を運用する場合、その frontmatter に `context: fork` が含まれていることを検証
+- 継承型 dispatcher（`query-docs`）が `context: fork` を持たず、read-only worker を Agent ツールで起動する記述を持つことを検証
+- read-only カスタム Agent（`query-worker`）本文に「Edit / Write / MultiEdit / NotebookEdit」「read-only」等の制約文言・引数解釈ガード・`Required documents:` 出力契約が含まれていることを検証
+- `allowed-tools` を物理 deny と誤認させる記述がないことを検証
 
-本設計書の §6 で列挙する SKILL に対してこの検証を適用する。新規に fork 型 SKILL を追加した場合は同等の検証を追加する。
+本設計書の §6 で列挙する fork 型 SKILL に加え、§6.2 で継承型へ再分類した検索系（dispatcher + worker）に対してもこの検証を適用する。新規に fork 型 SKILL を追加した場合は同等の検証を追加する。
 
 ### 9.2 一覧の保守 [MANDATORY]
 

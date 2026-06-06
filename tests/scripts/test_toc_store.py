@@ -48,6 +48,7 @@ from toc_store import (
     emit_json,
     promote_pending,
     clean_work_dir,
+    work_status,
 )
 
 TOC_STORE_SCRIPT = os.path.join(SCRIPTS_DIR, 'toc_store.py')
@@ -249,12 +250,14 @@ class TestEmitJson(unittest.TestCase):
         expected = {
             "INVALID_PATH", "PATH_TRAVERSAL", "ABSOLUTE_PATH", "OUTSIDE_ROOT",
             "NOT_FOUND", "NOT_MARKDOWN", "KEY_EMPTY", "KEY_RESERVED",
-            "TOC_NOT_FOUND", "NO_TARGETS",
+            "TOC_NOT_FOUND", "NO_TARGETS", "UNSUPPORTED_ARG",
         }
         self.assertEqual(set(ERROR_CODES), expected)
 
     def test_status_enum_fixed(self):
-        self.assertEqual(set(STATUSES), {"ok", "error", "partial"})
+        self.assertEqual(
+            set(STATUSES), {"ok", "error", "partial", "needs_confirmation"}
+        )
 
 
 # ===========================================================================
@@ -298,6 +301,88 @@ class TestPromoteAndClean(unittest.TestCase):
         """work dir 不在でも冪等に成功する。"""
         self.assertFalse(self.work_dir.exists())
         self.assertTrue(clean_work_dir(self.store_dir))
+
+
+# ===========================================================================
+# work_status（index-docs Step 0/2 の決定論判定 / Issue #22 A1）
+# ===========================================================================
+
+class TestWorkStatus(unittest.TestCase):
+    """work_status の継続判定・pending 列挙・completed/error 分類テスト。"""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = Path(self.tmpdir)
+        self.store_dir = self.root / "store"
+        self.work_dir = self.store_dir / toc_store.WORK_DIRNAME
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_entry(self, name, *, status="pending", source_file="rules/a.md",
+                     error_message=None):
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        lines = ["_meta:", f"  source_file: {source_file}", f"  status: {status}"]
+        if error_message is not None:
+            lines.append(f"  error_message: {error_message}")
+        lines.append("title: T")
+        (self.work_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_no_work_dir_means_prepare(self):
+        r = work_status(self.store_dir, self.root)
+        self.assertFalse(r["has_work_dir"])
+        self.assertEqual(r["next_action"], "prepare")
+        self.assertEqual(r["pending"], [])
+
+    def test_pending_means_fill_and_lists_entry_files(self):
+        self._write_entry("aaa.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("bbb.yaml", status="completed", source_file="rules/b.md")
+        r = work_status(self.store_dir, self.root)
+        self.assertTrue(r["has_work_dir"])
+        self.assertEqual(r["next_action"], "fill")
+        self.assertEqual(r["completed"], 1)
+        # entry_file は project-root 相対で列挙される
+        self.assertEqual(r["pending"], ["store/.toc_work/aaa.yaml"])
+
+    def test_all_completed_means_merge(self):
+        self._write_entry("aaa.yaml", status="completed")
+        self._write_entry("bbb.yaml", status="completed")
+        r = work_status(self.store_dir, self.root)
+        self.assertEqual(r["next_action"], "merge")
+        self.assertEqual(r["completed"], 2)
+        self.assertEqual(r["pending"], [])
+
+    def test_error_pending_blocks_merge(self):
+        # 失敗 pending が残るときは silent merge せず blocked を返す（脱落/stale 防止）。
+        self._write_entry("aaa.yaml", status="completed")
+        self._write_entry("err.yaml", status="pending",
+                          error_message="extraction failed")
+        r = work_status(self.store_dir, self.root)
+        self.assertEqual(r["completed"], 1)
+        self.assertEqual(len(r["error_pending"]), 1)
+        self.assertEqual(r["error_pending"][0]["entry_file"], "store/.toc_work/err.yaml")
+        self.assertEqual(r["pending"], [])
+        self.assertEqual(r["next_action"], "blocked")
+
+    def test_pending_takes_precedence_over_error(self):
+        # 充填可能 pending があれば（error が併存しても）fill を優先。
+        self._write_entry("aaa.yaml", status="pending")
+        self._write_entry("err.yaml", status="pending", error_message="boom")
+        r = work_status(self.store_dir, self.root)
+        self.assertEqual(r["next_action"], "fill")
+        self.assertEqual(r["pending"], ["store/.toc_work/aaa.yaml"])
+        self.assertEqual(len(r["error_pending"]), 1)
+
+    def test_hidden_files_excluded(self):
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        (self.work_dir / toc_store.PENDING_CHECKSUMS_FILENAME).write_text(
+            "checksums: {}\n", encoding="utf-8")
+        (self.work_dir / ".deleted.json").write_text("[]", encoding="utf-8")
+        r = work_status(self.store_dir, self.root)
+        # 隠しファイルは entry でないため pending/completed に数えない → merge
+        self.assertEqual(r["pending"], [])
+        self.assertEqual(r["completed"], 0)
+        self.assertEqual(r["next_action"], "merge")
 
 
 # ===========================================================================

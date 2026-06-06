@@ -32,6 +32,7 @@ from toc_utils import (
     get_project_root,
     normalize_path,
     yaml_escape,
+    load_entry_file,
     log,
 )
 
@@ -85,6 +86,7 @@ class ErrorCode:
     KEY_RESERVED = "KEY_RESERVED"
     TOC_NOT_FOUND = "TOC_NOT_FOUND"
     NO_TARGETS = "NO_TARGETS"
+    UNSUPPORTED_ARG = "UNSUPPORTED_ARG"
 
 
 # error_code の有効値集合（None を含む）。テスト・バリデーションで参照する。
@@ -99,13 +101,22 @@ ERROR_CODES = frozenset({
     ErrorCode.KEY_RESERVED,
     ErrorCode.TOC_NOT_FOUND,
     ErrorCode.NO_TARGETS,
+    ErrorCode.UNSUPPORTED_ARG,
 })
 
 # status の有効値集合（DES-005 §8.2）。
 STATUS_OK = "ok"
 STATUS_ERROR = "error"
 STATUS_PARTIAL = "partial"
-STATUSES = frozenset({STATUS_OK, STATUS_ERROR, STATUS_PARTIAL})
+# needs_confirmation: 未承認の root 外 symlink があり、上位層の承認を待つ状態（NFR-N06）。
+# error ではなく、--allow-external-json での再実行を促す中間状態。
+STATUS_NEEDS_CONFIRMATION = "needs_confirmation"
+STATUSES = frozenset({
+    STATUS_OK,
+    STATUS_ERROR,
+    STATUS_PARTIAL,
+    STATUS_NEEDS_CONFIRMATION,
+})
 
 
 class KeyError_(ValueError):
@@ -264,6 +275,8 @@ def emit_json(
     counts=None,
     deleted_paths=None,
     warnings=None,
+    external_pending=None,
+    extra=None,
     stream=None,
 ):
     """stdout に単一 JSON を出力する（DES-005 §8.1 / FR-N08-1）。
@@ -283,6 +296,9 @@ def emit_json(
         counts: {added, updated, deleted, unchanged} の dict
         deleted_paths: 削除された path のリスト（merge の FR-N02-4）
         warnings: warning 文字列リスト
+        external_pending: 未承認の越境 symlink リスト
+            [{symlink, resolved, affected_count}]（needs_confirmation 時。NFR-N06）
+        extra: 追加フィールドの dict（payload にマージ）。work-status 出力等に使う
         stream: 出力先（省略時 sys.stdout。テスト用）
     """
     payload = {
@@ -305,6 +321,10 @@ def emit_json(
         payload["deleted_paths"] = deleted_paths
     if warnings is not None:
         payload["warnings"] = warnings
+    if external_pending is not None:
+        payload["external_pending"] = external_pending
+    if extra is not None:
+        payload.update(extra)
 
     out = stream if stream is not None else sys.stdout
     out.write(json.dumps(payload, ensure_ascii=False))
@@ -383,6 +403,89 @@ def clean_work_dir(store_dir):
     return True
 
 
+def _entry_file_rel(filepath, project_root):
+    """entry_file を project-root 相対の POSIX 文字列で返す（外なら絶対）。"""
+    try:
+        return normalize_path(Path(filepath).relative_to(Path(project_root)))
+    except ValueError:
+        return normalize_path(Path(filepath))
+
+
+def work_status(store_dir, project_root):
+    """key の `.toc_work/` 状態と継続判定を返す（決定論・純粋関数 / index-docs Step 0・2）。
+
+    index-docs SKILL が AI に手作業させていた「`.toc_work` 有無判定 / pending 列挙 /
+    completed・error 分類 / 継続判定」を script 化する（Issue #22 A1）。
+
+    Args:
+        store_dir: store_dir の Path
+        project_root: project root（entry_file を相対化するため）
+
+    Returns:
+        dict:
+            has_work_dir (bool): `.toc_work/` が存在するか
+            pending (list[str]): 未充填 entry_file（project-root 相対）。toc-updater 起動対象
+            completed (int): status == 'completed' の件数
+            error_pending (list[dict]): [{entry_file, error_message}]（充填試行済みエラー）
+            next_action (str):
+                'prepare' — work-dir なし
+                'fill'    — 充填可能な pending あり
+                'blocked' — 充填可能 pending は無いが error_pending あり。**silent merge 禁止**。
+                            merge は completed のみ採用し成功時に .toc_work を削除するため、
+                            errored doc は今回 ToC から脱落し、**updated doc は現内容 checksum が
+                            書かれて次回も再索引されず stale 固定**になる。上位層が
+                            retry / 承知で merge / 中止 を選ぶ（Issue #22 レビュー対応）。
+                'merge'   — pending も error_pending も無い（全 completed / 空）
+    """
+    store_dir = Path(store_dir)
+    work_dir = store_dir / WORK_DIRNAME
+    result = {
+        "has_work_dir": work_dir.exists(),
+        "pending": [],
+        "completed": 0,
+        "error_pending": [],
+        "next_action": "prepare",
+    }
+    if not work_dir.exists():
+        return result
+
+    # 隠しファイル（.toc_checksums_pending.yaml / .deleted.json 等）は entry でないため除外。
+    # 決定的順序（merge と同一の sorted）で列挙する。
+    yaml_files = sorted(
+        f for f in work_dir.glob("*.yaml") if not f.name.startswith(".")
+    )
+    for filepath in yaml_files:
+        rel = _entry_file_rel(filepath, project_root)
+        try:
+            meta, _entry = load_entry_file(filepath)
+        except IOError:
+            # 読めない pending は要再処理として pending に含める（取りこぼし防止）
+            result["pending"].append(rel)
+            continue
+        error_message = meta.get("error_message")
+        status = meta.get("status")
+        if error_message:
+            result["error_pending"].append(
+                {"entry_file": rel, "error_message": error_message}
+            )
+        elif status == "completed":
+            result["completed"] += 1
+        else:
+            result["pending"].append(rel)
+
+    # 継続判定:
+    #   pending あり          → fill
+    #   pending 無 + error あり → blocked（silent merge せず上位層が判断。脱落/stale 防止）
+    #   どちらも無し           → merge
+    if result["pending"]:
+        result["next_action"] = "fill"
+    elif result["error_pending"]:
+        result["next_action"] = "blocked"
+    else:
+        result["next_action"] = "merge"
+    return result
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -405,6 +508,10 @@ def parse_args(argv=None):
     parser.add_argument(
         "--clean-work-dir", action="store_true",
         help="Remove the work directory",
+    )
+    parser.add_argument(
+        "--work-status", action="store_true",
+        help="Emit .toc_work status (pending entry_files / completed / next_action) as JSON",
     )
     return parser.parse_args(argv)
 
@@ -429,11 +536,11 @@ def resolve_key_from_args(args):
 def main(argv=None):
     args = parse_args(argv)
 
-    if not args.promote_pending and not args.clean_work_dir:
+    if not args.promote_pending and not args.clean_work_dir and not args.work_status:
         emit_json(
             STATUS_ERROR,
             error_code=ErrorCode.NO_TARGETS,
-            message="No action specified (use --promote-pending or --clean-work-dir)",
+            message="No action specified (use --work-status / --promote-pending / --clean-work-dir)",
         )
         return 1
 
@@ -445,6 +552,18 @@ def main(argv=None):
 
     project_root = get_project_root()
     store_dir = resolve_store_dir(key, project_root)
+
+    # --work-status は読み取り専用。promote/clean とは独立に処理して即返す。
+    if args.work_status:
+        status = work_status(store_dir, project_root)
+        emit_json(
+            STATUS_OK,
+            error_code=None,
+            key=key,
+            toc_path=toc_path_rel(store_dir, project_root),
+            extra=status,
+        )
+        return 0
 
     ok = True
     if args.promote_pending:
