@@ -4,6 +4,24 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.2] - 2026-06-06
+
+### Changed
+
+- `query-docs` を継承型 dispatcher + read-only worker 構成へ再設計。`context: fork` 隔離が Skill ツール起動時に `$ARGUMENTS` を欠落させる既知制約（anthropics/claude-code#34164）を回避し、安全境界を read-only な `query-worker` カスタム Agent への分離へ移した (Issue #21 / ADR-002 改訂)
+- `index-docs` の作業ディレクトリ状態を script 化（`--work-status`）し、AI による手動列挙を排除。SKILL を `--work-status` に整合させ、残存していた手動導出を除去・`error_pending` を文書化
+
+### Added
+
+- 外部 symlink の明示的同意による索引を許可 (NFR-N06)
+
+### Fixed
+
+- merge のチェックサム書き込みを新規充填文書のみに限定し、stale-pin を防止
+- 充填エラー時の silent merge をブロック
+- ディレクトリ展開時に外部 symlink を保持
+- `prepare_toc` の `--dirs-json` 誤用をガードし、ツール参照を Task → Agent にリネーム
+
 ## [0.4.1] - 2026-06-02
 
 ### Added
