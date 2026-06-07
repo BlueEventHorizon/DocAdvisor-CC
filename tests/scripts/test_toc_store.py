@@ -49,6 +49,7 @@ from toc_store import (
     promote_pending,
     clean_work_dir,
     work_status,
+    group_pending_by_dir,
 )
 
 TOC_STORE_SCRIPT = os.path.join(SCRIPTS_DIR, 'toc_store.py')
@@ -383,6 +384,93 @@ class TestWorkStatus(unittest.TestCase):
         self.assertEqual(r["pending"], [])
         self.assertEqual(r["completed"], 0)
         self.assertEqual(r["next_action"], "merge")
+
+    def test_pending_groups_same_dir_batched(self):
+        # 同一ディレクトリの pending は最大 max_batch 件にまとめる（案 B）。
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("b.yaml", status="pending", source_file="rules/b.md")
+        self._write_entry("c.yaml", status="pending", source_file="rules/c.md")
+        r = work_status(self.store_dir, self.root, max_batch=3)
+        # rules/ の 3 件が 1 グループにまとまる
+        self.assertEqual(len(r["pending_groups"]), 1)
+        self.assertEqual(len(r["pending_groups"][0]), 3)
+        # flat pending は従来どおり全件
+        self.assertEqual(len(r["pending"]), 3)
+
+    def test_pending_groups_split_across_dirs(self):
+        # 異なるディレクトリは混ぜない（rot 回避）。
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("s.yaml", status="pending", source_file="specs/s.md")
+        r = work_status(self.store_dir, self.root, max_batch=3)
+        self.assertEqual(len(r["pending_groups"]), 2)
+        for g in r["pending_groups"]:
+            self.assertEqual(len(g), 1)
+
+    def test_max_batch_one_disables_batching(self):
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("b.yaml", status="pending", source_file="rules/b.md")
+        r = work_status(self.store_dir, self.root, max_batch=1)
+        self.assertEqual(len(r["pending_groups"]), 2)
+        self.assertEqual([len(g) for g in r["pending_groups"]], [1, 1])
+
+
+class TestGroupPendingByDir(unittest.TestCase):
+    """group_pending_by_dir（ADR-006 案 B の決定論グルーピング）の純粋関数テスト。"""
+
+    def _entries(self, *pairs):
+        return [{"entry_file": ef, "source_file": sf} for ef, sf in pairs]
+
+    def test_chunks_within_dir(self):
+        # 同一ディレクトリ 5 件 / max_batch=3 → [3, 2]
+        entries = self._entries(
+            ("h1", "rules/a.md"), ("h2", "rules/b.md"), ("h3", "rules/c.md"),
+            ("h4", "rules/d.md"), ("h5", "rules/e.md"),
+        )
+        groups = group_pending_by_dir(entries, max_batch=3)
+        self.assertEqual([len(g) for g in groups], [3, 2])
+
+    def test_never_mixes_dirs(self):
+        entries = self._entries(
+            ("h1", "rules/a.md"), ("h2", "specs/x.md"), ("h3", "rules/b.md"),
+        )
+        groups = group_pending_by_dir(entries, max_batch=3)
+        # rules 2 件 / specs 1 件 → ディレクトリ越えで混ざらない
+        dirs = [{tuple(sorted(g))} for g in groups]
+        self.assertEqual(len(groups), 2)
+        sizes = sorted(len(g) for g in groups)
+        self.assertEqual(sizes, [1, 2])
+
+    def test_unknown_source_is_singleton(self):
+        # source_file 不明（読めなかった pending）は近傍判定できず単独グループ
+        entries = self._entries(("h1", "rules/a.md"))
+        entries.append({"entry_file": "h2", "source_file": None})
+        entries += self._entries(("h3", "rules/b.md"))
+        groups = group_pending_by_dir(entries, max_batch=3)
+        # h2 は必ず単独。rules の 2 件は 1 グループ
+        singletons = [g for g in groups if g == ["h2"]]
+        self.assertEqual(len(singletons), 1)
+
+    def test_deterministic_order(self):
+        entries = self._entries(
+            ("h3", "rules/c.md"), ("h1", "rules/a.md"), ("h2", "rules/b.md"),
+        )
+        g1 = group_pending_by_dir(entries, max_batch=3)
+        g2 = group_pending_by_dir(list(reversed(entries)), max_batch=3)
+        # 入力順に依らず同一結果（source_file ソートで安定）
+        self.assertEqual(g1, g2)
+
+    def test_top_level_files_grouped(self):
+        # 親ディレクトリなし（トップレベル）も同一「""」近傍としてまとまる
+        entries = self._entries(("h1", "README.md"), ("h2", "AGENTS.md"))
+        groups = group_pending_by_dir(entries, max_batch=3)
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(groups[0]), 2)
+
+    def test_max_batch_floor_one(self):
+        entries = self._entries(("h1", "rules/a.md"), ("h2", "rules/b.md"))
+        groups = group_pending_by_dir(entries, max_batch=0)
+        # max_batch < 1 は 1 に丸める
+        self.assertEqual([len(g) for g in groups], [1, 1])
 
 
 # ===========================================================================

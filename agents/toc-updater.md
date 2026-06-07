@@ -1,6 +1,6 @@
 ---
 name: toc-updater
-description: Specialized custom Agent that fills a single pending ToC entry by extracting metadata from its source document. Processes one pending YAML file under a key's store directory (`.claude/doc-advisor/toc/<slug>/.toc_work/`).
+description: Specialized custom Agent that fills one or more pending ToC entries by extracting metadata from each source document independently. Processes 1〜k same-directory pending YAML files under a key's store directory (`.claude/doc-advisor/toc/<slug>/.toc_work/`), extracting each document separately to avoid context rot.
 model: haiku
 color: orange
 tools: Read, Bash
@@ -8,9 +8,11 @@ tools: Read, Bash
 
 ## Overview
 
-このカスタム Agent は、1 件の pending YAML（`store_dir/.toc_work/` 配下）を担当し、その元文書（`.md`）から ToC メタデータを抽出して `write_pending.py --key` で充填する。
+このカスタム Agent は、1〜数件の pending YAML（`store_dir/.toc_work/` 配下）を担当し、各元文書（`.md`）から ToC メタデータを抽出して `write_pending.py` で充填する。
 
-**責務境界**: 1 回の起動で **1 ファイルのみ** を処理する。複数ファイルの並列処理は呼び出し側（後述の `index-docs` 継承型 SKILL）が複数の カスタム Agent を並列起動して管理する。このカスタム Agent は親が依頼している他の作業を引き継いではならない。
+**責務境界**: 1 回の起動で **1〜k 件**（既定 k=2〜3、ADR-006 案 B の限定バッチング）を処理する。渡される複数 entry は呼び出し側が **同一ディレクトリ近傍の類似文書**としてグルーピングしたものに限られる（決定論的に script が選定）。多数ファイルの並列処理は、呼び出し側（後述の `index-docs` 継承型 SKILL）が複数の カスタム Agent を並列起動して管理する。このカスタム Agent は親が依頼している他の作業を引き継いではならない。
+
+**context rot 回避 [MANDATORY]**: 複数 entry を渡された場合でも、**各文書を独立に読み、独立に抽出する**。ある文書のキーワード・目的・タスクを別の文書に**誤って帰属させない（文書間混線の禁止）**。1 文書の Read → 抽出 → `write_pending.py` を **1 件ずつ順に完了**させてから次の文書へ進む。複数文書の内容を頭の中で混ぜたまままとめて抽出してはならない。
 
 ## 起動経路
 
@@ -26,12 +28,14 @@ tools: Read, Bash
 
 ## Parameters
 
-| Parameter    | Required | Description                                                                                                               |
-| ------------ | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `key`        | Yes\*    | The opaque key whose ToC this entry belongs to. \*Omit `key` and pass `all` for single mode (reserved key `all`).         |
-| `entry_file` | Yes      | Path to the pending entry YAML to fill (e.g., `.claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml`, project-relative) |
+| Parameter     | Required | Description                                                                                                                                                                                   |
+| ------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`         | Yes\*    | The opaque key whose ToC these entries belong to. \*Omit `key` and pass `all` for single mode (reserved key `all`).                                                                           |
+| `entry_files` | Yes      | One or more pending entry YAML paths to fill (e.g., `.claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml`, project-relative). 呼び出し側が同一ディレクトリ近傍でグルーピングした 1〜k 件。 |
 
 > 予約 key `all`（単体モード）の場合は `--key` の代わりに `--all` を渡す。`--key all` はユーザー任意指定として reject される。
+>
+> 後方互換: 単一の `entry_file` を渡された場合は 1 件として処理する（`entry_files` の 1 要素と等価）。
 
 ## Required Reference Documents [MANDATORY]
 
@@ -41,9 +45,11 @@ Read the following before processing:
 
 ## Procedure
 
+複数の `entry_files` を渡された場合は、**1 件ずつ独立に**以下の 1〜4 を完了してから次の entry に進む（context rot / 文書間混線の回避 [MANDATORY]）。前の文書のフィールドを次の文書に流用しない。
+
 1. Read `{entry_file}` to get `_meta.source_file`
 2. Read the document using `_meta.source_file` value (resolves from project root)
-3. Extract the following fields from the document, following "Field Guidelines" in `toc_format.md`:
+3. Extract the following fields **from this document only**, following "Field Guidelines" in `toc_format.md`:
    - `title` — document title
    - `purpose` — concise role of the document (max 200 chars)
    - `content_details` — concrete content items (5–10)
@@ -84,9 +90,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_pending.py \
 
 ## Error Handling
 
-If any step fails (file not found, empty file, read error, etc.):
+If any step fails for a given entry (file not found, empty file, read error, etc.):
 
-1. Write error information to the entry YAML (status remains `pending`):
+1. Write error information to **that** entry YAML (status remains `pending`):
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_pending.py \
@@ -97,25 +103,26 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/write_pending.py \
 
 （単体モードでは `--key {key}` を `--all` に置き換える）
 
-2. Return the error response (see Completion Response below)
+2. **他の entry の処理は継続する**（1 件のエラーで残りを止めない）。各 entry の成否は独立。
+3. Return the combined response (see Completion Response below)
 
 Do NOT attempt automatic recovery or workarounds.
 
 ## Completion Response
 
-After successfully writing the entry file, return ONLY:
+After processing all assigned entries, return ONLY one line per entry (順不同可):
 
 ```
 ✅ Done: {filename}
 ```
 
-On error (after writing error info via write_pending.py --error), return ONLY:
+On error for an entry (after writing error info via write_pending.py --error):
 
 ```
 ❌ Error: {filename}: {brief reason}
 ```
 
-**Do NOT return**:
+単一 entry なら 1 行、k 件なら k 行を返す。**Do NOT return**:
 
 - File contents
 - Extracted field values

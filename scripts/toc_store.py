@@ -48,6 +48,11 @@ STORE_ROOT_REL = ".claude/doc-advisor/toc"
 
 # work dir / pending / promote 先のファイル名（key 単位ストア配下に閉じる）
 WORK_DIRNAME = ".toc_work"
+
+# 限定バッチング（ADR-006 案 B）の既定バッチサイズ。
+# 同一ディレクトリ近傍の pending を最大 DEFAULT_MAX_BATCH 件ずつ 1 つの toc-updater に渡す。
+# context rot 回避のため小さく保つ（k=2〜3）。1 を指定すれば従来どおりの 1 ファイル 1 起動。
+DEFAULT_MAX_BATCH = 3
 PENDING_CHECKSUMS_FILENAME = ".toc_checksums_pending.yaml"
 CHECKSUMS_FILENAME = ".toc_checksums.yaml"
 
@@ -411,20 +416,87 @@ def _entry_file_rel(filepath, project_root):
         return normalize_path(Path(filepath))
 
 
-def work_status(store_dir, project_root):
+def _source_dir(source_file):
+    """source_file（project-root 相対 POSIX 文字列）の親ディレクトリを返す。
+
+    トップレベル文書（親なし）は "" を返す。グルーピングの近傍判定キーに使う。
+    """
+    if not source_file:
+        return ""
+    return normalize_path(Path(source_file).parent) if Path(source_file).parent != Path(".") else ""
+
+
+def group_pending_by_dir(pending_entries, max_batch=DEFAULT_MAX_BATCH):
+    """pending を同一ディレクトリ近傍で最大 max_batch 件ずつにまとめる（ADR-006 案 B）。
+
+    context rot 回避のため、主題が近い「同一ディレクトリの文書」だけを 1 グループにする。
+    異なるディレクトリの文書は混ぜない。グルーピングは決定論的（AI に手作業させない）。
+
+    Args:
+        pending_entries (list[dict]): [{"entry_file": str, "source_file": str|None}]
+            （work_status が pending として確定した entry の順序を保持）
+        max_batch (int): 1 グループの最大件数。1 なら従来どおり 1 件 1 グループ。
+
+    Returns:
+        list[list[str]]: entry_file のグループ列。各グループは同一ディレクトリ・最大 max_batch 件。
+            source_file 不明（読めなかった pending）の entry は単独グループにする。
+    """
+    if max_batch < 1:
+        max_batch = 1
+    # 近傍が隣接するよう (dir, source_file, entry_file) で安定ソートする。
+    # source_file 不明は dir を entry_file 基準にし、必ず単独グループへ落とす。
+    decorated = []
+    for e in pending_entries:
+        src = e.get("source_file")
+        if src:
+            decorated.append((_source_dir(src), src, e["entry_file"], False))
+        else:
+            decorated.append((e["entry_file"], e["entry_file"], e["entry_file"], True))
+    decorated.sort(key=lambda t: (t[0], t[1], t[2]))
+
+    groups = []
+    current = []
+    current_dir = None
+    for dir_key, _src, entry_file, is_unknown in decorated:
+        if is_unknown:
+            # 近傍不明は他と混ぜず単独で確定
+            if current:
+                groups.append(current)
+                current = []
+                current_dir = None
+            groups.append([entry_file])
+            continue
+        if dir_key != current_dir or len(current) >= max_batch:
+            if current:
+                groups.append(current)
+            current = [entry_file]
+            current_dir = dir_key
+        else:
+            current.append(entry_file)
+    if current:
+        groups.append(current)
+    return groups
+
+
+def work_status(store_dir, project_root, max_batch=DEFAULT_MAX_BATCH):
     """key の `.toc_work/` 状態と継続判定を返す（決定論・純粋関数 / index-docs Step 0・2）。
 
     index-docs SKILL が AI に手作業させていた「`.toc_work` 有無判定 / pending 列挙 /
-    completed・error 分類 / 継続判定」を script 化する（Issue #22 A1）。
+    completed・error 分類 / 継続判定 / バッチ・グルーピング」を script 化する
+    （Issue #22 A1 / Issue #27 案 B）。
 
     Args:
         store_dir: store_dir の Path
         project_root: project root（entry_file を相対化するため）
+        max_batch: 限定バッチング（案 B）の 1 グループ最大件数。1 で従来挙動。
 
     Returns:
         dict:
             has_work_dir (bool): `.toc_work/` が存在するか
             pending (list[str]): 未充填 entry_file（project-root 相対）。toc-updater 起動対象
+            pending_groups (list[list[str]]): pending を同一ディレクトリ近傍で max_batch 件ずつ
+                まとめたグループ列（案 B）。各グループを 1 つの toc-updater に渡す
+            max_batch (int): 適用したバッチ最大件数
             completed (int): status == 'completed' の件数
             error_pending (list[dict]): [{entry_file, error_message}]（充填試行済みエラー）
             next_action (str):
@@ -442,6 +514,8 @@ def work_status(store_dir, project_root):
     result = {
         "has_work_dir": work_dir.exists(),
         "pending": [],
+        "pending_groups": [],
+        "max_batch": max_batch,
         "completed": 0,
         "error_pending": [],
         "next_action": "prepare",
@@ -454,13 +528,16 @@ def work_status(store_dir, project_root):
     yaml_files = sorted(
         f for f in work_dir.glob("*.yaml") if not f.name.startswith(".")
     )
+    pending_entries = []  # [{entry_file, source_file}]（グルーピング用に source_file を保持）
     for filepath in yaml_files:
         rel = _entry_file_rel(filepath, project_root)
         try:
             meta, _entry = load_entry_file(filepath)
         except IOError:
-            # 読めない pending は要再処理として pending に含める（取りこぼし防止）
+            # 読めない pending は要再処理として pending に含める（取りこぼし防止）。
+            # source_file 不明のため近傍判定できず、単独グループになる。
             result["pending"].append(rel)
+            pending_entries.append({"entry_file": rel, "source_file": None})
             continue
         error_message = meta.get("error_message")
         status = meta.get("status")
@@ -472,6 +549,11 @@ def work_status(store_dir, project_root):
             result["completed"] += 1
         else:
             result["pending"].append(rel)
+            pending_entries.append(
+                {"entry_file": rel, "source_file": meta.get("source_file")}
+            )
+
+    result["pending_groups"] = group_pending_by_dir(pending_entries, max_batch)
 
     # 継続判定:
     #   pending あり          → fill
@@ -512,6 +594,13 @@ def parse_args(argv=None):
     parser.add_argument(
         "--work-status", action="store_true",
         help="Emit .toc_work status (pending entry_files / completed / next_action) as JSON",
+    )
+    parser.add_argument(
+        "--max-batch", type=int, default=DEFAULT_MAX_BATCH,
+        help=(
+            "Limited batching group size for --work-status pending_groups "
+            f"(ADR-006 plan B; default {DEFAULT_MAX_BATCH}, 1 = one file per updater)"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -555,7 +644,7 @@ def main(argv=None):
 
     # --work-status は読み取り専用。promote/clean とは独立に処理して即返す。
     if args.work_status:
-        status = work_status(store_dir, project_root)
+        status = work_status(store_dir, project_root, max_batch=args.max_batch)
         emit_json(
             STATUS_OK,
             error_code=None,
