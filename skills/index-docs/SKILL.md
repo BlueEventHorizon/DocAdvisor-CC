@@ -140,22 +140,24 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json 
 
 ### Step 2: toc-updater カスタム Agent による並列充填
 
-充填対象は **`toc_store.py --work-status` の `pending`（project-root 相対の entry_file 一覧）**を使う。AI が `ls .toc_work/*.yaml` や YAML の `_meta.status` 手読みで列挙しない（決定論は script が担う）。`pending` の各 entry_file を `doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
+充填対象は **`toc_store.py --work-status` の `pending_groups`（同一ディレクトリ近傍で最大 k 件ずつにまとめた entry_file グループ列）**を使う。AI が `ls .toc_work/*.yaml` や YAML の `_meta.status` 手読みで列挙したり、近傍グルーピングを手作業で行ったりしない（決定論は script が担う / ADR-006 案 B）。各グループを 1 つの `doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
 
-- **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Agent 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
+- **並列数**: 最大 10（`toc_orchestrator.md` の既定。実証済み安全圏 / ADR-006 案 A）。低 tier で 429 が出る場合は 5 → 3 へ下げる。10 超は未検証のため上げない。CRITICAL: 1 つの assistant メッセージ内で複数の Agent 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
 - **`run_in_background: true` は使わない**（Phase 2 ループが壊れる）。
-- 各カスタム Agent には key と entry_file を渡す。`subagent_type` には `doc-advisor:toc-updater` を指定する。
+- 各カスタム Agent には key とグループの entry_files（1〜k 件）を渡す。`subagent_type` には `doc-advisor:toc-updater` を指定する。1 グループは同一ディレクトリ内に閉じ、Agent は各文書を独立に抽出する（context rot 回避）。
 
 ```
-# key 指定時（1 メッセージで最大 5 件並列）
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
-...（最大 5 件）
+# key 指定時（1 メッセージで最大 10 グループ並列。1 グループ = 1〜k 件の近傍 entry_files）
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml, <同一ディレクトリの別 entry>")
+...（最大 10 グループ）
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_files: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
-> 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
+> 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_files` は project-root-relative で渡す。
+>
+> バッチサイズは `--work-status --max-batch N`（既定 3）で調整。`--max-batch 1` で従来どおり 1 ファイル 1 Agent（抽出品質の切り分け時に有用）。
 
 各バッチ完了後、**`toc_store.py --work-status` を再実行**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`next_action` が `merge` になったら Step 3 へ、`blocked` なら Step 2.5 へ。
 

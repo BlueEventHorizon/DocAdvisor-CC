@@ -27,7 +27,7 @@ into another workflow document.
 
 ### Design Philosophy
 
-- **1 file = 1 custom Agent**: Each added/updated document is processed individually via the `doc-advisor:toc-updater` custom Agent.
+- **1 group = 1 custom Agent**: Added/updated documents are processed via the `doc-advisor:toc-updater` custom Agent, one Agent per same-directory group of 1〜k documents (ADR-006 案 B). Each document is extracted independently within the Agent (context rot 回避).
 - **Persistent artifacts**: Each custom Agent's output remains as a pending file until merge.
 - **Resumable**: Completed work is preserved on interruption; Phase 0 resumes from incomplete per-key work.
 - **Single Source of Truth**: `formats/toc_format.md` defines the ToC and pending file schemas.
@@ -167,28 +167,39 @@ unapproved external paths are then dropped with warnings and processing continue
 >
 > **For large projects (100+ files):**
 >
-> - Consider reducing parallel batch size to 3 to lower API load and context growth
+> - The default parallelism is **10 concurrent Agent launches** (実証済み安全圏, ADR-006 案 A).
+>   On a low API tier hitting 429 (rate limit), lower it to 5, then 3. Do **not** raise above 10
+>   (only 10 is verified; 20/30 risk ramp-up・tail・rate effects).
+> - 限定バッチング（ADR-006 案 C/B）: each Agent processes a `pending_groups` group of
+>   1〜k 件（既定 k=3）of same-directory neighbors, cutting launch count and 規約再読 by ~1/k
+>   while keeping each document independently extracted (context rot 回避).
 > - If context overflows mid-session, start a new session and re-run the same command.
 >   `store_dir/.toc_work/` with completed entries is preserved; Phase 0 detects it and
 >   resumes from pending files only (per-key continuation)
 
-**Note**: Do not hand-list or hand-filter the work dir. Get the pending entry_files from
-`toc_store.py --work-status` (`pending` field) — never `ls .toc_work/*.yaml` + `_meta.status`
-reading by the AI.
+**Note**: Do not hand-list or hand-filter the work dir, and do not hand-group entries. Get the
+pre-grouped batches from `toc_store.py --work-status` (`pending_groups` field) — never
+`ls .toc_work/*.yaml` + `_meta.status` reading, nor manual neighbor grouping, by the AI
+(determinism is the script's job). `pending` (flat list) remains available for counting.
 
 ```
-1. Take `pending` (project-root-relative entry_files) from `--work-status`.
+1. Take `pending_groups` (list of entry_file groups; each group = same-directory neighbors,
+   ≤ max_batch entries) from `--work-status`. Each group → one toc-updater Agent.
     ↓
-2. Use max_workers = 5 (default).
-   CRITICAL: Launch up to N Agent tool calls in a SINGLE assistant message.
-   Do NOT launch them one at a time in separate messages — this defeats parallelism.
-   Pass key (or `all` for single mode) and the entry_file (project-root-relative).
+2. Launch up to 10 Agent tool calls (one per group) in a SINGLE assistant message.
+   CRITICAL: a single message — launching them one at a time in separate messages defeats
+   parallelism. Pass key (or `all` for single mode) and the group's entry_files
+   (project-root-relative). On a 429 low tier, reduce concurrent launches to 5 → 3.
     ↓
-3. Wait for all N tasks to complete; output a brief progress summary.
+3. Wait for all launched Agents to complete; output a brief progress summary.
     ↓
 4. Re-run `--work-status`. If `next_action: fill` → return to step 1;
    `merge` → Phase 3; `blocked` → Phase 2.5 (error handling).
 ```
+
+> **Batch size override**: `--work-status` groups by `--max-batch N` (default 3). Pass
+> `--max-batch 1` to disable batching (one file per Agent) — useful when diagnosing extraction
+> quality. Group size never crosses directory boundaries regardless of N.
 
 ### Phase 2.5: Fill-error handling (`next_action: blocked` only)
 
@@ -241,18 +252,22 @@ and preserves `.toc_work/` for continuation.
 ## Custom Agent Launch Examples
 
 ```
-# Launch 5 in parallel (filenames are SHA256 hashes of the source paths)
-# key specified
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml")
-... (up to 5)
+# Launch up to 10 Agents in parallel, one per pending_groups group
+# (filenames are SHA256 hashes of the source paths). A group is 1〜max_batch
+# same-directory entry_files passed together to one Agent.
+# key specified — single-entry group:
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
+# key specified — batched group (k entries from the same directory):
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml, .claude/doc-advisor/toc/<slug>/.toc_work/fedcba0987654321.yaml")
+... (up to 10 Agents)
 
 # single mode (reserved key all): pass `all` instead of a key
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_files: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > In single mode the agent uses `write_pending.py --all` (`--key all` is rejected as a user-specified key).
-> `entry_file` is passed project-root-relative.
+> `entry_files` are passed project-root-relative. A group never mixes documents from different
+> directories (context rot 回避); the agent extracts each document independently.
 
 ---
 
