@@ -93,14 +93,17 @@ keywords: []
 
 `error_message` is **not** part of the base pending template. It is written by `write_pending.py --error` only when processing a source file fails; `status` then remains `pending` so the entry is retried on the next run.
 
+`claimed_at` is likewise **not** in the base template. In continuous-dispatch fill (ADR-006 / Issue #29) `toc_store.py --claim` stamps it into `_meta` right before a `toc-updater` Agent is launched, so `--work-status` can exclude in-flight entries from `pending` (prevents double-dispatch). It is a transient runtime marker: `write_pending.py` rebuilds `_meta` on `completed` / `error`, so it disappears once the entry is filled; a stale `claimed_at` (older than the lease TTL) is treated as un-claimed and re-dispatched.
+
 ### _meta Field Description
 
-| Field           | Type          | Description                                                                                   |
-| --------------- | ------------- | --------------------------------------------------------------------------------------------- |
-| `source_file`   | string        | Target document path (from project root)                                                      |
-| `status`        | enum          | `pending` (unprocessed) or `completed` (done)                                                 |
-| `error_message` | string        | Error details, set only on failure by `write_pending.py --error` (`status` remains `pending`) |
-| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                       |
+| Field           | Type          | Description                                                                                                                      |
+| --------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `source_file`   | string        | Target document path (from project root)                                                                                         |
+| `status`        | enum          | `pending` (unprocessed) or `completed` (done)                                                                                    |
+| `error_message` | string        | Error details, set only on failure by `write_pending.py --error` (`status` remains `pending`)                                    |
+| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                                                          |
+| `claimed_at`    | datetime      | Optional, transient. Set by `toc_store.py --claim` for continuous-dispatch lease; absent until claimed and cleared on completion |
 
 ---
 

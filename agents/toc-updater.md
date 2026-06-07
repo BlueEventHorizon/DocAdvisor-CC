@@ -16,7 +16,7 @@ tools: Read, Bash
 
 ## 起動経路
 
-このカスタム Agent は `index-docs` 継承型 SKILL から **Agent ツール**（`subagent_type: doc-advisor:toc-updater`）で並列起動される（`prepare_toc.py` → 各 pending を toc-updater で並列充填 → `merge_toc.py` の協調フローの中間段）。`index-docs` は agent 並列起動のため fork しない継承型 SKILL である。
+このカスタム Agent は `index-docs` 継承型 SKILL から **Agent ツール**（`subagent_type: doc-advisor:toc-updater`）で起動される（`prepare_toc.py` → 各 pending グループを toc-updater で充填 → `merge_toc.py` の協調フローの中間段）。充填は連続ディスパッチ（sliding-window）で並列ウィンドウを保ちながら起動され、二重起動は claim/lease（script 側）が防ぐ。`index-docs` は agent 起動のため fork しない継承型 SKILL である。
 
 > 起動経路の名称は `docs/rules/skill_launch_paths_definitions.md` の公式短縮名称（カスタム Agent / 継承型 SKILL / Agent ツール）に従う。
 
