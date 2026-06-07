@@ -49,6 +49,11 @@ Workflow 型オーケストレーション（最大 16 同時等）は SKILL ラ
 （ユーザー操作起点・未文書化）。確実に使えるのは **Agent ツール複数発行のみ**。本 ADR は
 この制約下で実装する。
 
+> **追補（Issue #29）**: 本 ADR 採択時（#27）は Agent ツールを **foreground バリア**（全完了待ち
+> wave）で発行していた。Issue #29 で `run_in_background` + claim/lease による**連続ディスパッチ
+> （sliding-window）を検証し配布既定に更新**した。「Agent ツール発行が唯一の確実な基盤」という
+> 前提は不変で、その発行方式をバリアから連続ディスパッチへ変えた差分である（末尾「追補」節）。
+
 ## 決定
 
 ### A. 並列度を 5→10 に引き上げ（配布デフォルト 10）
@@ -200,3 +205,72 @@ throughput のいずれでも subagents に劣る。唯一の接点は plugin sc
 SKILL 非起動）も相まって、本 ADR は **subagents（Agent ツール）＋ A+C+B** を採用する。
 ただし開発・テスト側（本リポジトリ。dev が opt-in 可能）でゴールデンセット計測や大規模 index を
 回す用途では Workflow が有用なため、別途ハーネス化を検討する余地はある（残課題）。
+
+## 追補: 連続ディスパッチ / claim-lease（Issue #29, 2026-06-07）
+
+### 背景
+
+採択時（#27）の Phase 2 は **バリア型 wave ループ**だった（最大 N 個を 1 メッセージで起動 → 全完了
+待ち → `--work-status` 再走査 → 次 wave）。各 wave は **最も遅い 1 件**が次 wave 全体を律速する。
+とくに案 B の限定バッチングは**グループサイズが不均一**（1/2/3 件混在）なため、同一 wave 内で
+1 件グループが 3 件グループの完了を遊んで待つ無駄が出る。
+
+バリアを選んでいた理由は、`run_in_background` で連続投入すると in-flight の entry がまだ
+`completed` を書く前に `--work-status` を引いて **pending に見え二重起動する race** があったため。
+これは安全側の妥協だった。
+
+### 決定
+
+**race を script 側の claim/lease で正しく解いたうえで、Phase 2 を連続ディスパッチ
+（sliding-window）に変更し、配布既定とする。**
+
+- **claim/lease（`toc_store.py`）**: 投入直前に entry を `--claim`（`claimed_at` をスタンプ）。
+  `--work-status` は有効リース内を **in-flight** として `pending` から除外する。停止した Agent の
+  stale lease は TTL（既定 900s）超過で `pending` に戻り再投入対象になる。→ 二重起動 race を根絶。
+- **sliding-window（orchestrator）**: `run_in_background` で並列ウィンドウ（既定 10）を保ち、
+  1 グループ完了通知ごとに次の未投入グループを claim → 起動して補充する。
+- **再開（continuation）**: 新セッションの Phase 0 は `--work-status --lease-ttl 0` で前回 claim
+  残骸を stale 扱いにし pending へ戻す（前回 Agent は終了済みのため二重投入の懸念なし）。
+
+### 検証（dev セッション・隔離 key・本物 ToC 不可触）
+
+- **機能スパイク**（4 件）: 完了通知での main-loop 再起動・claim による in-flight 除外（二重投入
+  なし）・`next_action: merge` までの全フロー完遂を実証。
+- **中規模 wall-clock 実測**（docs 全体 21 md → 9 グループ・サイズ不均一 `[2,3,3,3,2,3,2,1,2]`・
+  並列度 P=3）: 連続型で実起動し各グループの実 `duration_ms` を収集、**同一 duration**から
+  バリア型 makespan（wave 内 max の和）と連続型 makespan（list scheduling）を決定論 script で算出。
+
+  | 方式                     | makespan   | 備考                                   |
+  | ------------------------ | ---------- | -------------------------------------- |
+  | バリア型                 | **129.6s** | wave 内 max `[45.1, 53.1, 31.4]s` の和 |
+  | 連続型（sliding-window） | **113.3s** | 理想下限 107.6s に肉薄                 |
+  | 改善                     | **12.6%**  | #29 予測「10〜30%」の範囲内            |
+
+  バリア型は wave2 の最遅 53.1s が 31.8s/41.1s を遊ばせて律速。連続型はその中間テール待ちを
+  除去する。**効くのはグループ数 > 並列度（複数 wave）のとき**で、大規模（400 件・wave 多数）ほど
+  効果が増す。スパイク 4 + 中規模 9 = 計 13 グループの `run_in_background` 起動は全て成功した。
+- 集計は決定論 script（手計算しない）。各条件 1 回・小規模サンプルのため、大規模での分散の追試は
+  残課題。
+
+### 配布既定: 連続固定（自動選択・バリア固定は不採用）
+
+**規模で自動選択（groups > 並列度 で連続、以下はバリア）は不採用**とし、**連続固定**を採る。理由:
+
+- 小規模（グループ数 ≤ 並列度 = 1 wave）では **連続型 makespan = バリア型 makespan = max(全グループ)**
+  で速度差ゼロ。かつ補充サイクルが無いため markdown 制御の反復リスクも実質発生しない。
+- よって自動選択が小規模で得るのは「foreground を使う（`run_in_background` 依存の回避）」のみで、
+  そのために**バリア／連続の 2 制御パスを恒久維持する複雑性は割に合わない**。
+- 連続固定の唯一の弱点（`run_in_background` 不可環境）は、異常時に foreground 一括起動へ
+  フォールバックする運用注記で吸収でき、主フローは連続 1 本に保てる。
+
+### 正しさとリスクの切り分け
+
+- **正しさ（品質・全件処理）は両規模で claim/lease + `--work-status` 継続判定が担保**する。
+  二重起動は claim の in-flight 除外、投入漏れ（window 縮小）は `--work-status` 再走査で `fill`
+  回収、停止 Agent は stale lease の TTL 回収、compaction での履歴喪失は状態がファイル
+  （`claimed_at`）にあるため `--work-status` 再実行で復元。連続制御が緩んでも**誤った ToC は出ない**。
+- **崩れうるのは速度利得のみ**: markdown 指示での sliding-window 制御は会話内 Claude の遵守に
+  依存し、大規模・長時間・compaction でウィンドウが縮むと利得が目減りしてバリア型に近づく
+  （遅くなるだけ）。これは「正しさ」ではなく「速度」のリスク。
+- **残課題**: ①大規模（400 件級）での連続 vs バリア実測、②`run_in_background` の配布エンドユーザ
+  全環境（headless/CI/cron/旧版）での信頼性確認とフォールバック運用の明文化。
