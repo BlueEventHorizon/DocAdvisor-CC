@@ -161,4 +161,42 @@ B の既定有効化は、`meta/golden_set_test/`（`test_manage/RUNBOOK.md` 準
 
 - **量ベースのビンパッキング（トークン予算 B=30〜40K で k を決める）**：撤回。k の上限は
   トークン量でなく rot（質）で決まるため。
-- **Workflow 型オーケストレーション**：配布 SKILL ランタイムから確実に使えないため不採用。
+
+### 公式マルチエージェント機能の検討（不採用、2026-06-07 時点の公式ドキュメントで確認）
+
+「Anthropic 公式のマルチエージェント機能でさらに速くできないか」を検討した。結論は **index-docs
+（配布プラグイン SKILL の fan-out 充填）には不適**。判断の追跡可能性のため出典付きで記録する。
+
+前提（共通の決定的制約）：index-docs は **マーケットプレイス配布のプラグイン SKILL** として
+**エンドユーザのセッション**で動く。SKILL は markdown 指示であり、ランタイムに使える
+オーケストレーション基盤は「その環境で保証されるもの」に限られる。採用済みの **subagents
+（Agent ツール）こそが公式の "独立 fan-out" 向け基盤**であり、index-docs は既にこれを使っている。
+
+| 機構                           | 設計思想                                | index-docs 適合   | 不採用の主因                                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Subagents（採用中）**        | 隔離ワーカー・結果のみ親へ返す          | ◎                 | —                                                                                                                                                                                                                         |
+| **Dynamic Workflows**          | deterministic な fan-out スクリプト     | △（大規模時のみ） | research preview・ユーザ opt-in（`ultracode`/`/effort`/`/deep-research`）・**SKILL から起動不可**・`CLAUDE_CODE_DISABLE_WORKFLOWS` 等で無効化可                                                                           |
+| **Agent Teams**                | 協調・反証する重量級チーム              | ✗（用途違い）     | **experimental・既定オフ（`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` 要設定）**・ユーザ承認必須・teammate は完全セッションで「significantly more tokens」・推奨 3〜5（低 throughput）・公式が独立 fan-out は subagents へ誘導 |
+| **Agent SDK / Managed Agents** | 自前/管理基盤の独立オーケストレーション | △                 | **プラグイン/SKILL モデルの放棄**＝独立サービス化（ユーザ API キー・別課金・別配布）                                                                                                                                      |
+
+**Dynamic Workflows**（[docs](https://code.claude.com/docs/en/workflows.md)）：ループを会話外の
+スクリプトに出してメターン往復・主コンテキスト肥大を消せる点は、ADR が挙げた実運用コスト要因に
+合致し着眼は正しい。しかし research preview かつユーザの明示操作でのみ起動し、**プラグインの
+SKILL からエンドユーザのランタイムで起動できない**。設定で無効化もできる。よって配布プラグインが
+依存できない。加えて `parallel()` はバリアでテール律速を解消せず、低 tier では 16 同時が 429 を悪化
+させうる。公式の subagent 比ベンチも未公開。
+
+**Agent Teams**（[docs](https://code.claude.com/docs/en/agent-teams)）：teammate 同士が
+「share findings, challenge each other, and coordinate」する協調・反証作業（research / parallel
+review / competing hypotheses）向け。index-docs の充填は**各文書を独立抽出し通信不要・むしろ
+隔離が要件**で、用途が正反対。公式は明示的に "Use subagents when you need quick, focused workers
+that report back" / "Focused tasks where only the result matters" と誘導する。さらに experimental・
+既定オフ・ユーザ承認必須・teammate が完全セッションで高トークン・推奨 3〜5 と、可用性・コスト・
+throughput のいずれでも subagents に劣る。唯一の接点は plugin scope の subagent 定義を teammate
+として流用できる点だが、これはユーザ手動操作であり index 高速化パスではない。
+
+→ 公式マルチエージェントは「協調が価値を生む作業」のための機能であり、index-docs のような
+**独立・大量・通信不要の fan-out** には subagents が正解。配布制約（preview/experimental/opt-in/
+SKILL 非起動）も相まって、本 ADR は **subagents（Agent ツール）＋ A+C+B** を採用する。
+ただし開発・テスト側（本リポジトリ。dev が opt-in 可能）でゴールデンセット計測や大規模 index を
+回す用途では Workflow が有用なため、別途ハーネス化を検討する余地はある（残課題）。
