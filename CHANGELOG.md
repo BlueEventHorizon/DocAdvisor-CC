@@ -4,6 +4,22 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.3] - 2026-06-08
+
+### Added
+
+- `index-docs` の `--dirs-json` にグロブパターン展開を追加（`docs/specs/**/design/` など任意深さのディレクトリ／Markdown を直接マッチ）(FR-N09-8)
+- `index-docs` の充填処理を連続ディスパッチ化（claim/lease + sliding-window）し、Agent の遊休を減らして並列効率を改善
+
+### Changed
+
+- `--exclude-json`（ユーザー除外）のマッチ方式をシステム固定除外 `should_exclude` と統一。裸名は任意階層のディレクトリ名に完全一致、`/` 含みは project root 起点（root-anchored）のセグメント境界マッチとなり、forge 等の上位層が裸名除外をそのまま転送できるようになった。設計書（DES-004）・SKILL・コメントも追従 (Issue #30)
+- `index-docs` の並列充填を高速化（実効並列度の引き上げ・規約圧縮・限定バッチング）。検討経緯と速度実測（A/B・公式マルチエージェント不採用理由）を ADR-006 に記録
+
+### Fixed
+
+- `plugin.json` のスキル discovery を修復し、廃止済みのローカル skill を除去
+
 ## [0.4.2] - 2026-06-06
 
 ### Changed

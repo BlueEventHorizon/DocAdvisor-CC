@@ -698,27 +698,36 @@ def should_exclude(filepath, root_dir, exclude_patterns):
         bool: True if should be excluded
 
     Note:
-        - All patterns are matched against directory path only (filename excluded)
-        - Patterns containing '/' are matched as path substring
-        - Patterns without '/' are matched as exact directory name
-        - This prevents 'plan' from excluding 'planning.md'
+        - Patterns without '/' are matched as an exact directory name at any
+          depth; filenames are NOT matched (so 'plan' never excludes
+          'planning.md')
+        - Patterns containing '/' are matched against the full relative path at
+          segment boundaries: the path must equal the pattern (file/dir exact)
+          or start with `pattern + '/'` (subtree). This covers both file
+          targets ('docs/drop.md') and subtree targets ('docs/draft'), while
+          avoiding the over-match where 'a/b' would otherwise hit 'za/bc'.
         - NFC normalization is applied for macOS NFD compatibility
+        - This matcher is shared by both the system-fixed excludes
+          (SYSTEM_EXCLUDE_PATTERNS) and the user excludes (--exclude-json), so
+          the two stay self-consistent.
     """
     rel_path = normalize_path(filepath.relative_to(root_dir))
     path_parts = rel_path.split('/')
-    dir_parts = path_parts[:-1]  # ファイル名を除く
-    dir_path = '/'.join(dir_parts)  # ディレクトリパスのみ
+    dir_parts = path_parts[:-1]  # ファイル名を除いたディレクトリセグメント
 
     for pattern in exclude_patterns:
         # 先頭・末尾の / を除去し NFC 正規化
         normalized = normalize_path(pattern.strip('/'))
+        if not normalized:
+            continue
 
         if '/' in normalized:
-            # パターンに / が含まれる場合はパス部分文字列としてマッチ
-            if normalized in dir_path:
+            # パスを含むパターン: rel_path 全体とのセグメント境界マッチ。
+            # 完全一致（ファイル/ディレクトリ指定）または pattern + '/' 前置き（サブツリー指定）。
+            if rel_path == normalized or rel_path.startswith(normalized + '/'):
                 return True
         else:
-            # ディレクトリ名として完全一致でチェック
+            # ディレクトリ名として完全一致でチェック（ファイル名は対象外）
             if normalized in dir_parts:
                 return True
     return False
@@ -799,7 +808,7 @@ def rglob_follow_symlinks(root_dir, pattern):
 # ---------------------------------------------------------------------------
 
 # 固定除外パターン（DES-005 §9.1）。
-# should_exclude はディレクトリ名完全一致 / path 部分文字列マッチで適用する。
+# should_exclude はディレクトリ名完全一致 / path セグメント境界マッチで適用する。
 # ".claude" 除外で生成済み ToC / work files も同時にカバーされる。
 SYSTEM_EXCLUDE_PATTERNS = [
     ".git",            # .git/**

@@ -5,8 +5,8 @@
 metadata:
   name: Document Search Index (all)
   key: all
-  generated_at: 2026-06-01T14:18:45Z
-  file_count: 33
+  generated_at: 2026-06-07T14:07:46Z
+  file_count: 34
 
 docs:
   .github/PULL_REQUEST_TEMPLATE.md:
@@ -31,209 +31,245 @@ docs:
       - specification reference
       - reviewer guidance
   AGENTS.md:
-    title: Repository Development Guidance
-    purpose: Provides development guidance for the doc-advisor plugin repository, including project overview, repository structure, development practices, and testing requirements
+    title: CLAUDE.md (Agent Development Guide)
+    purpose: Provides guidance to Claude Code when working on the doc-advisor plugin repository, defining development rules, repository layout, and testing procedures
     content_details:
-      - Project Overview and architecture (ToC-based document indexing for AI context discovery)
-      - Repository Layout (13 key directories and files with roles)
-      - Information Sources (5 entry points for different information types)
-      - Development practices (external dependencies, formatting with dprint)
-      - Plugin local testing procedures (Claude CLI with --plugin-dir)
-      - Testing requirements (Python unit tests, golden set quality evaluation)
-      - Debugging methodology (log insertion for actual state observation)
+      - Scope and audience boundaries
+      - Repository layout with component roles
+      - Key development rules for project organization
+      - Information sources and documentation location
+      - Testing requirements and procedures
+      - Plugin local testing configuration
+      - Debugging guidelines
     applicable_tasks:
-      - Plugin repository setup and local development
-      - Contributing to doc-advisor source code
-      - Setting up development environment
-      - Running tests and code formatting
+      - Repository onboarding
+      - Development setup
+      - Understanding project organization
+      - Setting up local plugin tests
+      - Writing tests for Python scripts
     keywords:
+      - Claude.md
+      - AGENTS.md
+      - plugin
+      - testing
+      - repository layout
+      - scripts
+      - workflows
+      - formats
       - doc-advisor
-      - plugin repository
-      - ToC metadata
-      - development guidance
-      - testing requirements
-      - dprint formatting
   CHANGELOG.md:
     title: Changelog
-    purpose: Documents release notes and version history for the doc-advisor plugin across all versions with emphasis on architectural migrations and API changes
+    purpose: Documents all notable changes to the doc-advisor plugin across versions, including features added, changed, fixed, and removed
     content_details:
-      - Version 0.4.0 key + path ToC Provider interface
-      - Embedding API removal and regression tests
-      - SKILL consolidation to index-docs and query-docs
-      - Interface migration from doc_structure.yaml to key + path method
-      - Single plugin repository restructuring from bw-cc-plugins
-      - OpenAI semantic search removal and return to ToC-only architecture
-      - API changes and fixes in versions 0.2.x and 0.3.x
+      - Version 0.4.2 changes including query-docs redesign and index-docs work directory script integration
+      - Version 0.4.1 additions for single mode and directory specification
+      - Version 0.4.0 key plus path interface for ToC Provider implementation
+      - Version 0.3.0 separation from bw-cc-plugins into single plugin repository
+      - Version 0.2.6 and earlier fixes for query specifications
+      - OpenAI Embedding API removal in 0.4.0
+      - Migration from doc_structure concept to key-based ToC generation
     applicable_tasks:
-      - Version upgrade planning
-      - Understanding plugin evolution
-      - Release notes review
-      - Migration guide reference
-      - Breaking change identification
+      - Release planning
+      - Understanding version history
+      - Tracking breaking changes
+      - Feature verification
+      - Regression testing preparation
+      - Plugin evolution documentation
     keywords:
-      - changelog
-      - release notes
-      - version history
-      - migration
-      - embedding removal
-      - ToC Provider
-      - key+path interface
+      - Changelog
+      - version
+      - 0.4.2
+      - 0.4.1
+      - 0.4.0
+      - key plus path
+      - ToC
+      - query-docs
+      - index-docs
+      - features
   DEVELOPMENT.md:
     title: Development Guide
-    purpose: Instructions for developing and debugging the doc-advisor plugin locally, including setup methods, testing procedures, formatting standards, and release workflows
+    purpose: Provides instructions for developing and debugging the doc-advisor plugin in the repository, covering local development methods, testing, formatting, and release procedures
     content_details:
-      - Local development and debugging methods including --plugin-dir, marketplace add, and GitHub approaches
-      - Plugin manifest validation using claude plugin validate
-      - Testing frameworks and golden set quality measurements for precision and recall
-      - Code formatting with dprint for JSON, TOML, Markdown, and YAML files
-      - Version management single source of truth in plugin.json and batch update via version-config.yaml
-      - Marketplace and plugin registry operations including install, uninstall, and branch workflows
-      - MCP auxiliary server integration through Makefile targets
+      - Local development and debugging methods including plugin-dir, marketplace add, and GitHub approaches
+      - Testing procedures including unittest discovery and golden set quality evaluation
+      - Search quality testing with golden set in isolated key using diff comparison
+      - Plugin manifest validation using Claude plugin validate
+      - Code formatting with dprint
+      - Release and distribution procedures including version management
+      - Python prerequisites and dprint formatter setup
     applicable_tasks:
       - Setting up local development environment
-      - Testing plugin installations and marketplace flows
-      - Debugging SKILL and script implementations
-      - Preparing releases and managing versions
-      - Validating manifest configurations
+      - Debugging plugin scripts and skills
+      - Running unit tests
+      - Validating plugin manifest changes
+      - Testing search quality before release
+      - Releasing new versions
+      - Testing marketplace installation flows
     keywords:
-      - local development
+      - DEVELOPMENT.md
+      - testing
+      - golden set
+      - dprint
       - plugin-dir
       - marketplace
-      - dprint
       - unittest
       - version management
-      - manifest validation
-      - golden set
-      - MCP
+      - release
+      - formatting
   README.md:
     title: doc-advisor
-    purpose: AI-searchable documentation index plugin for Claude Code that indexes Markdown documents by ToC with keywords and metadata in key units, enabling AI to automatically discover needed context during implementation and code review
+    purpose: AI-searchable document index plugin for Claude Code that dynamically indexes Markdown documents by key with ToC metadata, enabling automatic context discovery for AI agents without manual maintenance of task-document mappings
     content_details:
-      - Key-based document indexing without semantic interpretation
-      - "Two skills: index-docs for ToC generation and query-docs for search"
-      - Desired-state driven path management with automatic removal of missing documents
-      - JSON and JSON file based path input formats
-      - Python 3.9 plus with standard library only
-      - Integration with Claude Code plugin architecture and marketplace
-      - Project root relative path resolution for all indexed documents
+      - Plugin installation via marketplace
+      - index-docs skill for ToC generation and updates
+      - query-docs skill for document search by keyword and natural language
+      - Key-based document management for arbitrary classification
+      - Integration with AI implementation and review workflows
+      - Dynamic task-to-document discovery mechanism
+      - Workflow diagram showing index generation and search flow
+      - "Single-mode indexing for entire project under reserved key 'all"
     applicable_tasks:
-      - Project documentation indexing and organization
-      - AI-assisted code implementation with context discovery
-      - Code review with rule-based inspection
-      - Documentation structure management
-      - Plugin installation and lifecycle management
+      - Plugin installation and setup
+      - ToC generation and maintenance for document collections
+      - Document search integration into AI workflows
+      - Understanding doc-advisor architecture and design philosophy
     keywords:
       - doc-advisor
       - ToC
+      - index-docs
+      - query-docs
+      - document indexing
       - keyword search
-      - Claude Code
-      - documentation indexing
-      - markdown
-      - metadata
-      - plugin
-      - AI agent
-      - context discovery
+      - Claude Code plugin
   README_en.md:
     title: doc-advisor
-    purpose: AI-searchable document index plugin for Claude Code that automatically discovers project-specific context for implementation and code review
+    purpose: English-language documentation for the AI-searchable document index plugin providing installation instructions, usage examples, requirements, and developer information for Claude Code integration
     content_details:
-      - Overview of doc-advisor as a ToC provider managing documents per key
-      - index-docs skill for generating and updating ToC from paths
-      - query-docs skill for searching ToC by keyword or natural language
-      - Installation instructions via marketplace and local trial
-      - Usage patterns for building and searching ToC in single and key-based modes
-      - Requirements listing Claude Code CLI and Python 3.9 or later
+      - Why doc-advisor motivation and design philosophy
+      - Installation via marketplace and local testing
+      - index-docs skill usage with key and paths parameters
+      - query-docs skill usage for document retrieval
+      - Workflow diagram showing document indexing and search integration
+      - Installation re-enablement instructions
+      - Python version requirements and standard library dependency
     applicable_tasks:
-      - Project setup and documentation indexing
-      - Context discovery during implementation
-      - Review perspective setup
-      - Plugin installation and configuration
+      - English documentation reference for plugin users
+      - Installation troubleshooting for Claude Code plugin
+      - Developer onboarding and learning
+      - Plugin feature discovery and capability understanding
     keywords:
       - doc-advisor
+      - installation
       - index-docs
       - query-docs
-      - ToC
-      - document search
-      - keyword matching
-      - Claude Code plugin
-      - context discovery
-  agents/toc-updater.md:
-    title: ToC Updater Agent
-    purpose: Specialized custom Agent that fills a single pending ToC entry by extracting metadata from its source document and updating the Table of Contents database.
+      - Claude Code
+      - documentation
+      - marketplace
+  agents/query-worker.md:
+    title: Read-only document search worker
+    purpose: Launches as a custom Agent from query-docs SKILL to search ToC, read all entries, and return related document paths without implementing or editing
     content_details:
-      - Single-file pending YAML processing from store directory
-      - Source document metadata extraction and validation
-      - Five ToC fields extraction (title, purpose, content_details, applicable_tasks, keywords)
-      - Python write_pending.py script integration for entry completion
-      - Error handling with status tracking and error message logging
+      - Read-only constraint with no writing tools or git operations
+      - ToC retrieval via get_toc.py with key determination
+      - Error handling for TOC_NOT_FOUND and KEY_RESERVED error codes
+      - Deep relevance judgment across all ToC entries without shallow grep search
+      - Final document confirmation via Read tool to narrow false negatives to zero
+      - "Output in machine-readable format: Required documents list or Query error block"
+      - "Query interpretation rules: task descriptions are search queries not implementation instructions"
+      - "Reference workflow: query_toc_workflow.md for detailed procedure"
+      - "Isolation constraint: does not inherit parent dispatcher's other work"
+      - No prose, quotes, or explanatory text in output
     applicable_tasks:
-      - ToC entry generation from source documents
-      - Document metadata extraction for search indexing
-      - Parallel pending entry processing in index-docs workflow
-      - Error handling and completion tracking for individual entries
+      - Document search and retrieval
+      - Task-related context discovery
+      - Related document identification for agent work
+    keywords:
+      - query-worker
+      - ToC search
+      - relevance judgment
+      - read-only
+      - false negative prevention
+      - search workflow
+      - get_toc.py
+  agents/toc-updater.md:
+    title: Specialized ToC metadata filler Agent
+    purpose: Fills 1-k pending ToC entries by extracting metadata from each source document independently while preventing context rot and document confusion
+    content_details:
+      - Process 1 to k pending YAML files under .toc_work directory with limited batching strategy
+      - Extract each document independently to avoid mixing content across files
+      - "Responsibility boundary: processes same-directory grouped similar documents selected deterministically by script"
+      - Context rot prevention by completing sequential Read-extract-write per document before moving to next
+      - "Execution rules: exit plan mode without asking, report errors immediately, write all fields in English"
+      - "Field extraction: title, purpose, content_details (5-10 items), applicable_tasks (1-10), keywords (5-10)"
+      - Do not extract doc_type field which was removed from schema
+      - Array parameters passed as triple-pipe (
+      - ) separated strings to support commas within items
+      - "Error handling: write error info to entry YAML and continue processing remaining entries independently"
+      - "Completion response: one status line per entry with filename and status indicator only"
+    applicable_tasks:
+      - ToC metadata extraction from project documents
+      - Batch processing of pending entries grouped by directory
+      - Index generation for task-related context discovery
     keywords:
       - toc-updater
-      - pending YAML
-      - metadata extraction
+      - ToC metadata
+      - context rot prevention
       - write_pending.py
-      - search index
-      - field guidelines
-      - single mode
+      - independent extraction
+      - document isolation
+      - entry batching
   docs/readme/guide_doc-advisor.md:
     title: doc-advisor Detailed Guide
-    purpose: AI-searchable document index generator and search tool for Claude Code, enabling task-relevant document discovery through metadata extraction
+    purpose: User guide explaining how to use doc-advisor SKILLS (index-docs and query-docs) for document indexing and search
     content_details:
-      - index-docs skill for generating and updating ToC indexes per key with cooperative pipeline
-      - query-docs skill for searching ToC indexes to identify task-relevant documents
-      - Key argument configuration for index-docs (--key, --paths-json, --paths-file, --all modes)
-      - Key argument configuration for query-docs (--key, task description, read-only fork context)
-      - Requirements specification (Claude Code CLI, Python 3.9+, standard library only)
+      - index-docs SKILL for generating and updating ToC per key
+      - query-docs SKILL for searching relevant documents
+      - Single mode with reserved key all
+      - ToC generation via cooperative pipeline (prepare_toc - toc-updater agent - merge_toc)
+      - Document discovery using keyword and metadata index
+      - ToC Provider concept independent of key interpretation
+      - Task-relevant document discovery mechanism
+      - Project-root-relative path management
     applicable_tasks:
-      - Using doc-advisor to generate ToC indexes for document sets
-      - Searching for task-relevant documents through metadata queries
-      - Understanding plugin skill interface and argument handling
-      - Setting up document indexing in projects
+      - Understanding doc-advisor plugin capabilities
+      - Learning how to index documents with index-docs
+      - Learning how to search documents with query-docs
+      - Setting up document indexing workflow
+      - Configuring document search for projects
     keywords:
-      - doc-advisor
-      - ToC
       - index-docs
       - query-docs
+      - ToC
+      - document indexing
+      - keyword search
       - metadata
-      - AI-searchable
-      - document discovery
-      - CLI
-      - Python
+      - task-relevant discovery
   docs/readme/guide_doc-advisor_ja.md:
     title: doc-advisor Detailed Guide
-    purpose: Comprehensive guide explaining how doc-advisor indexes documents, generates ToC metadata, and searches for relevant files using AI
+    purpose: Japanese language user guide explaining how to use doc-advisor SKILLS (index-docs and query-docs) for document indexing and search
     content_details:
-      - Overview of doc-advisor as a universal ToC provider
-      - index-docs skill with key and paths parameters
-      - query-docs skill for searching related documents
-      - ToC generation as opaque key management
-      - Markdown indexing with project-root-relative paths
-      - Metadata extraction and AI-driven search integration
-      - Single mode with reserved all key
-      - Desired-state based ToC update workflow
-      - Task description matching for document discovery
-      - Required runtime environment Python 3.9+ and Claude Code
+      - index-docs SKILL for generating and updating ToC per key
+      - query-docs SKILL for searching relevant documents
+      - Single mode with reserved key all
+      - ToC generation via cooperative pipeline (prepare_toc - toc-updater agent - merge_toc)
+      - Document discovery using keyword and metadata index
+      - ToC Provider concept independent of key interpretation
+      - Task-relevant document discovery mechanism
+      - Project-root-relative path management
     applicable_tasks:
-      - Understanding doc-advisor architecture and concepts
-      - Setting up document indexing with custom keys
-      - Searching for context documents by task description
-      - Integrating doc-advisor into project workflows
-      - Learning desired-state ToC management pattern
+      - Understanding doc-advisor plugin capabilities
+      - Learning how to index documents with index-docs
+      - Learning how to search documents with query-docs
+      - Setting up document indexing workflow
+      - Configuring document search for projects
     keywords:
-      - doc-advisor
-      - ToC
       - index-docs
       - query-docs
-      - metadata extraction
-      - AI search
-      - Markdown indexing
-      - desired-state
-      - opaque key
-      - context discovery
+      - ToC
+      - document indexing
+      - keyword search
+      - metadata
+      - task-relevant discovery
   docs/rules/cli_output_formatting.md:
     title: CLI Output Formatting Guidelines
     purpose: Defines color codes, display patterns, and output conventions for shell script and CLI tool output to ensure consistency and accessibility
@@ -290,26 +326,35 @@ docs:
       - Documentation standards
   docs/rules/implementation_guidelines.md:
     title: Implementation Guidelines
-    purpose: Defines mandatory rules for script language selection, testing, code organization, design documentation, and version management in the doc-advisor plugin
+    purpose: Defines rules for script language selection, testing requirements, code organization, and version management in the doc-advisor plugin
     content_details:
-      - Script language selection rules (Python vs Bash based on use case)
-      - Testing requirements for Python scripts in scripts/ directory
-      - Prohibition of inline scripts in SKILL.md — require separate script files
-      - Design document maintenance with automatic updates per PR
-      - Code deletion policy — remove unused code rather than mark as deprecated
-      - AI interpretation of user input — avoid rigid parsers for natural language arguments
-      - Version file editing prohibition — only during release commits
+      - Script language selection criteria (Python vs Bash based on data type and complexity)
+      - Standard library only requirement for Python scripts (no external dependencies)
+      - Test requirements for Python scripts in scripts/ directory (mandatory)
+      - SKILL.md implementation rules prohibiting inline scripts (must call external scripts)
+      - Design document maintenance rules and ADR/DES placement conventions
+      - Unused code deletion policy (no deprecated markers or comments)
+      - AI input interpretation guidelines (use AI for natural language, scripts for structured data)
+      - Version file editing prohibition (feature/fix/refactor PRs must not edit version files or CHANGELOG)
     applicable_tasks:
-      - Plugin script implementation
-      - Test creation and validation
-      - SKILL.md writing
-      - Design documentation updates
+      - Script implementation and code organization
+      - Test creation for new Python scripts
+      - SKILL.md authoring and review
+      - Design document creation and maintenance
+      - Code cleanup and refactoring
+      - Release and version management
+      - Architecture review for tool integration
     keywords:
-      - script language selection
-      - testing mandatory
-      - SKILL.md inline prohibition
-      - design document maintenance
-      - version control rules
+      - Python
+      - Bash
+      - Testing
+      - SKILL.md
+      - Script implementation
+      - Design documents
+      - ADR
+      - Version control
+      - Code organization
+      - Plugin development
   docs/rules/skill_authoring_notes.md:
     title: Skill Authoring Notes
     purpose: Provides guidance for creating and editing Claude Code SKILL.md files, covering frontmatter fields, fork vs. inheritance execution models, and multi-layered defense strategies.
@@ -394,32 +439,63 @@ docs:
       - forward compatibility
       - data structure
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
-    title: "ADR-002: Query Skill Subagent Isolation"
-    purpose: Defines design decision for query-docs search skill to enforce fork isolation, read-only constraints, and argument interpretation guards to prevent unauthorized context inheritance and writes
+    title: "ADR-002: query-docs guidance-aware dispatcher and read-only worker isolation"
+    purpose: Defines the isolation architecture for query-docs SKILL with dispatcher and worker layers to prevent context contamination while enabling guidance-aware search
     content_details:
-      - "Fork isolation requirement via context: fork frontmatter setting"
-      - Read-only constraint enforcement with prohibited Edit/Write/MultiEdit/NotebookEdit tools
-      - Argument interpretation rules to distinguish search keywords from implementation instructions
-      - Role clarification with explicit negation of write operations and subprocess management
-      - Test coverage requirements for SKILL.md format validation
-      - Root cause analysis of four-factor context inheritance incidents
-      - Multi-layered defense strategy rationale and choice alternatives
-      - Platform-level judgment items on tool denial and read-only skill template
+      - Two-layer architecture with inheritable dispatcher SKILL and isolated read-only worker Agent
+      - Safety mechanisms including role constraints, prompt normalization, and tool exposure reduction
+      - Guidance integration for search context expansion through dispatcher
+      - Worker isolation guarantees with read-only constraint and Required documents output contract
+      - Multi-layered defense strategy across execution isolation, constraints, normalization, and testing
+      - Parent task conversion to search query before worker delegation
+      - Worker prompt clarity on read-only role and search query interpretation
+      - Comparison of adoption options and selection of dispatcher plus worker architecture
     applicable_tasks:
-      - Query-docs SKILL implementation and review
-      - Read-only search skill design enforcement
-      - Fork type SKILL isolation verification
-      - Authorization boundary and tool access testing
-      - Security incident recovery and multi-defense design
+      - query-docs architecture design review
+      - Safety boundary assessment for document search systems
+      - Isolation strategy validation for AI agent context contamination prevention
+      - Worker Agent implementation
+      - Regression test design for search isolation
     keywords:
-      - "context: fork"
-      - read-only constraint
       - query-docs
-      - subagent isolation
-      - fork type SKILL
-      - SKILL.md frontmatter
-      - authorization boundary
-      - tool denial
+      - isolation architecture
+      - read-only worker
+      - context contamination
+      - dispatcher
+      - guidance-aware
+      - prompt normalization
+      - tool exposure
+      - safety boundary
+  docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md:
+    title: "ADR-006: index-docs parallel fill performance optimization"
+    purpose: Defines three optimization strategies for index-docs parallel fill with parallelism increase to 10, fixed overhead reduction, and limited batching to reduce 1-2 hour fill times for large projects
+    content_details:
+      - Parallelism increase from 5 to 10 (proven safe, configured as distribution default)
+      - Fixed overhead reduction by compressing toc_format.md to essential Field Guidelines and schemas only
+      - Limited batching with k=2-3 same-directory similar documents to reduce startup count (critical context rot quality gate)
+      - Performance measurements showing 18 seconds per document, 10 effective parallelism, and tail latency as main constraint
+      - Quality validation through golden set testing with zero FN/FP degradation at k=3 batching
+      - Wall-clock improvement from 40 minutes to 10 minutes for 400 documents (4.1x faster)
+      - Continuous dispatch with sliding-window pattern using claim/lease to eliminate double-dispatch race
+      - Multi-agent machinery evaluation confirming subagents over Dynamic Workflows and Agent Teams
+    applicable_tasks:
+      - index-docs performance optimization strategy
+      - Parallel fill speed tuning for large document sets
+      - Context rot and document mixing prevention design
+      - Batching quality gate validation
+      - Continuous dispatch orchestration implementation
+      - Rate limit handling for different tiers
+    keywords:
+      - index-docs
+      - parallel fill
+      - context rot
+      - batching
+      - claim-lease
+      - sliding-window
+      - golden set
+      - wall-clock
+      - subagents
+      - tail latency
   docs/specs/base/design/DES-003_document_identifier.md:
     title: Document Identifier Design
     purpose: Defines how documents are identified in doc-advisor using file paths as the unique identifier, replacing file-name-based ID extraction
@@ -441,58 +517,63 @@ docs:
       - SHA-256 hash
       - opaque identification
   docs/specs/base/design/DES-004_document_model.md:
-    title: "DES-004: Document Model Design"
-    purpose: Defines the document model structure for doc-advisor, including opaque key-based ToC management, scan target judgment, and exclusion patterns
+    title: "DES-004: Document model design"
+    purpose: Defines the overall document model structure managed by doc-advisor with key-based storage, scan target determination rules, and exclusion logic
     content_details:
-      - Opaque key-based document management
-      - Key to storage path conversion
-      - Store directory structure (toc.yaml, .toc_checksums.yaml, .toc_work)
-      - Path validation rules (absolute path, traversal, root external symlink, non-existent, non-Markdown)
-      - ToC schema definition without doc_type
-      - Scan target judgment flow
-      - Exclusion pattern matching logic
-      - Fixed exclusion list for single mode (all)
+      - Document model based on opaque key unit (not category-based) with deterministic conversion to .claude/doc-advisor/toc/{slug}/ storage paths
+      - Store directory structure containing toc.yaml, .toc_checksums.yaml, and .toc_work/ for work files
+      - Path validation rules rejecting absolute paths, traversal, missing files, non-Markdown; symlinks default-deny with explicit approval
+      - "ToC schema fields: title, purpose, content_details, applicable_tasks, keywords (doc_type removed)"
+      - Scan pattern for **/*.md collection from root and subdirectories with inclusion/exclusion filtering
+      - "Exclusion logic in should_exclude() function: directory-level patterns only, slash-containing as partial match, slash-free as exact directory name match"
+      - Single mode --all fixed exclusion list defined in code with exclusion pattern examples
+      - Input model where upper layer provides key plus paths or single --all mode
     applicable_tasks:
-      - Document model understanding
-      - ToC schema design review
-      - Path validation implementation
-      - Scan exclusion rule implementation
-      - Single mode (all) feature implementation
+      - Document model architecture design
+      - Scan target determination logic validation
+      - Exclusion pattern rule implementation
+      - key-based ToC storage design
+      - Path validation and safety review
+      - Single mode configuration
     keywords:
       - document model
-      - opaque key
-      - ToC schema
-      - path validation
-      - exclusion pattern
+      - key unit
       - scan target
-      - storage structure
-      - key conversion
-  docs/specs/base/design/DES-005_toc_generation_flow.md:
-    title: Key + Path ToC Provider Design
-    purpose: Defines the architecture and implementation approach for the generic ToC provider that accepts opaque keys and project-root-relative paths as input, including storage strategy, path validation, desired-state sync, and script composition.
-    content_details:
-      - Key to store directory resolution with slug conversion and collision handling
-      - Storage structure including toc.yaml, checksums, and temporary work directory
-      - Path validation flow with traversal detection and symlink resolution
-      - Desired-state sync using prepare/merge two-phase pattern with atomic writes
-      - JSON output contract with unified error codes
-      - Single mode with automatic Markdown discovery and exclusion rules
-      - SKILL and agent composition architecture
-      - Module design with deterministic script layer and AI orchestration layer
-    applicable_tasks:
-      - ToC architecture design and implementation
-      - Storage and path validation system development
-      - Desired-state sync pattern implementation
-      - Key-based document indexing system development
-    keywords:
-      - ToC generation
-      - key-based storage
-      - desired-state sync
+      - exclusion rules
       - path validation
-      - slug conversion
-      - SKILL architecture
+      - opaque key
+      - store directory
+      - should_exclude
+      - single mode
+      - toc_format
+  docs/specs/base/design/DES-005_toc_generation_flow.md:
+    title: ToC Generation Flow Design (key + path Provider)
+    purpose: Defines the architecture, storage, and processing flow for a key-based ToC provider system that supports both per-key and single-mode indexing of documents
+    content_details:
+      - Key-based store directory resolution with slug normalization and collision handling
+      - Two-phase ToC generation (prepare + merge) with AI metadata extraction in between
+      - Path validation including traversal checks and external symlink handling
+      - Desired-state diff detection (added/updated/unchanged/deleted categories)
+      - JSON output contracts with status/error_code enums across all scripts
+      - Single-mode (--all) traversal with fixed exclusions and symlink resolution
+      - Backup and atomic write procedures for merge phase with validation and restoration
+      - Pending YAML generation and metadata filling workflow for toc-updater agent
+      - Dependency rules between AI orchestration layer and deterministic script layer
+    applicable_tasks:
+      - Implementing key-based ToC provider architecture
+      - Designing storage structure for per-key metadata indexes
+      - Validating paths in symlink-aware document collection
+      - Building desired-state sync flow between prepare and merge phases
+      - Integrating AI metadata extraction into ToC generation pipeline
+    keywords:
+      - key + path provider
+      - slug normalization
+      - desired-state sync
+      - external symlink validation
+      - toc-updater agent
+      - atomic write
       - pending YAML
-      - symlink resolution
+      - orchestrator pattern
   docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md:
     title: Zero-Miss Search Accuracy Specification
     purpose: Defines requirements for zero false negatives in ToC search, ensuring all relevant documents are returned regardless of result count
@@ -536,65 +617,64 @@ docs:
       - REQ-001
   docs/specs/base/requirements/REQ-001_doc_advisor.md:
     title: "REQ-001: doc-advisor Requirements Definition"
-    purpose: Defines functional and non-functional requirements for the doc-advisor ToC provider plugin, including key management, desired-state sync, SKILL structure, and script layer responsibilities
+    purpose: Defines functional and non-functional requirements for doc-advisor plugin, a ToC-based document indexing system enabling AI agents to identify task-relevant project documentation
     content_details:
-      - Opaque key-based ToC management with original key preservation
-      - Desired-state sync with add/update/delete/unchanged operations
-      - Project-root-relative path validation with symlink strictness and traversal protection
-      - "Reserved key 'all' for single-mode ToC generation across entire project"
-      - Generic SKILL layer with query-docs and index-docs for search and generation
-      - "Script layer coordination: prepare (diff detection) to merge (consolidation) with agent metadata filling in between"
-      - Fixed exclusion patterns for single mode (all key)
-      - Directory expansion at SKILL layer with --dirs-json and --exclude-json support
-      - JSON output contracts with status/error_code enums and desired-state counts
+      - Scope and background of doc-advisor as a ToC Provider
+      - "Key-unit ToC management with opaque keys and reserved key 'all"
+      - Desired-state sync (generation, update, deletion) with change detection
+      - Single-mode operation (reserved key all) with fixed exclusions
+      - Directory input expansion at SKILL layer with system patterns and user exclusions
+      - Responsibility boundaries between script layer (deterministic) and AI layer (metadata extraction)
+      - Path validation policy covering traversal, symlinks, normalization, and case collisions
+      - JSON output contract for all scripts with status and error code enums
     applicable_tasks:
-      - ToC generation and update workflows
-      - Path validation and symlink security review
-      - SKILL and script layer interface design
-      - Agent metadata extraction coordination
-      - Plugin installation and configuration
-      - Search index management and query planning
-      - Migration from category-based to key-path model
+      - ToC generation and update workflow design
+      - Path validation and security policy implementation
+      - SKILL-layer directory expansion design
+      - Agent parallel execution coordination
+      - Testing and acceptance criteria definition
+      - Plugin capability specification and versioning
     keywords:
-      - ToC provider
+      - doc-advisor
+      - ToC
+      - key management
       - desired-state sync
-      - opaque key
       - path validation
-      - symlink
-      - agent coordination
+      - symlink security
       - metadata extraction
-      - JSON contract
       - SKILL layer
-      - DES-005
+      - agent coordination
+      - index-docs
   docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md:
-    title: Upgrade Requirements v2.0 to Current
-    purpose: Defines upgrade principles, legacy file detection, user asset protection, and functional requirements for migrating Doc Advisor from v2.0/v3.x to current key+path interface architecture
+    title: "REQ-002: Upgrade Requirements (v2.0 to Current)"
+    purpose: Defines requirements for upgrading doc-advisor from legacy versions (v2.0/v3.x) to the current key+path generic ToC Provider, covering legacy file detection, user asset protection, and migration guidance
     content_details:
-      - Identifier-based file protection principles
-      - Legacy file detection targets (commands, config, doc-advisor directories)
-      - User asset protection for commands, agents, and ToC stores
-      - Legacy-to-current migration path for category-based ToC and search components
-      - Version identifier schema for determining file management state
-      - Test cases for legacy detection and asset preservation
-      - Non-functional requirements for ToC store retention and version identifier matching
-      - Clean break rationale with automatic migration not applicable
+      - Evolution of doc-advisor structure across versions (v2.0, v3.x, current) with command/search/configuration/classification changes
+      - "Upgrade principles: identifier-based protection, user asset preservation, runtime output respect"
+      - Plugin environment application with manager-controlled file installation and user workspace independence
+      - Legacy file detection (v2.0 commands, v3.x config, doc_structure.yaml) with user guidance
+      - User asset protection in commands/, agents/, and ToC runtime output directories
+      - Old ToC and configuration migration (clean break policy, non-automatic regeneration)
+      - Legacy search component replacement (advisor agents and query-* skills to query-docs)
+      - Identifier-based file management with doc-advisor-version marker and cleanup criteria
     applicable_tasks:
-      - Planning Doc Advisor version upgrades
-      - Detecting legacy v2.0 and v3.x installations
-      - Migrating existing ToC stores to current structure
-      - Protecting user-created assets during updates
-      - Understanding version identifier-based file protection
-      - Advising users on deprecated components replacement
+      - Plugin upgrade path and version management planning
+      - Legacy file detection and cleanup workflow
+      - User migration guidance documentation
+      - Test case design for upgrade scenarios
+      - ToC regeneration workflow coordination
+      - File protection and identification policy implementation
     keywords:
       - upgrade
+      - legacy files
       - migration
-      - legacy
-      - version
-      - identifier
-      - ToC store
       - clean break
-      - key+path interface
-      - file protection
+      - doc-advisor-version
+      - identifier-based protection
+      - user assets
+      - ToC regeneration
+      - query-docs
+      - category deprecation
   docs/specs/base/requirements/REQ-003_versioned_migration.md:
     title: Stepwise Version Migration Requirements Definition
     purpose: Defines a framework for backward-compatible data format migration through incremental version updates
@@ -622,35 +702,35 @@ docs:
       - rollback
       - toc.yaml
   docs/specs/common/design/COMMON-DES-001_skill_base_design.md:
-    title: SKILL Base Design (Common-DES-001)
-    purpose: Defines the foundational design principles, execution models, and responsibilities for SKILL creation and management, including fork vs. inheritance type decisions and call argument governance
+    title: SKILL Base Design Specification
+    purpose: Defines the foundational design principles for SKILL execution models, fork vs. inheritance decision criteria, and multi-layered defense architecture for context isolation
     content_details:
-      - SKILL execution models (fork type and inheritance type with context inheritance rules)
-      - Fork type adoption criteria and individual decision-making process with mandatory list management
-      - SKILL call arguments principles (required vs. prohibited argument types with concrete examples)
-      - SKILL launch path selection decision procedure and tool category guidelines
-      - Fork type SKILL list with specific entries (query-docs SKILL and fork adoption rationale)
-      - Inheritance type SKILL responsibility boundaries and Role constraint documentation
+      - SKILL execution models (fork vs. inheritance) with context inheritance behavior
+      - Default inheritance principle and fork adoption criteria with judgment matrix
+      - SKILL argument passing rules (what is and is not allowed to pass)
+      - Launch path selection decision procedure with 5 steps from bash subprocess to SKILL type determination
+      - Fork-type SKILL formal list with fork adoption basis documentation requirement
+      - Inheritance-type SKILL responsibility boundaries and internal worker constraints
       - Multi-layered defense architecture (fork boundary, Role constraints, allowlist, physical deny)
-      - Static validation tests for fork type SKILL frontmatter and constraint documentation
-      - Related references including ADR-002 isolation requirements and skill authoring rule documentation
+      - Static validation rules for fork-type and inheritance-type dispatcher SKILLs
+      - Governance requirements for fork-type SKILL list maintenance as Single Source of Truth
     applicable_tasks:
       - SKILL design and architecture decision-making
-      - Fork vs. inheritance type determination for new SKILLs
-      - SKILL responsibility boundary definition and constraint documentation
-      - Multi-layer security and isolation control implementation
-      - SKILL governance and audit verification
+      - New SKILL development and type selection (fork vs. inheritance)
+      - SKILL argument design and caller responsibility definition
+      - Launch path selection for new execution units
+      - Test strategy design for SKILL isolation
+      - Fork-type SKILL governance and list management
     keywords:
-      - SKILL design
-      - fork type
-      - inheritance type
-      - context isolation
-      - Role constraints
-      - ADR-002
-      - subagent
-      - call arguments
-      - static validation
-      - security layers
+      - SKILL execution model
+      - fork vs. inheritance context isolation
+      - Role constraints and allowlist
+      - "context: fork frontmatter"
+      - multi-layered defense
+      - dispatcher + worker pattern
+      - ADR-002 query-skill-subagent-isolation
+      - argument passing rules
+      - SoT Single Source of Truth list management
   docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md:
     title: Versioned Migration Requirements
     purpose: Defines a framework for backward-compatible data migration across versions, enabling old version data to be converted to current version format
@@ -706,159 +786,143 @@ docs:
       - pure function
   formats/toc_format.md:
     title: ToC YAML Format Definition
-    purpose: Specifies the schema, structure, and field guidelines for creating and validating ToC entries that index documents for AI agent search
+    purpose: Defines the YAML schema and intermediate file format for ToC entries that support task-based document search and indexing
     content_details:
-      - Intermediate file schema for pending work files with per-key directory structure
-      - Filename generation rule using SHA256 hash of source file path
-      - Entry YAML structure with _meta fields and toc fields
-      - Final output YAML schema with metadata and docs object
+      - Intermediate file schema for pending work files with hash-based naming
+      - _meta field definitions including source_file, status, updated_at, claimed_at, error_message
+      - YAML schema definition with metadata and docs structure
+      - Document entry format with title, purpose, content_details, applicable_tasks, keywords
       - Field guidelines for purpose, content_details, applicable_tasks, keywords
-      - Complete examples for rules-style and specs-style key ToC
-      - YAML formatting rules including indentation, arrays, no null values
-      - Language rule requiring all field values in English
-      - Key principles including no doc_type field and path format requirements
+      - Language rule requiring all field values in English for consistent search
+      - YAML formatting rules for indentation, spacing, arrays, and no null values
+      - Key principles including no doc_type field and hash-based filename generation
     applicable_tasks:
-      - Creating ToC entries for document indices
-      - Validating key toc.yaml structure and completeness
-      - Designing document metadata for AI agent search
-      - Implementing ToC generation workflows
-      - Training on doc-advisor schema requirements
+      - Creating and validating ToC entries
+      - Implementing toc-updater agent extraction logic
+      - Setting up document indexing for query-docs SKILL
+      - Designing schemas for document metadata
     keywords:
       - ToC
       - YAML schema
-      - metadata extraction
       - document indexing
-      - field guidelines
-      - SHA256 hash
+      - pending work files
+      - field extraction
+      - keyword matching
+      - schema validation
       - search index
   skills/index-docs/SKILL.md:
     title: index-docs SKILL
-    purpose: SKILL that generates or updates document ToC indices from key and project-root-relative paths using desired-state pipeline for both key-driven and single-mode all indexing.
+    purpose: Generate or update ToC index from document paths using desired-state pipeline with prepare-fill-merge orchestration and continuous dispatch for parallel metadata extraction
     content_details:
-      - "desired-state pipeline: prepare_toc → toc-updater parallel metadata fill → merge_toc"
-      - "Argument specifications: --key, --paths-json, --dirs-json, --exclude-json, --paths-file, --all"
-      - "Step 0: Continuation detection via .toc_work residue (pending/completed/nonexistent states)"
-      - "Step 0.5: Directory expansion (rglob) for --dirs-json with rejection handling"
-      - "Step 1: prepare phase - path validation, desired-state diff detection, pending YAML generation"
-      - "Step 2: toc-updater custom Agent parallel execution (max 5 concurrent, batch progress reporting)"
-      - "Step 3: merge phase - backup, atomic write, validation, checksums update, .toc_work cleanup"
-      - "Step 4: Completion report with summary (mode, counts, path, error list)"
-      - Continuation manual cleanup - --clean-work-dir and --promote-pending for maintenance scenarios
+      - Usage patterns with key and paths-json/dirs-json/paths-file arguments
+      - Continuation and resumption with work-status detection and claim/lease mechanism
+      - Desired-state diff detection via prepare_toc.py with added/updated/deleted/unchanged counts
+      - Pending YAML generation and independent toc-updater Agent dispatch in sliding-window parallel fashion
+      - External symlink approval workflow for root-crossing path security
+      - Error handling with error_pending categorization and merge-blocking logic
+      - Merge orchestration with backup-replace-validate cycle and checksum atomicity
+      - Required reference documents including toc_orchestrator.md and toc_format.md specifications
     applicable_tasks:
-      - Generate ToC index for new document set
-      - Update ToC for modified or new documents
-      - Rebuild ToC from scratch (full desired-state)
-      - Detect and merge document set changes
-      - Parallel metadata extraction workflow
-      - Continuation recovery from interrupted processing
+      - Generate ToC index for new document key
+      - Update existing ToC for modified documents
+      - Re-index all Markdown files in single mode
+      - Manage continuation and resumption of interrupted ToC generation
+      - Validate and approve external symlink references
+      - Diagnose ToC generation errors and failures
     keywords:
-      - ToC
       - index-docs
-      - desired-state
+      - ToC
+      - toc_orchestrator
       - prepare_toc
       - merge_toc
       - toc-updater
-      - continuation
-      - batch processing
+      - desired-state
+      - continuous-dispatch
+      - pending
+      - claim-lease
   skills/query-docs/SKILL.md:
-    title: Query Documents Skill
-    purpose: Search project documents by keyword or natural language task description, returning prioritized document paths with read-only access
+    title: Query Documents SKILL
+    purpose: Dispatches document search requests by keyword and task description, coordinating with a read-only query-worker agent to return prioritized relevant document paths
     content_details:
-      - Key determination from task description arguments
-      - Table of Contents retrieval via get_toc.py script
-      - Natural language task query interpretation
-      - Error handling for TOC_NOT_FOUND and KEY_RESERVED status codes
-      - Deep relevance judgment reading all ToC entries
-      - Final document confirmation via Read tool
-      - False negative prevention policy
-      - Path list output in Required documents format
-      - Constraints on fork and read-only execution mode
-      - Self-recursion prohibition to prevent infinite loops
+      - Dispatcher role and worker separation with isolated contexts
+      - Read-only constraint prohibiting write tools and git operations
+      - Arguments interpretation and task description normalization
+      - Guidance loading from optional vocabulary.md and querying.md files
+      - Worker prompt normalization converting parent tasks into search requests
+      - Worker output validation for Required documents or Query error format
+      - Error handling with TOC_NOT_FOUND and KEY_RESERVED codes and user guidance
     applicable_tasks:
-      - Document search by keyword
-      - Reference material discovery during design phase
-      - Implementation context gathering
-      - Code review documentation lookup
-      - Dependency analysis across documents
-    keywords:
-      - search
-      - fork
-      - read-only
-      - table of contents
-      - query
-      - get_toc
-      - task description
-      - keyword matching
-      - document discovery
-  workflows/query_toc_workflow.md:
-    title: ToC Query Workflow
-    purpose: Describes the workflow for retrieving candidate documents from a ToC index based on task descriptions, including filtering and ranking procedures.
-    content_details:
-      - Parameter definitions (key, task, filter_paths)
-      - Main search procedure using get_toc.py
-      - Error handling for TOC_NOT_FOUND and reserved key validation
-      - Filter procedure for large ToC (100+ entries)
-      - "Critical rule: deep comprehension before matching"
-      - False negative prevention and complete reading requirement
-    applicable_tasks:
-      - Document search implementation
-      - ToC query validation
-      - Task-document matching
+      - Search for documents during feature implementation
+      - Find relevant rules and specifications during design phase
+      - Locate documentation during code review
+      - Identify applicable documents during architecture decisions
+      - Resolve document dependencies for complex tasks
     keywords:
       - query-docs
-      - get_toc.py
-      - key matching
+      - document search
+      - dispatcher
+      - task description
+      - keyword matching
+      - search request
+      - worker agent
       - ToC search
-      - filter procedure
+      - guidance
+      - read-only
+  workflows/query_toc_workflow.md:
+    title: ToC Search Workflow (key + path Interface)
+    purpose: Defines the procedure for query-worker Agent to search ToC by key and task description, extract candidate documents, and perform relevance judgment.
+    content_details:
+      - ToC retrieval by key using get_toc.py
+      - Full entry analysis from YAML format
+      - Filter procedure for large ToC (100+ entries) using path constraints
+      - Task-based relevance matching without lexical ranking
+      - Error handling for missing ToC (TOC_NOT_FOUND) and reserved key (KEY_RESERVED)
+      - False negative avoidance strategy (when uncertain, include the document)
+      - "Single-mode fallback to 'all' key when key is omitted"
+      - Query error reporting with specific error codes to dispatcher
+    applicable_tasks:
+      - Document search by task description
+      - ToC access troubleshooting
+      - Agent-based document retrieval
+      - Relevance judgment from task context
+      - Key and path interface validation
+    keywords:
+      - query-worker
+      - ToC search
+      - get_toc.py
+      - key parameter
+      - relevance matching
+      - YAML format
+      - filter paths
+      - FR-N05
   workflows/toc_orchestrator.md:
     title: ToC Orchestrator Workflow
-    purpose: Coordinates key-based ToC generation by orchestrating prepare, parallel fill via toc-updater agents, and merge phases
+    purpose: "Canonical orchestrator workflow to generate or update a key's ToC from desired-state paths, covering Phase 0-3 (continuation, prepare, continuous-dispatch fill, merge) with error handling and resumption support."
     content_details:
-      - Continuation detection and phase 0 logic
-      - Desired-state diff and pending YAML generation
-      - Parallel toc-updater agent execution with context management rules
-      - Atomic merge and validation
-      - Store directory layout per key
-      - Error handling for agent and merge failures
-      - Custom agent launch examples and parameters
-      - Checksums and work directory responsibility
-      - Completion report format
-      - Dry-run capability for prepare phase
+      - Phase 0 continuation determination using toc_store.py --work-status with lease-ttl handling
+      - Phase 1 prepare with desired-state diff and pending YAML generation from paths
+      - Continuous-dispatch fill with sliding-window and claim/lease to prevent double-dispatch
+      - Batched grouping of same-directory neighbors (1-k entries per Agent, max_batch parameter)
+      - Phase 2.5 error handling for failed entries (error_pending) with retry/merge/abort options
+      - Phase 3 merge with atomic write and internal checksum promotion
+      - Store directory structure (.toc_work, .toc_checksums.yaml) and transient artifact management
+      - Validation covering YAML syntax, required fields, and entry key format
     applicable_tasks:
-      - Orchestrating key-based ToC generation
-      - ToC update with parallel agent coordination
-      - Error recovery and continuation handling
-      - Validating and merging ToC metadata
+      - ToC generation and update orchestration
+      - index-docs SKILL execution coordination
+      - Continuation after interrupted run
+      - Multi-file batch processing with parallelism
+      - Error recovery and retry logic
+      - Custom Agent dispatch and monitoring
+      - Quality validation before final merge
     keywords:
-      - orchestrator
-      - prepare phase
-      - toc-updater agent
-      - merge phase
-      - pending YAML
-      - continuation detection
-      - desired-state diff
-      - context management
-  workflows/toc_update_workflow.md:
-    title: ToC Update Workflow
-    purpose: "Describes the per-key pending entry file method for updating a key's ToC, including the prepare-fill-merge three-phase pipeline with parallel custom Agent processing"
-    content_details:
-      - Store directory structure with .toc_work pending YAMLs
-      - Per-key pending entry file method with SHA-256 hash-based filenames
-      - Three-phase workflow (prepare desired-state diff, parallel fill via custom Agents, merge with deletion reflection)
-      - Custom Agent processing steps (read source, extract metadata fields, write via write_pending.py)
-      - Completion validation (status check, required fields) before merge
-      - Backup and atomic restoration on merge failure
-      - Checksums update and work directory cleanup on success
-    applicable_tasks:
-      - ToC generation for a key
-      - Document metadata extraction for search indexing
-      - Parallel processing orchestration of document entries
-      - Desired-state sync workflow implementation
-    keywords:
-      - ToC
-      - pending entry file
-      - prepare-fill-merge pipeline
-      - custom Agent
-      - desired-state diff
-      - metadata extraction
-      - atomic write
+      - toc_orchestrator
+      - prepare_toc.py
+      - merge_toc.py
+      - toc_store.py
+      - continuous-dispatch
+      - claim/lease
+      - sliding-window
+      - pending_groups
+      - batching
+      - desired-state

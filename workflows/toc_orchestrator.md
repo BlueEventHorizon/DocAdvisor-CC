@@ -27,7 +27,8 @@ into another workflow document.
 
 ### Design Philosophy
 
-- **1 file = 1 custom Agent**: Each added/updated document is processed individually via the `doc-advisor:toc-updater` custom Agent.
+- **1 group = 1 custom Agent**: Added/updated documents are processed via the `doc-advisor:toc-updater` custom Agent, one Agent per same-directory group of 1〜k documents (ADR-006 案 B). Each document is extracted independently within the Agent (context rot 回避).
+- **Continuous dispatch (sliding-window)**: groups are dispatched with a parallel window and refilled as each completes (ADR-006 / Issue #29), guarded by claim/lease so no group is dispatched twice.
 - **Persistent artifacts**: Each custom Agent's output remains as a pending file until merge.
 - **Resumable**: Completed work is preserved on interruption; Phase 0 resumes from incomplete per-key work.
 - **Single Source of Truth**: `formats/toc_format.md` defines the ToC and pending file schemas.
@@ -94,7 +95,10 @@ Before preparing, decide whether to resume an interrupted run. **Do not derive `
 (Issue #22):
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status   # single mode: --all
+# On resume, pass --lease-ttl 0 so a previous session's claim leftovers (in-flight) are treated
+# as stale and returned to pending. In a new session the previous Agents have certainly ended,
+# so there is no double-dispatch risk.
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status --lease-ttl 0   # single mode: --all
 ```
 
 It emits JSON with `next_action` / `pending` (project-root-relative entry_files) / `completed` /
@@ -150,7 +154,12 @@ unapproved external paths are then dropped with warnings and processing continue
 > **Dry-run (optional)**: add `--dry-run` to `prepare_toc.py` to print `counts` and path lists
 > without writing. If destructive deletions are unexpected, confirm with the user before continuing.
 
-### Phase 2: Parallel fill (toc-updater custom Agent)
+### Phase 2: Continuous-dispatch fill (toc-updater custom Agent)
+
+Fill is **continuous dispatch (sliding-window)** (ADR-006 / Issue #29): keep a parallel window of
+running Agents and, as each group completes, immediately dispatch the next un-dispatched group.
+This removes the mid-run tail wait of barrier (wave) batching. Double-dispatch is prevented by
+**claim/lease (script side)** — not by a barrier.
 
 > **⚠️ Context Management [IMPORTANT]**
 >
@@ -160,35 +169,67 @@ unapproved external paths are then dropped with warnings and processing continue
 > **Rules:**
 >
 > - Subagents return minimal responses (defined in the agent's "Completion Response" section)
-> - After each batch completes, output a brief progress summary (e.g., "Batch 2/10 complete, 40 remaining")
-> - Keep orchestrator messages minimal between batches
-> - **Do NOT use `run_in_background: true`** — it breaks the Phase 2 loop
->   (pending check races with task completion, causing duplicate processing)
+> - After each completion, output a brief progress summary (e.g., "completed 12/29, 5 in-flight")
+> - Keep orchestrator messages minimal between completions
+> - State (completed / in-flight / un-dispatched) lives in `--work-status` (the script), NOT in the
+>   conversation. Drive every refill decision from `next_action`. If context overflows mid-session,
+>   start a new session and re-run the same command; `store_dir/.toc_work/` with completed entries
+>   is preserved, Phase 0 (`--lease-ttl 0`) returns claim leftovers to pending, and continuation
+>   resumes from pending only (per-key).
 >
-> **For large projects (100+ files):**
+> **Parallelism (large projects, 100+ files):**
 >
-> - Consider reducing parallel batch size to 3 to lower API load and context growth
-> - If context overflows mid-session, start a new session and re-run the same command.
->   `store_dir/.toc_work/` with completed entries is preserved; Phase 0 detects it and
->   resumes from pending files only (per-key continuation)
+> - The default window is **10 concurrent Agents** (実証済み安全圏, ADR-006 案 A).
+>   On a low API tier hitting 429 (rate limit), lower it to 5, then 3. Do **not** raise above 10
+>   (only 10 is verified; 20/30 risk ramp-up・tail・rate effects).
+> - 限定バッチング（ADR-006 案 C/B）: each Agent processes a `pending_groups` group of
+>   1〜k 件（既定 k=3）of same-directory neighbors, cutting launch count and 規約再読 by ~1/k
+>   while keeping each document independently extracted (context rot 回避).
 
-**Note**: Do not hand-list or hand-filter the work dir. Get the pending entry_files from
-`toc_store.py --work-status` (`pending` field) — never `ls .toc_work/*.yaml` + `_meta.status`
-reading by the AI.
+**Note**: Do not hand-list or hand-filter the work dir, and do not hand-group entries. Get the
+pre-grouped batches from `toc_store.py --work-status` (`pending_groups` field) — never
+`ls .toc_work/*.yaml` + `_meta.status` reading, nor manual neighbor grouping, by the AI
+(determinism is the script's job). `pending` (flat list) remains available for counting.
+
+Refill is "as many as the free slots", NOT fixed to one-per-completion.
 
 ```
-1. Take `pending` (project-root-relative entry_files) from `--work-status`.
+1. Get `pending_groups` (un-dispatched) and `in_flight_groups` (dispatched, running, Agent-sized
+   groups) from `--work-status`. Each group (same-directory neighbors, ≤ max_batch) → one Agent.
     ↓
-2. Use max_workers = 5 (default).
-   CRITICAL: Launch up to N Agent tool calls in a SINGLE assistant message.
-   Do NOT launch them one at a time in separate messages — this defeats parallelism.
-   Pass key (or `all` for single mode) and the entry_file (project-root-relative).
+2. Compute available = window − len(in_flight_groups). For the first min(available, #groups) groups,
+   "claim → launch run_in_background" each. On a 429 low tier, reduce the window to 5 → 3.
     ↓
-3. Wait for all N tasks to complete; output a brief progress summary.
+3. On any Agent completion notification, go back to 1 (re-run `--work-status`, recompute available,
+   refill the free slots). When `next_action` is:
+     wait   → nothing un-dispatched, in-flight only: wait for remaining completions
+     merge  → Phase 3
+     blocked → Phase 2.5 (error handling)
     ↓
-4. Re-run `--work-status`. If `next_action: fill` → return to step 1;
-   `merge` → Phase 3; `blocked` → Phase 2.5 (error handling).
+4. When all groups are completed (`next_action: merge`) → Phase 3.
 ```
+
+> **Claim before launch [MANDATORY]**: claim the group's entry_files with
+> `toc_store.py --claim <entry...>` (stamps `claimed_at`) right before launching its Agent. The
+> next `--work-status` then treats it as **in-flight** and drops it from `pending`, so the
+> sliding-window never re-dispatches a running group. Launching without claiming first re-dispatches.
+> `--claim` returns `claimed` / `rejected` — **pass only `claimed` as the Agent's entry_files;
+> never pass `rejected`** (`completed` / `already_claimed` / `error_pending` / `outside_work_dir`,
+> etc.). If `claimed` is empty, do not launch that group (the next `--work-status` corrects state).
+>
+> **Count slots by Agents, not entries [IMPORTANT]**: the window is "concurrent Agents", and one
+> Agent processes a group of up to `max_batch` entries. Compute available from
+> **`len(in_flight_groups)` (running Agent count)**, never `len(in_flight)` (entry count) — using
+> entries over-subtracts, goes negative, and stops refilling (collapsing back to wave behavior).
+>
+> **Refill the free slots [IMPORTANT]**: multiple completion notifications can batch up before the
+> conversation resumes (compaction / notification delay). One-per-completion refill cannot keep the
+> window full when several Agents finish at once, slowing the run. Recompute `available` each time
+> and refill all free slots.
+>
+> **Batch size override**: `--work-status` groups by `--max-batch N` (default 3). Pass
+> `--max-batch 1` to disable batching (one file per Agent) — useful when diagnosing extraction
+> quality. Group size never crosses directory boundaries regardless of N.
 
 ### Phase 2.5: Fill-error handling (`next_action: blocked` only)
 
@@ -240,19 +281,31 @@ and preserves `.toc_work/` for continuation.
 
 ## Custom Agent Launch Examples
 
+Each group is dispatched as "claim → launch run_in_background" within the sliding window
+(filenames are SHA256 hashes of the source paths). A group is 1〜max_batch same-directory
+entry_files passed together to one Agent.
+
+```bash
+# claim the group's entry_files immediately before launching (single mode: --all)
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key {key} --claim <entry1> <entry2>
 ```
-# Launch 5 in parallel (filenames are SHA256 hashes of the source paths)
-# key specified
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml")
-... (up to 5)
+
+```
+# key specified — single-entry group:
+Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
+      prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
+# key specified — batched group (k entries from the same directory):
+Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
+      prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml, .claude/doc-advisor/toc/<slug>/.toc_work/fedcba0987654321.yaml")
 
 # single mode (reserved key all): pass `all` instead of a key
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
+      prompt: "all (single mode), entry_files: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > In single mode the agent uses `write_pending.py --all` (`--key all` is rejected as a user-specified key).
-> `entry_file` is passed project-root-relative.
+> `entry_files` are passed project-root-relative. A group never mixes documents from different
+> directories (context rot 回避); the agent extracts each document independently.
 
 ---
 

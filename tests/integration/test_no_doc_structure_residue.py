@@ -19,9 +19,8 @@ doc_structure 依存が再混入していないことを **静的に** 検査す
   ConfigNotReadyError）が toc_utils.py に存在しない
 
 検査対象外:
-- `.claude/` 配下のローカル限定 skill（swap-doc-config 等）。これは
-  `.doc_structure.yaml` を一時切替する skill 自体であり、配布物でも
-  通常実行経路でもない（CLAUDE.md: `.claude/` 配下はテスト対象外）。
+- `.claude/` 配下のローカル限定 skill。配布物でも通常実行経路でもない
+  （CLAUDE.md: `.claude/` 配下はテスト対象外）。
 """
 
 import unittest

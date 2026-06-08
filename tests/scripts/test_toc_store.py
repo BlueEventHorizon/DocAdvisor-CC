@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # テスト対象モジュールの import
@@ -49,6 +50,9 @@ from toc_store import (
     promote_pending,
     clean_work_dir,
     work_status,
+    group_pending_by_dir,
+    claim_entries,
+    DEFAULT_LEASE_TTL_SEC,
 )
 
 TOC_STORE_SCRIPT = os.path.join(SCRIPTS_DIR, 'toc_store.py')
@@ -320,11 +324,13 @@ class TestWorkStatus(unittest.TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def _write_entry(self, name, *, status="pending", source_file="rules/a.md",
-                     error_message=None):
+                     error_message=None, claimed_at=None):
         self.work_dir.mkdir(parents=True, exist_ok=True)
         lines = ["_meta:", f"  source_file: {source_file}", f"  status: {status}"]
         if error_message is not None:
             lines.append(f"  error_message: {error_message}")
+        if claimed_at is not None:
+            lines.append(f"  claimed_at: {claimed_at}")
         lines.append("title: T")
         (self.work_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -383,6 +389,304 @@ class TestWorkStatus(unittest.TestCase):
         self.assertEqual(r["pending"], [])
         self.assertEqual(r["completed"], 0)
         self.assertEqual(r["next_action"], "merge")
+
+    def test_pending_groups_same_dir_batched(self):
+        # 同一ディレクトリの pending は最大 max_batch 件にまとめる（案 B）。
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("b.yaml", status="pending", source_file="rules/b.md")
+        self._write_entry("c.yaml", status="pending", source_file="rules/c.md")
+        r = work_status(self.store_dir, self.root, max_batch=3)
+        # rules/ の 3 件が 1 グループにまとまる
+        self.assertEqual(len(r["pending_groups"]), 1)
+        self.assertEqual(len(r["pending_groups"][0]), 3)
+        # flat pending は従来どおり全件
+        self.assertEqual(len(r["pending"]), 3)
+
+    def test_pending_groups_split_across_dirs(self):
+        # 異なるディレクトリは混ぜない（rot 回避）。
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("s.yaml", status="pending", source_file="specs/s.md")
+        r = work_status(self.store_dir, self.root, max_batch=3)
+        self.assertEqual(len(r["pending_groups"]), 2)
+        for g in r["pending_groups"]:
+            self.assertEqual(len(g), 1)
+
+    def test_max_batch_one_disables_batching(self):
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("b.yaml", status="pending", source_file="rules/b.md")
+        r = work_status(self.store_dir, self.root, max_batch=1)
+        self.assertEqual(len(r["pending_groups"]), 2)
+        self.assertEqual([len(g) for g in r["pending_groups"]], [1, 1])
+
+    # --- claim/lease（連続ディスパッチ / Issue #29）---
+
+    def test_active_lease_excluded_from_pending(self):
+        # 有効リース中（claim 済み・TTL 内）の entry は in_flight に入り pending から外れる。
+        now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md",
+                          claimed_at=toc_store._utc_now_iso(now))
+        r = work_status(self.store_dir, self.root, now=now, lease_ttl=900)
+        self.assertEqual(r["pending"], [])
+        self.assertEqual(r["pending_groups"], [])
+        self.assertEqual(r["in_flight"], ["store/.toc_work/a.yaml"])
+        # 投入可能 pending 無 + in_flight 有 → wait（merge/blocked にしない）
+        self.assertEqual(r["next_action"], "wait")
+
+    def test_stale_lease_returns_to_pending(self):
+        # TTL を超えた claim（停止 agent）は stale として pending に戻り再投入対象になる。
+        now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        stale = toc_store._utc_now_iso(now - timedelta(seconds=901))
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md",
+                          claimed_at=stale)
+        r = work_status(self.store_dir, self.root, now=now, lease_ttl=900)
+        self.assertEqual(r["pending"], ["store/.toc_work/a.yaml"])
+        self.assertEqual(r["in_flight"], [])
+        self.assertEqual(r["next_action"], "fill")
+
+    def test_unclaimed_entry_is_pending_backward_compat(self):
+        # claimed_at の無い従来 pending は in_flight に入らず従来どおり fill 対象。
+        now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        r = work_status(self.store_dir, self.root, now=now)
+        self.assertEqual(r["pending"], ["store/.toc_work/a.yaml"])
+        self.assertEqual(r["in_flight"], [])
+        self.assertEqual(r["next_action"], "fill")
+
+    def test_fill_takes_precedence_over_in_flight(self):
+        # 未 claim pending と in-flight が併存 → 空きスロットへ投入できるため fill 優先。
+        now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._write_entry("a.yaml", status="pending", source_file="rules/a.md")
+        self._write_entry("b.yaml", status="pending", source_file="rules/b.md",
+                          claimed_at=toc_store._utc_now_iso(now))
+        r = work_status(self.store_dir, self.root, now=now, lease_ttl=900)
+        self.assertEqual(r["pending"], ["store/.toc_work/a.yaml"])
+        self.assertEqual(r["in_flight"], ["store/.toc_work/b.yaml"])
+        self.assertEqual(r["next_action"], "fill")
+
+    def test_completed_not_treated_as_in_flight(self):
+        # completed は claimed_at の有無に関係なく completed として数える（リース判定しない）。
+        now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._write_entry("a.yaml", status="completed", source_file="rules/a.md",
+                          claimed_at=toc_store._utc_now_iso(now))
+        r = work_status(self.store_dir, self.root, now=now, lease_ttl=900)
+        self.assertEqual(r["completed"], 1)
+        self.assertEqual(r["in_flight"], [])
+        self.assertEqual(r["next_action"], "merge")
+
+    def test_in_flight_grouped_by_agent_not_entries(self):
+        # in_flight は Agent 単位（同一ディレクトリ・max_batch）にグループ化される。
+        # len(in_flight_groups) = 走行中 Agent 数で、entry 数の len(in_flight) とは異なる。
+        now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        ts = toc_store._utc_now_iso(now)
+        for name, src in [("a", "rules/a.md"), ("b", "rules/b.md"),
+                          ("c", "rules/c.md"), ("d", "specs/d.md")]:
+            self._write_entry(f"{name}.yaml", status="pending", source_file=src, claimed_at=ts)
+        r = work_status(self.store_dir, self.root, max_batch=3, now=now, lease_ttl=900)
+        # entry は 4 件だが、Agent 単位グループは rules[3] + specs[1] = 2
+        self.assertEqual(len(r["in_flight"]), 4)
+        self.assertEqual(len(r["in_flight_groups"]), 2)
+        self.assertEqual(sorted(len(g) for g in r["in_flight_groups"]), [1, 3])
+
+
+class TestClaimEntries(unittest.TestCase):
+    """claim_entries（連続ディスパッチの claim/lease / Issue #29）のテスト。"""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = Path(self.tmpdir)
+        self.store_dir = self.root / "store"
+        self.work_dir = self.store_dir / toc_store.WORK_DIRNAME
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        self.now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_pending(self, name, *, status="pending", source_file="rules/a.md",
+                       error_message=None, claimed_at=None):
+        # prepare_toc が生成する pending テンプレートを模す（本体は null/[]）。
+        lines = ["_meta:", f"  source_file: {source_file}", f"  status: {status}"]
+        if error_message is not None:
+            lines.append(f"  error_message: {error_message}")
+        if claimed_at is not None:
+            lines.append(f"  claimed_at: {claimed_at}")
+        lines += ["", "title: null", "purpose: null",
+                  "content_details: []", "applicable_tasks: []", "keywords: []", ""]
+        (self.work_dir / name).write_text("\n".join(lines), encoding="utf-8")
+        return f"store/.toc_work/{name}"
+
+    def test_claim_stamps_claimed_at_and_marks_in_flight(self):
+        rel = self._write_pending("a.yaml")
+        res = claim_entries(self.store_dir, self.root, [rel], now=self.now)
+        self.assertEqual(res["claimed"], [rel])
+        self.assertEqual(res["rejected"], [])
+        # claim 後は work_status で in_flight に入る
+        ws = work_status(self.store_dir, self.root, now=self.now)
+        self.assertEqual(ws["in_flight"], [rel])
+        self.assertEqual(ws["pending"], [])
+
+    def test_claim_rejects_already_claimed(self):
+        # 有効リース中の entry を再 claim → already_claimed で拒否（二重投入防止）。
+        rel = self._write_pending("a.yaml",
+                                  claimed_at=toc_store._utc_now_iso(self.now))
+        res = claim_entries(self.store_dir, self.root, [rel], now=self.now, lease_ttl=900)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(len(res["rejected"]), 1)
+        self.assertEqual(res["rejected"][0]["reason"], "already_claimed")
+
+    def test_claim_reclaims_stale_lease(self):
+        stale = toc_store._utc_now_iso(self.now - timedelta(seconds=901))
+        rel = self._write_pending("a.yaml", claimed_at=stale)
+        res = claim_entries(self.store_dir, self.root, [rel], now=self.now, lease_ttl=900)
+        self.assertEqual(res["claimed"], [rel])
+
+    def test_claim_rejects_completed(self):
+        rel = self._write_pending("a.yaml", status="completed")
+        res = claim_entries(self.store_dir, self.root, [rel], now=self.now)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "completed")
+
+    def test_claim_rejects_error_pending(self):
+        rel = self._write_pending("a.yaml", error_message="boom")
+        res = claim_entries(self.store_dir, self.root, [rel], now=self.now)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "error_pending")
+
+    def test_claim_rejects_not_found(self):
+        res = claim_entries(self.store_dir, self.root,
+                            ["store/.toc_work/missing.yaml"], now=self.now)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "not_found")
+
+    def test_claim_rejects_outside_work_dir(self):
+        # 別 key の .toc_work や work_dir 外のパスは outside_work_dir で reject（key 分離保全）。
+        other = self.root / "other_store" / toc_store.WORK_DIRNAME
+        other.mkdir(parents=True, exist_ok=True)
+        (other / "x.yaml").write_text(
+            "_meta:\n  source_file: rules/x.md\n  status: pending\n\ntitle: null\n",
+            encoding="utf-8",
+        )
+        res = claim_entries(self.store_dir, self.root,
+                            ["other_store/.toc_work/x.yaml"], now=self.now)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "outside_work_dir")
+        # 配下外 YAML には claimed_at が書かれていない（書き込み副作用なし）
+        self.assertNotIn("claimed_at", (other / "x.yaml").read_text(encoding="utf-8"))
+
+    def test_claim_rejects_traversal(self):
+        # .. を含む traversal で work_dir 外を指すパスは reject される。
+        outside = self.root / "secret.yaml"
+        outside.write_text("_meta:\n  source_file: x\n  status: pending\n\ntitle: null\n",
+                           encoding="utf-8")
+        res = claim_entries(self.store_dir, self.root,
+                            ["store/.toc_work/../../secret.yaml"], now=self.now)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "outside_work_dir")
+        self.assertNotIn("claimed_at", outside.read_text(encoding="utf-8"))
+
+    def test_claim_rejects_symlink_loop_without_crash(self):
+        # ループ symlink でも claim はクラッシュせず reject で返る（CLI の JSON 契約維持）。
+        # resolve() が OSError を投げる環境では outside_work_dir、例外を投げず broken 扱いに
+        # なる環境（macOS 等）では not_found になる。本質は「クラッシュしないこと」。
+        a = self.work_dir / "a.yaml"
+        b = self.work_dir / "b.yaml"
+        try:
+            os.symlink(b, a)
+            os.symlink(a, b)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlink not supported in this environment")
+        res = claim_entries(self.store_dir, self.root,
+                            ["store/.toc_work/a.yaml"], now=self.now)
+        self.assertEqual(res["claimed"], [])
+        self.assertEqual(len(res["rejected"]), 1)
+        self.assertIn(res["rejected"][0]["reason"], ("outside_work_dir", "not_found", "read_error"))
+
+    def test_claim_preserves_body_template(self):
+        # claim は _meta に claimed_at を足すだけで本体テンプレート（null/[]）を壊さない。
+        rel = self._write_pending("a.yaml")
+        claim_entries(self.store_dir, self.root, [rel], now=self.now)
+        text = (self.work_dir / "a.yaml").read_text(encoding="utf-8")
+        self.assertIn("claimed_at: 2026-01-01T12:00:00Z", text)
+        self.assertIn("title: null", text)
+        self.assertIn("content_details: []", text)
+        self.assertIn("source_file: rules/a.md", text)
+        self.assertIn("status: pending", text)
+
+    def test_claim_idempotent_after_stale_reclaim_updates_timestamp(self):
+        # stale を再 claim すると claimed_at が現在時刻で更新される（重複行を作らない）。
+        stale = toc_store._utc_now_iso(self.now - timedelta(seconds=901))
+        rel = self._write_pending("a.yaml", claimed_at=stale)
+        claim_entries(self.store_dir, self.root, [rel], now=self.now, lease_ttl=900)
+        text = (self.work_dir / "a.yaml").read_text(encoding="utf-8")
+        self.assertEqual(text.count("claimed_at:"), 1)
+        self.assertIn("claimed_at: 2026-01-01T12:00:00Z", text)
+
+    def test_claim_mixed_results(self):
+        # 一部 claim 可・一部不可が混在 → claimed / rejected に正しく振り分ける。
+        ok = self._write_pending("a.yaml", source_file="rules/a.md")
+        done = self._write_pending("b.yaml", status="completed", source_file="rules/b.md")
+        res = claim_entries(self.store_dir, self.root, [ok, done], now=self.now)
+        self.assertEqual(res["claimed"], [ok])
+        self.assertEqual([r["reason"] for r in res["rejected"]], ["completed"])
+
+
+class TestGroupPendingByDir(unittest.TestCase):
+    """group_pending_by_dir（ADR-006 案 B の決定論グルーピング）の純粋関数テスト。"""
+
+    def _entries(self, *pairs):
+        return [{"entry_file": ef, "source_file": sf} for ef, sf in pairs]
+
+    def test_chunks_within_dir(self):
+        # 同一ディレクトリ 5 件 / max_batch=3 → [3, 2]
+        entries = self._entries(
+            ("h1", "rules/a.md"), ("h2", "rules/b.md"), ("h3", "rules/c.md"),
+            ("h4", "rules/d.md"), ("h5", "rules/e.md"),
+        )
+        groups = group_pending_by_dir(entries, max_batch=3)
+        self.assertEqual([len(g) for g in groups], [3, 2])
+
+    def test_never_mixes_dirs(self):
+        entries = self._entries(
+            ("h1", "rules/a.md"), ("h2", "specs/x.md"), ("h3", "rules/b.md"),
+        )
+        groups = group_pending_by_dir(entries, max_batch=3)
+        # rules 2 件 / specs 1 件 → ディレクトリ越えで混ざらない
+        dirs = [{tuple(sorted(g))} for g in groups]
+        self.assertEqual(len(groups), 2)
+        sizes = sorted(len(g) for g in groups)
+        self.assertEqual(sizes, [1, 2])
+
+    def test_unknown_source_is_singleton(self):
+        # source_file 不明（読めなかった pending）は近傍判定できず単独グループ
+        entries = self._entries(("h1", "rules/a.md"))
+        entries.append({"entry_file": "h2", "source_file": None})
+        entries += self._entries(("h3", "rules/b.md"))
+        groups = group_pending_by_dir(entries, max_batch=3)
+        # h2 は必ず単独。rules の 2 件は 1 グループ
+        singletons = [g for g in groups if g == ["h2"]]
+        self.assertEqual(len(singletons), 1)
+
+    def test_deterministic_order(self):
+        entries = self._entries(
+            ("h3", "rules/c.md"), ("h1", "rules/a.md"), ("h2", "rules/b.md"),
+        )
+        g1 = group_pending_by_dir(entries, max_batch=3)
+        g2 = group_pending_by_dir(list(reversed(entries)), max_batch=3)
+        # 入力順に依らず同一結果（source_file ソートで安定）
+        self.assertEqual(g1, g2)
+
+    def test_top_level_files_grouped(self):
+        # 親ディレクトリなし（トップレベル）も同一「""」近傍としてまとまる
+        entries = self._entries(("h1", "README.md"), ("h2", "AGENTS.md"))
+        groups = group_pending_by_dir(entries, max_batch=3)
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(groups[0]), 2)
+
+    def test_max_batch_floor_one(self):
+        entries = self._entries(("h1", "rules/a.md"), ("h2", "rules/b.md"))
+        groups = group_pending_by_dir(entries, max_batch=0)
+        # max_batch < 1 は 1 に丸める
+        self.assertEqual([len(g) for g in groups], [1, 1])
 
 
 # ===========================================================================
@@ -502,6 +806,49 @@ class TestCli(unittest.TestCase):
         self.assertIn("toc_path", obj)
         self.assertIn(STORE_ROOT_REL, obj["toc_path"])
         self.assertTrue(obj["toc_path"].endswith("toc.yaml"))
+
+    def _write_pending_in_store(self, key, name, source_file="rules/a.md"):
+        store_dir = self._store_dir(key)
+        work_dir = store_dir / toc_store.WORK_DIRNAME
+        work_dir.mkdir(parents=True, exist_ok=True)
+        (work_dir / name).write_text(
+            "_meta:\n"
+            f"  source_file: {source_file}\n"
+            "  status: pending\n\n"
+            "title: null\npurpose: null\ncontent_details: []\n"
+            "applicable_tasks: []\nkeywords: []\n",
+            encoding="utf-8",
+        )
+        rel = (work_dir / name).relative_to(self.project_root)
+        return store_dir, rel.as_posix()
+
+    def test_claim_via_cli_then_work_status_in_flight(self):
+        """--claim が claimed を返し、後続 --work-status で in_flight・next_action=wait になる。"""
+        _store, rel = self._write_pending_in_store("rules", "aaa.yaml")
+        proc = self._run('--key', 'rules', '--claim', rel)
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertEqual(obj["claimed"], [rel])
+        self.assertEqual(obj["rejected"], [])
+        # 後続の work-status は claim 済みを in_flight に分類し wait を返す
+        proc2 = self._run('--key', 'rules', '--work-status')
+        obj2 = self._parse_stdout(proc2)
+        self.assertEqual(obj2["in_flight"], [rel])
+        self.assertEqual(obj2["pending"], [])
+        self.assertEqual(obj2["next_action"], "wait")
+
+    def test_claim_missing_entry_rejected_via_cli(self):
+        """work_dir 配下だが存在しない entry の --claim は rejected(not_found) を返す。"""
+        store_dir = self._store_dir("rules")
+        work_dir = store_dir / toc_store.WORK_DIRNAME
+        work_dir.mkdir(parents=True, exist_ok=True)
+        rel = (work_dir / "none.yaml").relative_to(self.project_root).as_posix()
+        proc = self._run('--key', 'rules', '--claim', rel)
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["claimed"], [])
+        self.assertEqual(obj["rejected"][0]["reason"], "not_found")
 
 
 if __name__ == '__main__':

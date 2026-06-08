@@ -28,19 +28,20 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 ```
 /doc-advisor:index-docs --key <key> --paths-json '["docs/a.md", "docs/b.md"]'
 /doc-advisor:index-docs --key <key> --dirs-json '["docs/rules/", "docs/specs/"]'
+/doc-advisor:index-docs --key <key> --dirs-json '["docs/specs/**/design/"]'   # グロブ可
 /doc-advisor:index-docs --key <key> --dirs-json '["docs/"]' --exclude-json '["docs/draft/"]'
 /doc-advisor:index-docs --key <key> --paths-file paths.json
 /doc-advisor:index-docs --all
 ```
 
-| Argument                 | Description                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）            |
-| `--paths-json '[...]'`   | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                  |
-| `--dirs-json '[...]'`    | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する   |
-| `--exclude-json '[...]'` | `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）           |
-| `--paths-file <path>`    | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                              |
-| `--all`                  | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする |
+| Argument                 | Description                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）                                                                                                                                                                                                                                                       |
+| `--paths-json '[...]'`   | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                                                                                                                                                                                                                                                             |
+| `--dirs-json '[...]'`    | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する。エントリにグロブメタ文字（`*` `?` `[`）を含めるとパターン展開（例 `docs/specs/**/design/`）。マッチしたディレクトリは配下を rglob、Markdown ファイルは直接採用                                                                              |
+| `--exclude-json '[...]'` | `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）。マッチ方式はシステム固定除外と同一: **裸名**（`/` なし、例 `plan`）は任意階層のディレクトリ名に完全一致、**`/` 含み**（例 `docs/drop.md`・`docs/draft`）は project root 起点（root-anchored）のセグメント境界マッチ＝パス完全一致／サブツリー前置き |
+| `--paths-file <path>`    | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                                                                                                                                                                                                                                                                         |
+| `--all`                  | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする                                                                                                                                                                                                                                            |
 
 > **desired-state の破壊性 [MANDATORY]**: `--paths-json` / `--paths-file` で渡す paths は当該 key の **完全な desired state** である。前回 ToC に存在し今回 paths に含まれない path は **削除** される（部分配列を渡すと残りが消える）。上位層の責務であり、不安な場合は先に `prepare_toc.py --dry-run` で削除予定を確認すること（後述）。
 
@@ -62,7 +63,9 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 各 key の `.toc_work/` は当該 key の `store_dir/.toc_work/` に分離される（key ごとに別ディレクトリのため、複数 key を扱っても競合しない）。**判定は手作業（`test -d` / YAML の手読み）で行わず、`toc_store.py --work-status` の出力に従う**（決定論処理は script に委ねる）:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status   # 単体モードは --all
+# 再開判定では --lease-ttl 0 を付け、前回セッションの claim 残骸（in-flight）を stale 扱いで
+# pending に戻す。新セッションでは前回の Agent は確実に終了しており二重投入の心配はない。
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status --lease-ttl 0   # 単体モードは --all
 ```
 
 stdout の JSON から `next_action` / `pending` / `completed` / `error_pending` / `has_work_dir` を読み、`next_action` に従う:
@@ -78,7 +81,7 @@ stdout の JSON から `next_action` / `pending` / `completed` / `error_pending`
 
 ### Step 0.5: ディレクトリ展開（`--dirs-json` 指定時のみ）
 
-`--dirs-json` が指定されている場合のみ実行する。`expand_dirs.py` がディレクトリを rglob で展開し、`--paths-json` 形式に変換する。
+`--dirs-json` が指定されている場合のみ実行する。`expand_dirs.py` がディレクトリを rglob で展開し、`--paths-json` 形式に変換する。`--dirs-json` のエントリにグロブメタ文字（`*` `?` `[`）が含まれる場合はグロブパターンとして展開する（例 `docs/specs/**/design/` → 任意深さの `design/` をマッチ）。マッチしたディレクトリは配下を rglob、マッチした Markdown ファイルは直接採用する。`..`・絶対パスのグロブは `rejected_dirs` に列挙される。
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/expand_dirs.py \
@@ -90,7 +93,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/expand_dirs.py \
 stdout の単一 JSON から以下を読む:
 
 - `paths` → 以降の `prepare_toc.py` に `--paths-json` として渡す
-- `rejected_dirs` → 不在・非ディレクトリだった dirs を警告としてユーザーに表示する
+- `rejected_dirs` → 不在・非ディレクトリだった dirs、および不正なグロブ（`..`・絶対パス）を警告としてユーザーに表示する
+- `warnings` → マッチしなかったグロブ等の注意喚起。ユーザーに表示する
 - `status == error` → エラー内容を報告し AskUserQuestion でユーザーに確認する
 
 `--paths-json` のみ指定（`--dirs-json` なし）の場合はこの Step をスキップし、既存の `--paths-json` をそのまま Step 1 へ渡す。
@@ -138,26 +142,65 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json 
 - 再実行は decided モードになり、未承認の越境 path は drop（warning に列挙）されるため `needs_confirmation` でループしない
 - 再実行の結果（`status == ok` / `partial` など）に応じて以降の Step（2 / 3）へ進む
 
-### Step 2: toc-updater カスタム Agent による並列充填
+### Step 2: toc-updater カスタム Agent による連続ディスパッチ充填
 
-充填対象は **`toc_store.py --work-status` の `pending`（project-root 相対の entry_file 一覧）**を使う。AI が `ls .toc_work/*.yaml` や YAML の `_meta.status` 手読みで列挙しない（決定論は script が担う）。`pending` の各 entry_file を `doc-advisor:toc-updater` カスタム Agent で **並列充填**する。
+充填対象は **`toc_store.py --work-status` の `pending_groups`（同一ディレクトリ近傍で最大 k 件ずつにまとめた entry_file グループ列）**を使う。AI が `ls .toc_work/*.yaml` や YAML の `_meta.status` 手読みで列挙したり、近傍グルーピングを手作業で行ったりしない（決定論は script が担う / ADR-006 案 B）。各グループを 1 つの `doc-advisor:toc-updater` カスタム Agent で充填する。
 
-- **並列数**: 最大 5（`toc_orchestrator.md` の既定）。CRITICAL: 1 つの assistant メッセージ内で複数の Agent 呼び出しをまとめて発行する（1 件ずつ別メッセージにすると並列にならない）。
-- **`run_in_background: true` は使わない**（Phase 2 ループが壊れる）。
-- 各カスタム Agent には key と entry_file を渡す。`subagent_type` には `doc-advisor:toc-updater` を指定する。
+充填は **連続ディスパッチ（sliding-window）** で行う（ADR-006 / Issue #29）。並列ウィンドウを保ちつつ、完了が出るたびに空きスロットを埋め直すことで、バッチ（wave）バリアの中間テール待ちを除去する。二重投入は **claim/lease（script 側）** が防ぐ。
+
+- **並列ウィンドウ**: 最大 10（`toc_orchestrator.md` の既定。実証済み安全圏 / ADR-006 案 A）。低 tier で 429 が出る場合は 5 → 3 へ下げる。10 超は未検証のため上げない。
+- **投入直前に claim**: 投入するグループの entry_files を `toc_store.py --claim <entry...>` で claim（`claimed_at` をスタンプ）してから Agent を起動する。これにより次の `--work-status` がそのグループを **in-flight** として `pending` から除外し、連続投入中の二重起動を防ぐ。claim せずに起動してはならない。`--claim` は `claimed` / `rejected` を返す — **`claimed` のみを entry_files として渡し、`rejected`（`completed` / `already_claimed` / `error_pending` / `outside_work_dir` 等）は渡さない**。`claimed` が空ならそのグループは起動しない。
+- 各カスタム Agent は **`run_in_background: true`** で起動し、完了通知（task-notification）を契機に補充する。`subagent_type` は `doc-advisor:toc-updater`。key とグループの entry_files（1〜k 件）を渡す。1 グループは同一ディレクトリ内に閉じ、Agent は各文書を独立に抽出する（context rot 回避）。
+
+手順（補充は「空きスロット分まとめて」。1 完了 = 1 投入に固定しない）:
 
 ```
-# key 指定時（1 メッセージで最大 5 件並列）
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "key: {key}, entry_file: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml")
-...（最大 5 件）
+1. `--work-status` で `pending_groups`（未投入グループ）と `in_flight_groups`（投入済み・走行中の
+   Agent 単位グループ）を取得。
+    ↓
+2. 空きスロット available = ウィンドウ上限 − len(in_flight_groups) を計算し、`pending_groups`
+   先頭から min(available, グループ数) 個を、各グループごとに「claim → 起動」する:
+     - `--claim` の返す `claimed` のみを entry_files として渡す（`rejected` は除外）。
+     - `claimed` が空のグループは起動しない（次の `--work-status` が状態を正す）。
+     - 起動は run_in_background。
+    ↓
+3. いずれかの Agent の完了通知を受けたら 1 に戻る（`--work-status` 再取得 → available 再計算 →
+   空きスロット分まとめて補充）。`next_action` が:
+     wait   → 未投入なし・in-flight のみ。残りの完了通知を待つ
+     merge  → Step 3 へ
+     blocked → Step 2.5 へ
+    ↓
+4. 全グループ completed（`next_action: merge`）になったら Step 3。
+```
+
+> **空きスロットは Agent 数で数える [IMPORTANT]**: ウィンドウは「並列 Agent 数」であり、1 Agent は
+> 最大 k 件のグループを処理する。`in_flight`（entry のフラットリスト）の件数ではなく
+> **`len(in_flight_groups)`（= 走行中 Agent 数）**で available を計算する（entry 数で引くと
+> 過大に減算され負になり、補充されず wave に逆戻りする）。
+>
+> 複数の完了通知が会話再開前にまとまることがある（compaction・通知遅延）。1 完了 = 1 投入だと
+> ウィンドウを埋め直せず並列度が落ちるため、毎回 available を再計算してまとめて補充する。
+
+```bash
+# 投入直前に claim（1 グループ分の entry_files。単体モードは --all）
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --claim <entry1> <entry2>
+```
+
+```
+# claim 成功したグループを run_in_background で起動（1 グループ = 1〜k 件の近傍 entry_files）
+Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
+      prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml, <同一ディレクトリの別 entry>")
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
-Agent(subagent_type: doc-advisor:toc-updater, prompt: "all (single mode), entry_file: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
+      prompt: "all (single mode), entry_files: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
-> 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_file` は project-root-relative で渡す。
+> 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_files` は project-root-relative で渡す。
+>
+> バッチサイズは `--work-status --max-batch N`（既定 3）で調整。`--max-batch 1` で 1 ファイル 1 Agent（抽出品質の切り分け時に有用）。
 
-各バッチ完了後、**`toc_store.py --work-status` を再実行**し（AI が手で再走査しない）、簡潔な進捗（例: "Batch 2/4 complete, 10 remaining"）のみ出力する。`next_action` が `merge` になったら Step 3 へ、`blocked` なら Step 2.5 へ。
+状態（completed / in-flight / 未投入）は会話履歴でなく **`--work-status`（script）が単一の真実**。手で追跡せず、補充判断は毎回 `--work-status` の `next_action` に従う。compaction で履歴を失っても `--work-status` を引き直せば復元でき、claim 済み（in-flight）は再投入されない（停止した Agent の stale lease は TTL 超過で `pending` に戻り再投入対象になる）。各完了後は簡潔な進捗（例: "completed 12/29, 5 in-flight"）のみ出力する。
 
 ### Step 2.5: 充填エラーの対応（`next_action: blocked` 時のみ）
 

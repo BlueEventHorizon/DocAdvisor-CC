@@ -93,14 +93,17 @@ keywords: []
 
 `error_message` is **not** part of the base pending template. It is written by `write_pending.py --error` only when processing a source file fails; `status` then remains `pending` so the entry is retried on the next run.
 
+`claimed_at` is likewise **not** in the base template. In continuous-dispatch fill (ADR-006 / Issue #29) `toc_store.py --claim` stamps it into `_meta` right before a `toc-updater` Agent is launched, so `--work-status` can exclude in-flight entries from `pending` (prevents double-dispatch). It is a transient runtime marker: `write_pending.py` rebuilds `_meta` on `completed` / `error`, so it disappears once the entry is filled; a stale `claimed_at` (older than the lease TTL) is treated as un-claimed and re-dispatched.
+
 ### _meta Field Description
 
-| Field           | Type          | Description                                                                                   |
-| --------------- | ------------- | --------------------------------------------------------------------------------------------- |
-| `source_file`   | string        | Target document path (from project root)                                                      |
-| `status`        | enum          | `pending` (unprocessed) or `completed` (done)                                                 |
-| `error_message` | string        | Error details, set only on failure by `write_pending.py --error` (`status` remains `pending`) |
-| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                       |
+| Field           | Type          | Description                                                                                                                      |
+| --------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `source_file`   | string        | Target document path (from project root)                                                                                         |
+| `status`        | enum          | `pending` (unprocessed) or `completed` (done)                                                                                    |
+| `error_message` | string        | Error details, set only on failure by `write_pending.py --error` (`status` remains `pending`)                                    |
+| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                                                          |
+| `claimed_at`    | datetime      | Optional, transient. Set by `toc_store.py --claim` for continuous-dispatch lease; absent until claimed and cleared on completion |
 
 ---
 
@@ -220,101 +223,9 @@ docs:
 
 ---
 
-## Complete Examples
+## Notes on the final file
 
-### Rules-style key ToC
-
-```yaml
-# .claude/doc-advisor/toc/rules-<hash>/toc.yaml
-
-metadata:
-  name: Development Documentation Search Index
-  key: rules
-  generated_at: 2026-01-11T12:00:00Z
-  file_count: 25
-
-docs:
-  docs/rules/architecture_rule.md:
-    title: Architecture Rules
-    purpose: Defines overall architecture structure, layer design, and inter-layer communication
-    content_details:
-      - Directory structure
-      - Layer dependencies
-      - Data flow design
-      - AsyncStream design principles
-    applicable_tasks:
-      - Architecture review
-      - Layer violation detection
-      - Overall design review
-    keywords:
-      - architecture
-      - layer
-      - Clean Architecture
-      - DI
-      - Factory
-
-  docs/rules/repository_rule.md:
-    title: Repository Implementation Rules
-    purpose: Defines Repository implementation's immediate response + eventual sync pattern
-    content_details:
-      - Repository layer responsibilities
-      - Immediate response + eventual sync pattern
-      - Application method for Create/Update/Delete
-      - Anti-patterns
-    applicable_tasks:
-      - Repository implementation
-      - Infrastructure layer implementation
-      - CRUD operation implementation
-    keywords:
-      - Repository
-      - immediate response
-      - eventual sync
-      - cache update
-      - forceBroadcast
-```
-
-### Specs-style key ToC
-
-```yaml
-# .claude/doc-advisor/toc/specs-<hash>/toc.yaml
-
-metadata:
-  name: Project Specification Document Search Index
-  key: specs
-  generated_at: 2026-01-11T12:00:00Z
-  file_count: 25
-
-docs:
-  docs/specs/app_overview.md:
-    title: Application Overview Specification
-    purpose: Defines overall requirements and feature scope for the application
-    content_details:
-      - Application overview
-      - Main feature list
-      - Use case definitions
-      - Screen navigation overview
-    applicable_tasks:
-      - New feature implementation planning
-      - Feature scope confirmation
-    keywords:
-      - application
-      - requirements
-      - feature list
-
-  docs/specs/login_screen_design.md:
-    title: Login Screen Design
-    purpose: Defines UI design, ViewModel, and state management for the login screen
-    content_details:
-      - Screen layout
-      - ViewModel design
-      - State transitions
-      - Authentication service integration
-    applicable_tasks:
-      - Login screen implementation
-      - UI layer design review
-    keywords:
-      - login
-      - ViewModel
-      - SwiftUI
-      - authentication
-```
+The per-doc entries follow the `docs` schema and examples above. The top-level `metadata` block
+(`name` / `key` / `generated_at` / `file_count`) is written by `merge_toc.py` from the `--key`
+argument and the final doc set — the `toc-updater` agent does **not** produce it. A complete file
+is simply the `metadata` block followed by one `docs` entry per indexed document.
