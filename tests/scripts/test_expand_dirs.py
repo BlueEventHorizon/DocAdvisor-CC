@@ -316,6 +316,118 @@ class TestSymlinks(ExpandTestBase):
 
 
 # ===========================================================================
+# グロブパターンテスト（FR-N09-2）
+# ===========================================================================
+
+class TestExpandGlob(ExpandTestBase):
+    """--dirs-json のグロブメタ文字（* ? [）展開。"""
+
+    def test_dir_glob_matches_multiple_dirs(self):
+        """docs/specs/**/design/ が任意深さの design/ にマッチし配下を収集する。"""
+        self._write_md("docs/specs/base/design/DES-001.md")
+        self._write_md("docs/specs/common/design/COMMON-DES-001.md")
+        self._write_md("docs/specs/base/requirements/REQ-001.md")  # design 外
+        result = expand(["docs/specs/**/design/"], project_root=self.project_root)
+        self.assertIn("docs/specs/base/design/DES-001.md", result["paths"])
+        self.assertIn("docs/specs/common/design/COMMON-DES-001.md", result["paths"])
+        self.assertNotIn("docs/specs/base/requirements/REQ-001.md", result["paths"])
+        self.assertEqual(result["rejected_dirs"], [])
+
+    def test_dir_glob_recurses_matched_dir(self):
+        """グロブでマッチしたディレクトリ配下はサブディレクトリも再帰収集する。"""
+        self._write_md("docs/specs/base/design/sub/nested.md")
+        result = expand(["docs/specs/**/design/"], project_root=self.project_root)
+        self.assertIn("docs/specs/base/design/sub/nested.md", result["paths"])
+
+    def test_file_glob_matches_markdown_directly(self):
+        """docs/**/*.md がファイルに直接マッチして採用される。"""
+        self._write_md("docs/a.md")
+        self._write_md("docs/sub/b.md")
+        (self.project_root / "docs/c.txt").write_text("text", encoding="utf-8")
+        result = expand(["docs/**/*.md"], project_root=self.project_root)
+        self.assertIn("docs/a.md", result["paths"])
+        self.assertIn("docs/sub/b.md", result["paths"])
+        self.assertNotIn("docs/c.txt", result["paths"])
+
+    def test_single_star_matches_direct_children_only(self):
+        """docs/*/design/ は直下1階層の design のみ（** ではない）。"""
+        self._write_md("docs/base/design/d.md")
+        self._write_md("docs/x/y/design/deep.md")
+        result = expand(["docs/*/design/"], project_root=self.project_root)
+        self.assertIn("docs/base/design/d.md", result["paths"])
+        self.assertNotIn("docs/x/y/design/deep.md", result["paths"])
+
+    def test_glob_no_match_returns_empty_with_warning(self):
+        """マッチ無しグロブは空 paths + warning（エラーにしない）。"""
+        self._write_md("docs/a.md")
+        result = expand(["docs/specs/**/design/"], project_root=self.project_root)
+        self.assertEqual(result["paths"], [])
+        self.assertEqual(result["rejected_dirs"], [])
+        self.assertTrue(any("design" in w for w in result["warnings"]))
+
+    def test_glob_with_traversal_rejected(self):
+        """'..' を含むグロブは rejected_dirs に列挙される。"""
+        self._write_md("docs/a.md")
+        result = expand(["../**/*.md"], project_root=self.project_root)
+        rejected = [r["dir"] for r in result["rejected_dirs"]]
+        self.assertIn("../**/*.md", rejected)
+
+    def test_absolute_glob_rejected(self):
+        """絶対パスのグロブは rejected_dirs に列挙される。"""
+        result = expand(["/tmp/**/*.md"], project_root=self.project_root)
+        rejected = [r["dir"] for r in result["rejected_dirs"]]
+        self.assertIn("/tmp/**/*.md", rejected)
+
+    def test_glob_respects_user_exclude(self):
+        """グロブ収集にも --exclude-json が適用される。"""
+        self._write_md("docs/specs/base/design/keep.md")
+        self._write_md("docs/specs/base/design/drop.md")
+        result = expand(
+            ["docs/specs/**/design/"],
+            exclude_json=["docs/specs/base/design/drop.md"],
+            project_root=self.project_root,
+        )
+        self.assertIn("docs/specs/base/design/keep.md", result["paths"])
+        self.assertNotIn("docs/specs/base/design/drop.md", result["paths"])
+
+    def test_glob_respects_system_exclude(self):
+        """グロブが node_modules 等にマッチしてもシステム固定除外が効く。"""
+        self._write_md("node_modules/pkg/design/x.md")
+        self._write_md("docs/base/design/y.md")
+        result = expand(["**/design/"], project_root=self.project_root)
+        self.assertIn("docs/base/design/y.md", result["paths"])
+        self.assertNotIn("node_modules/pkg/design/x.md", result["paths"])
+
+    def test_glob_and_literal_dir_combined(self):
+        """グロブと従来のリテラルディレクトリを同一 --dirs-json に混在できる。"""
+        self._write_md("docs/specs/base/design/d.md")
+        self._write_md("docs/rules/r.md")
+        result = expand(
+            ["docs/specs/**/design/", "docs/rules/"],
+            project_root=self.project_root,
+        )
+        self.assertIn("docs/specs/base/design/d.md", result["paths"])
+        self.assertIn("docs/rules/r.md", result["paths"])
+
+    def test_glob_dedup_with_paths_json(self):
+        """グロブ展開結果と --paths-json が重複しても1件に集約される。"""
+        self._write_md("docs/a.md")
+        result = expand(
+            ["docs/**/*.md"],
+            paths_json=["docs/a.md"],
+            project_root=self.project_root,
+        )
+        self.assertEqual(result["paths"].count("docs/a.md"), 1)
+
+    def test_literal_dir_with_bracket_not_treated_as_glob_when_missing(self):
+        """グロブメタ無しの通常ディレクトリは従来どおりリテラル扱い（回帰）。"""
+        self._write_md("docs/a.md")
+        result = expand(["docs/"], project_root=self.project_root)
+        self.assertIn("docs/a.md", result["paths"])
+        self.assertEqual(result["rejected_dirs"], [])
+
+
+# ===========================================================================
 # CLI subprocess テスト
 # ===========================================================================
 
@@ -355,6 +467,17 @@ class TestExpandCli(ExpandTestBase):
         lines = [l for l in proc.stdout.strip().split("\n") if l]
         self.assertEqual(len(lines), 1)
         json.loads(lines[0])
+
+    def test_cli_dir_glob(self):
+        """CLI で --dirs-json のグロブが展開される。"""
+        self._write_md("docs/specs/base/design/d.md")
+        self._write_md("docs/specs/common/design/c.md")
+        proc = self._run("--dirs-json", '["docs/specs/**/design/"]')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertIn("docs/specs/base/design/d.md", obj["paths"])
+        self.assertIn("docs/specs/common/design/c.md", obj["paths"])
 
     def test_cli_rejected_dirs_in_output(self):
         """不在ディレクトリが rejected_dirs に含まれる。"""
