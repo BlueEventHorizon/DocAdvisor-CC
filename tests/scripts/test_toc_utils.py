@@ -71,6 +71,31 @@ class TestShouldExclude(unittest.TestCase):
         fp = Path('/project/specs/main/requirements/archived.md')
         self.assertFalse(toc_utils.should_exclude(fp, root, ['/archive/']))
 
+    def test_slash_pattern_file_exact(self):
+        """'/' 含みパターンはファイルパス完全一致で除外する（Issue #30）"""
+        root = Path('/project/specs')
+        fp = Path('/project/specs/docs/drop.md')
+        self.assertTrue(toc_utils.should_exclude(fp, root, ['docs/drop.md']))
+
+    def test_slash_pattern_subtree_prefix(self):
+        """'/' 含みパターンはサブツリー前置きで除外する"""
+        root = Path('/project/specs')
+        fp = Path('/project/specs/docs/draft/wip.md')
+        self.assertTrue(toc_utils.should_exclude(fp, root, ['docs/draft']))
+
+    def test_slash_pattern_no_overmatch_segment_boundary(self):
+        """'/' 含みパターンはセグメント境界でマッチし、前方部分一致で誤爆しない"""
+        root = Path('/project/specs')
+        # パターン 'docs/spec' は 'docs/specs/...' に誤爆しない
+        fp = Path('/project/specs/docs/specs/x.md')
+        self.assertFalse(toc_utils.should_exclude(fp, root, ['docs/spec']))
+
+    def test_slash_pattern_no_overmatch_substring(self):
+        """'/' 含みパターンは部分文字列マッチで誤爆しない（'a/b' は 'za/bc' に当たらない）"""
+        root = Path('/project/specs')
+        fp = Path('/project/specs/za/bc/x.md')
+        self.assertFalse(toc_utils.should_exclude(fp, root, ['a/b']))
+
     def test_multiple_patterns_plan(self):
         """複数パターン: plan ディレクトリのファイルが除外される"""
         root = Path('/project/specs')

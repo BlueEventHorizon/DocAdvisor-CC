@@ -11,7 +11,9 @@ prepare_toc.py へ渡す --paths-json を生成するために呼び出す。
 - --dirs-json のエントリがグロブメタ文字（* ? [）を含む場合はグロブパターンとして解釈し、
   マッチしたディレクトリは rglob、マッチした Markdown ファイルは直接採用する（FR-N09-8）
 - SYSTEM_EXCLUDE_PATTERNS を常時適用（--exclude-json の有無に関わらず）
-- --exclude-json で指定したパス・ディレクトリを追加除外
+- --exclude-json で指定したパス・ディレクトリを追加除外（システム固定除外と同じ
+  should_exclude セマンティクス: 裸名＝任意階層のディレクトリ名完全一致、
+  '/' 含み＝セグメント境界のパスマッチ）
 - root 外 symlink は論理 path を後段へ渡し、prepare_toc.py の承認フローに委ねる
 - --paths-json の明示ファイルと結合・重複除去
 - stdout に単一 JSON を出力（NFR / FR-N08）
@@ -116,13 +118,19 @@ def _normalize_glob_pattern(raw):
     return p
 
 
-def _collect_file(md_file, project_root, exclude_set, collected):
+def _collect_file(md_file, project_root, exclude_list, collected):
     """単一 Markdown ファイルを検証して collected に追加する（除外適用）。
+
+    システム固定除外（SYSTEM_EXCLUDE_PATTERNS）とユーザー除外（--exclude-json）は
+    同一の should_exclude セマンティクスで判定する（裸名＝任意階層のディレクトリ名
+    完全一致、'/' 含み＝セグメント境界のパスマッチ）。
 
     root 外 symlink はここで除外せず、後段の prepare_toc.py の default-deny +
     明示承認に委ねる（論理 path を採用）。
     """
     if should_exclude(md_file, project_root, SYSTEM_EXCLUDE_PATTERNS):
+        return
+    if should_exclude(md_file, project_root, exclude_list):
         return
     try:
         rel = normalize_path(str(md_file.relative_to(project_root)))
@@ -132,38 +140,13 @@ def _collect_file(md_file, project_root, exclude_set, collected):
         resolve_within_root(md_file, project_root)
     except PathRejection:
         pass
-    if _is_user_excluded(rel, exclude_set):
-        return
     collected.add(rel)
 
 
-def _collect_dir(abs_dir, project_root, exclude_set, collected):
+def _collect_dir(abs_dir, project_root, exclude_list, collected):
     """ディレクトリ配下の Markdown を rglob で収集し collected に追加する。"""
     for md_file in rglob_follow_symlinks(abs_dir, MARKDOWN_GLOB):
-        _collect_file(md_file, project_root, exclude_set, collected)
-
-
-def _build_exclude_set(exclude_list, project_root):
-    """--exclude-json のパス文字列を正規化した文字列 set に変換する。
-
-    ディレクトリ指定（末尾 / あり・なし問わず）と
-    ファイル指定の両方を含む set を返す。
-    """
-    result = set()
-    for raw in exclude_list:
-        normalized = normalize_path(raw.rstrip("/"))
-        result.add(normalized)
-    return result
-
-
-def _is_user_excluded(rel_path_str, exclude_set):
-    """rel_path_str が exclude_set のいずれかと一致またはその配下かを判定する。"""
-    for excl in exclude_set:
-        if rel_path_str == excl:
-            return True
-        if rel_path_str.startswith(excl + "/"):
-            return True
-    return False
+        _collect_file(md_file, project_root, exclude_list, collected)
 
 
 def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
@@ -185,7 +168,6 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
 
     exclude_list = exclude_json or []
     extra_paths = paths_json or []
-    exclude_set = _build_exclude_set(exclude_list, project_root)
 
     collected = set()
     rejected_dirs = []
@@ -211,10 +193,10 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
             matched_any = False
             for m in matches:
                 if m.is_dir():
-                    _collect_dir(m, project_root, exclude_set, collected)
+                    _collect_dir(m, project_root, exclude_list, collected)
                     matched_any = True
                 elif m.is_file() and m.suffix.lower() == ".md":
-                    _collect_file(m, project_root, exclude_set, collected)
+                    _collect_file(m, project_root, exclude_list, collected)
                     matched_any = True
                 # それ以外（非 Markdown ファイル等）は無視
             if not matched_any:
@@ -227,7 +209,7 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
         except ValueError as e:
             rejected_dirs.append({"dir": raw_dir, "reason": str(e)})
             continue
-        _collect_dir(abs_dir, project_root, exclude_set, collected)
+        _collect_dir(abs_dir, project_root, exclude_list, collected)
 
     # --paths-json の明示ファイルと結合
     for raw_path in extra_paths:
