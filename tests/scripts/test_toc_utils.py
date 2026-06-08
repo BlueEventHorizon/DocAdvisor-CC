@@ -96,6 +96,15 @@ class TestShouldExclude(unittest.TestCase):
         fp = Path('/project/specs/za/bc/x.md')
         self.assertFalse(toc_utils.should_exclude(fp, root, ['a/b']))
 
+    def test_slash_pattern_root_anchored(self):
+        """'/' 含みパターンは root-anchored（パス途中からの部分一致はしない）"""
+        root = Path('/project/specs')
+        # 'design/info' は root 起点で 'docs/design/info/...' にマッチしない
+        fp = Path('/project/specs/docs/design/info/readme.md')
+        self.assertFalse(toc_utils.should_exclude(fp, root, ['design/info']))
+        # root 起点の 'docs/design' は前置きマッチする
+        self.assertTrue(toc_utils.should_exclude(fp, root, ['docs/design']))
+
     def test_multiple_patterns_plan(self):
         """複数パターン: plan ディレクトリのファイルが除外される"""
         root = Path('/project/specs')
