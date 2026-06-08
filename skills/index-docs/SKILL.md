@@ -28,19 +28,20 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 ```
 /doc-advisor:index-docs --key <key> --paths-json '["docs/a.md", "docs/b.md"]'
 /doc-advisor:index-docs --key <key> --dirs-json '["docs/rules/", "docs/specs/"]'
+/doc-advisor:index-docs --key <key> --dirs-json '["docs/specs/**/design/"]'   # グロブ可
 /doc-advisor:index-docs --key <key> --dirs-json '["docs/"]' --exclude-json '["docs/draft/"]'
 /doc-advisor:index-docs --key <key> --paths-file paths.json
 /doc-advisor:index-docs --all
 ```
 
-| Argument                 | Description                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）            |
-| `--paths-json '[...]'`   | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                  |
-| `--dirs-json '[...]'`    | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する   |
-| `--exclude-json '[...]'` | `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）           |
-| `--paths-file <path>`    | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                              |
-| `--all`                  | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする |
+| Argument                 | Description                                                                                                                                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可（reject される）                                                                                                                                                                          |
+| `--paths-json '[...]'`   | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列                                                                                                                                                                                |
+| `--dirs-json '[...]'`    | 展開するディレクトリの JSON 配列（`--paths-json` と併用可）。SKILL が rglob で Markdown を収集する。エントリにグロブメタ文字（`*` `?` `[`）を含めるとパターン展開（例 `docs/specs/**/design/`）。マッチしたディレクトリは配下を rglob、Markdown ファイルは直接採用 |
+| `--exclude-json '[...]'` | `--dirs-json` 展開時に除外するパス・ディレクトリの JSON 配列（システム固定除外は常時適用）                                                                                                                                                                         |
+| `--paths-file <path>`    | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                                                                                                                                                                                            |
+| `--all`                  | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象にする                                                                                                                                                               |
 
 > **desired-state の破壊性 [MANDATORY]**: `--paths-json` / `--paths-file` で渡す paths は当該 key の **完全な desired state** である。前回 ToC に存在し今回 paths に含まれない path は **削除** される（部分配列を渡すと残りが消える）。上位層の責務であり、不安な場合は先に `prepare_toc.py --dry-run` で削除予定を確認すること（後述）。
 
@@ -78,7 +79,7 @@ stdout の JSON から `next_action` / `pending` / `completed` / `error_pending`
 
 ### Step 0.5: ディレクトリ展開（`--dirs-json` 指定時のみ）
 
-`--dirs-json` が指定されている場合のみ実行する。`expand_dirs.py` がディレクトリを rglob で展開し、`--paths-json` 形式に変換する。
+`--dirs-json` が指定されている場合のみ実行する。`expand_dirs.py` がディレクトリを rglob で展開し、`--paths-json` 形式に変換する。`--dirs-json` のエントリにグロブメタ文字（`*` `?` `[`）が含まれる場合はグロブパターンとして展開する（例 `docs/specs/**/design/` → 任意深さの `design/` をマッチ）。マッチしたディレクトリは配下を rglob、マッチした Markdown ファイルは直接採用する。`..`・絶対パスのグロブは `rejected_dirs` に列挙される。
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/expand_dirs.py \
@@ -90,7 +91,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/expand_dirs.py \
 stdout の単一 JSON から以下を読む:
 
 - `paths` → 以降の `prepare_toc.py` に `--paths-json` として渡す
-- `rejected_dirs` → 不在・非ディレクトリだった dirs を警告としてユーザーに表示する
+- `rejected_dirs` → 不在・非ディレクトリだった dirs、および不正なグロブ（`..`・絶対パス）を警告としてユーザーに表示する
+- `warnings` → マッチしなかったグロブ等の注意喚起。ユーザーに表示する
 - `status == error` → エラー内容を報告し AskUserQuestion でユーザーに確認する
 
 `--paths-json` のみ指定（`--dirs-json` なし）の場合はこの Step をスキップし、既存の `--paths-json` をそのまま Step 1 へ渡す。
