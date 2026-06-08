@@ -173,6 +173,31 @@ class TestExpandExclude(ExpandTestBase):
         result = expand(["docs/", "node_modules/"], exclude_json=["docs/draft/"], project_root=self.project_root)
         self.assertNotIn("node_modules/pkg.md", result["paths"])
 
+    def test_exclude_bare_name_matches_any_level(self):
+        """裸名は任意階層のディレクトリ名にマッチする（Issue #30: should_exclude と統一）。"""
+        self._write_md("docs/specs/forge/plan/roadmap.md")
+        self._write_md("docs/specs/base/design/d.md")
+        result = expand(["docs/"], exclude_json=["plan"], project_root=self.project_root)
+        self.assertIn("docs/specs/base/design/d.md", result["paths"])
+        self.assertNotIn("docs/specs/forge/plan/roadmap.md", result["paths"])
+
+    def test_exclude_bare_name_does_not_match_filename(self):
+        """裸名はファイル名にはマッチしない（'plan' が 'planning.md' を除外しない）。"""
+        self._write_md("docs/planning.md")
+        self._write_md("docs/deployment_plan.md")
+        result = expand(["docs/"], exclude_json=["plan"], project_root=self.project_root)
+        self.assertIn("docs/planning.md", result["paths"])
+        self.assertIn("docs/deployment_plan.md", result["paths"])
+
+    def test_exclude_path_pattern_segment_boundary(self):
+        """'/' 含みパターンはセグメント境界でマッチし、前方部分一致で誤爆しない。"""
+        self._write_md("docs/specs/keep.md")
+        self._write_md("docs/spec/drop.md")
+        # パターン 'docs/spec' は 'docs/specs/...' に誤爆せず、'docs/spec/...' のみ除外する
+        result = expand(["docs/"], exclude_json=["docs/spec"], project_root=self.project_root)
+        self.assertIn("docs/specs/keep.md", result["paths"])
+        self.assertNotIn("docs/spec/drop.md", result["paths"])
+
 
 # ===========================================================================
 # --paths-json 併用テスト
@@ -389,6 +414,18 @@ class TestExpandGlob(ExpandTestBase):
         )
         self.assertIn("docs/specs/base/design/keep.md", result["paths"])
         self.assertNotIn("docs/specs/base/design/drop.md", result["paths"])
+
+    def test_glob_respects_bare_name_exclude(self):
+        """グロブ収集でも裸名は任意階層のディレクトリ名にマッチする。"""
+        self._write_md("docs/specs/base/design/keep.md")
+        self._write_md("docs/specs/base/design/drafts/drop.md")
+        result = expand(
+            ["docs/specs/**/design/"],
+            exclude_json=["drafts"],
+            project_root=self.project_root,
+        )
+        self.assertIn("docs/specs/base/design/keep.md", result["paths"])
+        self.assertNotIn("docs/specs/base/design/drafts/drop.md", result["paths"])
 
     def test_glob_respects_system_exclude(self):
         """グロブが node_modules 等にマッチしてもシステム固定除外が効く。"""

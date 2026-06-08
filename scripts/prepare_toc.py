@@ -284,7 +284,7 @@ def collect_all_markdown(project_root, allow_external=None):
     external_counts = {}
 
     for md_file in rglob_follow_symlinks(root, MARKDOWN_GLOB):
-        # 固定除外（ディレクトリ名 / path 部分文字列マッチ）
+        # 固定除外（裸名＝任意階層のディレクトリ名一致 / '/' 含み＝セグメント境界マッチ）
         if should_exclude(md_file, root, SYSTEM_EXCLUDE_PATTERNS):
             continue
         try:

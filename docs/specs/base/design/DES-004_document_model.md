@@ -55,21 +55,27 @@ flowchart TD
 
 ### 除外パターンの適用
 
-除外パターンは**ディレクトリパスのみ**に対して判定する。`/` を含むパターンは**パス部分一致**、`/` を含まないパターンは**ディレクトリ名の完全一致**として扱う（ファイル名は対象外）。
+除外パターンは次のセマンティクスで判定する。このマッチャーは**システム固定除外（単体モード）と `--exclude-json` のユーザー除外で共通**であり、両者で同じ語の意味が変わらないことを保証する（Issue #30）。
+
+- **`/` を含まないパターン（裸名）**: **任意階層のディレクトリ名に完全一致**（ファイル名は対象外。`plan` は `planning.md` を除外しない）。
+- **`/` を含むパターン**: project root 起点の `rel_path` 全体との**セグメント境界マッチ**。`rel_path == pattern`（パス完全一致＝ファイル／ディレクトリ指定）または `pattern + "/"` の前置き（サブツリー指定）でマッチする。**root-anchored** であり（パスの途中からの部分一致ではない）、かつ部分文字列マッチでもないため、`a/b` が `za/bc` に誤爆せず、`docs/spec` が `docs/specs` に誤爆しない。
 
 ```python
-def should_exclude(filepath, exclude_patterns, root_dir):
-    rel_path = str(filepath.relative_to(root_dir))
+def should_exclude(filepath, root_dir, exclude_patterns):
+    rel_path = normalize_path(filepath.relative_to(root_dir))
     path_parts = rel_path.split('/')
-    dir_parts = path_parts[:-1]  # ファイル名を除く
-    dir_path = '/'.join(dir_parts)
+    dir_parts = path_parts[:-1]  # ファイル名を除いたディレクトリセグメント
 
     for pattern in exclude_patterns:
-        normalized = pattern.strip('/')
+        normalized = normalize_path(pattern.strip('/'))
+        if not normalized:
+            continue
         if '/' in normalized:
-            if normalized in dir_path:
+            # rel_path 全体とのセグメント境界マッチ（完全一致 or サブツリー前置き）
+            if rel_path == normalized or rel_path.startswith(normalized + '/'):
                 return True
         else:
+            # ディレクトリ名の完全一致（ファイル名は対象外）
             if normalized in dir_parts:
                 return True
     return False
@@ -77,12 +83,16 @@ def should_exclude(filepath, exclude_patterns, root_dir):
 
 ### 除外例
 
-| パス                         | 除外パターン | 結果                                                             |
-| ---------------------------- | ------------ | ---------------------------------------------------------------- |
-| `docs/plan/roadmap.md`       | `plan`       | 除外                                                             |
-| `docs/archive/old_spec.md`   | `archive`    | 除外                                                             |
-| `docs/design/info/readme.md` | `/info/`     | 除外                                                             |
-| `docs/requirements/info.md`  | `/info/`     | **対象**（`info.md` はファイル名であり `/info/` にマッチしない） |
+| パス                            | 除外パターン   | 結果                                                       |
+| ------------------------------- | -------------- | ---------------------------------------------------------- |
+| `docs/plan/roadmap.md`          | `plan`         | 除外（任意階層のディレクトリ名一致）                       |
+| `docs/specs/forge/plan/p.md`    | `plan`         | 除外（裸名は任意階層にマッチ）                             |
+| `docs/requirements/planning.md` | `plan`         | **対象**（`plan` はファイル名・部分名にはマッチしない）    |
+| `docs/archive/old_spec.md`      | `archive`      | 除外                                                       |
+| `docs/design/info/readme.md`    | `docs/design`  | 除外（root 起点のサブツリー前置き）                        |
+| `docs/design/info/readme.md`    | `design/info`  | **対象**（root-anchored。途中からの部分一致はしない）      |
+| `docs/drop.md`                  | `docs/drop.md` | 除外（パス完全一致＝ファイル指定）                         |
+| `docs/specs/x.md`               | `docs/spec`    | **対象**（セグメント境界。`spec` は `specs` に誤爆しない） |
 
 ### 単体モード（`all`）の固定除外
 
