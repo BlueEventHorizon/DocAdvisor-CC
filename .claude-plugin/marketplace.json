@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "doc-advisor",
-      "source": "./",
+      "source": "./plugins/doc-advisor",
       "description": "AI-searchable document index (ToC) generator for Claude Code",
       "author": { "name": "moons" },
       "license": "MIT",

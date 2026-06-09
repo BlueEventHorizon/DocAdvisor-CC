@@ -31,7 +31,7 @@ from pathlib import Path
 
 # テスト対象モジュールの import
 SCRIPTS_DIR = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', 'scripts'
+    os.path.dirname(__file__), '..', '..', 'plugins', 'doc-advisor', 'scripts'
 ))
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)

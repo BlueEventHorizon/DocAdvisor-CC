@@ -10,7 +10,7 @@
 
 - 外部依存なし。Python 3.9 以上の標準ライブラリのみで動作する
 - フォーマッタは [dprint](https://dprint.dev/)（設定は `dprint.jsonc`）
-- このリポジトリは**単一プラグイン兼マーケットプレイス**構成。リポジトリルートに `.claude-plugin/plugin.json`（プラグイン）と `.claude-plugin/marketplace.json`（マーケットプレイス、`source: "./"` で自身を指す）の両方を持つ
+- このリポジトリは **marketplace → plugin → skill の 3 層構成**。リポジトリルートに `.claude-plugin/marketplace.json`（マーケットプレイス、`source: "./plugins/doc-advisor"`）、プラグイン実体は `plugins/doc-advisor/`（`.claude-plugin/plugin.json`）に置く
 
 ## ローカル開発・デバッグ
 
@@ -27,7 +27,7 @@
 セッション起動時にプラグインディレクトリを直接読み込む。
 
 ```bash
-claude --plugin-dir ~/path/to/DocAdvisor
+claude --plugin-dir ~/path/to/DocAdvisor/plugins/doc-advisor
 ```
 
 - キャッシュを介さずディレクトリ実体を直読みする
@@ -35,7 +35,7 @@ claude --plugin-dir ~/path/to/DocAdvisor
 - 現在チェックアウト中のブランチの内容で動く（push 不要）
 - 編集を反映するにはセッションを再起動する
 
-中身（`skills/*/SKILL.md`、`scripts/`、`agents/`）を編集しながら試す用途には、これが最も手間が少ない。
+中身（`plugins/doc-advisor/` 配下の `skills/*/SKILL.md`、`scripts/`、`agents/`）を編集しながら試す用途には、これが最も手間が少ない。
 
 ### 方式B: ローカルパスをマーケットプレイス登録
 
@@ -84,14 +84,15 @@ claude plugin enable doc-advisor@DocAdvisor
 ## マニフェスト検証
 
 ```bash
-claude plugin validate .
+claude plugin validate .                       # marketplace カタログ（リポジトリルート）
+claude plugin validate ./plugins/doc-advisor   # プラグインマニフェスト
 ```
 
-ルートが marketplace 兼 plugin（`source: "./"`）のため、`.` で marketplace 定義とプラグイン本体の両方が検証される。
+3 層構成（`marketplace.json` の `source: "./plugins/doc-advisor"`）のため、marketplace カタログはルート、プラグイン本体は `plugins/doc-advisor/` をそれぞれ検証する。
 
 ## テスト
 
-`scripts/` 配下の Python スクリプトにはテストが必須。SKILL.md はテスト困難なため例外、`.claude/` 配下のローカル skill は対象外。
+`plugins/doc-advisor/scripts/` 配下の Python スクリプトにはテストが必須。SKILL.md はテスト困難なため例外、`.claude/` 配下のローカル skill は対象外。
 
 ```bash
 # 一括実行

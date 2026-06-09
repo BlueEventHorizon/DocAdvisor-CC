@@ -21,11 +21,13 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# 配布物（skills / agents / workflows / formats）は plugins/doc-advisor/ 配下に置く。
+PLUGIN_ROOT = REPO_ROOT / 'plugins' / 'doc-advisor'
 
 # 継承型 dispatcher SKILL（ADR-002 改訂版: context: fork を持たない）
-QUERY_DOCS_SKILL = REPO_ROOT / 'skills' / 'query-docs' / 'SKILL.md'
+QUERY_DOCS_SKILL = PLUGIN_ROOT / 'skills' / 'query-docs' / 'SKILL.md'
 # read-only 検索 worker（カスタム Agent）
-QUERY_WORKER_AGENT = REPO_ROOT / 'agents' / 'query-worker.md'
+QUERY_WORKER_AGENT = PLUGIN_ROOT / 'agents' / 'query-worker.md'
 
 
 def _split_frontmatter_body(path: Path):
