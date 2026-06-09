@@ -143,7 +143,7 @@
       "Skill(index-docs)",
       "Skill(query-docs)",
 
-      "Bash(python3 scripts/*)",
+      "Bash(python3 plugins/doc-advisor/scripts/*)",
       "Bash(python3 -m unittest *)",
       "Bash(mkdir -p .claude/.temp/*)",
       "Bash(rm -rf .claude/doc-advisor/toc/specs/.toc_work/)",

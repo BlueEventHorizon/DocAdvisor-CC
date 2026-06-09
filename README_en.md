@@ -64,7 +64,7 @@ claude plugin enable doc-advisor@DocAdvisor
 
 ```bash
 git clone https://github.com/BlueEventHorizon/DocAdvisor.git
-claude --plugin-dir ./DocAdvisor
+claude --plugin-dir ./DocAdvisor/plugins/doc-advisor
 ```
 
 ## Usage
