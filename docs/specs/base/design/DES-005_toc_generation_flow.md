@@ -470,7 +470,7 @@ sequenceDiagram
 | `write_checksums_yaml()` / `load_checksums()` | `scripts/toc_utils.py`          | key 単位 checksums I/O（§6.2）                        |
 | `yaml_escape()`                               | `scripts/toc_utils.py`          | YAML エスケープ                                       |
 | `has_substantive_content()`                   | `scripts/prepare_toc.py`        | 空ファイルスキップ（旧 create_pending_yaml から転用） |
-| orchestrator パターン                         | `workflows/toc_orchestrator.md` | index-docs の並列・中断耐性                           |
+| orchestrator パターン                         | `workflows/index_toc_orchestrator.md` | index-docs の並列・中断耐性                           |
 
 再利用しない判断: `find_config_file()` / `load_config()` の category 分岐は doc_structure 廃止に伴い削除（再利用せず）。理由は REQ-001 §6.2。
 
