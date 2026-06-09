@@ -54,11 +54,11 @@ dispatcher から `--key <key>` 相当の指定があればその key の ToC �
 
 検索前に以下を読み、手順に従う:
 
-- `${CLAUDE_PLUGIN_ROOT}/workflows/query_toc_workflow.md` — ToC 取得・全エントリ読解・候補抽出の詳細手順
+- `${CLAUDE_PLUGIN_ROOT}/workflows/query_toc_orchestrator.md` — ToC 取得・全エントリ読解・候補抽出の詳細手順
 
 ## 検索フロー
 
-`query_toc_workflow.md` の手順に従う。概要は以下のとおり。
+`query_toc_orchestrator.md` の手順に従う。概要は以下のとおり。
 
 1. **key の決定**: 検索依頼から key を読み取る。指定がなければ予約 key `all` を使う。タスク説明を検索クエリとして保持する。
 2. **ToC の取得**: 次を実行する（`--format yaml` で AI が読みやすい YAML を stdout に得る）。

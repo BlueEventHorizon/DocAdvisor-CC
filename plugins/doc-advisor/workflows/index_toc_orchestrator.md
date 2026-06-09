@@ -1,5 +1,5 @@
 ---
-name: toc_orchestrator
+name: index_toc_orchestrator
 description: Orchestrator workflow for key-based toc.yaml generation (prepare → toc-updater parallel fill → merge)
 applicable_when:
   - Executing the /doc-advisor:index-docs skill

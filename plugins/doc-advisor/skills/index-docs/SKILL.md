@@ -49,12 +49,12 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 
 処理前に以下を読むこと:
 
-- `${CLAUDE_PLUGIN_ROOT}/workflows/toc_orchestrator.md` — オーケストレーター手順（key 単位・並列・中断耐性・continuation）
+- `${CLAUDE_PLUGIN_ROOT}/workflows/index_toc_orchestrator.md` — オーケストレーター手順（key 単位・並列・中断耐性・continuation）
 - `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` — ToC スキーマ定義（`doc_type` は除去済み。生成側も `doc_type` を抽出・出力しない）
 
 ## Execution Flow
 
-`toc_orchestrator.md` のオーケストレーター手順に従って、以下の協調フローを駆動する。スクリプトパスはすべて `${CLAUDE_PLUGIN_ROOT}/scripts/` を使う。`$ARGUMENTS` から `--key` / `--paths-json` / `--dirs-json` / `--exclude-json` / `--paths-file` / `--all` を解釈する。引数が空（`$ARGUMENTS` なし）の場合は `--all` として扱う。
+`index_toc_orchestrator.md` のオーケストレーター手順に従って、以下の協調フローを駆動する。スクリプトパスはすべて `${CLAUDE_PLUGIN_ROOT}/scripts/` を使う。`$ARGUMENTS` から `--key` / `--paths-json` / `--dirs-json` / `--exclude-json` / `--paths-file` / `--all` を解釈する。引数が空（`$ARGUMENTS` なし）の場合は `--all` として扱う。
 
 `--dirs-json` が指定されている場合は **Step 0 の前**に `expand_dirs.py` を呼んでディレクトリを展開し、結果を `--paths-json` に変換してから以降のフローへ渡す（Step 0.5 参照）。
 
@@ -148,7 +148,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json 
 
 充填は **連続ディスパッチ（sliding-window）** で行う（ADR-006 / Issue #29）。並列ウィンドウを保ちつつ、完了が出るたびに空きスロットを埋め直すことで、バッチ（wave）バリアの中間テール待ちを除去する。二重投入は **claim/lease（script 側）** が防ぐ。
 
-- **並列ウィンドウ**: 最大 10（`toc_orchestrator.md` の既定。実証済み安全圏 / ADR-006 案 A）。低 tier で 429 が出る場合は 5 → 3 へ下げる。10 超は未検証のため上げない。
+- **並列ウィンドウ**: 最大 10（`index_toc_orchestrator.md` の既定。実証済み安全圏 / ADR-006 案 A）。低 tier で 429 が出る場合は 5 → 3 へ下げる。10 超は未検証のため上げない。
 - **投入直前に claim**: 投入するグループの entry_files を `toc_store.py --claim <entry...>` で claim（`claimed_at` をスタンプ）してから Agent を起動する。これにより次の `--work-status` がそのグループを **in-flight** として `pending` から除外し、連続投入中の二重起動を防ぐ。claim せずに起動してはならない。`--claim` は `claimed` / `rejected` を返す — **`claimed` のみを entry_files として渡し、`rejected`（`completed` / `already_claimed` / `error_pending` / `outside_work_dir` 等）は渡さない**。`claimed` が空ならそのグループは起動しない。
 - 各カスタム Agent は **`run_in_background: true`** で起動し、完了通知（task-notification）を契機に補充する。`subagent_type` は `doc-advisor:toc-updater`。key とグループの entry_files（1〜k 件）を渡す。1 グループは同一ディレクトリ内に閉じ、Agent は各文書を独立に抽出する（context rot 回避）。
 
