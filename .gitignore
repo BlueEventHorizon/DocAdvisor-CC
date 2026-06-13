@@ -4,8 +4,7 @@
 .claude/settings.local.json
 .claude/.temp/
 
-# Codex CLI ローカル状態
-.codex/
+.claude/scheduled_tasks.lock
 
 # テスト用一時ディレクトリ（tempfile.mkdtemp の出力先・/tmp 不可環境のフォールバック）
 tests/**/.temp/
@@ -18,6 +17,10 @@ __pycache__/
 *.bak
 .DS_Store
 
+# UXUI 参照画像（著作権配慮のためデフォルト除外。README/notes は git 管理下に残す）
+**/uxui_references/competitors/
+**/uxui_references/inspirations/
+
 # プロジェクト外参照
 
 **/meta/
@@ -26,10 +29,3 @@ __pycache__/
 **/reference_projects/
 **/reference_projects
 docs/references
-.claude/scheduled_tasks.lock
-
-# UXUI 参照画像（著作権配慮のためデフォルト除外。README/notes は git 管理下に残す）
-**/uxui_references/competitors/
-**/uxui_references/inspirations/
-
-# Index
