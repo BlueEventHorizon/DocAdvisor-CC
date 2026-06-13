@@ -57,7 +57,7 @@ REMOVE_TOC_SCRIPT = os.path.join(SCRIPTS_DIR, 'remove_toc.py')
 # 新スキーマ（DES-005 §7.1: doc_type 除去）の toc.yaml。
 # 定義順は z, a, m とし、削除後の順序保持を観測する。
 SAMPLE_TOC_YAML = """\
-# .claude/doc-advisor/toc/<slug>/toc.yaml
+# .claude/.doc-advisor/toc/<slug>/toc.yaml
 # Auto-generated - Do not edit directly
 
 metadata:

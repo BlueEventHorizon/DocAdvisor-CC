@@ -189,11 +189,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --claim <entry1
 ```
 # claim 成功したグループを run_in_background で起動（1 グループ = 1〜k 件の近傍 entry_files）
 Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
-      prompt: "key: {key}, entry_files: .claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml, <同一ディレクトリの別 entry>")
+      prompt: "key: {key}, entry_files: .claude/.doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml, <同一ディレクトリの別 entry>")
 
 # 単体モード（予約 key all）: key の代わりに all を渡す
 Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
-      prompt: "all (single mode), entry_files: .claude/doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
+      prompt: "all (single mode), entry_files: .claude/.doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
 ```
 
 > 単体モードでは toc-updater 側が `write_pending.py --all` を使う（`--key all` はユーザー任意指定として reject されるため）。`entry_files` は project-root-relative で渡す。

@@ -49,7 +49,7 @@ flowchart TB
     end
 
     subgraph Store["key 単位 ToC ストア"]
-        ST[.claude/doc-advisor/toc/&lt;slug&gt;/]
+        ST[.claude/.doc-advisor/toc/&lt;slug&gt;/]
     end
 
     U1 --> S1
@@ -85,7 +85,7 @@ flowchart TB
 REQ-001 FR-N01-3 の「決定的変換」を以下で実現する。
 
 ```text
-store_dir(key) = .claude/doc-advisor/toc/{slug}/
+store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 ```
 
 - `slug`: key を NFC 正規化（既存 `normalize_path`）後、`[a-z0-9_-]` 以外を `_` に置換し、英小文字化・連続 `_` 圧縮・長さ 40 文字で切り詰め。切り詰めの前後で前後の `_` を除去する
@@ -95,7 +95,7 @@ store_dir(key) = .claude/doc-advisor/toc/{slug}/
 ### 3.2 ストアディレクトリ構造
 
 ```text
-.claude/doc-advisor/toc/{slug}-{hash}/
+.claude/.doc-advisor/toc/{slug}-{hash}/
 ├── toc.yaml           # 最終 ToC (metadata + docs)
 ├── .toc_checksums.yaml # key 単位の変更検出用チェックサム
 └── .toc_work/         # prepare が生成する pending YAML (一時)
@@ -342,7 +342,7 @@ docs:
   "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | null",
   "message": "human-readable",
   "key": "rules",
-  "toc_path": ".claude/doc-advisor/toc/rules-<hash>/toc.yaml",
+  "toc_path": ".claude/.doc-advisor/toc/rules-<hash>/toc.yaml",
   "normalized_paths": ["docs/a.md"],
   "rejected_paths": [{ "path": "../x.md", "reason": "PATH_TRAVERSAL" }],
   "counts": { "added": 0, "updated": 0, "deleted": 0, "unchanged": 0 },
@@ -458,18 +458,18 @@ sequenceDiagram
 
 ## 12. 使用する既存コンポーネント
 
-| コンポーネント                                | ファイルパス                    | 用途                                                  |
-| --------------------------------------------- | ------------------------------- | ----------------------------------------------------- |
-| `validate_path_within_base()`                 | `scripts/toc_utils.py`          | traversal 検証（流用、§5.1）                          |
-| `normalize_path()`                            | `scripts/toc_utils.py`          | NFC 正規化（§5.1）                                    |
-| `calculate_file_hash()`                       | `scripts/toc_utils.py`          | SHA-256 変更検出（§6.2）                              |
-| `rglob_follow_symlinks()`                     | `scripts/toc_utils.py`          | 単体モード走査（§9.1）                                |
-| `should_exclude()`                            | `scripts/toc_utils.py`          | 固定除外適用（§9.1 / DES-004）                        |
-| `load_existing_toc()`                         | `scripts/toc_utils.py`          | toc.yaml 読み込み（§6 / get_toc）                     |
-| `write_yaml_output()`                         | `scripts/merge_toc.py`          | 原子的 ToC 書き込み（§6）                             |
-| `write_checksums_yaml()` / `load_checksums()` | `scripts/toc_utils.py`          | key 単位 checksums I/O（§6.2）                        |
-| `yaml_escape()`                               | `scripts/toc_utils.py`          | YAML エスケープ                                       |
-| `has_substantive_content()`                   | `scripts/prepare_toc.py`        | 空ファイルスキップ（旧 create_pending_yaml から転用） |
+| コンポーネント                                | ファイルパス                          | 用途                                                  |
+| --------------------------------------------- | ------------------------------------- | ----------------------------------------------------- |
+| `validate_path_within_base()`                 | `scripts/toc_utils.py`                | traversal 検証（流用、§5.1）                          |
+| `normalize_path()`                            | `scripts/toc_utils.py`                | NFC 正規化（§5.1）                                    |
+| `calculate_file_hash()`                       | `scripts/toc_utils.py`                | SHA-256 変更検出（§6.2）                              |
+| `rglob_follow_symlinks()`                     | `scripts/toc_utils.py`                | 単体モード走査（§9.1）                                |
+| `should_exclude()`                            | `scripts/toc_utils.py`                | 固定除外適用（§9.1 / DES-004）                        |
+| `load_existing_toc()`                         | `scripts/toc_utils.py`                | toc.yaml 読み込み（§6 / get_toc）                     |
+| `write_yaml_output()`                         | `scripts/merge_toc.py`                | 原子的 ToC 書き込み（§6）                             |
+| `write_checksums_yaml()` / `load_checksums()` | `scripts/toc_utils.py`                | key 単位 checksums I/O（§6.2）                        |
+| `yaml_escape()`                               | `scripts/toc_utils.py`                | YAML エスケープ                                       |
+| `has_substantive_content()`                   | `scripts/prepare_toc.py`              | 空ファイルスキップ（旧 create_pending_yaml から転用） |
 | orchestrator パターン                         | `workflows/index_toc_orchestrator.md` | index-docs の並列・中断耐性                           |
 
 再利用しない判断: `find_config_file()` / `load_config()` の category 分岐は doc_structure 廃止に伴い削除（再利用せず）。理由は REQ-001 §6.2。

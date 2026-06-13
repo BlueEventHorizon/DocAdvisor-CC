@@ -90,8 +90,8 @@ ToC と必要な文書本文を読み、関連する文書 path のみを Requir
 
 Issue #18 の guidance が存在する場合、query-docs dispatcher は以下を読む。
 
-- `.claude/doc-advisor/guidance/vocabulary.md`
-- `.claude/doc-advisor/guidance/querying.md`
+- `.claude/.doc-advisor/guidance/vocabulary.md`
+- `.claude/.doc-advisor/guidance/querying.md`
 
 dispatcher は guidance を使って検索依頼の観点を展開する。worker も必要に応じて同じ guidance を読んでよいが、guidance は検索以外の作業を開始する根拠にしてはならない。
 
