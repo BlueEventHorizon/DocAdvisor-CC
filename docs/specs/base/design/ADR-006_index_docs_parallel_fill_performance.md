@@ -58,7 +58,7 @@ Workflow 型オーケストレーション（最大 16 同時等）は SKILL ラ
 
 ### A. 並列度を 5→10 に引き上げ（配布デフォルト 10）
 
-`toc_orchestrator.md` / `skills/index-docs/SKILL.md` の並列度を 5 から 10 へ変更する。
+`index_toc_orchestrator.md` / `skills/index-docs/SKILL.md` の並列度を 5 から 10 へ変更する。
 1 件あたり処理時間は並列度に依存しないため、増やした分だけスループットが向上する。各エージェントは
 1 文書のクリーンな分離を維持するため、A は品質に無関係で実証済み安全圏である。
 

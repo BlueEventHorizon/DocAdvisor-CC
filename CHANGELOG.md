@@ -4,6 +4,18 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.4] - 2026-06-13
+
+### Changed
+
+- ToC ストアのパスを `.claude/doc-advisor/toc` から `.claude/.doc-advisor/toc` へ変更。Unix の dot prefix 慣習に従い、プラグインが機械生成する内部データをユーザー設定ファイルと視覚的に区別する (Issue #33)
+- プラグイン実体を `plugins/doc-advisor/` へ移し、marketplace（`.claude-plugin/marketplace.json`） → plugin（`plugins/doc-advisor/.claude-plugin/plugin.json`）→ skill の 3 層 marketplace 構成に再編
+- `plugins/doc-advisor/workflows/` 内のファイル名を対称な役割名に統一
+
+### Fixed
+
+- サブディレクトリ移動後のバージョン整合性を回復
+
 ## [0.4.3] - 2026-06-08
 
 ### Added

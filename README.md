@@ -1,6 +1,6 @@
 # doc-advisor
 
-**Version: 0.4.3**
+**Version: 0.4.4**
 
 Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトの Markdown 文書を ToC（キーワード・メタデータ）で `key` 単位にインデックス化・検索し、AI が必要なコンテキストを自動発見できるようにする。
 
@@ -64,7 +64,7 @@ claude plugin enable doc-advisor@DocAdvisor
 
 ```bash
 git clone https://github.com/BlueEventHorizon/DocAdvisor.git
-claude --plugin-dir ./DocAdvisor
+claude --plugin-dir ./DocAdvisor/plugins/doc-advisor
 ```
 
 ## 使い方

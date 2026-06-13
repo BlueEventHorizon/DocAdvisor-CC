@@ -33,7 +33,7 @@ from pathlib import Path
 
 # テスト対象モジュールの import
 SCRIPTS_DIR = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', 'scripts'
+    os.path.dirname(__file__), '..', '..', 'plugins', 'doc-advisor', 'scripts'
 ))
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
@@ -60,7 +60,7 @@ GET_TOC_SCRIPT = os.path.join(SCRIPTS_DIR, 'get_toc.py')
 # 新スキーマ（DES-005 §7.1: doc_type 除去）の toc.yaml。
 # 定義順は z, a, m とし、出力で sorted されないこと（定義順保持）を観測する。
 SAMPLE_TOC_YAML = """\
-# .claude/doc-advisor/toc/<slug>/toc.yaml
+# .claude/.doc-advisor/toc/<slug>/toc.yaml
 # Auto-generated - Do not edit directly
 
 metadata:

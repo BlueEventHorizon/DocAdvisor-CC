@@ -27,6 +27,8 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# 配布物（scripts / skills / workflows / formats / agents）は plugins/doc-advisor/ 配下に置く。
+PLUGIN_ROOT = REPO_ROOT / "plugins" / "doc-advisor"
 
 # 通常実行経路を構成する deterministic script 層（DES-005 §4.1）。
 # これらは key + paths を直接受け取り、.doc_structure.yaml を読まない。
@@ -69,7 +71,7 @@ class TestNoDocStructureResidue(unittest.TestCase):
     def test_normal_path_scripts_have_no_doc_structure_refs(self):
         """通常経路スクリプトに doc_structure 由来の語が残っていない。"""
         for name in NORMAL_PATH_SCRIPTS:
-            path = REPO_ROOT / "scripts" / name
+            path = PLUGIN_ROOT / "scripts" / name
             self.assertTrue(
                 path.exists(),
                 f"通常経路スクリプト {name} が存在しない: {path}",
@@ -84,7 +86,7 @@ class TestNoDocStructureResidue(unittest.TestCase):
 
     def test_toc_utils_has_no_removed_config_symbols(self):
         """toc_utils.py に削除済み関数 / 例外の定義が残っていない。"""
-        body = (REPO_ROOT / "scripts" / "toc_utils.py").read_text(encoding="utf-8")
+        body = (PLUGIN_ROOT / "scripts" / "toc_utils.py").read_text(encoding="utf-8")
         for symbol in REMOVED_TOC_UTILS_SYMBOLS:
             # 関数定義 / クラス定義どちらの形でも残存させない。
             self.assertNotIn(
@@ -104,7 +106,7 @@ class TestNoDocStructureResidue(unittest.TestCase):
         通常経路リストの網羅性に依存せず、scripts/ 全体で config ファイルの
         再混入を防ぐ（将来スクリプトが追加されても保護される）。
         """
-        for path in (REPO_ROOT / "scripts").glob("*.py"):
+        for path in (PLUGIN_ROOT / "scripts").glob("*.py"):
             body = path.read_text(encoding="utf-8")
             self.assertNotIn(
                 ".doc_structure.yaml",

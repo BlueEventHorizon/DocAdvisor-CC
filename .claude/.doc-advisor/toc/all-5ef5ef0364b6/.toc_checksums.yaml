@@ -1,0 +1,39 @@
+# ToC checksums for key: all
+# Auto-generated - do not edit
+generated_at: 2026-06-09T15:39:44Z
+file_count: 34
+checksums:
+  .github/PULL_REQUEST_TEMPLATE.md: 2151cd773d637500f87cfa5015bb095c6d62e58bb11c11e041c7c3fd2791b19a
+  AGENTS.md: 17ad84dff452d6c13ca66017241f774a973c392ce83a9352cc9b78df51bb48ee
+  CHANGELOG.md: d8cd694842885495f230d1f2c98bfcecd848a111699d4d549774158112272df6
+  DEVELOPMENT.md: a570599ec2ef6d40fedefd2c2a5c6460d3309a83df59695aef08f70c3859c7e2
+  README.md: ecaed17e9614cf1042a90f7a65845eaec4e25ed34059665392bc6e5ceedd24cf
+  README_en.md: 0c82974acb168367168156cb8efc9b19552211925759326fc4c513a4c787a349
+  docs/readme/guide_doc-advisor.md: 5b1458880be2b8a333c552b3d3932b56ea4e7abc3f3293eaccc2692a07da7e6a
+  docs/readme/guide_doc-advisor_ja.md: 4b214a982afb6c1d7b91a708b094610ca025efca83d7832ef7099f87b6931f5e
+  docs/rules/cli_output_formatting.md: b1adf4bf581e902064feac1b46eedc509b9a8994cc4eafdaf38c4136c399241f
+  docs/rules/document_writing_rules.md: e063399a1399a369c3e4a4b8df01b2e6c66c992b6c54be3d280f2879bca2e2c2
+  docs/rules/implementation_guidelines.md: e844d6273e8eb92be429471897f7dc8783fadb6f0b09a065be3629231f904cc0
+  docs/rules/skill_authoring_notes.md: 45b7d8e95e609a1376ec9028e5c490ea1b404d1220c0add149f828ab8e429f32
+  docs/rules/skill_launch_paths_definitions.md: d82ab69a3fd8740b9e8986ed6bf198e454fff2eaada51794c45ecb165ec44721
+  docs/rules/version_migration_design.md: 1186d9ccc0bdae6be40ccbae47d43406a3087d54a5ab97d8d9deca3c707e6458
+  docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md: 7c9122f4e1b648777e45f97a8725e7a7de8b5e0f9c0af2697266850eed8d1bef
+  docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md: 6035827bce5edd75bd8f9c2e3312949849ef7ac52af41c4bf732a8364220e633
+  docs/specs/base/design/DES-003_document_identifier.md: 04c4c0a3ebfb3420e637f8fb764aee7254ea1937f3487c5c641af48be2712591
+  docs/specs/base/design/DES-004_document_model.md: 85e864b13404f76b433110b61a5da31a2c3eeb4aaf6fa55642162b223e3440a1
+  docs/specs/base/design/DES-005_toc_generation_flow.md: f101223651ba5319f1ebb223fd982922f80e0ae350dd525347527c329ec80827
+  docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md: 5fc2a59c92233e77392d8b7cb7a36dc6703243c8bdd28e0e81d8ef604c535865
+  docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md: dd8c529cd223934fab9bfa644598644ccb652fc872dd61d2f6ed8a8d4991a0f6
+  docs/specs/base/requirements/REQ-001_doc_advisor.md: 7024d8c32a3e022ceb57063b6e86228460d303ff7e731c5dd1c45310c4f6d2cb
+  docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md: f6741faec22b712335a94558c7b16d93c629ba8a78682757413655e8c075bb23
+  docs/specs/base/requirements/REQ-003_versioned_migration.md: d9829a6da88357a5e97f7ae3389980460164252b8d219f832f97fae38bebc84f
+  docs/specs/common/design/COMMON-DES-001_skill_base_design.md: 2223f06e144f74b7c9fd9dff0c6bcaae50096820f562558a4a5bdaa1a6997f05
+  docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md: 2321be488a1552564901e5abd1a4a4fbf5ad5a75355ec3b5c6326e2336a4e047
+  docs/specs/common/requirements/COMMON-REQ-002_error_handling_policy.md: de0c4ceeb2078e6cd12955fb10d6a87242fa126e1cdfab89a985aa33095868e2
+  plugins/doc-advisor/agents/query-worker.md: 6a9cdbb757d4cb6e96a5b9b1add17bbc27224c0dcf884f42947c957849ca9b2a
+  plugins/doc-advisor/agents/toc-updater.md: a5245399090e4c3e2e50f1f9bd3e96ba0061e07c5c27d0371897e7f19fec5608
+  plugins/doc-advisor/formats/toc_format.md: 153a940423714c52cdeed45369ffb3cd37eedcbcce23118f30372ae6c0ef6f12
+  plugins/doc-advisor/skills/index-docs/SKILL.md: 3a545b7453f43eec78f334c73d4d787694f5fbe02e1297b3fe18ca095af7baaf
+  plugins/doc-advisor/skills/query-docs/SKILL.md: 46558a7b6958fe5060bcde618da8b11b772945462510086af3a999dd0a1c7843
+  plugins/doc-advisor/workflows/index_toc_orchestrator.md: a904d091411142b3724b397b39599736d9ca1d957434a1db0396c45c31025464
+  plugins/doc-advisor/workflows/query_toc_orchestrator.md: d3d15617e3b227eb17a9e94bc14ef1ed9eecd83534e0d09a341f7022e35f0684

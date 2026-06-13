@@ -2,19 +2,18 @@
 
 targets:
   - name: doc-advisor
-    version_file: .claude-plugin/plugin.json
+    version_file: plugins/doc-advisor/.claude-plugin/plugin.json
     version_path: version
     sync_files:
+      - path: .claude-plugin/marketplace.json
+        pattern: '"version": "{version}"'
+        filter: '"version":'
       - path: README.md
         pattern: "**Version: {version}**"
         filter: "**Version:"
       - path: README_en.md
         pattern: "**Version: {version}**"
         filter: "**Version:"
-        optional: true
-      - path: CLAUDE.md
-        pattern: "**doc-advisor** (v{version})"
-        filter: "**doc-advisor** (v"
         optional: true
 
 changelog:

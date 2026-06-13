@@ -34,12 +34,12 @@
 
 ### テストの配置
 
-単一プラグイン構成のため、`tests/` 直下に責務単位で分類して配置する:
+配布物（`plugins/doc-advisor/`）に対するテストはリポジトリルートの `tests/` 直下に責務単位で分類して配置する（テストは配布物に含めない）:
 
 ```
 tests/
-├── scripts/                # scripts/ 配下のスクリプトのテスト
-├── skills/                 # skills/ 配下のスキルのテスト
+├── scripts/                # plugins/doc-advisor/scripts/ のスクリプトのテスト
+├── skills/                 # plugins/doc-advisor/skills/ のスキルのテスト
 └── integration/            # プラグイン全体の統合テスト
 ```
 

@@ -7,7 +7,7 @@ doc-advisor の ToC 検索において、タスクに関連する文書を 1 件
 ## 前提条件
 
 - ToC（key 単位の `store_dir/toc.yaml`）が最新の状態であること（変更検出は REQ-001 FR-N02-6 / DES-005 を参照）
-- 検索は `query-docs` SKILL が `query_toc_workflow.md` に従って実行する（`--key` 省略時は予約 key `all`）
+- 検索は `query-docs` SKILL が `query_toc_orchestrator.md` に従って実行する（`--key` 省略時は予約 key `all`）
 
 ## 要件一覧
 
@@ -35,7 +35,7 @@ ToC エントリの全メタデータフィールドを照合対象とする:
 ### 検索方式
 
 - AI が ToC YAML を **全量 Read** し、全エントリを理解してからタスクとの関連を判定する（grep やトークンマッチではなく、メタデータの意味理解による照合）
-- ToC が大きく全量 Read が困難な場合（100 件超）の縮小読み込み手段は `get_toc.py --paths`（DES-005 §11.2）/ `query_toc_workflow.md` を参照
+- ToC が大きく全量 Read が困難な場合（100 件超）の縮小読み込み手段は `get_toc.py --paths`（DES-005 §11.2）/ `query_toc_orchestrator.md` を参照
 
 ### 品質を担保する仕組み
 
@@ -52,7 +52,7 @@ ToC 生成時（`doc-advisor:toc-updater`）にこれらのフィールドを充
 | 条件                             | 動作                                                                                                       |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | ToC が古い（文書変更後に未更新） | 検索は実行するが、結果が古い可能性を呼び出し元に通知し、`/doc-advisor:index-docs` での再生成を案内する     |
-| ToC が存在しない                 | 候補なし（空リスト）として扱い、`/doc-advisor:index-docs` の実行を案内する（query_toc_workflow.md の仕様） |
+| ToC が存在しない                 | 候補なし（空リスト）として扱い、`/doc-advisor:index-docs` の実行を案内する（query_toc_orchestrator.md の仕様） |
 
 ## 関連要件
 

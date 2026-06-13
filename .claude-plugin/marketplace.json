@@ -4,12 +4,12 @@
   "owner": { "name": "moons" },
   "metadata": {
     "description": "AI-searchable document index (ToC) generator for Claude Code",
-    "version": "0.4.0"
+    "version": "0.4.4"
   },
   "plugins": [
     {
       "name": "doc-advisor",
-      "source": "./",
+      "source": "./plugins/doc-advisor",
       "description": "AI-searchable document index (ToC) generator for Claude Code",
       "author": { "name": "moons" },
       "license": "MIT",
