@@ -49,7 +49,7 @@ flowchart TB
     end
 
     subgraph Store["key 単位 ToC ストア"]
-        ST[.claude/doc-advisor/toc/&lt;slug&gt;/]
+        ST[.claude/.doc-advisor/toc/&lt;slug&gt;/]
     end
 
     U1 --> S1
@@ -85,7 +85,7 @@ flowchart TB
 REQ-001 FR-N01-3 の「決定的変換」を以下で実現する。
 
 ```text
-store_dir(key) = .claude/doc-advisor/toc/{slug}/
+store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 ```
 
 - `slug`: key を NFC 正規化（既存 `normalize_path`）後、`[a-z0-9_-]` 以外を `_` に置換し、英小文字化・連続 `_` 圧縮・長さ 40 文字で切り詰め。切り詰めの前後で前後の `_` を除去する
@@ -95,7 +95,7 @@ store_dir(key) = .claude/doc-advisor/toc/{slug}/
 ### 3.2 ストアディレクトリ構造
 
 ```text
-.claude/doc-advisor/toc/{slug}-{hash}/
+.claude/.doc-advisor/toc/{slug}-{hash}/
 ├── toc.yaml           # 最終 ToC (metadata + docs)
 ├── .toc_checksums.yaml # key 単位の変更検出用チェックサム
 └── .toc_work/         # prepare が生成する pending YAML (一時)
@@ -342,7 +342,7 @@ docs:
   "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | null",
   "message": "human-readable",
   "key": "rules",
-  "toc_path": ".claude/doc-advisor/toc/rules-<hash>/toc.yaml",
+  "toc_path": ".claude/.doc-advisor/toc/rules-<hash>/toc.yaml",
   "normalized_paths": ["docs/a.md"],
   "rejected_paths": [{ "path": "../x.md", "reason": "PATH_TRAVERSAL" }],
   "counts": { "added": 0, "updated": 0, "deleted": 0, "unchanged": 0 },

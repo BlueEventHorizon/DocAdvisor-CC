@@ -76,8 +76,8 @@ dispatcher も実装作業を行わない **read-only** な層である。以下
 
 以下のファイルが存在する場合は Read し、検索観点の展開と worker prompt 構築に使う（base/ADR-002 §D / Issue #18）:
 
-- `.claude/doc-advisor/guidance/vocabulary.md`
-- `.claude/doc-advisor/guidance/querying.md`
+- `.claude/.doc-advisor/guidance/vocabulary.md`
+- `.claude/.doc-advisor/guidance/querying.md`
 
 存在しない場合は読み飛ばす（guidance 未整備でも dispatcher は動作する）。guidance は検索観点（facets）を
 広げるための材料であり、検索以外の作業を開始する根拠にはしない。

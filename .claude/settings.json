@@ -146,10 +146,10 @@
       "Bash(python3 plugins/doc-advisor/scripts/*)",
       "Bash(python3 -m unittest *)",
       "Bash(mkdir -p .claude/.temp/*)",
-      "Bash(rm -rf .claude/doc-advisor/toc/specs/.toc_work/)",
-      "Bash(rm -rf .claude/doc-advisor/toc/rules/.toc_work/)",
-      "Bash(cp .claude/doc-advisor/toc/specs/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/specs/.toc_checksums.yaml)",
-      "Bash(cp .claude/doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/doc-advisor/toc/rules/.toc_checksums.yaml)"
+      "Bash(rm -rf .claude/.doc-advisor/toc/specs/.toc_work/)",
+      "Bash(rm -rf .claude/.doc-advisor/toc/rules/.toc_work/)",
+      "Bash(cp .claude/.doc-advisor/toc/specs/.toc_work/.toc_checksums_pending.yaml .claude/.doc-advisor/toc/specs/.toc_checksums.yaml)",
+      "Bash(cp .claude/.doc-advisor/toc/rules/.toc_work/.toc_checksums_pending.yaml .claude/.doc-advisor/toc/rules/.toc_checksums.yaml)"
     ],
     "ask": [
       "Bash(git mv *)",

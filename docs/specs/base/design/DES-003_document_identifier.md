@@ -58,7 +58,7 @@ specs/design/SCR-001_login_design.md
 
 | 識別方法                             | 使用箇所                                                                        |
 | ------------------------------------ | ------------------------------------------------------------------------------- |
-| ID (`SCR-001`)                       | `.claude/doc-advisor/toc/specs/.toc_work/SCR-001.yaml`、validate の重複チェック |
+| ID (`SCR-001`)                       | `.claude/.doc-advisor/toc/specs/.toc_work/SCR-001.yaml`、validate の重複チェック |
 | パス (`specs/requirements/login.md`) | ToC YAML のキー、実際のファイル参照                                             |
 
 2つの識別子を管理する必要があり、冗長である。

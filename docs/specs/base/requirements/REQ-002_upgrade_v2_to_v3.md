@@ -40,7 +40,7 @@ Doc Advisor が管理していないファイル（ユーザー独自のコマ�
 
 ### 原則3: ランタイム出力の尊重
 
-ユーザーのワークスペースに生成された ToC ストア（`.claude/doc-advisor/toc/`）は、明示的な確認なしに上書き・削除しない。現行版は `.doc_structure.yaml` を使用しないが、旧バージョンが残した `.doc_structure.yaml` はユーザー資産として一切改変しない（廃止に伴い参照されなくなるのみ）。
+ユーザーのワークスペースに生成された ToC ストア（`.claude/.doc-advisor/toc/`）は、明示的な確認なしに上書き・削除しない。現行版は `.doc_structure.yaml` を使用しないが、旧バージョンが残した `.doc_structure.yaml` はユーザー資産として一切改変しない（廃止に伴い参照されなくなるのみ）。
 
 ---
 
@@ -81,7 +81,7 @@ Doc Advisor がプラグインとして配布される環境では、ファイ�
 
 - `.claude/commands/` 内のユーザー独自コマンド
 - `.claude/agents/` 内のユーザー独自エージェント
-- `.claude/doc-advisor/toc/`（ランタイム出力: ToC ストア、チェックサム、作業ディレクトリ）
+- `.claude/.doc-advisor/toc/`（ランタイム出力: ToC ストア、チェックサム、作業ディレクトリ）
 
 **受入条件**:
 
@@ -128,7 +128,7 @@ Doc Advisor がプラグインとして配布される環境では、ファイ�
 
 **受入条件**:
 
-- [ ] `.claude/doc-advisor/toc/` 配下の生成物は削除されない
+- [ ] `.claude/.doc-advisor/toc/` 配下の生成物は削除されない
 - [ ] 旧 category 別 ToC は再生成（`/doc-advisor:index-docs`）で現行ストアへ移行する
 
 > **Note**: 旧バージョンの ToC（`doc-advisor/rules/` や `doc-advisor/toc/{rules,specs}/`）はパス構造が現行（`toc/`）と異なる。現行版で直接利用できないため、初回は `/doc-advisor:index-docs` での再生成を推奨する。

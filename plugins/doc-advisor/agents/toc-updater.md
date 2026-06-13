@@ -1,6 +1,6 @@
 ---
 name: toc-updater
-description: Specialized custom Agent that fills one or more pending ToC entries by extracting metadata from each source document independently. Processes 1〜k same-directory pending YAML files under a key's store directory (`.claude/doc-advisor/toc/<slug>/.toc_work/`), extracting each document separately to avoid context rot.
+description: Specialized custom Agent that fills one or more pending ToC entries by extracting metadata from each source document independently. Processes 1〜k same-directory pending YAML files under a key's store directory (`.claude/.doc-advisor/toc/<slug>/.toc_work/`), extracting each document separately to avoid context rot.
 model: haiku
 color: orange
 tools: Read, Bash
@@ -31,7 +31,7 @@ tools: Read, Bash
 | Parameter     | Required | Description                                                                                                                                                                                   |
 | ------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `key`         | Yes\*    | The opaque key whose ToC these entries belong to. \*Omit `key` and pass `all` for single mode (reserved key `all`).                                                                           |
-| `entry_files` | Yes      | One or more pending entry YAML paths to fill (e.g., `.claude/doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml`, project-relative). 呼び出し側が同一ディレクトリ近傍でグルーピングした 1〜k 件。 |
+| `entry_files` | Yes      | One or more pending entry YAML paths to fill (e.g., `.claude/.doc-advisor/toc/<slug>/.toc_work/<sha256>.yaml`, project-relative). 呼び出し側が同一ディレクトリ近傍でグルーピングした 1〜k 件。 |
 
 > 予約 key `all`（単体モード）の場合は `--key` の代わりに `--all` を渡す。`--key all` はユーザー任意指定として reject される。
 >

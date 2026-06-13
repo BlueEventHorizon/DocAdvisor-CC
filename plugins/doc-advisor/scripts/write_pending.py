@@ -13,7 +13,7 @@ toc-updater agent の分析結果を pending YAML（store_dir/.toc_work/ 配下�
 
 Usage:
     python3 write_pending.py --key K \
-      --entry-file ".claude/doc-advisor/toc/<slug>/.toc_work/xxx.yaml" \
+      --entry-file ".claude/.doc-advisor/toc/<slug>/.toc_work/xxx.yaml" \
       --title "Title" \
       --purpose "Purpose" \
       --content-details "item1 ||| item2 ||| item3 ||| item4 ||| item5" \
