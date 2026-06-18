@@ -16,11 +16,20 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 
 ## 重要規約 [MANDATORY]
 
-- **プロジェクト文書の参照には `/doc-advisor:query-docs` を使う**: タスクに関連するルール・仕様等の文書を検索する。検索対象を絞る key は、その都度の状況に応じて指定するオプションであり、CLAUDE.md では固定しない。対象 key の ToC が未生成なら先に `/doc-advisor:index-docs` で生成する
+- プロジェクトルール文書の参照には `query-db-rules` SKILL を使う
+- プロジェクトルール文書の更新後には `update-db-rules` SKILL を使う
+- プロジェクト仕様の参照には `query-db-specs` SKILL を使う
+- プロジェクト仕様の更新後には `update-db-specs` SKILL を使う
 - **ルールは `docs/rules/` で管理**: CLAUDE.md にルールを詰め込まない（コンテキスト肥大化防止）
-- **設計文書は `docs/specs/base/{requirements,design}/` に保存**: plan モードで作成した重要設計は ID プレフィックス（REQ-, DES-, ADR-）で命名
+- **設計文書は `docs/specs/**/{requirements,design}/` に保存**: plan モードで作成した重要設計は ID プレフィックス（REQ-, DES-, ADR-）で命名
 - **プラグインランタイム文書の境界**: `plugins/doc-advisor/{workflows,formats}/` 配下は SKILL.md がランタイム Read する配布物。リポジトリルートの `docs/` 配下はプロジェクト自身のメタ文書（配布物に含めない）
 - **文書間参照にパスを焼き込まない**: 「どのタスクで何を読むべきか」をタスク記述から動的に発見すること（＝パス参照の保守コスト爆発を無くすこと）こそ doc-advisor の存在意義。文書には「何に依存するか（概念・ID）」だけ残し、`docs/...md` のようなディレクトリパス直書きの "ここを見ろ" 参照は書かない（パスは改訂で腐り、ToC の動的発見を無意味化する）。参照先の発見は `query-docs` に委ねる
+- **feature/fix PR では CHANGELOG.md・version 関連ファイルを編集しない**。リリースコミットでまとめて更新（`/forge:update-version` を使う）
+- **`.toc_work/` 等の消えるべき一時物は `.gitignore` に入れない**。残存が `git status` に untracked として出ることで異常を検知できる
+- **`docs/specs/base/design/` の ADR と DES は通し番号を共有**。`forge:next-spec-id` の出力を鵜呑みにせず ADR/DES 横断の最大番号+1 を使う
+- **決定論的な定型処理（列挙・転記・集計・ファイル生成）は script 化する**。AI は判断のみ担い、手転記・手列挙をしない
+- **agent/SKILL のプロンプト指示は混入点でなく出力構築点に 1 箇所だけ置く**。近接した複数箇所への同一指示は重複であり追記しない
+- **`/forge:merge-specs` で一時 feature 文書を統合するときは fold が正（promote は誤り）**。一時文書（REQ-*/DES-*/計画書）は既存文書へ反映して削除する（`additive_development_spec.md` §4）
 
 ## Repository Layout
 
@@ -53,8 +62,8 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 | 対象                           | 入口                                           |
 | ------------------------------ | ---------------------------------------------- |
 | ユーザ向け説明                 | `README.md` / `README_en.md`                   |
-| プロジェクトルール             | `/doc-advisor:query-docs` → `docs/rules/`      |
-| プロジェクト仕様（要件・設計） | `/doc-advisor:query-docs` → `docs/specs/`      |
+| プロジェクトルール             | `/forge:query-db-rules` → `docs/rules/`        |
+| プロジェクト仕様（要件・設計） | `/forge:query-db-specs` → `docs/specs/`        |
 | プラグイン内部仕様             | `plugins/doc-advisor/{workflows,formats}/*.md` |
 | Claude Code / SDK / API 仕様   | `claude-code-guide` agent                      |
 | 最新の変更意図                 | `git log main..HEAD` / `CHANGELOG.md`          |
