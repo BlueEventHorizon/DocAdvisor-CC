@@ -110,6 +110,8 @@ Required documents:
 Required documents:
 ```
 
+**[MANDATORY] パスは相対パスで返す**: 各行のパスは必ず ToC（`get_toc.py` の出力）から得た **相対パス**（`docs/...` 等）をそのまま記載する。`Read` ツールが表示する **絶対パス**（`/Users/...` 等）に置き換えてはならない。呼び出し元（dispatcher / `/forge:query-db-specs` 等）は相対パスを期待しており、絶対パスはファイルアクセス・表示を壊す。
+
 ### 形式 B: クエリエラー（`Query error:`）
 
 ToC 未生成（`TOC_NOT_FOUND`）・予約 key 衝突（`KEY_RESERVED`）の場合はこの形式で返す。

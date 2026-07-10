@@ -4,6 +4,12 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.5] - 2026-07-11
+
+### Fixed
+
+- `query-worker` が ToC のパスを稀に絶対パスとして返す問題を修正。相対パス使用を明示指示し、呼び出し元（dispatcher 等）のファイルアクセス・表示が壊れないようにした
+
 ## [0.4.4] - 2026-06-13
 
 ### Changed
