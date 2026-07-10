@@ -4,6 +4,7 @@ targets:
   - name: doc-advisor
     version_file: plugins/doc-advisor/.claude-plugin/plugin.json
     version_path: version
+    scope: "plugins/doc-advisor/**"
     sync_files:
       - path: .claude-plugin/marketplace.json
         pattern: '"version": "{version}"'

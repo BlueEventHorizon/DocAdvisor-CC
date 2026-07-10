@@ -29,7 +29,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 - **`docs/specs/base/design/` の ADR と DES は通し番号を共有**。`forge:next-spec-id` の出力を鵜呑みにせず ADR/DES 横断の最大番号+1 を使う
 - **決定論的な定型処理（列挙・転記・集計・ファイル生成）は script 化する**。AI は判断のみ担い、手転記・手列挙をしない
 - **agent/SKILL のプロンプト指示は混入点でなく出力構築点に 1 箇所だけ置く**。近接した複数箇所への同一指示は重複であり追記しない
-- **`/forge:merge-specs` で一時 feature 文書を統合するときは fold が正（promote は誤り）**。一時文書（REQ-*/DES-*/計画書）は既存文書へ反映して削除する（`additive_development_spec.md` §4）
+- **`/forge:merge-specs` で一時 feature 文書を統合するときは fold が正（promote は誤り）**。一時文書（REQ-_/DES-_/計画書）は既存文書へ反映して削除する（`additive_development_spec.md` §4）
 
 ## Repository Layout
 
