@@ -1,6 +1,6 @@
 # doc-advisor
 
-**Version: 0.4.5**
+**Version: 0.4.6**
 
 An AI-searchable document index plugin for Claude Code. Indexes project Markdown documents per `key` with a ToC (keyword / metadata) search so AI can automatically find the context it needs.
 
@@ -29,6 +29,7 @@ doc-advisor is a generic ToC Provider that manages document sets per `key` (an a
 | -------------- | ---------------------------------------------------------------- | --------------------- |
 | **index-docs** | Generate / update a ToC (keyword / metadata) from key + paths    | `"index docs"`        |
 | **query-docs** | Search a per-key ToC by keyword / natural language, return paths | `"find related docs"` |
+| **check-toc**  | Report whether a per-key ToC is `fresh` or `stale` (read-only)   | `"is the ToC fresh"`  |
 
 ## Workflow
 
@@ -38,13 +39,17 @@ flowchart LR
     DOC[(Target Markdown)]
     IX[index-docs<br/>Generate / update ToC]
     QR[query-docs<br/>Search]
+    CK[check-toc<br/>Freshness check]
     AI[AI Agent<br/>Implement / Review]
 
     UP --> IX
     DOC --> IX --> TOC[(ToC YAML / per key)]
     QR --> TOC
+    CK --> TOC
     AI --> QR
     QR -. matched paths .-> AI
+    UP --> CK
+    CK -. fresh / stale .-> UP
 ```
 
 ## Installation
@@ -97,6 +102,33 @@ Pass a `key` and paths; the paths are treated as the complete desired state for 
 # Omitting --key searches the reserved key "all" (single-mode index of the whole project)
 /doc-advisor:query-docs "user registration API"
 ```
+
+### 3. Freshness check (check-toc)
+
+A read-only skill that answers "is this ToC still usable?" before searching. It only reports the verdict as JSON; it never generates or updates an index.
+
+```text
+# Check whether the ToC was generated within the last 24 hours
+/doc-advisor:check-toc --key my-rules --max-age 86400
+
+# Target the reserved key "all"
+/doc-advisor:check-toc --all --max-age 86400
+```
+
+The answer is the two-valued `freshness`. A missing ToC is also reported as `stale`, because the follow-up action (rebuild the index) is the same as for an expired one. The cause comes alongside as `reason` (`missing` / `outdated` / `generated_at_invalid` / `generated_at_future`).
+
+```json
+{
+  "status": "ok",
+  "key": "my-rules",
+  "freshness": "stale",
+  "reason": "outdated",
+  "age_seconds": 172800,
+  "max_age_seconds": 86400
+}
+```
+
+`--max-age` is required. Choosing the threshold — and deciding what to do when the ToC is stale — belongs to the caller.
 
 ## Requirements
 
