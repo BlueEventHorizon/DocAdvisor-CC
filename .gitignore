@@ -29,3 +29,7 @@ __pycache__/
 **/reference_projects/
 **/reference_projects
 docs/references
+# セッション開始時に自動生成される ${CLAUDE_PLUGIN_ROOT} 実体への symlink （マシン固有の絶対パスを含むため非追跡、ensure_plugin_root_link.py）
+.claude/forge-docs
+# ensure_codex_hook.py が各環境で生成するsymlink（プラグイン実体への絶対パスを含むためマシン固有・非追跡）
+.codex/msg-sys/scripts
