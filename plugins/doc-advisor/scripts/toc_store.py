@@ -98,6 +98,12 @@ class ErrorCode:
     TOC_NOT_FOUND = "TOC_NOT_FOUND"
     NO_TARGETS = "NO_TARGETS"
     UNSUPPORTED_ARG = "UNSUPPORTED_ARG"
+    # 鮮度確認（check-toc / DES-009 §5.2）。
+    # INVALID_MAX_AGE は引数値の不正であり、未対応引数の UNSUPPORTED_ARG とは分けて診断する。
+    INVALID_MAX_AGE = "INVALID_MAX_AGE"
+    # TOC_READ_ERROR は toc.yaml を読めない状態。ToC 不在は error ではないため
+    # TOC_NOT_FOUND とは別（check-toc では不在を freshness=stale として返す）。
+    TOC_READ_ERROR = "TOC_READ_ERROR"
 
 
 # error_code の有効値集合（None を含む）。テスト・バリデーションで参照する。
@@ -113,6 +119,8 @@ ERROR_CODES = frozenset({
     ErrorCode.TOC_NOT_FOUND,
     ErrorCode.NO_TARGETS,
     ErrorCode.UNSUPPORTED_ARG,
+    ErrorCode.INVALID_MAX_AGE,
+    ErrorCode.TOC_READ_ERROR,
 })
 
 # status の有効値集合（DES-005 §8.2）。

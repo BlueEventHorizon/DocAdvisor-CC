@@ -44,7 +44,10 @@ fork 型 SKILL は隔離 context の AI が return 値を構築するため、sc
 本 SKILL は受け取る引数を `--key` / `--all` / `--max-age` に限り、未知の引数を script 側で拒否する（REQ-005 FR-C01-4）ことで、
 指示文が渡されても判定を実行せずエラーになる状態にする。SKILL.md 側では `$ARGUMENTS` を解釈・補完せずそのまま渡す。
 
-`allowed-tools` は `Bash` のみとする。Read も Write も持たせない（副作用を持たないこと自体を権限で担保する。REQ-005 FR-C04-3）。
+`allowed-tools` は `Bash` のみとし、Read も Write も持たせない。ただし `allowed-tools` は「承認なしで使えるツールの
+allowlist」であり書き込み系ツールの**物理 deny ではない**（`base/ADR-002 §E`）。したがって read-only 性（REQ-005 FR-C04-3）は
+権限ではなく、SKILL.md の禁止事項・`check_toc.py` を読み取りのみで実装すること・副作用なしを検証する単体テストの
+多層で担保する。`allowed-tools` の絞り込みはツール露出の削減として、その一層に位置づける。
 
 ### 2.3 metadata だけを読む
 
@@ -92,13 +95,13 @@ SKILL 固有ディレクトリには置かない。
 
 ### 3.3 関数構成
 
-| 関数                                | 責務                                                              |
-| ----------------------------------- | ----------------------------------------------------------------- |
-| `parse_args(argv)`                  | `--key` / `--all` / `--max-age` のみを受け取る。未知引数は reject |
-| `read_toc_metadata(toc_path)`       | `docs:` に到達するまでの行から metadata の scalar を dict で返す  |
-| `parse_generated_at(value)`         | ISO 8601 を timezone-aware datetime に変換。解析不能は `None`     |
-| `judge(generated_at, now, max_age)` | `(freshness, reason, age_seconds)` を返す純関数                   |
-| `main(argv, now=None)`              | 上記を束ね、`toc_store.emit_json` で出力して exit code を返す     |
+| 関数                                | 責務                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `parse_args(argv)`                  | `--key` / `--all` / `--max-age` のみを受け取る。`--key` と `--all` は排他。解析不能は `ArgError` |
+| `read_toc_metadata(toc_path)`       | `docs:` に到達するまでの行から metadata の scalar を dict で返す                                 |
+| `parse_generated_at(value)`         | ISO 8601 を timezone-aware datetime に変換。解析不能は `None`                                    |
+| `judge(generated_at, now, max_age)` | `(freshness, reason, age_seconds)` を返す純関数                                                  |
+| `main(argv, now=None)`              | 上記を束ね、`toc_store.emit_json` で出力して exit code を返す                                    |
 
 `judge` を純関数として切り出すのは、判定規則（REQ-005 FR-C02）を I/O から独立してテストするためである。
 
@@ -161,6 +164,16 @@ timezone を持たない値は UTC として解釈する。例外が出た場合
 | ----------------- | -------------------------------------------------- |
 | `INVALID_MAX_AGE` | `--max-age` が未指定・非整数・0 以下               |
 | `TOC_READ_ERROR`  | `toc.yaml` を読めない（権限・decode 失敗・破損等） |
+
+引数の解析エラー（未知引数・値不足・`--key` と `--all` の同時指定）には既存の `UNSUPPORTED_ARG` を使う。
+`argparse` の既定動作は stderr へ usage を出し exit code `2` で終了するため、そのままでは
+「常に単一 JSON を stdout へ出し exit code は `status` に対応させる」契約（§5.1 / §5.3）を破る。
+`ArgumentParser` を継承して `error` / `exit` を例外（`ArgError`）へ変換し、`main` が JSON 化して
+exit code `1` を返す。この経路は subprocess で契約テストする（§8）。
+
+自動追加される `--help` も無効化する（`add_help=False`）。help テキストは JSON ではない出力を stdout へ書いて
+exit code `0` で終了するため、有効なままでは同じ契約を破る。無効化により `--help` / `-h` は未知引数として
+`UNSUPPORTED_ARG` の JSON になる。利用方法は SKILL.md と本設計書に記述するため、script 側の help は持たない。
 
 `TOC_NOT_FOUND` は使用しない。ToC 不在は `status=ok` / `freshness=stale` / `reason=missing` であり、
 エラーではない（REQ-005 FR-C03-3）。`INVALID_MAX_AGE` を `UNSUPPORTED_ARG` で兼用しないのは、

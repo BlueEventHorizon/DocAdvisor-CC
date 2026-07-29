@@ -1,0 +1,123 @@
+# ---
+# type: temporary-feature-plan
+# notes:
+#   - 正本は対応する追加 feature 要件定義書（REQ-005）。旧仕様と矛盾する場合は要件定義書を優先する。
+#   - 本 feature 実装完了後、この計画書は破棄される予定（additive_development_spec.md §4）。
+# ---
+
+# check-toc 実装計画書
+
+# === トレーサビリティ ===
+requirements_traceability:
+  - requirement_id: REQ-005
+    title: check-toc（ToC 鮮度確認）要件定義書
+    design_id: DES-009
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    status: pending
+
+design_traceability:
+  - design_id: DES-009
+    title: check-toc（ToC 鮮度確認）設計書
+    requirement_ids:
+      - REQ-005
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+
+# === タスク一覧 ===
+tasks:
+  - task_id: TASK-001
+    title: toc_store に error_code を 2 件追加し既存テストを追従させる
+    priority: 90
+    status: pending
+    design_id: DES-009
+    depends_on: []
+    group_id: null
+    build_check: per_task
+    description:
+      - DES-009 §5.2 が定める 2 件の error_code を ErrorCode と ERROR_CODES へ追加する
+      - 既存の error_code の値・意味は変更しない（追加のみ）
+      - tests/scripts/test_toc_store.py の ERROR_CODES 完全一致検証の期待集合を同一変更内で更新する
+      - 全体テストを実行し、既存 script への波及がないことを確認する
+    acceptance_criteria: python3 -m unittest discover -s tests -p 'test_*.py' が全件通り、追加した 2 件が ERROR_CODES に含まれる
+    required_reading:
+      - docs/specs/check-toc/plan/check-toc_strategy.md
+      - docs/specs/check-toc/design/DES-009_check_toc_freshness_design.md
+      - docs/rules/implementation_guidelines.md
+
+  - task_id: TASK-002
+    title: 鮮度判定の純関数と metadata reader を実装する
+    priority: 85
+    status: pending
+    design_id: DES-009
+    depends_on:
+      - TASK-001
+    group_id: null
+    build_check: per_task
+    description:
+      - check_toc.py を新規作成し、judge / parse_generated_at / read_toc_metadata を実装する
+      - judge は DES-009 §4.2 の表に従い freshness / reason / age_seconds を返す純関数とする
+      - read_toc_metadata は DES-009 §2.3 のとおり docs 行に到達した時点で読み取りを打ち切る
+      - 判定時刻は引数で注入できる形にし、実時刻に依存させない
+      - tests/scripts/test_check_toc.py を新規作成し、DES-009 §8 の単体テスト対象のうち判定コア分を実装する
+    acceptance_criteria: 5 判定・境界値・skew 内外の未来時刻・docs 以降が壊れた toc.yaml のいずれもテストで再現でき、全体テストが通る
+    required_reading:
+      - docs/specs/check-toc/plan/check-toc_strategy.md
+      - docs/specs/check-toc/design/DES-009_check_toc_freshness_design.md
+      - docs/specs/check-toc/requirements/REQ-005_check_toc_freshness_spec.md
+      - plugins/doc-advisor/formats/toc_format.md
+
+  - task_id: TASK-003
+    title: CLI 引数検証と JSON 出力を実装する
+    priority: 80
+    status: pending
+    design_id: DES-009
+    depends_on:
+      - TASK-002
+    group_id: null
+    build_check: per_task
+    description:
+      - parse_args と main を実装し、DES-009 §4.1 の判定手順どおりに束ねる
+      - 受け付ける引数を DES-009 / REQ-005 FR-C01 の範囲に限り、未知の引数を拒否する
+      - 出力は toc_store.emit_json を使い、固有 field を extra で渡す（DES-009 §5.1）
+      - exit code は status に対応させ、freshness の値を反映しない
+      - 引数エラー・ToC 不在・読み取り不能・副作用なしのテストを追加する
+    acceptance_criteria: 固定した generated_at を持つ fixture と注入した判定時刻の組で fresh / stale / missing の 3 経路が単体テストで再現でき、引数エラーが status=error になり、実行後に ToC・.toc_work/・checksums が変化しない。実 ToC を使う確認は補助とし、--max-age に十分大きい値（例 315360000）を渡して fresh が返ることだけを見る
+    required_reading:
+      - docs/specs/check-toc/plan/check-toc_strategy.md
+      - docs/specs/check-toc/design/DES-009_check_toc_freshness_design.md
+      - docs/specs/check-toc/requirements/REQ-005_check_toc_freshness_spec.md
+      - docs/rules/cli_output_formatting.md
+
+  - task_id: TASK-004
+    title: check-toc SKILL を公開する
+    priority: 70
+    status: pending
+    design_id: DES-009
+    depends_on:
+      - TASK-003
+    group_id: null
+    build_check: per_task
+    description:
+      - plugins/doc-advisor/skills/check-toc/SKILL.md を新規作成する
+      - 継承型 SKILL とし、allowed-tools は Bash のみとする（DES-009 §2.2）
+      - $ARGUMENTS を解釈・補完せず script へ透過し、最終出力を script の JSON のみとする
+      - description / trigger を既存 2 SKILL の記述水準に揃える
+      - 実際に起動し、出力に説明文・要約が混ざらないことを目視確認する
+    acceptance_criteria: SKILL 起動時の最終出力が script の JSON のみであり、ToC・.toc_work/・checksums を書き換えない
+    required_reading:
+      - docs/specs/check-toc/plan/check-toc_strategy.md
+      - docs/specs/check-toc/design/DES-009_check_toc_freshness_design.md
+      - docs/rules/skill_launch_paths_definitions.md
+      - docs/rules/skill_authoring_notes.md
+
+# === 改定履歴 ===
+revision_history:
+  - date: "2026-07-29"
+    content: 初版作成（実装戦略のボトムアップ 3 フェーズを 4 タスクへ分割）
