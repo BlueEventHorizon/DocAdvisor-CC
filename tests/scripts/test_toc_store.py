@@ -255,6 +255,7 @@ class TestEmitJson(unittest.TestCase):
             "INVALID_PATH", "PATH_TRAVERSAL", "ABSOLUTE_PATH", "OUTSIDE_ROOT",
             "NOT_FOUND", "NOT_MARKDOWN", "KEY_EMPTY", "KEY_RESERVED",
             "TOC_NOT_FOUND", "NO_TARGETS", "UNSUPPORTED_ARG",
+            "INVALID_MAX_AGE", "TOC_READ_ERROR",
         }
         self.assertEqual(set(ERROR_CODES), expected)
 

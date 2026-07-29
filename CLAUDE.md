@@ -35,27 +35,27 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 
 3 層構成。配布物は `plugins/doc-advisor/` 配下にまとめ、その階層が end user に `${CLAUDE_PLUGIN_ROOT}` として配布される。リポジトリルートには marketplace カタログとプロジェクト文書（配布対象外）のみを置く。
 
-| Path                                             | 役割                                                                              |
-| ------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `.claude-plugin/marketplace.json`                | marketplace カタログ（`source: ./plugins/doc-advisor`）。`/plugin install` の入口 |
-| `plugins/doc-advisor/.claude-plugin/plugin.json` | プラグインマニフェスト（`${CLAUDE_PLUGIN_ROOT}` = `plugins/doc-advisor/`）        |
-| `plugins/doc-advisor/skills/{skill}/SKILL.md`    | 配布 SKILL（2 件: index-docs / query-docs。key+path で ToC を生成・検索）         |
-| `plugins/doc-advisor/agents/toc-updater.md`      | 配布 agent（ToC 更新の並列処理用）                                                |
-| `plugins/doc-advisor/scripts/`                   | SKILL から呼ばれる Python スクリプト                                              |
-| `plugins/doc-advisor/workflows/`                 | SKILL がランタイム Read する手順文書                                              |
-| `plugins/doc-advisor/formats/`                   | SKILL がランタイム Read するスキーマ文書                                          |
-| `docs/rules/`                                    | プロジェクトルール（`query-docs` で参照）                                         |
-| `docs/specs/base/`                               | doc-advisor 基盤仕様の要件・設計文書                                              |
-| `docs/specs/common/`                             | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                             |
-| `docs/readme/`                                   | ユーザ向けガイド（日英併記）                                                      |
-| `tests/`                                         | 単体テスト・統合テスト                                                            |
-| `.claude/`                                       | このリポジトリのローカル設定（プラグイン配布物ではない）                          |
-| `.claude/skills/`                                | ローカル限定 skill（配布対象外: review-skill-description 等）                     |
-| `.agents/skills/`                                | agent 向け補助 skill                                                              |
-| `.doc_structure.yaml`                            | 上位層（forge 等）が rules/specs を解決するための設定（doc-advisor 自体は未使用） |
-| `.version-config.yaml`                           | バージョン一括更新設定                                                            |
-| `dprint.jsonc`                                   | フォーマッタ設定                                                                  |
-| `AGENTS.md`                                      | `CLAUDE.md` への symlink（Codex 等向け、内容は同一）                              |
+| Path                                             | 役割                                                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `.claude-plugin/marketplace.json`                | marketplace カタログ（`source: ./plugins/doc-advisor`）。`/plugin install` の入口   |
+| `plugins/doc-advisor/.claude-plugin/plugin.json` | プラグインマニフェスト（`${CLAUDE_PLUGIN_ROOT}` = `plugins/doc-advisor/`）          |
+| `plugins/doc-advisor/skills/{skill}/SKILL.md`    | 配布 SKILL（3 件: index-docs / query-docs / check-toc。ToC の生成・検索・鮮度確認） |
+| `plugins/doc-advisor/agents/toc-updater.md`      | 配布 agent（ToC 更新の並列処理用）                                                  |
+| `plugins/doc-advisor/scripts/`                   | SKILL から呼ばれる Python スクリプト                                                |
+| `plugins/doc-advisor/workflows/`                 | SKILL がランタイム Read する手順文書                                                |
+| `plugins/doc-advisor/formats/`                   | SKILL がランタイム Read するスキーマ文書                                            |
+| `docs/rules/`                                    | プロジェクトルール（`query-docs` で参照）                                           |
+| `docs/specs/base/`                               | doc-advisor 基盤仕様の要件・設計文書                                                |
+| `docs/specs/common/`                             | 旧 bw-cc-plugins 由来の共通仕様（移行記録として保持）                               |
+| `docs/readme/`                                   | ユーザ向けガイド（日英併記）                                                        |
+| `tests/`                                         | 単体テスト・統合テスト                                                              |
+| `.claude/`                                       | このリポジトリのローカル設定（プラグイン配布物ではない）                            |
+| `.claude/skills/`                                | ローカル限定 skill（配布対象外: review-skill-description 等）                       |
+| `.agents/skills/`                                | agent 向け補助 skill                                                                |
+| `.doc_structure.yaml`                            | 上位層（forge 等）が rules/specs を解決するための設定（doc-advisor 自体は未使用）   |
+| `.version-config.yaml`                           | バージョン一括更新設定                                                              |
+| `dprint.jsonc`                                   | フォーマッタ設定                                                                    |
+| `AGENTS.md`                                      | `CLAUDE.md` への symlink（Codex 等向け、内容は同一）                                |
 
 ## Information Sources
 

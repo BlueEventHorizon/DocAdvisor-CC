@@ -25,10 +25,11 @@ doc-advisor は、この「タスク → 読むべき文書」の対応を**事�
 
 doc-advisor は文書集合を `key`（任意の文字列）単位で管理する汎用 ToC Provider。`key` の意味（rules / specs 等の分類）を解釈せず、与えられた `key` と project-root-relative の `paths` に対して決定的に動作する。
 
-| スキル         | 説明                                                         | トリガー句           |
-| -------------- | ------------------------------------------------------------ | -------------------- |
-| **index-docs** | key + paths から ToC（キーワード/メタデータ）を生成・更新    | `"index docs"`       |
-| **query-docs** | key 単位の ToC をキーワード/自然文で検索し関連文書パスを返す | `"関連文書を探して"` |
+| スキル         | 説明                                                              | トリガー句           |
+| -------------- | ----------------------------------------------------------------- | -------------------- |
+| **index-docs** | key + paths から ToC（キーワード/メタデータ）を生成・更新         | `"index docs"`       |
+| **query-docs** | key 単位の ToC をキーワード/自然文で検索し関連文書パスを返す      | `"関連文書を探して"` |
+| **check-toc**  | key 単位の ToC が新しいか（`fresh` / `stale`）を返す（read-only） | `"ToC は最新か"`     |
 
 ## ワークフロー
 
@@ -38,13 +39,17 @@ flowchart LR
     DOC[(対象 Markdown)]
     IX[index-docs<br/>ToC 生成・更新]
     QR[query-docs<br/>検索]
+    CK[check-toc<br/>鮮度確認]
     AI[AI Agent<br/>実装/レビュー]
 
     UP --> IX
     DOC --> IX --> TOC[(ToC YAML / key 単位)]
     QR --> TOC
+    CK --> TOC
     AI --> QR
     QR -. 関連文書パス .-> AI
+    UP --> CK
+    CK -. fresh / stale .-> UP
 ```
 
 ## インストール
@@ -97,6 +102,33 @@ claude --plugin-dir ./DocAdvisor/plugins/doc-advisor
 # key 省略時は予約 key "all"（project 全体の単体モード索引）を検索
 /doc-advisor:query-docs "ユーザ登録 API"
 ```
+
+### 3. 鮮度確認（check-toc）
+
+検索の前に「その ToC はまだ使えるか」を確認する read-only なスキル。判定結果を JSON で返すだけで、索引の生成・更新はしない。
+
+```text
+# 24 時間以内に生成された ToC かを確認
+/doc-advisor:check-toc --key my-rules --max-age 86400
+
+# 予約 key "all" を対象にする
+/doc-advisor:check-toc --all --max-age 86400
+```
+
+答えは `freshness` の 2 値。ToC が存在しない場合も `stale` に含まれる（作り直しが必要という後続処理が鮮度超過と同じため）。原因は `reason`（`missing` / `outdated` / `generated_at_invalid` / `generated_at_future`）として併記される。
+
+```json
+{
+  "status": "ok",
+  "key": "my-rules",
+  "freshness": "stale",
+  "reason": "outdated",
+  "age_seconds": 172800,
+  "max_age_seconds": 86400
+}
+```
+
+`--max-age` は必須。閾値をいくつにするか・古いときに何をするかは呼び出し側が決める。
 
 ## 動作要件
 
