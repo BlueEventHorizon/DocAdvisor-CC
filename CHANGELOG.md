@@ -4,6 +4,16 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.6] - 2026-07-30
+
+### Added
+
+- ToC の鮮度を確認する read-only スキル `check-toc` を追加。指定 key の ToC が「そのまま検索に使える（`fresh`）」か「作り直しが必要（`stale`）」かを JSON で返す。索引の生成・更新・削除は行わない (REQ-005 / DES-009)
+  - 答えは `freshness` の 2 値のみ。ToC が存在しない場合も `stale` に含め（後続処理が鮮度超過と同一のため）、不在・鮮度超過・`generated_at` 不正の区別は補助情報 `reason`（`missing` / `outdated` / `generated_at_invalid` / `generated_at_future`）で返す
+  - `--max-age <秒>` を必須とし、鮮度閾値の所有者を呼び出し側に固定した（本スキル側に既定値を持たない）
+  - 判定は `toc.yaml` の `metadata` 読み取りだけで完結する（`docs` セクションは解析しない）
+- JSON 出力契約の `error_code` に `INVALID_MAX_AGE`（`--max-age` が未指定・非整数・0 以下）と `TOC_READ_ERROR`（`toc.yaml` を読めない）を追加
+
 ## [0.4.5] - 2026-07-11
 
 ### Fixed

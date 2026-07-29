@@ -1,6 +1,6 @@
 # doc-advisor
 
-**Version: 0.4.5**
+**Version: 0.4.6**
 
 An AI-searchable document index plugin for Claude Code. Indexes project Markdown documents per `key` with a ToC (keyword / metadata) search so AI can automatically find the context it needs.
 
