@@ -5,135 +5,184 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-06-01T15:03:03Z
-  file_count: 12
+  generated_at: 2026-07-29T13:19:40Z
+  file_count: 16
 
 docs:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
-    title: "ADR-002: Query Skill Subagent Isolation"
-    purpose: Defines design decision for isolating query-docs SKILL with fork-type execution and read-only constraints to prevent unauthorized write operations
+    title: "ADR-002: query-docs Guidance-Aware Dispatcher and Read-Only Worker Isolation"
+    purpose: Defines isolation policy for query-docs SKILL, separating guidance-aware dispatcher from read-only search worker to prevent context mixing and ensure stable argument handling
     content_details:
-      - "Fork-type SKILL context isolation via context: fork configuration"
-      - Read-only constraint enforcement prohibiting Edit/Write/MultiEdit/NotebookEdit tools
-      - Argument interpretation guard against implicit instruction misinterpretation
-      - Multi-layered defense approach combining fork isolation, role constraint, and argument guard
-      - Regression prevention through frontmatter validation and content compliance tests
-      - "Impact scope: skills/query-docs/SKILL.md and tests/skills/ test additions"
+      - Multi-layer architecture separating dispatcher (inheriting SKILL) from worker (isolated Agent)
+      - Dispatcher responsibility limited to building search request from context and guidance
+      - Worker role explicitly restricted to read-only document search operations
+      - Rejection of fork-type SKILL due to $ARGUMENTS dropout bug with Skill tool invocation
+      - Mandatory constraints on dispatcher and worker for read-only behavior and output contracts
+      - Query normalization requirement to prevent parent task instructions from reaching worker
+      - Guidance reading responsibility in dispatcher vs. worker (decision deferred)
+      - Multi-layer defense strategy including execution isolation, role constraints, prompt normalization
+      - Regression prevention through tests verifying SKILL definition and Agent properties
     applicable_tasks:
-      - SKILL design review for read-only search operations
-      - Security hardening of inherited-type SKILLs
-      - Preventing fork-type SKILL context inheritance vulnerabilities
-      - Test implementation for SKILL isolation compliance
+      - query-docs SKILL implementation and isolation design
+      - Worker agent design for read-only document search
+      - Safety architecture review for dispatcher-worker context separation
+      - Regression testing design for isolation boundaries
+      - Guidance implementation for query expansion
     keywords:
-      - fork-type SKILL
-      - context isolation
-      - read-only constraint
       - query-docs
-      - unauthorized write prevention
-      - SKILL.md frontmatter
-      - regression test
-  docs/specs/base/design/DES-003_document_identifier.md:
-    title: Document Identifier Design (DES-003)
-    purpose: Defines the design principle that documents are identified by file paths rather than filename-based IDs, eliminating ID naming constraints and duplicate risks in the doc-advisor system
+      - dispatcher
+      - worker
+      - isolation
+      - guidance
+      - read-only
+      - context mixing
+      - prompt normalization
+      - Agent
+      - $ARGUMENTS
+  docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md:
+    title: "ADR-006: index-docs Parallel Fill Performance Optimization (Increased Parallelism, Format Compression, Limited Batching)"
+    purpose: Defines optimization strategy for index-docs Phase 2 to accelerate ToC filling from 1-2 hours to ~10 minutes via parallelism increase, format compression, and limited batching with quality verification
     content_details:
-      - File path as unique document identifier (project-root-relative)
-      - "Two-layer identification: key (ToC management unit) and path (document key within ToC)"
-      - SHA-256 hash-based .toc_work file naming from source paths
-      - Elimination of extract_id_from_filename() function and filename ID patterns
-      - ID prefix no longer required or enforced in filenames
-      - Path-based duplicate checking in validation
-      - Migration from filename ID pattern to path-only identification
-      - "File naming freedom: users can choose any naming convention"
+      - "Three-tier optimization strategy: parallelism increase (5→10), toc_format.md compression, limited batching (k=2-3)"
+      - Context rot risk analysis and context-independent extraction requirement for multiple documents per agent
+      - Sliding-window continuous dispatch (claim/lease based) instead of barrier-based wave loops to reduce tail latency
+      - Quality measurement gate for batch mode using golden set testing (rules+specs, 43 queries, FN/FP=0)
+      - "Measured performance improvement: 38% time reduction, 53% token reduction per document with batching"
+      - Agent tool subagents adopted as only reliable orchestration basis for marketplace plugin distribution
+      - Rejection of official multi-agent options (Dynamic Workflows, Agent Teams) as unsuitable for isolated document processing
+      - Parallelism constraint (10 max, proven safe; 20/30 unverified), 429 rate limiting handling for low tiers
+      - Lease TTL (900s default) for stale claim cleanup and preventing double dispatch race conditions
     applicable_tasks:
-      - Document identifier system design review
-      - ToC generation and maintenance implementation
-      - File path resolution in doc-advisor
+      - index-docs SKILL performance optimization and parallelism tuning
+      - Quality assurance testing for batch processing with multi-document context isolation
+      - Orchestration architecture design for marketplace plugin constraints
+      - Rate limit handling for different user tiers
+      - Agent tool discovery and subagent isolation design
     keywords:
-      - file path
-      - document identifier
-      - two-layer identification
-      - SHA-256 hash
-      - naming convention
-      - path-based key
-      - unique identification
-      - document management
-      - key + path interface
-  docs/specs/base/design/DES-004_document_model.md:
-    title: "DES-004: Document Model Design"
-    purpose: Defines document model structure, scanning target identification rules, and exclusion patterns for ToC management across opaque keys
+      - parallel fill
+      - batching
+      - context rot
+      - claim/lease
+      - sliding-window
+      - golden set
+      - orchestration
+      - toc_format compression
+      - subagents
+      - tail latency
+  docs/specs/base/design/DES-003_document_identifier.md:
+    title: "DES-003: Document Identifier Design"
+    purpose: Defines document identification using project-root-relative file paths as sole identifier, eliminating ID prefix requirements and enabling key+path two-layer identification for ToC management
     content_details:
-      - Opaque key-based document model (not fixed categories)
-      - Scanning pattern rules for Markdown files
-      - Path exclusion logic and normalization
-      - Directory-based vs filename distinction for exclusion matching
-      - Fixed exclusion list for single mode (--all)
-      - Path validation requirements
-      - ToC schema definition without doc_type
-      - Deprecated old model (doc_structure.yaml, rule/spec categories)
+      - "Document identification principle: project-root-relative file path as sole unique identifier"
+      - Problem analysis of mixed ID methods (filename-based extraction vs path-based keys)
+      - "Four identified problems: ID naming enforcement, ID duplication risk, dual management, ambiguous prefix meanings"
+      - SHA-256 hash (first 16 chars) based work file naming in .toc_work/ directory to avoid ID dependency
+      - "Two-layer identification framework: key (opaque ToC management unit) + path (document unique key within that key)"
+      - Elimination of extract_id_from_filename() function and ID-based duplicate checking (replaced with path-based checking)
+      - "Migration plan with three phases: document update, code cleanup, functionality verification"
+      - Recommended but non-enforced file naming conventions (content-descriptive names preferred over ID-based)
+      - Preservation of source_file path in _meta.source_file within work YAML files
     applicable_tasks:
-      - Document model design understanding
-      - Scanning exclusion pattern implementation
-      - Key-based ToC structure verification
-      - Single mode (--all) configuration
+      - Document identifier design and standardization
+      - Code migration from ID-based to path-based identification
+      - ToC schema validation and duplicate checking implementation
+      - File naming convention documentation and user guidance
+      - Work file naming generation algorithm implementation
+    keywords:
+      - document identifier
+      - file path
+      - key + path
+      - SHA-256 hash
+      - .toc_work
+      - naming convention
+      - two-layer identification
+      - duplicate checking
+      - ID prefix
+      - source_file
+  docs/specs/base/design/DES-004_document_model.md:
+    title: Document Model Design Specification
+    purpose: Defines the document model structure for doc-advisor using opaque key-based management and document scanning target/exclusion rules
+    content_details:
+      - Opaque key-based ToC management replacing fixed rule/spec categories
+      - Store directory structure with toc.yaml, .toc_checksums.yaml, .toc_work/
+      - "ToC schema: title, purpose, content_details, applicable_tasks, keywords (no doc_type)"
+      - Path validation rules rejecting absolute paths, traversals, missing files, non-Markdown
+      - Exclusion pattern matching with bare patterns for directory names at any level
+      - Path patterns using segment-boundary matching preventing substring false positives
+      - Detailed exclusion logic implementation with should_exclude function
+      - Practical examples of inclusion and exclusion rules with edge cases
+    applicable_tasks:
+      - Implementing document scanning logic
+      - Designing exclusion rules for document collection
+      - Understanding ToC management architecture
+      - Document model architecture design
+      - Path validation implementation
     keywords:
       - document model
+      - key-based ToC
+      - exclusion patterns
+      - path validation
+      - segment boundary matching
+      - should_exclude
       - opaque key
-      - scanning pattern
-      - path exclusion
-      - should_exclude()
-      - ToC schema
       - single mode
   docs/specs/base/design/DES-005_toc_generation_flow.md:
-    title: DES-005 key + path ToC Provider Design
-    purpose: Defines architecture and implementation design for a key + path-based Table of Contents provider with deterministic scripts, AI orchestration, and per-key storage
+    title: Key + Path ToC Provider Design Specification
+    purpose: Specifies implementation of key + project-root-relative paths based generic ToC Provider, replacing old category-fixed model, with clear separation of deterministic and AI processing
     content_details:
-      - key-indexed store directory structure with slug-based path conversion
-      - deterministic script layer with prepare/merge 2-phase workflow
-      - AI orchestration layer with SKILL and agent coordination
-      - path validation with traversal and symlink resolution
-      - desired-state sync algorithm with added/updated/deleted categorization
-      - JSON output contract with status and error codes
-      - ToC YAML schema with metadata and document entries
-      - single mode (all) Markdown collection with fixed exclusions
+      - Layered architecture separating deterministic script layer from AI orchestration layer
+      - Storage design with key to slug conversion and directory structure (toc.yaml, checksums, .toc_work/)
+      - Key validation rules for empty, over-length, Unicode, and reserved key all
+      - "Path validation flow: absolute path rejection, traversal checking, symlink resolution, external symlink approval"
+      - resolve_within_root() and find_escaping_symlink() functions for symlink handling
+      - "2-phase desired-state sync: prepare_toc.py diff detection, AI metadata filling, merge_toc.py merge"
+      - Difference detection algorithm using checksums with added/updated/unchanged/deleted categories
+      - Atomic backup and restoration flow for merge failure recovery
+      - Continuation mode with key-unit .toc_work/ directory for resumption after interruption
     applicable_tasks:
-      - ToC system architecture design
-      - Implementation of prepare_toc.py and merge_toc.py scripts
-      - Agent-based metadata extraction and filling
-      - Storage layout and key resolution logic
-      - Test design for multi-phase workflows
+      - Implementing key-based ToC storage and management
+      - Designing desired-state sync workflows
+      - Path validation and symlink handling implementation
+      - Single-mode all-markdown indexing implementation
+      - SKILL and agent architecture design
     keywords:
-      - key-indexed store
-      - slug generation
+      - key + path provider
       - desired-state sync
-      - pending YAML
-      - toc-updater agent
+      - slug conversion
       - path validation
-      - schema design
-      - JSON contract
+      - symlink resolution
+      - 2-phase flow
+      - toc-updater
+      - checksums
+      - index-docs
+      - query-docs
   docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md:
     title: FNC-002 Zero-Miss Search Accuracy Requirements Specification
-    purpose: Defines requirements for ToC search accuracy to ensure no related documents are missed, prioritizing false negative minimization over result count limits
+    purpose: Specifies requirements for achieving zero-miss search accuracy in ToC retrieval, ensuring all related documents are returned without false negatives
     content_details:
-      - False negatives minimization (zero missed documents)
-      - No result count limits, return all related documents
-      - Search field coverage (title, purpose, content_details, applicable_tasks, keywords)
-      - Key-independent ToC generation and search
-      - Semantic understanding-based matching vs token matching
-      - ToC metadata comprehensiveness as quality foundation
-      - Keywords field population with class/method/domain-specific terms
-      - Content details with document-specific concrete items
-      - Applicable tasks enumeration for required document scenarios
+      - False negatives equals zero requirement
+      - No result count limit
+      - "Search target fields: title, purpose, content_details, applicable_tasks, keywords"
+      - Key-based independence of ToC generation and search
+      - AI full-read search method using semantic understanding
+      - ToC quality assurance mechanisms for zero-miss accuracy
+      - Error handling for stale and missing ToC
     applicable_tasks:
       - ToC search implementation
-      - Search accuracy testing and quality assurance
-      - ToC metadata completeness review
-      - Zero false-negative verification
+      - Search accuracy validation
+      - ToC metadata quality assurance
+      - Search specification review
+      - False negative detection and prevention
     keywords:
+      - zero-miss search
       - search accuracy
-      - false negative
+      - false negatives
       - ToC metadata
-      - query matching
-      - keyword extraction
+      - keyword matching
+      - content_details
+      - applicable_tasks
+      - semantic understanding
+      - search quality
   docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md:
     title: NFR-003 Standard Library Preferred Specification
     purpose: Defines policy for Python library selection, preferring standard library but permitting external dependencies when performance requirements cannot be met.
@@ -157,65 +206,69 @@ docs:
       - "Issue #14"
       - "Issue #15"
   docs/specs/base/requirements/REQ-001_doc_advisor.md:
-    title: "REQ-001: doc-advisor Requirements Definition"
-    purpose: Defines functional and non-functional requirements for doc-advisor ToC indexing system, including key-based management, desired-state sync, paths input validation, single mode operation, and metadata extraction layering
+    title: "REQ-001: doc-advisor Requirements Specification"
+    purpose: Specifies functional and non-functional requirements for the doc-advisor ToC provider plugin, defining interfaces, responsibility boundaries, and acceptance criteria
     content_details:
-      - Key-based opaque ToC management without semantic interpretation
-      - Desired-state sync with add/update/delete detection and JSON statistics
-      - Project-root-relative path validation with traversal and symlink checks
-      - Single mode support for all Markdown files with reserved key all
-      - ToC retrieval and lexical search without ranking
-      - Deterministic script-layer responsibility for path validation and pending generation
-      - AI-layer responsibility for metadata extraction in agent threads
-      - Directory input expansion at SKILL layer with system exclusion patterns
-      - JSON output contract with status and error code enumerations
+      - Key-based ToC management with opaque key interpretation
+      - Desired-state sync tracking added/updated/deleted/unchanged
+      - Path validation policy for project-root-relative, traversal prevention, symlink default-deny
+      - Single-mode reserved key all for project-wide indexing
+      - Directory input expansion with glob patterns and exclusion filtering
+      - ToC retrieval and search without lexical ranking
+      - Script layer deterministic operations separate from AI layer metadata extraction
+      - JSON output contracts with status, error_code, message, counts
+      - SKILL consolidation with query-docs dispatcher and query-worker agent
+      - Responsibility boundaries between layer scripts and AI components
     applicable_tasks:
-      - Overall plugin architecture understanding
-      - Path validation policy implementation
-      - ToC generation workflow design
-      - Key management and slug conversion implementation
-      - API interface design for scripts and SKILLs
-      - Testing strategy for deterministic scripts
-      - Agent parallel processing coordination
+      - ToC generation and synchronization implementation
+      - Path validation and security review
+      - Metadata extraction design and implementation
+      - Multi-key ToC management
+      - SKILL layer development
+      - Desired-state sync testing and validation
+      - Symlink handling and root-boundary protection
+      - Integration testing for metadata contracts
     keywords:
-      - ToC
-      - key management
+      - key-based ToC management
       - desired-state sync
       - path validation
+      - symlink handling
+      - Markdown indexing
+      - prepare_toc.py
+      - merge_toc.py
+      - get_toc.py
+      - query-docs dispatcher
       - metadata extraction
-      - single mode
-      - deterministic
-      - agent layer
-      - script layer
   docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md:
-    title: Upgrade Requirements (v2.0 to Current)
-    purpose: Defines requirements and migration principles for upgrading Doc Advisor from legacy v2.0/v3.x versions to the current key+path interface, protecting user assets during transitions.
+    title: "REQ-002: Upgrade Requirements (v2.0 → Current)"
+    purpose: Defines requirements for upgrading doc-advisor from legacy v2.0/v3.x to the current key+path provider, including legacy file detection, user asset protection, and migration guidance
     content_details:
-      - Upgrade principles with identifier-based protection
-      - Legacy file detection and cleanup guidance
-      - User asset protection for custom commands and agents
-      - Plugin environment application and compatibility
-      - Migration requirements for ToC structure and storage paths
-      - Legacy search component replacement with query-docs
-      - Non-functional requirements for ToC store preservation
-      - Test requirements and acceptance criteria for upgrade process
+      - Identifier-based file protection using doc-advisor-version-xK9XmQ identifiers
+      - Legacy file detection for create-*_toc commands, config.yaml, and doc-advisor/docs/ directories
+      - User asset protection for custom commands, agents, and runtime ToC stores
+      - Legacy ToC migration detection for toc/rules/ and toc/specs/ structures
+      - Legacy search component migration from rules-advisor/specs-advisor to query-docs
+      - Clean break principle with no automatic migration, requiring manual regeneration
+      - Plugin environment constraints preventing direct workspace file operations
+      - ToC store preservation during upgrade with existing runtime output protection
+      - "Three core protection principles: identifier-based, user asset, and runtime output respect"
     applicable_tasks:
-      - Plugin version upgrade planning
-      - Legacy file cleanup and assessment
-      - User workspace migration guidance
-      - Upgrade compatibility validation
-      - Plugin update management
+      - Plugin upgrade and version migration implementation
+      - Legacy file detection and cleanup guidance workflow
+      - User asset protection validation and testing
+      - ToC store migration planning and execution
+      - Compatibility testing for upgrade scenarios
+      - Documentation and user guidance for migration path
     keywords:
-      - upgrade
-      - migration
-      - legacy
-      - version compatibility
-      - clean break
-      - plugin management
+      - upgrade requirements
+      - legacy file detection
+      - clean break migration
       - identifier-based protection
-      - ToC store
-      - user asset
-      - backward compatibility
+      - version migration
+      - ToC store preservation
+      - user asset protection
+      - v2.0 to current upgrade
+      - doc-advisor-version identifier
   docs/specs/base/requirements/REQ-003_versioned_migration.md:
     title: Staged Version Migration Requirements
     purpose: Defines the framework for backward-compatible versioned data format migration with step-by-step conversion and error handling guarantees
@@ -240,36 +293,93 @@ docs:
       - registry
       - idempotent
       - rollback
-  docs/specs/common/design/COMMON-DES-001_skill_base_design.md:
-    title: SKILL Base Design Specification (COMMON-DES-001)
-    purpose: Defines design principles for SKILL execution models, fork vs inheritance decision criteria, argument passing rules, and governance for isolation implementation
+  docs/specs/check-toc/design/DES-009_check_toc_freshness_design.md:
+    title: DES-009 ToC Freshness Verification Design
+    purpose: Specifies the design for check-toc feature including architecture, judgment logic, JSON output format, test strategy, and error codes for ToC freshness verification
     content_details:
-      - SKILL execution models (fork vs inheritance)
-      - Default inheritance principle and fork adoption criteria
-      - SKILL argument passing rules and guardrails
-      - Launch path selection guide
-      - Fork-type SKILL designation list and justification
-      - Inheritance-type SKILL boundary definition
-      - Multi-layer defense architecture
-      - Static testing and governance requirements
-      - Argument interpretation guards to prevent context leakage
+      - Two-layer implementation with script (check_toc.py) and inherited SKILL for metadata-only reading
+      - Judgment rules with five conditions for freshness based on generated_at timestamp and 60-second skew tolerance
+      - JSON output structure using toc_store.emit_json with status, error_code, freshness, reason, and age_seconds
+      - "Error code additions: INVALID_MAX_AGE and TOC_READ_ERROR for invalid arguments and read failures"
+      - Six use cases covering fresh/stale indexed, unindexed, broken metadata, read errors, and invalid arguments
+      - parse_generated_at function for ISO 8601 timezone-aware datetime conversion
+      - judge pure function for separable testing of judgment rules independent of I/O
+      - "Test design with fixed time injection and verification that docs: line stops metadata reading"
     applicable_tasks:
-      - SKILL design review
-      - New SKILL specification
-      - fork vs inheritance decision-making
-      - SKILL integration governance
-      - Context isolation verification
+      - Implementing ToC freshness verification feature
+      - Design review for check-toc script and SKILL architecture
+      - Understanding script-SKILL responsibility separation pattern
+      - Test case design and validation for freshness judgment
+      - JSON output contract and error handling implementation
+      - Implementing metadata-only file parsing performance optimization
     keywords:
-      - SKILL execution model
-      - fork type
-      - inheritance type
-      - context isolation
+      - check-toc
+      - freshness
+      - metadata
+      - generated_at
+      - judgment logic
+      - DES-009
+      - script-SKILL architecture
+      - error codes
+  docs/specs/check-toc/requirements/REQ-005_check_toc_freshness_spec.md:
+    title: "REQ-005: check-toc Freshness Check Requirements Specification"
+    purpose: Specifies requirements for the check-toc read-only SKILL that determines whether a table of contents is fresh and ready for search or requires regeneration
+    content_details:
+      - Binary freshness judgment (fresh/stale) based on generated_at timestamp and configurable max-age threshold
+      - "JSON output fields: status, error_code, key, toc_path, freshness, reason, generated_at, age_seconds, max_age_seconds"
+      - Freshness judgment rules for missing files, invalid metadata, future timestamps, and stale entries
+      - Input validation for --key, --max-age (required positive integer), and --all arguments
+      - Error handling distinguishing between missing ToC, invalid generated_at, and exceeded freshness threshold
+      - "Implementation requirements: Python standard library only, metadata-only reading without full file parsing"
+    applicable_tasks:
+      - Implementing check-toc freshness evaluation SKILL
+      - Integrating ToC freshness checks into document search workflows
+      - Defining ToC age thresholds and cache policies
+      - Error handling for ToC availability and freshness status
+    keywords:
+      - check-toc
+      - freshness
+      - generated_at
+      - max-age
+      - metadata
+      - toc.yaml
+      - stale
+      - opaque key
+      - timestamp validation
+  docs/specs/common/design/COMMON-DES-001_skill_base_design.md:
+    title: COMMON-DES-001 SKILL Base Design
+    purpose: "Defines foundational design principles for SKILL execution in doc-advisor: fork vs. inheritance models, argument passing rules, launch path selection, and responsibility boundaries for internal workers and agents."
+    content_details:
+      - Fork type vs. inheritance type execution models with frontmatter context specification
+      - Default-to-inheritance principle with fork adoption criteria based on documented harm (ADR-002), independent task isolation, and context bloat
+      - "SKILL argument passing constraints: forbidden (parent context, Issue text, diffs); allowed (flags, task keywords, short descriptions)"
+      - Responsibility boundaries for inheritance-type internal workers with parent context usage guidelines
+      - Launch path selection decision procedure distinguishing deterministic external processing, dynamic delegation, and role-based execution
+      - Regulated fork-type SKILL list as single source of truth; ADR-002 reclassification of query-docs from fork to inheritance with read-only worker separation
+      - "Multi-layered defense mechanisms: A. fork boundary context isolation, B. Role constraints in markdown, C. allowlist configuration, D. physical deny in .claude/settings.json"
+      - Static verification tests for SKILL/Agent isolation covering frontmatter presence, Role constraint language, read-only enforcement, and avoid confusion of allowlist with physical deny
+      - Design evolution documented 2026-05-18 to 2026-05-26 establishing inheritance default, argument constraints, and internal worker precedence
+      - Test maintenance protocol in tests/skills/ with form validation and coverage of dispatcher, worker, and gate integration
+    applicable_tasks:
+      - Decide execution model (fork vs. inheritance) for new SKILLs
+      - Review SKILL fork adoption against judgment criteria in § 3.2
+      - Validate SKILL argument passing in caller code and SKILL.md
+      - Design multi-layered defense in custom agents and fork-type SKILLs
+      - Add new fork-type SKILLs to the regulated list (§6) with documented adoption basis
+      - Implement or update static form validation tests for SKILL/Agent isolation boundaries
+      - Refactor internal SKILL worker responsibilities and constraints
+      - Document role constraints and responsibility boundaries in SKILL.md Role section
+    keywords:
+      - fork
+      - inheritance
+      - SKILL
       - argument passing
-      - ADR-002
-      - multi-layer defense
       - role constraint
-      - allowlist
-      - permission deny
+      - responsibility boundary
+      - custom agent
+      - context isolation
+      - dispatch model
+      - read-only worker
   docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md:
     title: Versioned Migration Requirements
     purpose: Defines the framework for staged version migration ensuring backward compatibility when upgrading data formats
@@ -318,3 +428,31 @@ docs:
       - pure function
       - FileNotFoundError
       - UnicodeDecodeError
+  docs/specs/okf/design/DES-008_okf_frontmatter_compatibility.md:
+    title: "DES-008: OKF-Compatible Frontmatter Design"
+    purpose: Defines the design for transitioning to OKF-compatible frontmatter to enable AI skills to write ToC metadata at creation time, reducing indexing time for large document sets
+    content_details:
+      - OKF v0.1 frontmatter field structure (type, title, description, resource, tags, timestamp)
+      - Indexing cost optimization by writing metadata at document creation time
+      - Reference implementation examples from Google Cloud Platform knowledge-catalog
+      - Field mapping comparison between OKF and current doc-advisor ToC/pending schema
+      - Seven undecided design decisions (type field, description vs purpose, tags vs keywords, English-only rule, content hash format, index.md/log.md, field requirement strength)
+      - Integration with existing merge_toc.py atomic write and validation flow
+      - Relationship to FNC-002 spec and doc_type removal rationale
+    applicable_tasks:
+      - OKF integration design review
+      - Frontmatter schema transition implementation
+      - AI skill metadata requirement specification
+      - Design decision evaluation
+      - OKF-doc-advisor compatibility assessment
+    keywords:
+      - OKF
+      - frontmatter
+      - toc_format
+      - metadata
+      - FNC-002
+      - doc_type
+      - field mapping
+      - content_hash
+      - indexing optimization
+      - merge_toc
