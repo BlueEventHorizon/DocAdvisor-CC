@@ -87,6 +87,8 @@
       "Bash(tree *)",
       "Bash(wc *)",
       "Bash(which *)",
+      "Bash(cat)",
+      "Bash(ps *)",
 
       "Bash(git blame *)",
       "Bash(git branch)",
@@ -112,11 +114,23 @@
       "Bash(gh pr view *)",
       "Bash(gh pr diff *)",
       "Bash(gh pr list *)",
+      "Bash(gh search *)",
 
       "Bash(dprint fmt *)",
       "Bash(dprint check *)",
 
+      "Bash(brew list *)",
+      "Bash(brew info *)",
+
+      "Bash(python3 plugins/*)",
+      "Bash(python3 -m unittest *)",
+      "Bash(mkdir -p .claude/.temp/*)",
+
       "WebSearch",
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:claude.com)",
+      "WebFetch(domain:apple.com)",
+      "WebFetch(domain:google.com)",
       "WebFetch(domain:arxiv.org)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
@@ -141,12 +155,8 @@
 
       "Skill(index-docs)",
       "Skill(query-docs)",
+      "Skill(review)",
 
-      "Bash(python3 plugins/doc-advisor/scripts/*)",
-      "Bash(python3 -m unittest *)",
-      "Bash(mkdir -p .claude/.temp/*)"
-    ],
-    "ask": [
       "Bash(git mv *)",
       "Bash(git push *)",
       "Bash(git checkout *)",
@@ -166,7 +176,8 @@
       "Bash(touch *)",
       "Bash(open *)",
       "Bash(mkdir *)"
-    ]
+    ],
+    "ask": []
   },
   "hooks": {
     "Stop": [

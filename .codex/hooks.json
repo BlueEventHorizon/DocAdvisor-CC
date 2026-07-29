@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FORGE_MSG_MAX_ROUND_TRIPS=20 FORGE_MSG_AGENT_NAME=codex FORGE_MSG_PROJECT_ROOT=\"$(git rev-parse --show-toplevel)\" python3 \"$(git rev-parse --show-toplevel)/.codex/msg-sys/scripts/hooks/check_inbox.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
