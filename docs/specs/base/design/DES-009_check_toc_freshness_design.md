@@ -1,20 +1,13 @@
----
-type: temporary-feature-design
-notes:
-  - 正本は対応する追加 feature 要件定義書（REQ-005）。本設計書と旧設計書が矛盾する場合は要件定義書を優先する。
-  - 旧仕様ファイルは本 feature 実装完了まで書き換えない。新規ファイル / 新規ディレクトリとして切り出すこと。
-  - 本 feature 実装完了後、この文書は旧設計書へ merge され削除される予定。
----
-
 # DES-009 check-toc（ToC 鮮度確認）設計書
 
 ## メタデータ
 
-| 項目     | 値         |
-| -------- | ---------- |
-| 設計 ID  | DES-009    |
-| 関連要件 | REQ-005    |
-| 作成日   | 2026-07-29 |
+| 項目     | 値                                 |
+| -------- | ---------------------------------- |
+| 設計 ID  | DES-009                            |
+| 関連要件 | REQ-005                            |
+| 作成日   | 2026-07-29                         |
+| 参照     | REQ-005, REQ-001, DES-005, ADR-002 |
 
 ## 1. 概要
 
@@ -30,7 +23,8 @@ notes:
 ### 2.1 script と SKILL の責務分離
 
 判定は決定論的処理なので script に置き、SKILL は引数を透過して script を呼ぶだけとする。
-SKILL.md にロジックを書かない（`docs/rules/implementation_guidelines.md`）。
+SKILL.md にロジックを書かない（`docs/rules/implementation_guidelines.md`）。これは REQ-001 FR-N07 の
+「決定的処理は script 層、AI 層は判断のみ」という境界を鮮度確認にも適用したものである。
 
 ### 2.2 起動経路は継承型 SKILL
 
@@ -45,13 +39,13 @@ fork 型 SKILL は隔離 context の AI が return 値を構築するため、sc
 指示文が渡されても判定を実行せずエラーになる状態にする。SKILL.md 側では `$ARGUMENTS` を解釈・補完せずそのまま渡す。
 
 `allowed-tools` は `Bash` のみとし、Read も Write も持たせない。ただし `allowed-tools` は「承認なしで使えるツールの
-allowlist」であり書き込み系ツールの**物理 deny ではない**（`base/ADR-002 §E`）。したがって read-only 性（REQ-005 FR-C04-3）は
+allowlist」であり書き込み系ツールの**物理 deny ではない**（ADR-002 §E）。したがって read-only 性（REQ-005 FR-C04-3）は
 権限ではなく、SKILL.md の禁止事項・`check_toc.py` を読み取りのみで実装すること・副作用なしを検証する単体テストの
 多層で担保する。`allowed-tools` の絞り込みはツール露出の削減として、その一層に位置づける。
 
 ### 2.3 metadata だけを読む
 
-`toc.yaml` は `metadata:` ブロックが `docs:` より前に置かれる（`plugins/doc-advisor/formats/toc_format.md`）。
+`toc.yaml` は `metadata:` ブロックが `docs:` より前に置かれる（DES-005 §7.1 / `formats/toc_format.md`）。
 本 script は行単位で読み進め、`docs:` に到達した時点で読み取りを打ち切る。
 既存の `toc_utils.load_existing_toc` は全エントリを解析するため使用しない（REQ-005 NFR-C02）。
 
@@ -80,7 +74,7 @@ flowchart LR
     Script --> TocFile
 ```
 
-依存方向は `SKILL.md → script → 既存共通モジュール → ファイル` の一方向とする。
+依存方向は `SKILL.md → script → 既存共通モジュール → ファイル` の一方向とし、DES-005 §2.2 の依存方向規範に従う。
 `check_toc.py` から SKILL を呼ばない。
 
 ### 3.2 モジュール一覧
@@ -90,7 +84,7 @@ flowchart LR
 | `skills/check-toc/SKILL.md` | `$ARGUMENTS` を透過して script を 1 回呼び、stdout を返す | `check_toc.py`           |
 | `scripts/check_toc.py`      | 引数検証、metadata 読み取り、鮮度判定、JSON 出力          | `toc_store`、`toc_utils` |
 
-`check_toc.py` は `plugins/doc-advisor/scripts/` に置く。key 解決と store 解決を `toc_store` と共有するため、
+`check_toc.py` は他の script と同じ `scripts/` に置く。key 解決と store 解決を `toc_store` と共有するため、
 SKILL 固有ディレクトリには置かない。
 
 ### 3.3 関数構成
@@ -141,7 +135,7 @@ timezone を持たない値は UTC として解釈する。例外が出た場合
 
 ### 5.1 JSON
 
-`toc_store.emit_json` を使い、`status` / `error_code` を必須 field として出力する（既存 script と同一の契約）。
+`toc_store.emit_json` を使い、`status` / `error_code` を必須 field として出力する（DES-005 §8.1 と同一の契約）。
 本 script 固有の field は `extra` に渡す。
 
 | field             | 出力元                                              |
@@ -158,7 +152,8 @@ timezone を持たない値は UTC として解釈する。例外が出た場合
 
 ### 5.2 error_code の追加
 
-判定不能を表す既存コードが無いため、`toc_store.ErrorCode` と `ERROR_CODES` に 2 件追加する。
+判定不能を表す既存コードが無いため、`toc_store.ErrorCode` と `ERROR_CODES` に 2 件追加する
+（DES-005 §8.1 / §8.2 の値域にも反映済み）。
 
 | error_code        | 条件                                               |
 | ----------------- | -------------------------------------------------- |
@@ -232,13 +227,13 @@ sequenceDiagram
 
 ## 7. 使用する既存コンポーネント
 
-| コンポーネント                       | ファイルパス                                | 用途                                       |
-| ------------------------------------ | ------------------------------------------- | ------------------------------------------ |
-| `resolve_key_from_args` / key 検証   | `plugins/doc-advisor/scripts/toc_store.py`  | `--key` / `--all` の解決と予約語の拒否     |
-| `resolve_store_dir` / `toc_path_rel` | `plugins/doc-advisor/scripts/toc_store.py`  | key から `toc.yaml` の位置と相対パスを得る |
-| `emit_json` / `ErrorCode`            | `plugins/doc-advisor/scripts/toc_store.py`  | JSON 出力契約と error_code 体系            |
-| `get_project_root`                   | `plugins/doc-advisor/scripts/toc_utils.py`  | project root の解決                        |
-| ToC スキーマ定義                     | `plugins/doc-advisor/formats/toc_format.md` | `metadata` の field 構成と配置順           |
+| コンポーネント                       | ファイルパス            | 用途                                          |
+| ------------------------------------ | ----------------------- | --------------------------------------------- |
+| `resolve_key_from_args` / key 検証   | `scripts/toc_store.py`  | `--key` / `--all` の解決と予約語の拒否        |
+| `resolve_store_dir` / `toc_path_rel` | `scripts/toc_store.py`  | key から `toc.yaml` の位置と相対パスを得る    |
+| `emit_json` / `ErrorCode`            | `scripts/toc_store.py`  | JSON 出力契約と error_code 体系（DES-005 §8） |
+| `get_project_root`                   | `scripts/toc_utils.py`  | project root の解決                           |
+| ToC スキーマ定義                     | `formats/toc_format.md` | `metadata` の field 構成と配置順              |
 
 再利用しないもの:
 
@@ -257,28 +252,34 @@ sequenceDiagram
 | `judge`              | 5 判定、境界値（差 = `max_age` は `fresh`）、skew 内外の未来時刻、`age_seconds` の丸め |
 | `parse_generated_at` | `Z` 付き UTC、offset 付き、tz なし、空文字、非日時文字列                               |
 | `read_toc_metadata`  | `docs:` 到達で打ち切ること、`docs:` 以降が壊れていても成功すること                     |
-| `parse_args`         | `--max-age` 不正、`--key` と `--all` の解決、未知引数の拒否                            |
+| `parse_args`         | `--max-age` 不正、`--key` と `--all` の解決、未知引数・排他違反の拒否                  |
 | `main`               | JSON の field 構成、exit code、ToC 不在時の `status=ok`、読み取り不能時の error        |
 | 副作用               | 実行後に ToC・`.toc_work/`・checksums が変化しないこと                                 |
 
 判定時刻は `main(argv, now=...)` で固定値を注入し、実時刻に依存させない。
+
+引数エラー（未知引数・`--key` と `--all` の同時指定・値不足・`--help`）は **subprocess 経路**でも
+契約テストする（exit code `1` / `status=error` / `error_code=UNSUPPORTED_ARG` / `freshness` を含まない）。
+in-process の `parse_args` テストだけでは、`argparse` が持つプロセス終了経路（stderr への usage 出力・
+exit code `2`・help の stdout 出力）を検出できない。
 
 **統合テスト対象**: 本 SKILL は単一 script の呼び出しで完結するため、複数モジュール結合の統合テストは設けない。
 SKILL.md 自体は自動テストの対象外（実装ガイドライン）。
 
 ## 9. 完全性確認
 
-- REQ-005 FR-C01: 引数の受け入れと未知引数の拒否を §3.3 / §4.1 に反映した。
+- REQ-005 FR-C01: 引数の受け入れと未知引数の拒否を §3.3 / §4.1 / §5.2 に反映した。
 - REQ-005 FR-C02: 判定規則を §4.2 の `judge` に集約し、TBD-C01（skew）を 60 秒として確定した。
 - REQ-005 FR-C03: JSON 契約・`reason` の位置づけ・exit code を §5 に定めた。`error_code` 2 件の追加を §5.2 に定めた。
-- REQ-005 FR-C04: 継承型 SKILL としての公開と `allowed-tools: Bash` による副作用の遮断を §2.2 に定めた。
+- REQ-005 FR-C04: 継承型 SKILL としての公開と、read-only 性を多層で担保する方針を §2.2 に定めた。
 - REQ-005 NFR-C01: 標準ライブラリのみ（`datetime` / `argparse` / `json`）で構成する。
 - REQ-005 NFR-C02: metadata だけを読む方針と、その観測可能なテストを §2.3 / §8 に定めた。
 - REQ-005 NFR-C03: 判定時刻の注入境界を §2.4 に定めた。
 - REQ-005 NFR-C04: 出力は project-root 相対パスのみで、絶対パス・設定値を含めない（§5.1）。
 
-## 10. 変更履歴
+## 改定履歴
 
-| 日付       | バージョン | 変更内容                                             |
-| ---------- | ---------- | ---------------------------------------------------- |
-| 2026-07-29 | 0.1        | 初版作成。REQ-005 TBD-C01（許容 skew）を 60 秒で確定 |
+| 日付       | バージョン | 内容                                                                                                                                       |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-29 | 0.1        | 初版作成。REQ-005 TBD-C01（許容 skew）を 60 秒で確定                                                                                       |
+| 2026-07-30 | 0.2        | 追加 feature から base へ統合。参照を base の ID 体系（REQ-001 / DES-005 / ADR-002）へ揃え、引数エラーの subprocess 契約テストを §8 に明記 |

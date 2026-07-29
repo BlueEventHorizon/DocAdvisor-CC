@@ -5,8 +5,8 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-07-29T13:19:40Z
-  file_count: 16
+  generated_at: 2026-07-29T15:55:49Z
+  file_count: 15
 
 docs:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
@@ -127,35 +127,67 @@ docs:
       - opaque key
       - single mode
   docs/specs/base/design/DES-005_toc_generation_flow.md:
-    title: Key + Path ToC Provider Design Specification
-    purpose: Specifies implementation of key + project-root-relative paths based generic ToC Provider, replacing old category-fixed model, with clear separation of deterministic and AI processing
+    title: DES-005 key + path ToC Provider Design
+    purpose: Defines the design for implementing a generic ToC Provider using opaque keys and file paths, with separated phases for deterministic processing and AI-driven metadata extraction.
     content_details:
-      - Layered architecture separating deterministic script layer from AI orchestration layer
-      - Storage design with key to slug conversion and directory structure (toc.yaml, checksums, .toc_work/)
-      - Key validation rules for empty, over-length, Unicode, and reserved key all
-      - "Path validation flow: absolute path rejection, traversal checking, symlink resolution, external symlink approval"
-      - resolve_within_root() and find_escaping_symlink() functions for symlink handling
-      - "2-phase desired-state sync: prepare_toc.py diff detection, AI metadata filling, merge_toc.py merge"
-      - Difference detection algorithm using checksums with added/updated/unchanged/deleted categories
-      - Atomic backup and restoration flow for merge failure recovery
-      - Continuation mode with key-unit .toc_work/ directory for resumption after interruption
+      - Opaque key-based storage architecture with key-to-slug conversion
+      - Desired-state sync with prepare and merge two-phase flow
+      - Path validation including traversal checks and symlink resolution logic
+      - Module design with toc_store.py and toc_utils.py common layer
+      - Difference detection algorithm tracking added, updated, unchanged, and deleted states
+      - Backup and restore flow for merge failure recovery
+      - Continuation mode with work directory per key
+      - Removal of doc_type field from ToC schema
+      - JSON output contracts with standardized error codes and status enums
+      - Single JSON stdout contract across all scripts
     applicable_tasks:
-      - Implementing key-based ToC storage and management
-      - Designing desired-state sync workflows
-      - Path validation and symlink handling implementation
-      - Single-mode all-markdown indexing implementation
-      - SKILL and agent architecture design
+      - ToC generation architecture design
+      - Key and path provider implementation
+      - Script layer interface definition
+      - Storage system design review
+      - Path validation and symlink handling specification
     keywords:
-      - key + path provider
+      - ToC provider
+      - opaque key
       - desired-state sync
-      - slug conversion
       - path validation
       - symlink resolution
-      - 2-phase flow
-      - toc-updater
-      - checksums
-      - index-docs
-      - query-docs
+      - slug conversion
+      - toc_store.py
+      - prepare_toc.py
+      - merge_toc.py
+      - continuation mode
+  docs/specs/base/design/DES-009_check_toc_freshness_design.md:
+    title: DES-009 check-toc (ToC Freshness Check) Design
+    purpose: Defines the design for check-toc SKILL that validates ToC freshness by comparing generation timestamp against a configurable age threshold, with deterministic judgment logic in a dedicated script and read-only metadata inspection.
+    content_details:
+      - Two-layer architecture with script (check_toc.py) and inherited SKILL wrapper
+      - Metadata-only reading strategy stopping at docs section boundary
+      - Judgment function returning freshness states (fresh/stale) and reason codes
+      - Skew tolerance of 60 seconds for clock synchronization
+      - Future timestamp detection and handling with age rounding
+      - ISO 8601 timestamp parsing with timezone handling
+      - JSON output schema with status and error_code enums
+      - Error codes INVALID_MAX_AGE and TOC_READ_ERROR additions
+      - Exit code contract mapping status to codes 0 and 1
+      - Comprehensive test design including pure function and subprocess contract testing
+    applicable_tasks:
+      - ToC freshness validation design
+      - Script and SKILL responsibility boundary definition
+      - Metadata reading and parsing specification
+      - Judgment rule implementation planning
+      - Error handling and validation framework
+    keywords:
+      - check-toc
+      - freshness check
+      - metadata reading
+      - timestamp parsing
+      - judgment logic
+      - skew tolerance
+      - ISO 8601
+      - check_toc.py
+      - toc_store.py
+      - inherited SKILL
   docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md:
     title: FNC-002 Zero-Miss Search Accuracy Requirements Specification
     purpose: Specifies requirements for achieving zero-miss search accuracy in ToC retrieval, ensuring all related documents are returned without false negatives
@@ -206,39 +238,36 @@ docs:
       - "Issue #14"
       - "Issue #15"
   docs/specs/base/requirements/REQ-001_doc_advisor.md:
-    title: "REQ-001: doc-advisor Requirements Specification"
-    purpose: Specifies functional and non-functional requirements for the doc-advisor ToC provider plugin, defining interfaces, responsibility boundaries, and acceptance criteria
+    title: "REQ-001: doc-advisor Requirements Definition"
+    purpose: Defines core requirements for doc-advisor ToC indexing plugin including key-based management, document synchronization, search capabilities, and system architecture
     content_details:
-      - Key-based ToC management with opaque key interpretation
-      - Desired-state sync tracking added/updated/deleted/unchanged
-      - Path validation policy for project-root-relative, traversal prevention, symlink default-deny
-      - Single-mode reserved key all for project-wide indexing
-      - Directory input expansion with glob patterns and exclusion filtering
-      - ToC retrieval and search without lexical ranking
-      - Script layer deterministic operations separate from AI layer metadata extraction
-      - JSON output contracts with status, error_code, message, counts
-      - SKILL consolidation with query-docs dispatcher and query-worker agent
-      - Responsibility boundaries between layer scripts and AI components
+      - key-based ToC management with opaque key handling
+      - desired-state synchronization with add/update/delete/unchanged tracking
+      - path input handling and validation (symlink, traversal, normalization)
+      - "single mode with reserved key 'all"
+      - ToC retrieval without lexical ranking
+      - deletion operations for full key or specific paths
+      - Python-only implementation with standard library
+      - SKILL structure with dispatcher and worker isolation
+      - script cooperation pattern with prepare_toc → agent → merge_toc phases
+      - directory expansion at SKILL layer
     applicable_tasks:
-      - ToC generation and synchronization implementation
-      - Path validation and security review
-      - Metadata extraction design and implementation
-      - Multi-key ToC management
-      - SKILL layer development
-      - Desired-state sync testing and validation
-      - Symlink handling and root-boundary protection
-      - Integration testing for metadata contracts
+      - Architecture and design specification
+      - feature implementation planning
+      - path validation and security policy definition
+      - metadata synchronization strategy
+      - ToC system setup and integration
     keywords:
-      - key-based ToC management
-      - desired-state sync
+      - doc-advisor
+      - Table of Contents
+      - metadata indexing
+      - key management
+      - desired state
       - path validation
-      - symlink handling
-      - Markdown indexing
-      - prepare_toc.py
-      - merge_toc.py
-      - get_toc.py
-      - query-docs dispatcher
-      - metadata extraction
+      - symlink security
+      - query-docs
+      - index-docs
+      - SKILL
   docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md:
     title: "REQ-002: Upgrade Requirements (v2.0 → Current)"
     purpose: Defines requirements for upgrading doc-advisor from legacy v2.0/v3.x to the current key+path provider, including legacy file detection, user asset protection, and migration guidance
@@ -293,59 +322,36 @@ docs:
       - registry
       - idempotent
       - rollback
-  docs/specs/check-toc/design/DES-009_check_toc_freshness_design.md:
-    title: DES-009 ToC Freshness Verification Design
-    purpose: Specifies the design for check-toc feature including architecture, judgment logic, JSON output format, test strategy, and error codes for ToC freshness verification
+  docs/specs/base/requirements/REQ-005_check_toc_freshness_spec.md:
+    title: "REQ-005: check-toc (ToC Freshness Confirmation) Requirements Definition"
+    purpose: Specifies requirements for the check-toc read-only SKILL that validates whether a ToC is fresh enough for immediate use or stale and requires regeneration
     content_details:
-      - Two-layer implementation with script (check_toc.py) and inherited SKILL for metadata-only reading
-      - Judgment rules with five conditions for freshness based on generated_at timestamp and 60-second skew tolerance
-      - JSON output structure using toc_store.emit_json with status, error_code, freshness, reason, and age_seconds
-      - "Error code additions: INVALID_MAX_AGE and TOC_READ_ERROR for invalid arguments and read failures"
-      - Six use cases covering fresh/stale indexed, unindexed, broken metadata, read errors, and invalid arguments
-      - parse_generated_at function for ISO 8601 timezone-aware datetime conversion
-      - judge pure function for separable testing of judgment rules independent of I/O
-      - "Test design with fixed time injection and verification that docs: line stops metadata reading"
+      - check-toc as read-only freshness validator without generation/update/deletion
+      - input parameters with --key, --all, and mandatory --max-age seconds
+      - freshness decision rules for 5 states (missing, invalid, future, fresh, outdated)
+      - JSON output with status, error_code, freshness, reason, generated_at, age_seconds fields
+      - 60-second tolerance for clock skew on future timestamps
+      - read-only operation with no side effects on ToC or .toc_work files
+      - deterministic judgment logic in script layer with SKILL as thin wrapper
+      - integration with upper layer (forge) for ToC regeneration decision making
     applicable_tasks:
-      - Implementing ToC freshness verification feature
-      - Design review for check-toc script and SKILL architecture
-      - Understanding script-SKILL responsibility separation pattern
-      - Test case design and validation for freshness judgment
-      - JSON output contract and error handling implementation
-      - Implementing metadata-only file parsing performance optimization
+      - Implementing check-toc SKILL
+      - designing read-only plugin interfaces
+      - specifying ToC metadata validation logic
+      - planning freshness decision workflows
+      - testing state machine and timestamp handling
+      - integrating ToC checks into search pipelines
     keywords:
       - check-toc
-      - freshness
-      - metadata
-      - generated_at
-      - judgment logic
-      - DES-009
-      - script-SKILL architecture
-      - error codes
-  docs/specs/check-toc/requirements/REQ-005_check_toc_freshness_spec.md:
-    title: "REQ-005: check-toc Freshness Check Requirements Specification"
-    purpose: Specifies requirements for the check-toc read-only SKILL that determines whether a table of contents is fresh and ready for search or requires regeneration
-    content_details:
-      - Binary freshness judgment (fresh/stale) based on generated_at timestamp and configurable max-age threshold
-      - "JSON output fields: status, error_code, key, toc_path, freshness, reason, generated_at, age_seconds, max_age_seconds"
-      - Freshness judgment rules for missing files, invalid metadata, future timestamps, and stale entries
-      - Input validation for --key, --max-age (required positive integer), and --all arguments
-      - Error handling distinguishing between missing ToC, invalid generated_at, and exceeded freshness threshold
-      - "Implementation requirements: Python standard library only, metadata-only reading without full file parsing"
-    applicable_tasks:
-      - Implementing check-toc freshness evaluation SKILL
-      - Integrating ToC freshness checks into document search workflows
-      - Defining ToC age thresholds and cache policies
-      - Error handling for ToC availability and freshness status
-    keywords:
-      - check-toc
-      - freshness
-      - generated_at
-      - max-age
-      - metadata
-      - toc.yaml
-      - stale
-      - opaque key
+      - freshness validation
+      - ToC freshness
+      - metadata.generated_at
+      - SKILL wrapper
+      - JSON contract
+      - state machine
       - timestamp validation
+      - read-only operation
+      - plugin interface
   docs/specs/common/design/COMMON-DES-001_skill_base_design.md:
     title: COMMON-DES-001 SKILL Base Design
     purpose: "Defines foundational design principles for SKILL execution in doc-advisor: fork vs. inheritance models, argument passing rules, launch path selection, and responsibility boundaries for internal workers and agents."
@@ -428,31 +434,3 @@ docs:
       - pure function
       - FileNotFoundError
       - UnicodeDecodeError
-  docs/specs/okf/design/DES-008_okf_frontmatter_compatibility.md:
-    title: "DES-008: OKF-Compatible Frontmatter Design"
-    purpose: Defines the design for transitioning to OKF-compatible frontmatter to enable AI skills to write ToC metadata at creation time, reducing indexing time for large document sets
-    content_details:
-      - OKF v0.1 frontmatter field structure (type, title, description, resource, tags, timestamp)
-      - Indexing cost optimization by writing metadata at document creation time
-      - Reference implementation examples from Google Cloud Platform knowledge-catalog
-      - Field mapping comparison between OKF and current doc-advisor ToC/pending schema
-      - Seven undecided design decisions (type field, description vs purpose, tags vs keywords, English-only rule, content hash format, index.md/log.md, field requirement strength)
-      - Integration with existing merge_toc.py atomic write and validation flow
-      - Relationship to FNC-002 spec and doc_type removal rationale
-    applicable_tasks:
-      - OKF integration design review
-      - Frontmatter schema transition implementation
-      - AI skill metadata requirement specification
-      - Design decision evaluation
-      - OKF-doc-advisor compatibility assessment
-    keywords:
-      - OKF
-      - frontmatter
-      - toc_format
-      - metadata
-      - FNC-002
-      - doc_type
-      - field mapping
-      - content_hash
-      - indexing optimization
-      - merge_toc

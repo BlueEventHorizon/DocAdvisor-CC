@@ -141,12 +141,13 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 
 ### 6.2 SKILL 構成【確定】
 
-doc-advisor は category 固有の SKILL を持たず、汎用 SKILL 2 種へ一本化する。`key` の分類的意味（rules / specs 等）は解釈せず、与えられた `key` と `paths` に対して決定的に動作する。`implementation_guidelines.md`「使わないコードは削除 [MANDATORY]」に従い、category 依存ロジックは残さない。
+doc-advisor は category 固有の SKILL を持たず、汎用 SKILL へ一本化する。`key` の分類的意味（rules / specs 等）は解釈せず、与えられた `key` と `paths` に対して決定的に動作する。`implementation_guidelines.md`「使わないコードは削除 [MANDATORY]」に従い、category 依存ロジックは残さない。
 
 | SKILL / 機能          | 確定方針                                                                                                                                                                                                            |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 汎用検索 `query-docs` | 継承型 dispatcher SKILL。`--key` 省略時は予約 key `all`。実検索は read-only な `query-worker` カスタム Agent に隔離し、worker が `get_toc` を呼ぶ（ADR-002 改訂版）。FR-N05（タスク関連パスリストの返却）契約を担う |
 | 汎用生成 `index-docs` | agent 並列起動のため fork しない。`prepare_toc` → agent 充填 → `merge_toc` を駆動する                                                                                                                               |
+| 鮮度確認 `check-toc`  | 継承型 SKILL。`check_toc.py` を 1 回呼び ToC の `fresh` / `stale` を返す read-only な薄いラッパ。索引の生成・更新はしない（REQ-005）                                                                                |
 | category 内部ロジック | 持たない。`load_config()` の category 分岐、`_get_default_config()` の rules/specs 固定キー、`extract_id_from_filename()` 等は存在しない                                                                            |
 
 > **category 非対応の含意**: category の意味づけは doc-advisor の責務外であり、`rules` / `specs` を分けて検索する体験は提供しない。これを必要とする利用者は、上位層（forge）が任意の key で生成・検索を駆動するか、`query-docs`（key 省略 = `all`）で project 全体を横断検索する。検索 SKILL 名 `query-docs` は別プラグイン `query-docs`（bw-cc-plugins#77）と語が重複するが、plugin namespace（`doc-advisor:query-docs`）で区別する。
@@ -161,6 +162,7 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 | `merge_toc.py`   | agent 充填済み pending を統合し、削除を反映して ToC を書き出す                                             |
 | `get_toc.py`     | ToC 取得・抽出（全体取得 or `--paths` 縮小抽出）。lexical ranking はしない                                 |
 | `remove_toc.py`  | key 全体削除 / 指定 path の個別削除                                                                        |
+| `check_toc.py`   | ToC の鮮度判定（read-only）。`metadata` のみ読み、`fresh` / `stale` を返す（REQ-005）                      |
 
 > 共通基盤として `toc_store.py` / `toc_utils.py` / `write_pending.py` / `validate_toc.py` を用いる。**各 script の CLI オプションと内部構成は DES-005 §4 が定義する**。
 
@@ -261,22 +263,25 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 
 ## 用語定義
 
-| 用語           | 定義                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| key            | ToC の管理単位を表す opaque な文字列。doc-advisor は意味を解釈しない。上位層が決定する         |
-| desired state  | 当該 key が保持すべき paths の完全集合。sync は前回状態との差分で追加・更新・削除を反映する    |
-| ToC Provider   | 文書集合の決定責務を持たず、与えられた key + paths に対し ToC を生成・検索・削除する役割       |
-| 予約 key `all` | `--key` 省略 / `--all` 指定時に解決される単体モード用の予約 key。ユーザー任意 key には使えない |
-| 上位層         | doc-advisor を呼び出し paths を決定する側（forge 等）                                          |
-| ToC            | Table of Contents — ドキュメントのメタデータ検索インデックスファイル（YAML）                   |
-| `query-docs`   | 汎用検索 SKILL（`doc-advisor:query-docs`、継承型 dispatcher。実検索は `query-worker` に隔離）  |
-| `query-worker` | read-only 検索カスタム Agent（`doc-advisor:query-worker`）。ToC 読解・関連判断・パス返却を担う |
-| `index-docs`   | 汎用生成 SKILL（`doc-advisor:index-docs`、prepare→agent→merge を駆動。fork しない）            |
+| 用語           | 定義                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| key            | ToC の管理単位を表す opaque な文字列。doc-advisor は意味を解釈しない。上位層が決定する          |
+| desired state  | 当該 key が保持すべき paths の完全集合。sync は前回状態との差分で追加・更新・削除を反映する     |
+| ToC Provider   | 文書集合の決定責務を持たず、与えられた key + paths に対し ToC を生成・検索・削除する役割        |
+| 予約 key `all` | `--key` 省略 / `--all` 指定時に解決される単体モード用の予約 key。ユーザー任意 key には使えない  |
+| 上位層         | doc-advisor を呼び出し paths を決定する側（forge 等）                                           |
+| ToC            | Table of Contents — ドキュメントのメタデータ検索インデックスファイル（YAML）                    |
+| `query-docs`   | 汎用検索 SKILL（`doc-advisor:query-docs`、継承型 dispatcher。実検索は `query-worker` に隔離）   |
+| `query-worker` | read-only 検索カスタム Agent（`doc-advisor:query-worker`）。ToC 読解・関連判断・パス返却を担う  |
+| `index-docs`   | 汎用生成 SKILL（`doc-advisor:index-docs`、prepare→agent→merge を駆動。fork しない）             |
+| `check-toc`    | 鮮度確認 SKILL（`doc-advisor:check-toc`、継承型。ToC が `fresh` か `stale` かを返す read-only） |
 
 ## 関連文書
 
 - ADR-002: query-docs の guidance-aware dispatcher と read-only worker 隔離
+- REQ-005: check-toc（ToC 鮮度確認）要件定義書（本書の SKILL 構成に `check-toc` を追加する要件）
 - FNC-002: 見落としゼロの検索精度
 - DES-003: 文書識別子の設計（key + path 二層識別）
 - DES-004: ドキュメントモデル設計書（スキャン対象・除外ルール）
 - DES-005: key + path ToC Provider 設計書（key→保存パス変換 / JSON schema / script 内部構成 / prepare・merge 2 フェーズ / key 単位 checksums）
+- DES-009: check-toc（ToC 鮮度確認）設計書
