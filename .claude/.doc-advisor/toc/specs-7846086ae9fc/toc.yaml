@@ -5,8 +5,8 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-07-29T15:55:49Z
-  file_count: 15
+  generated_at: 2026-08-01T12:56:12Z
+  file_count: 17
 
 docs:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
@@ -434,3 +434,62 @@ docs:
       - pure function
       - FileNotFoundError
       - UnicodeDecodeError
+  docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md:
+    title: "DES-008: doc-advisor frontmatter design specification"
+    purpose: Defines frontmatter metadata schema for Markdown documents to enable fast-track ToC indexing without AI cold-reads, reducing large-scale indexing costs
+    content_details:
+      - Frontmatter schema with type (identifier marker), title, purpose, content_details, applicable_tasks, keywords, body_hash fields
+      - Body hash verification mechanism to detect metadata staleness when source file has changed
+      - Trust judgment predicate validating type, field presence, schema constraints, and body hash integrity
+      - All-or-nothing fallback to AI extraction when any trust condition fails
+      - Script architecture with independent modules (fm_core, fm_read, fm_write, fm_to_pending) separated from main ToC pipeline
+      - Integration into index-docs workflow enabling transfer-only processing for trusted metadata
+      - Mandatory schema constraints (1-10 items per array, 200 char limit on purpose, field type validation)
+      - Retrofitting mechanism for applying frontmatter to existing documents lacking metadata
+    applicable_tasks:
+      - Designing fastpath metadata indexing to reduce AI extraction costs
+      - Building frontmatter parser and validation logic
+      - Implementing body hash verification for metadata staleness detection
+      - Planning frontmatter write skill for document metadata generation
+      - Retrofitting existing documents with frontmatter metadata
+      - Integrating frontmatter into index-docs indexing workflow
+    keywords:
+      - frontmatter
+      - body_hash
+      - metadata extraction
+      - ToC indexing
+      - trust judgment
+      - schema validation
+      - AI extraction fallback
+      - checksum verification
+  docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
+    title: REQ-006 Frontmatter Metadata Requirements Specification
+    purpose: Specifies requirements for Markdown documents to carry search metadata in frontmatter, accelerating index generation without re-reading document content
+    content_details:
+      - Functional requirements for metadata embedding and index generation integration
+      - Constraints on source document preservation and fallback extraction
+      - Error handling for missing, incomplete, or invalid metadata with spec violation detection
+      - Retroactive metadata annotation capability for existing documents
+      - Metadata validation and mismatch detection mechanisms
+      - Performance targets for index generation time reduction
+      - Language alignment between metadata and document content
+      - Operational reporting of metadata inconsistencies
+    applicable_tasks:
+      - Implementing frontmatter metadata storage and extraction
+      - Designing metadata validation and mismatch detection
+      - Implementing index generation fallback mechanisms
+      - Creating metadata annotation interface for users
+      - Designing consistency checking between metadata and content
+      - Planning performance optimization of index generation
+      - Reviewing metadata requirements and constraints
+    keywords:
+      - frontmatter
+      - metadata storage
+      - index generation
+      - metadata validation
+      - fallback mechanism
+      - content extraction
+      - mismatch detection
+      - metadata annotation
+      - content hash verification
+      - search indexing

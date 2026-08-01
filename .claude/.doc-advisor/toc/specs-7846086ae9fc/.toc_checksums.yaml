@@ -1,7 +1,7 @@
 # ToC checksums for key: specs
 # Auto-generated - do not edit
-generated_at: 2026-07-29T15:55:49Z
-file_count: 15
+generated_at: 2026-08-01T12:56:12Z
+file_count: 17
 checksums:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md: be8bb2cb7d5ae228ebd61e8e814fc83cbb4e6447cb64e5f3abd1f93fff840f0a
   docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md: 6035827bce5edd75bd8f9c2e3312949849ef7ac52af41c4bf732a8364220e633
@@ -18,3 +18,5 @@ checksums:
   docs/specs/common/design/COMMON-DES-001_skill_base_design.md: 2223f06e144f74b7c9fd9dff0c6bcaae50096820f562558a4a5bdaa1a6997f05
   docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md: 2321be488a1552564901e5abd1a4a4fbf5ad5a75355ec3b5c6326e2336a4e047
   docs/specs/common/requirements/COMMON-REQ-002_error_handling_policy.md: de0c4ceeb2078e6cd12955fb10d6a87242fa126e1cdfab89a985aa33095868e2
+  docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md: 757b4f31dc8dff2954264e325a02932fb68310b24260db5be0e1d3fd81f0ac72
+  docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md: 98382e9d058a893c2f14bc6d340495928f4c06e3d6b09679b7e348fd17016e93
