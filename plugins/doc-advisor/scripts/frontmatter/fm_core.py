@@ -179,12 +179,23 @@ def split_document(text):
 # フロントマターの最小 YAML 解析
 # ---------------------------------------------------------------------------
 
-def _unquote(value):
-    """引用符付きスカラを素の文字列へ戻す。
+def unquote_yaml_value(value):
+    """引用符付きスカラを素の文字列へ戻す（yaml_escape の逆変換）。
 
-    toc_utils.yaml_escape が出力する二重引用符形式（バックスラッシュ・引用符・
-    改行・タブをエスケープ）を復元する。単一引用符は YAML の規約に従い '' のみを
-    ' へ戻す。引用符で囲まれていない値はそのまま返す。
+    本モジュールの yaml_escape が出力する二重引用符形式（バックスラッシュ・
+    引用符・改行・タブをエスケープ）を復元する。単一引用符は YAML の規約に従い
+    '' のみを ' へ戻す。引用符で囲まれていない値はそのまま返す。
+
+    公開 API である。フロントマター以外の YAML（pending の _meta 等）を読む
+    同ディレクトリの script も、3 つ目の逆変換実装を作らずにこれを共有する。
+    したがって yaml_escape との往復関係を壊す変更をしてはならない（往復を
+    固定するテストがある）。
+
+    Args:
+        value: 引用符付き、または素のスカラ文字列
+
+    Returns:
+        str: 引用符を外しエスケープを復元した文字列
     """
     if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
         inner = value[1:-1]
@@ -218,7 +229,7 @@ def _parse_inline_list(value):
     inner = value[1:-1].strip()
     if not inner:
         return []
-    return [_unquote(item.strip()) for item in inner.split(",")]
+    return [unquote_yaml_value(item.strip()) for item in inner.split(",")]
 
 
 def parse_frontmatter(frontmatter_text):
@@ -254,7 +265,7 @@ def parse_frontmatter(frontmatter_text):
         if stripped.startswith("- ") or stripped == "-":
             if current_list is not None:
                 item = stripped[1:].strip()
-                current_list.append(_unquote(item))
+                current_list.append(unquote_yaml_value(item))
             continue
 
         # 最上位キー以外（ネストした dict 等）は無視する
@@ -279,7 +290,7 @@ def parse_frontmatter(frontmatter_text):
         elif value[0] in ("|", ">"):
             result[key] = None
         else:
-            result[key] = _unquote(value)
+            result[key] = unquote_yaml_value(value)
 
     return result
 

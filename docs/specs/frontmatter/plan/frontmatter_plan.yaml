@@ -179,7 +179,7 @@ tasks:
   - task_id: TASK-007
     title: fm_to_pending を実装し信頼できるフロントマターを pending へ転記する
     priority: 70
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-004

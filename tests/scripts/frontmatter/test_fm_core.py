@@ -53,6 +53,7 @@ from fm_core import (
     parse_frontmatter,
     split_document,
     type_values,
+    unquote_yaml_value,
     validate_metadata,
     yaml_escape,
 )
@@ -708,6 +709,32 @@ class TestYamlEscapeParity(unittest.TestCase):
 
     def test_colon_space_is_quoted(self):
         self.assertEqual(yaml_escape("foo: bar"), '"foo: bar"')
+
+
+class TestUnquoteYamlValueRoundTrip(unittest.TestCase):
+    """unquote_yaml_value が yaml_escape の逆変換であることを固定する。
+
+    この関数は公開 API であり、同ディレクトリの他 script（pending の _meta を
+    読む fm_to_pending 等）が 3 つ目の逆変換実装を作らずに共有している。
+    往復関係を壊す変更が入ればここで検出する。
+    """
+
+    def test_round_trip_restores_the_original_value(self):
+        for value in YAML_ESCAPE_CASES:
+            if value is None or value == "" or value == 0 or value == []:
+                # 空値は yaml_escape が一律 '""' にするため往復しない（別テストで固定）
+                continue
+            with self.subTest(value=value):
+                self.assertEqual(unquote_yaml_value(yaml_escape(value)), str(value))
+
+    def test_empty_quotes_become_empty_string(self):
+        self.assertEqual(unquote_yaml_value('""'), "")
+
+    def test_plain_value_passes_through(self):
+        self.assertEqual(unquote_yaml_value("plain"), "plain")
+
+    def test_single_quotes_restore_doubled_apostrophe(self):
+        self.assertEqual(unquote_yaml_value("'it''s'"), "it's")
 
     def test_escape_order_backslash_before_quote(self):
         self.assertEqual(yaml_escape('a\\b"c\n'), '"a\\\\b\\"c\\n"')
