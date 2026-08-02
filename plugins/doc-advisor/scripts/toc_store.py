@@ -104,6 +104,9 @@ class ErrorCode:
     # TOC_READ_ERROR は toc.yaml を読めない状態。ToC 不在は error ではないため
     # TOC_NOT_FOUND とは別（check-toc では不在を freshness=stale として返す）。
     TOC_READ_ERROR = "TOC_READ_ERROR"
+    # READ_ERROR は対象文書そのものを読めない状態（権限不足・デコード不能等）。
+    # 不在は NOT_FOUND、toc.yaml の読み取り失敗は TOC_READ_ERROR と区別する。
+    READ_ERROR = "READ_ERROR"
 
 
 # error_code の有効値集合（None を含む）。テスト・バリデーションで参照する。
@@ -121,6 +124,7 @@ ERROR_CODES = frozenset({
     ErrorCode.UNSUPPORTED_ARG,
     ErrorCode.INVALID_MAX_AGE,
     ErrorCode.TOC_READ_ERROR,
+    ErrorCode.READ_ERROR,
 })
 
 # status の有効値集合（DES-005 §8.2）。

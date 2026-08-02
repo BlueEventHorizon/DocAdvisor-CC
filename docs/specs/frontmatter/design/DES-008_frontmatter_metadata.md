@@ -313,6 +313,8 @@ tests/scripts/frontmatter/test_fm_*.py
 
 `fm_to_pending.py` は pending の `_meta` に来歴を記録する（§8.2）。
 
+`fm_read.py` の出力は per-file の判定を `results` 配列へ**入力順**で並べ、`status` は `ok` / `partial` / `error` の 3 値を取る。個別ファイルの読み取り失敗は 1 件で全体を落とさず `partial` へ写像し、他のファイルの判定はそのまま返す（`error` は引数自体が不正な場合に限る）。各フィールドの詳細は script の docstring とテストに委ねる。
+
 ### 6.3 整形コマンド
 
 `fm_write.py` は本文を整形の不動点に置いてから `body_hash` を打刻する必要があるため、整形器を呼ぶ。ただし配布先のプロジェクトが使う整形器は不定であるため、**script に特定の整形器名を持たせない**。

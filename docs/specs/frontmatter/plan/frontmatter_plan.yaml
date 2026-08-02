@@ -110,7 +110,7 @@ tasks:
   - task_id: TASK-004
     title: fm_read を実装し複数ファイル判定と JSON 出力契約を用意する
     priority: 85
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-002

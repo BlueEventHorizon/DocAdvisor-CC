@@ -346,7 +346,7 @@ docs:
 ```json
 {
   "status": "ok | error | partial | needs_confirmation",
-  "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | INVALID_MAX_AGE | TOC_READ_ERROR | null",
+  "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | INVALID_MAX_AGE | TOC_READ_ERROR | READ_ERROR | null",
   "message": "human-readable",
   "key": "rules",
   "toc_path": ".claude/.doc-advisor/toc/rules-<hash>/toc.yaml",
@@ -373,6 +373,13 @@ docs:
 | `external_pending` | `status: needs_confirmation` 時に出力。`[{symlink, resolved, affected_count}]`（越境 symlink 単位に集約。`--all` で skip した場合は warning にも列挙）       |
 
 各 script は使うフィールドのみ出力してよいが、`status` / `error_code` は必須。越境 symlink 関連の `OUTSIDE_ROOT` は「symlink を介さない真の root 外」専用に残し、symlink 経由の越境は `needs_confirmation` + `external_pending` で扱う。
+
+`error_code` の値域は最上位フィールドだけでなく、`rejected_paths[].reason` のように
+error_code 値を載せる入れ子フィールドにも適用する。
+
+`READ_ERROR`（対象文書そのものを読めない。権限不足・デコード不能等）はフロントマターの
+読み取り経路が個々のファイルの失敗理由として使う（DES-008 §6.2）。不在は `NOT_FOUND`、
+`toc.yaml` の読み取り失敗は `TOC_READ_ERROR` と区別する。
 
 `INVALID_MAX_AGE`（`--max-age` が未指定・非整数・0 以下）と `TOC_READ_ERROR`（`toc.yaml` を読めない）は
 `check_toc.py` が使う（DES-009 §5.2）。`check_toc.py` は §8.1 の共通フィールドに加えて `freshness` / `reason` /
