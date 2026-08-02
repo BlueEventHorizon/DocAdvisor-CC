@@ -108,7 +108,7 @@ tasks:
       - plugins/doc-advisor/formats/toc_format.md
 
   - task_id: TASK-004
-    title: fm_read を実装し走査モードと JSON 出力契約を用意する
+    title: fm_read を実装し複数ファイル判定と JSON 出力契約を用意する
     priority: 85
     status: pending
     design_id: DES-008
@@ -117,12 +117,13 @@ tasks:
     group_id: null
     build_check: per_task
     description:
-      - fm_read.py に単一ファイルの信頼判定と JSON 出力を実装する
+      - fm_read.py に --paths-json で受け取った複数ファイルの信頼判定と JSON 出力を実装する
       - JSON 出力を DES-005 §8.1 の共通契約（status / error_code / warnings）に合わせる
-      - 対象列挙のための走査モードを実装し、適用対象外の配布物ディレクトリを除外する（判断事項 D4）
+      - script は対象を自ら探索しない。ディレクトリ走査も配布物ディレクトリの除外判定も持たない（判断事項 D4）
+      - 個別ファイルの読み取り失敗で全体を落とさず status: partial へ写像する
       - 信頼判定が偽でかつ type に doc-advisor を含む場合のみ warning を出す（DES-008 §5.3）
-      - tests/scripts/frontmatter/test_fm_read.py に判定分岐と除外の確認を書く
-    acceptance_criteria: 走査モードの結果に配布物ディレクトリ配下のファイルが 1 件も含まれず、フロントマターを持たない文書が warning なしで対象外と判定され、テストが全通過する
+      - tests/scripts/frontmatter/test_fm_read.py に判定分岐と JSON 契約の確認を書く
+    acceptance_criteria: --paths-json で渡した複数文書の判定結果が results に並び、script がパスを自ら探索せず、フロントマターを持たない文書が warning なしで対象外と判定され、一部の読み取り失敗が status partial として扱われ、テストが全通過する
     required_reading:
       - docs/specs/frontmatter/plan/frontmatter_strategy.md
       - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
@@ -162,7 +163,7 @@ tasks:
     build_check: per_task
     description:
       - plugins/doc-advisor/skills/write-frontmatter/SKILL.md を継承型として作成する（判断事項 D2）
-      - 対象の列挙を fm_read の走査モードに委ね、SKILL が手で列挙しない
+      - 対象パスを --paths-json で script へ渡す。SKILL が手で列挙せず、供給元は上位層の設定または索引の書き戻し候補とする
       - 書き込み前に対象を提示してユーザー確認を取る手順を定める
       - 原本を書き換える副作用の発生条件を明記する
       - 処理ロジックを SKILL.md 内にインラインで書かない
