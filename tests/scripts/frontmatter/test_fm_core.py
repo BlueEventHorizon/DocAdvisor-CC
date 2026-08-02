@@ -10,9 +10,13 @@
 - 信頼判定の各分岐（type 欠落 / doc-advisor を含まない type / フィールド欠落 /
   空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / ハッシュ形式不正 /
   未知の接頭辞。type はスカラ・配列の双方）
+- YAML エスケープが toc_utils.yaml_escape と完全一致すること（DES-008 §6.4）
+- 行保存型マージ（未知キーのバイト保持 / type の和集合更新 / 未閉鎖の拒否）
 
 テスト方針:
 - in-process import（fm_core は純粋ロジックのため subprocess を要しない）
+- エスケープ一致テストのみ toc_utils を import する。fm_core 側は import しない
+  （DES-008 §6.1 の独立性の境界）
 """
 
 import os
@@ -20,29 +24,37 @@ import sys
 import unittest
 
 # テスト対象モジュールの import
-FRONTMATTER_DIR = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', '..',
-    'plugins', 'doc-advisor', 'scripts', 'frontmatter'
-))
-if FRONTMATTER_DIR not in sys.path:
-    sys.path.insert(0, FRONTMATTER_DIR)
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+SCRIPTS_DIR = os.path.join(REPO_ROOT, 'plugins', 'doc-advisor', 'scripts')
+FRONTMATTER_DIR = os.path.join(SCRIPTS_DIR, 'frontmatter')
+for _path in (FRONTMATTER_DIR, SCRIPTS_DIR):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
+import toc_utils
 
 import fm_core
 from fm_core import (
+    DOC_ADVISOR_FIELDS,
     MARKER,
     PURPOSE_MAX_LENGTH,
     LIST_MAX_ITEMS,
     VIOLATIONS,
+    FrontmatterWriteError,
     Violation,
     compute_body_hash,
     evaluate,
     evaluate_file,
     has_marker,
+    has_unclosed_frontmatter,
+    merge_frontmatter,
+    merge_type_values,
     normalize_body,
     parse_frontmatter,
     split_document,
     type_values,
     validate_metadata,
+    yaml_escape,
 )
 
 
@@ -599,6 +611,418 @@ class TestEvaluateFile(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(build_document())
         self.assertTrue(evaluate_file(path).trust)
+
+
+# ===========================================================================
+# YAML エスケープ一致テスト（DES-008 §6.4 / 戦略書 R3）
+# ===========================================================================
+
+# 共通ケース表。1 箇所に置き、toc_utils.yaml_escape と fm_core.yaml_escape の
+# 両実装へ同じ入力を流す（戦略書 R3）。tests/scripts/test_toc_utils.py の
+# TestYamlEscape が持つ入力列を網羅し、日本語・': ' 含み・数値様文字列を含む。
+YAML_ESCAPE_CASES = (
+    # --- プレーンスカラとして安全（クォート不要） ---
+    "normal text",
+    "App Store, Google Play",
+    "scope (App Store, Google Play)",
+    "Role assignments (Yumemi, Daytona)",
+    "10:00 deadline",
+    "foo&bar",
+    "item [1] description",
+    "path\\to\\file",
+    # --- YAML の特殊構文（クォート必要） ---
+    "foo: bar",
+    "see section #3",
+    "[starts with bracket",
+    "{starts with brace",
+    "- starts with dash",
+    "#starts with hash",
+    "*starts with star",
+    "&starts with amp",
+    "!starts with bang",
+    "?mapping key",
+    "|literal block",
+    ">folded block",
+    "%TAG",
+    "@mention",
+    "`code`",
+    "trailing colon:",
+    "trailing space ",
+    " leading space",
+    # --- bool / null を表す語 ---
+    "true",
+    "false",
+    "yes",
+    "no",
+    "on",
+    "off",
+    "null",
+    "none",
+    "~",
+    "TRUE",
+    "Yes",
+    # --- 数値様文字列 ---
+    "123",
+    "3.14",
+    "0",
+    "-1",
+    "1e5",
+    # --- 制御文字・引用符・バックスラッシュ ---
+    "line1\nline2",
+    "line1\rline2",
+    "has\ttab",
+    'has "double quotes"',
+    "has 'single quotes'",
+    "path\\to\nfile",
+    # --- 空値 ---
+    "",
+    None,
+    # --- 日本語（Unicode は無変換で保持される） ---
+    "日本語テスト",
+    "キーワード: 検索",
+    "本文の言語に合わせる（DES-008 §4.4）",
+)
+
+
+class TestYamlEscapeParity(unittest.TestCase):
+    """fm_core.yaml_escape が toc_utils.yaml_escape と完全一致すること。
+
+    完全独立（DES-008 §6.1）の帰結として実装が 2 つになるため、同じ値が
+    フロントマターと toc.yaml で異なる表記になることを禁じる（§6.4）。
+    """
+
+    def test_outputs_are_identical(self):
+        for value in YAML_ESCAPE_CASES:
+            with self.subTest(value=value):
+                self.assertEqual(toc_utils.yaml_escape(value), yaml_escape(value))
+
+    def test_empty_values_become_empty_quotes(self):
+        """'' / None / 0 / [] は str() より前に空判定される（評価順序の固定）。"""
+        for value in ("", None, 0, []):
+            with self.subTest(value=value):
+                self.assertEqual(yaml_escape(value), '""')
+                self.assertEqual(toc_utils.yaml_escape(value), yaml_escape(value))
+
+    def test_unicode_is_not_quoted(self):
+        self.assertEqual(yaml_escape("日本語テスト"), "日本語テスト")
+
+    def test_colon_space_is_quoted(self):
+        self.assertEqual(yaml_escape("foo: bar"), '"foo: bar"')
+
+    def test_escape_order_backslash_before_quote(self):
+        self.assertEqual(yaml_escape('a\\b"c\n'), '"a\\\\b\\"c\\n"')
+
+
+# ===========================================================================
+# 行保存型マージ（DES-008 §4.5 / 戦略書 R1・D5）
+# ===========================================================================
+
+WRITE_METADATA = {
+    "title": "テスト文書",
+    "purpose": "行保存型マージの検証に用いる文書であることを示す",
+    "content_details": ["項目 A", "項目 B"],
+    "applicable_tasks": ["タスク A"],
+    "keywords": ["fm_core", "merge_frontmatter"],
+}
+
+
+def frontmatter_lines(text):
+    """文書のフロントマター部分を行の list として取り出す。"""
+    parts = split_document(text)
+    if not parts.has_frontmatter:
+        return []
+    return text.split("\n")[parts.start_line + 1:parts.end_line]
+
+
+class TestHasUnclosedFrontmatter(unittest.TestCase):
+    """未閉鎖の検出（split_document の has_frontmatter=False と区別する）。"""
+
+    def test_unclosed(self):
+        self.assertTrue(has_unclosed_frontmatter("---\ntype: doc-advisor\ntitle: x\n"))
+
+    def test_closed(self):
+        self.assertFalse(has_unclosed_frontmatter("---\ntype: doc-advisor\n---\n本文\n"))
+
+    def test_no_frontmatter(self):
+        self.assertFalse(has_unclosed_frontmatter("# タイトル\n\n本文。\n"))
+
+    def test_empty(self):
+        self.assertFalse(has_unclosed_frontmatter(""))
+
+
+class TestMergeTypeValues(unittest.TestCase):
+    """type は置換ではなく和集合で更新する（DES-008 §4.1 / §4.5）。"""
+
+    def test_absent_becomes_marker_only(self):
+        self.assertEqual(merge_type_values(None), [MARKER])
+
+    def test_scalar_is_preserved(self):
+        self.assertEqual(
+            merge_type_values("temporary-feature-requirement"),
+            ["temporary-feature-requirement", MARKER],
+        )
+
+    def test_list_order_is_preserved(self):
+        self.assertEqual(
+            merge_type_values(["a", "b"]), ["a", "b", MARKER]
+        )
+
+    def test_idempotent(self):
+        once = merge_type_values("temporary-feature-requirement")
+        self.assertEqual(merge_type_values(once), once)
+
+    def test_marker_already_present_is_unchanged(self):
+        self.assertEqual(merge_type_values([MARKER, "x"]), [MARKER, "x"])
+
+    def test_duplicates_are_collapsed(self):
+        self.assertEqual(merge_type_values(["a", "a"]), ["a", MARKER])
+
+    def test_additional_values_are_appended(self):
+        self.assertEqual(
+            merge_type_values("a", ["b"]), ["a", "b", MARKER]
+        )
+
+    def test_unparseable_existing_is_treated_as_absent(self):
+        self.assertEqual(merge_type_values(None), [MARKER])
+        self.assertEqual(merge_type_values(["ok", None]), [MARKER])
+
+
+class TestMergeFrontmatterTypeUnion(unittest.TestCase):
+    """type の和集合更新（DES-008 §6.4 が要求するケース）。"""
+
+    def test_temporary_feature_requirement_is_kept(self):
+        doc = "---\ntype: temporary-feature-requirement\n---\n本文。\n"
+        merged = merge_frontmatter(doc, WRITE_METADATA)
+        parsed = parse_frontmatter(split_document(merged).frontmatter_text)
+        self.assertEqual(
+            parsed["type"], ["temporary-feature-requirement", MARKER]
+        )
+
+    def test_block_list_output_format(self):
+        doc = "---\ntype: temporary-feature-requirement\n---\n本文。\n"
+        merged = merge_frontmatter(doc, {})
+        self.assertIn(
+            "type:\n  - temporary-feature-requirement\n  - doc-advisor\n", merged
+        )
+
+    def test_single_value_is_scalar(self):
+        merged = merge_frontmatter("---\n---\n本文。\n", {})
+        self.assertIn("type: doc-advisor\n", merged)
+
+    def test_idempotent_on_second_application(self):
+        doc = "---\ntype: temporary-feature-requirement\n---\n本文。\n"
+        once = merge_frontmatter(doc, WRITE_METADATA)
+        twice = merge_frontmatter(once, WRITE_METADATA)
+        self.assertEqual(once, twice)
+
+    def test_existing_inline_list_is_accepted(self):
+        doc = "---\ntype: [a, b]\n---\n本文。\n"
+        merged = merge_frontmatter(doc, {})
+        parsed = parse_frontmatter(split_document(merged).frontmatter_text)
+        self.assertEqual(parsed["type"], ["a", "b", MARKER])
+
+    def test_existing_block_list_is_accepted(self):
+        doc = "---\ntype:\n  - a\n  - doc-advisor\n---\n本文。\n"
+        merged = merge_frontmatter(doc, {})
+        parsed = parse_frontmatter(split_document(merged).frontmatter_text)
+        self.assertEqual(parsed["type"], ["a", MARKER])
+
+    def test_additional_types_from_metadata(self):
+        merged = merge_frontmatter("---\n---\n本文。\n", {"type": ["extra"]})
+        parsed = parse_frontmatter(split_document(merged).frontmatter_text)
+        self.assertEqual(parsed["type"], ["extra", MARKER])
+
+
+class TestMergeFrontmatterLinePreservation(unittest.TestCase):
+    """所有キー以外は原文行のままバイト保持する（戦略書 R1）。"""
+
+    def test_unknown_keys_are_byte_preserved(self):
+        doc = (
+            "---\n"
+            "name: skill-name\n"
+            "description: don't touch this: value\n"
+            "user-invocable: true\n"
+            "allowed-tools: Bash, Read\n"
+            "applicable_when:\n"
+            "  - 条件 A\n"
+            "---\n"
+            "本文。\n"
+        )
+        merged = merge_frontmatter(doc, WRITE_METADATA)
+        merged_lines = frontmatter_lines(merged)
+        self.assertEqual(merged_lines[:6], frontmatter_lines(doc))
+
+    def test_block_scalar_description_is_byte_preserved(self):
+        doc = (
+            "---\n"
+            "name: skill-name\n"
+            "description: |\n"
+            "  1 行目\n"
+            "  2 行目: コロンを含む\n"
+            "user-invocable: true\n"
+            "---\n"
+            "本文。\n"
+        )
+        merged = merge_frontmatter(doc, WRITE_METADATA)
+        self.assertEqual(frontmatter_lines(merged)[:5], frontmatter_lines(doc))
+
+    def test_body_is_byte_preserved(self):
+        body = "# タイトル\n\n本文 1。\n\n---\n\n本文 2。\ntrailing   \n\n"
+        doc = "---\nname: x\n---\n" + body
+        merged = merge_frontmatter(doc, WRITE_METADATA)
+        self.assertEqual(split_document(merged).body, body)
+
+    def test_existing_owned_key_is_replaced_in_place(self):
+        doc = (
+            "---\n"
+            "name: x\n"
+            "title: 旧タイトル\n"
+            "description: 説明\n"
+            "---\n"
+            "本文。\n"
+        )
+        merged = merge_frontmatter(doc, {"title": "新タイトル"})
+        lines = frontmatter_lines(merged)
+        self.assertEqual(lines[0], "name: x")
+        self.assertEqual(lines[1], "title: 新タイトル")
+        self.assertEqual(lines[2], "description: 説明")
+
+    def test_existing_owned_list_block_is_replaced_entirely(self):
+        doc = (
+            "---\n"
+            "keywords:\n"
+            "  - 旧 A\n"
+            "  - 旧 B\n"
+            "name: x\n"
+            "---\n"
+            "本文。\n"
+        )
+        merged = merge_frontmatter(doc, {"keywords": ["新 A"]})
+        self.assertEqual(
+            frontmatter_lines(merged), ["keywords:", "  - 新 A", "name: x", "type: doc-advisor"]
+        )
+
+    def test_owned_key_absent_from_metadata_is_left_untouched(self):
+        doc = "---\nbody_hash: sha256:xyz\nname: x\n---\n本文。\n"
+        merged = merge_frontmatter(doc, {"title": "T"})
+        self.assertEqual(frontmatter_lines(merged)[0], "body_hash: sha256:xyz")
+
+    def test_doc_advisor_keys_are_appended_at_the_end(self):
+        doc = "---\nname: x\n---\n本文。\n"
+        merged = merge_frontmatter(doc, WRITE_METADATA)
+        lines = frontmatter_lines(merged)
+        self.assertEqual(lines[0], "name: x")
+        self.assertEqual(lines[1], "type: doc-advisor")
+        self.assertEqual(lines[2], "title: テスト文書")
+
+    def test_values_are_escaped(self):
+        merged = merge_frontmatter(
+            "---\n---\n本文。\n", {"title": "foo: bar", "keywords": ["true"]}
+        )
+        self.assertIn('title: "foo: bar"', merged)
+        self.assertIn('  - "true"', merged)
+
+    def test_new_frontmatter_is_inserted_when_absent(self):
+        doc = "# タイトル\n\n本文。\n"
+        merged = merge_frontmatter(doc, WRITE_METADATA)
+        self.assertTrue(merged.startswith("---\ntype: doc-advisor\n"))
+        self.assertEqual(split_document(merged).body, doc)
+
+    def test_unclosed_frontmatter_is_rejected(self):
+        doc = "---\nname: x\ntitle: y\n"
+        with self.assertRaises(FrontmatterWriteError):
+            merge_frontmatter(doc, WRITE_METADATA)
+
+    def test_unowned_key_is_rejected(self):
+        with self.assertRaises(ValueError):
+            merge_frontmatter("---\n---\n本文。\n", {"description": "x"})
+
+    def test_merged_document_is_trusted(self):
+        doc = "---\nname: x\n---\n" + BODY
+        metadata = dict(WRITE_METADATA)
+        metadata["body_hash"] = compute_body_hash(split_document(doc).body)
+        self.assertTrue(evaluate(merge_frontmatter(doc, metadata)).trust)
+
+
+class TestMergeFrontmatterRoundTripOnRealFiles(unittest.TestCase):
+    """実配布物と実ローカル SKILL を入力にした往復テスト（戦略書 R1 の固定）。
+
+    いずれも読み取り専用の入力として使い、実ファイルは書き換えない。
+    """
+
+    TARGETS = (
+        "plugins/doc-advisor/skills/check-toc/SKILL.md",
+        "plugins/doc-advisor/skills/index-docs/SKILL.md",
+        "plugins/doc-advisor/skills/query-docs/SKILL.md",
+        "plugins/doc-advisor/agents/toc-updater.md",
+        "plugins/doc-advisor/agents/query-worker.md",
+        "plugins/doc-advisor/formats/toc_format.md",
+        ".claude/skills/review-skill-description/SKILL.md",
+    )
+
+    def _read(self, relative_path):
+        path = os.path.join(REPO_ROOT, relative_path)
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    def test_existing_lines_are_byte_preserved(self):
+        for relative_path in self.TARGETS:
+            with self.subTest(path=relative_path):
+                original = self._read(relative_path)
+                parts = split_document(original)
+                self.assertTrue(parts.has_frontmatter)
+
+                metadata = dict(WRITE_METADATA)
+                metadata["body_hash"] = compute_body_hash(parts.body)
+                merged = merge_frontmatter(original, metadata)
+
+                original_lines = original.split("\n")
+                merged_lines = merged.split("\n")
+
+                # 終端デリミタ行より前（= 既存フロントマター）が原文のまま
+                self.assertEqual(
+                    merged_lines[:parts.end_line], original_lines[:parts.end_line]
+                )
+                # 終端デリミタ行以降（= 本文）が原文のまま
+                self.assertEqual(
+                    "\n".join(merged_lines[-(len(original_lines) - parts.end_line):]),
+                    "\n".join(original_lines[parts.end_line:]),
+                )
+                self.assertEqual(split_document(merged).body, parts.body)
+
+    def test_doc_advisor_keys_are_added_and_trusted(self):
+        for relative_path in self.TARGETS:
+            with self.subTest(path=relative_path):
+                original = self._read(relative_path)
+                metadata = dict(WRITE_METADATA)
+                metadata["body_hash"] = compute_body_hash(
+                    split_document(original).body
+                )
+                merged = merge_frontmatter(original, metadata)
+
+                parsed = parse_frontmatter(split_document(merged).frontmatter_text)
+                for field in DOC_ADVISOR_FIELDS:
+                    self.assertIn(field, parsed)
+                self.assertEqual(parsed["type"], MARKER)
+                self.assertTrue(evaluate(merged).trust)
+
+    def test_merge_is_idempotent(self):
+        for relative_path in self.TARGETS:
+            with self.subTest(path=relative_path):
+                original = self._read(relative_path)
+                metadata = dict(WRITE_METADATA)
+                metadata["body_hash"] = compute_body_hash(
+                    split_document(original).body
+                )
+                once = merge_frontmatter(original, metadata)
+                self.assertEqual(once, merge_frontmatter(once, metadata))
+
+    def test_source_files_are_not_modified(self):
+        for relative_path in self.TARGETS:
+            with self.subTest(path=relative_path):
+                before = self._read(relative_path)
+                merge_frontmatter(before, WRITE_METADATA)
+                self.assertEqual(before, self._read(relative_path))
 
 
 if __name__ == "__main__":

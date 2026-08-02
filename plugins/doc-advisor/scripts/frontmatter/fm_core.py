@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-fm_core.py — フロントマターの読み取り基盤（doc-advisor plugin / frontmatter）
+fm_core.py — フロントマターの読み書き基盤（doc-advisor plugin / frontmatter）
 
-DES-008 §4.1（確定スキーマ）/ §4.2（境界・正規化・body_hash）/ §5.1（信頼判定の述語）/
-§6.1（独立性の境界）/ §6.2（責務）を実装する。
+DES-008 §4.1（確定スキーマ）/ §4.2（境界・正規化・body_hash）/ §4.5（マージ規則）/
+§5.1（信頼判定の述語）/ §6.1（独立性の境界）/ §6.2（責務）を実装する。
 
-責務（読み取り系のみ。書き込み・マージは本モジュールの対象外）:
+責務（純粋ロジックのみ。CLI・整形コマンドの実行・ファイル書き込みは本モジュールの
+対象外であり fm_write.py が担う）:
 - フロントマター境界の切り出し（先頭 '---' 〜 終端 '---'）
 - フロントマターの最小 YAML 解析（スカラ / ブロック配列 / インラインフロー配列）
 - 本文の正規化（改行 LF 統一・末尾の空白と空行の除去 + 改行 1 つ）
 - 本文ハッシュの算出（SHA-256、値は 'sha256:<64 桁 hex>'）
 - 信頼判定（DES-008 §5.1 の述語。type はスカラ・配列の双方を受理）
+- 行保存型マージ（doc-advisor が単独所有する 6 キーのブロックのみを差し替え、
+  それ以外の行は原文のままバイト保持する。type のみ和集合で更新する）
+- YAML 値のエスケープ（toc_utils.yaml_escape と同一出力になる独立実装）
 
 独立性（DES-008 §6.1）:
 - toc_store.py / toc_utils.py を import しない。key 解決も store_dir 解決も行わない
 - 判定に必要な違反コードは本モジュールに独立定義する
+- YAML エスケープも import せず独立実装する（一致はテストで固定する。§6.4）
 
 標準ライブラリのみ使用（REQ-001 NFR-N01）。
 """
@@ -569,6 +574,335 @@ def evaluate(text):
         expected_body_hash=expected,
         actual_body_hash=actual,
     )
+
+
+# ---------------------------------------------------------------------------
+# YAML 値のエスケープ（DES-008 §6.4 の一致テストが固定する独立実装）
+# ---------------------------------------------------------------------------
+
+# 先頭 1 文字に来るとプレーンスカラとして解釈できなくなる指示文字。
+# toc_utils.yaml_escape の first_char_indicators と同一集合（空白文字も含む）。
+_FIRST_CHAR_INDICATORS = frozenset('-?:,[]{}#&*!|>\'"% @`~')
+
+# プレーンに書くと bool / null として解釈される語（小文字化して比較する）
+_YAML_KEYWORDS = frozenset({
+    "true", "false", "yes", "no", "on", "off", "null", "none", "~",
+})
+
+
+def yaml_escape(value):
+    """YAML の値として安全な表記へ変換する。
+
+    toc_utils.yaml_escape と **同一の出力** になるよう、判定の段と順序まで含めて
+    独立に再現する（DES-008 §6.1 により import できないため。両者が一致することは
+    §6.4 の一致テストで固定する）。判定は次の順に評価し、最後にまとめてクォートの
+    要否を決める。
+
+    1. 空値（''・None・0・[] 等）はそのまま '""'
+    2. 先頭 1 文字が YAML の指示文字
+    3. ': ' / ' #' / '"' / "'" を位置を問わず含む
+    4. ':' または空白で終わる
+    5. 改行・復帰・タブを含む
+    6. 数値として解釈できる
+    7. bool / null を表す語である
+
+    Args:
+        value: 出力したい値（文字列以外は str() で文字列化する）
+
+    Returns:
+        str: そのまま YAML に埋め込める表記（必要なら二重引用符で囲まれる）
+    """
+    if not value:
+        return '""'
+
+    s = str(value)
+
+    needs_quotes = s[0] in _FIRST_CHAR_INDICATORS
+
+    # ': ' と ' #' は YAML 仕様上の制約、引用符は往復時のずれを避けるため
+    if not needs_quotes:
+        needs_quotes = ": " in s or " #" in s or '"' in s or "'" in s
+
+    if not needs_quotes:
+        needs_quotes = s.endswith(":") or s.endswith(" ")
+
+    if not needs_quotes:
+        needs_quotes = any(c in s for c in "\n\r\t")
+
+    if not needs_quotes:
+        try:
+            float(s)
+            needs_quotes = True
+        except ValueError:
+            pass
+
+    # キーワード判定だけは他段の結果に関わらず評価する（toc_utils と同じ構造）
+    if s.lower() in _YAML_KEYWORDS:
+        needs_quotes = True
+
+    if needs_quotes:
+        # バックスラッシュ → 二重引用符 → 制御文字 の順に置換する（順序が重要）
+        escaped = s.replace("\\", "\\\\").replace('"', '\\"')
+        escaped = escaped.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+        return f'"{escaped}"'
+
+    return s
+
+
+# ---------------------------------------------------------------------------
+# 行保存型マージ（DES-008 §4.5 / 戦略書 R1・D5）
+# ---------------------------------------------------------------------------
+
+class FrontmatterWriteError(Exception):
+    """フロントマターへの書き込みを安全に行えない場合に送出する。"""
+
+
+def has_unclosed_frontmatter(text):
+    """先頭 '---' はあるが終端 '---' が無い状態かを判定する。
+
+    split_document はこの状態を has_frontmatter=False として返すため、書き込み側が
+    「フロントマター無し」と取り違えて新規挿入すると、既存の '---' の上に別の
+    フロントマターを積んで文書を壊す。書き込み前に本関数で区別する。
+
+    Args:
+        text: 文書全体の文字列
+
+    Returns:
+        bool: 未閉鎖なら True
+    """
+    lines = text.split("\n")
+
+    index = 0
+    while index < len(lines) and lines[index].strip() == "":
+        index += 1
+
+    if index >= len(lines) or lines[index].strip() != DELIMITER:
+        return False
+
+    for i in range(index + 1, len(lines)):
+        if lines[i].strip() == DELIMITER:
+            return False
+
+    return True
+
+
+def _top_level_key(line):
+    """行が最上位キー行なら、そのキー名を返す（そうでなければ None）。
+
+    Args:
+        line: フロントマター内の 1 行
+
+    Returns:
+        str または None
+    """
+    if not line or line[:1].isspace():
+        return None
+
+    stripped = line.strip()
+    if stripped.startswith("#") or stripped.startswith("- ") or stripped == "-":
+        return None
+    if ":" not in line:
+        return None
+
+    return line.partition(":")[0].strip()
+
+
+def _is_block_continuation(line):
+    """行が直前のキーのブロックに属するか（インデント行または '- ' 要素か）。
+
+    Args:
+        line: フロントマター内の 1 行
+
+    Returns:
+        bool
+    """
+    if line[:1].isspace():
+        return True
+    stripped = line.strip()
+    return stripped.startswith("- ") or stripped == "-"
+
+
+def _render_key(key, value):
+    """所有キー 1 つ分の出力行を組み立てる。
+
+    toc_format.md の YAML Formatting Rules に従い、配列は常にブロックリスト
+    （インデント 2 スペース + '- '）で出力する。インライン配列・ブロックスカラは
+    使わない。
+
+    Args:
+        key: キー名
+        value: 文字列 / 文字列の list
+
+    Returns:
+        list: 出力行の list
+    """
+    if isinstance(value, (list, tuple)):
+        lines = [f"{key}:"]
+        for item in value:
+            lines.append(f"  - {yaml_escape(item)}")
+        return lines
+    return [f"{key}: {yaml_escape(value)}"]
+
+
+def _render_type(values):
+    """type の出力行を組み立てる。
+
+    1 要素ならスカラ、複数要素ならブロックリストで出力する（既存ファイルの差分を
+    無用に広げないため。戦略書 D5）。
+
+    Args:
+        values: 和集合済みの値の list
+
+    Returns:
+        list: 出力行の list
+    """
+    if len(values) == 1:
+        return _render_key(TYPE_FIELD, values[0])
+    return _render_key(TYPE_FIELD, list(values))
+
+
+def merge_type_values(existing, additional=None, marker=MARKER):
+    """type を置換ではなく和集合で更新する（DES-008 §4.1 / §4.5）。
+
+    既存要素の順序を保ったまま、未収録の値だけを末尾に追加する。既に marker を
+    含んでいれば変化しない（冪等）。スカラ・配列の双方を入力として受理し、
+    文字列・配列に解決できない値（ブロックスカラ等）は既存値なしとして扱う。
+
+    Args:
+        existing: 既存の type の値（parse_frontmatter が返した形。None 可）
+        additional: 追加したい値の list（省略可）
+        marker: 必ず含める識別マーカー
+
+    Returns:
+        list: 更新後の値の list
+    """
+    values = type_values(existing) or []
+
+    merged = []
+    for value in values:
+        if value not in merged:
+            merged.append(value)
+
+    for value in list(additional or []) + [marker]:
+        value = value.strip()
+        if value and value not in merged:
+            merged.append(value)
+
+    return merged
+
+
+def _owned_metadata(metadata):
+    """メタデータから doc-advisor が単独所有する 6 キーだけを取り出す。
+
+    Args:
+        metadata: 書き込みたいメタデータ（type を含んでもよい）
+
+    Returns:
+        dict: 所有キーのみの dict
+
+    Raises:
+        ValueError: doc-advisor が定義しないキーが含まれる場合
+    """
+    owned = {}
+    for key, value in (metadata or {}).items():
+        if key == TYPE_FIELD:
+            continue
+        if key not in DOC_ADVISOR_FIELDS:
+            raise ValueError(f"doc-advisor が所有しないキーは書き込めません: {key}")
+        owned[key] = value
+    return owned
+
+
+def merge_frontmatter(text, metadata=None, marker=MARKER):
+    """文書のフロントマターへ doc-advisor のメタデータを行保存型でマージする。
+
+    「パースして再出力する」方式は採らない（戦略書 R1）。原文を行単位で保持し、
+    **doc-advisor が単独所有する 6 キーのうち metadata に与えられたものだけ**を
+    ブロック単位で差し替える。未知キー（`name` / `description` / `user-invocable`
+    等）は原文行のままバイト保持し、再出力経路に一切乗せない。
+
+    キー順序は戦略書 D5 に従い、既存キーは原位置を維持し、文書に無かった
+    doc-advisor キーのみを DOC_ADVISOR_FIELDS の順でフロントマター末尾へ追記する。
+    type は先頭に固定しない。
+
+    type は置換せず和集合で更新する（DES-008 §4.5）。metadata に type を含めると
+    その値も和集合に加わる。
+
+    Args:
+        text: 文書全体の文字列
+        metadata: 書き込む値の dict（キーは DOC_ADVISOR_FIELDS のみ。省略可）
+        marker: type に必ず含める識別マーカー
+
+    Returns:
+        str: マージ後の文書全体
+
+    Raises:
+        FrontmatterWriteError: 先頭 '---' があるのに終端 '---' が無い場合
+        ValueError: doc-advisor が所有しないキーが metadata に含まれる場合
+    """
+    if has_unclosed_frontmatter(text):
+        raise FrontmatterWriteError(
+            "フロントマターが終端デリミタ '---' で閉じられていません。"
+            "文書を壊さないため書き込みを中止します"
+        )
+
+    owned = _owned_metadata(metadata)
+    additional_types = type_values((metadata or {}).get(TYPE_FIELD)) or []
+
+    parts = split_document(text)
+
+    # フロントマターが無い文書には新規挿入する
+    if not parts.has_frontmatter:
+        new_lines = _render_type(merge_type_values(None, additional_types, marker))
+        for key in DOC_ADVISOR_FIELDS:
+            if key in owned:
+                new_lines.extend(_render_key(key, owned[key]))
+        return DELIMITER + "\n" + "\n".join(new_lines) + "\n" + DELIMITER + "\n" + text
+
+    lines = text.split("\n")
+    fm_lines = lines[parts.start_line + 1:parts.end_line]
+
+    merged_lines = []
+    handled = set()
+    index = 0
+    while index < len(fm_lines):
+        key = _top_level_key(fm_lines[index])
+
+        replaceable = key == TYPE_FIELD or key in owned
+        if not replaceable:
+            merged_lines.append(fm_lines[index])
+            index += 1
+            continue
+
+        # ブロックの終わり = 次の「非インデント・非 '- '」行の直前
+        end = index + 1
+        while end < len(fm_lines) and _is_block_continuation(fm_lines[end]):
+            end += 1
+
+        if key == TYPE_FIELD:
+            existing = parse_frontmatter("\n".join(fm_lines[index:end])).get(TYPE_FIELD)
+            merged_lines.extend(
+                _render_type(merge_type_values(existing, additional_types, marker))
+            )
+        else:
+            merged_lines.extend(_render_key(key, owned[key]))
+
+        handled.add(key)
+        index = end
+
+    # 文書に無かった doc-advisor キーを末尾へ追記する（D5）
+    for key in DOC_ADVISOR_FIELDS:
+        if key in handled:
+            continue
+        if key == TYPE_FIELD:
+            merged_lines.extend(
+                _render_type(merge_type_values(None, additional_types, marker))
+            )
+        elif key in owned:
+            merged_lines.extend(_render_key(key, owned[key]))
+
+    new_lines = lines[:parts.start_line + 1] + merged_lines + lines[parts.end_line:]
+    return "\n".join(new_lines)
 
 
 def read_text(path):

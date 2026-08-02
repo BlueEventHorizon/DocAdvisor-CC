@@ -88,7 +88,7 @@ tasks:
   - task_id: TASK-003
     title: fm_core の書き込み系（行保存マージ・type 和集合・YAML エスケープ）を実装する
     priority: 88
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-002
