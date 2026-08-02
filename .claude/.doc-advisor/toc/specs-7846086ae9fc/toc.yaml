@@ -5,7 +5,7 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-08-01T12:56:12Z
+  generated_at: 2026-08-01T17:04:58Z
   file_count: 17
 
 docs:
@@ -435,61 +435,60 @@ docs:
       - FileNotFoundError
       - UnicodeDecodeError
   docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md:
-    title: "DES-008: doc-advisor frontmatter design specification"
-    purpose: Defines frontmatter metadata schema for Markdown documents to enable fast-track ToC indexing without AI cold-reads, reducing large-scale indexing costs
+    title: "DES-008: doc-advisor frontmatter metadata design specification"
+    purpose: Defines the schema, trust validation mechanism, and script architecture for embedding frontmatter metadata in Markdown documents to accelerate ToC generation by enabling metadata transfer from document creation tools.
     content_details:
-      - Frontmatter schema with type (identifier marker), title, purpose, content_details, applicable_tasks, keywords, body_hash fields
-      - Body hash verification mechanism to detect metadata staleness when source file has changed
-      - Trust judgment predicate validating type, field presence, schema constraints, and body hash integrity
-      - All-or-nothing fallback to AI extraction when any trust condition fails
-      - Script architecture with independent modules (fm_core, fm_read, fm_write, fm_to_pending) separated from main ToC pipeline
-      - Integration into index-docs workflow enabling transfer-only processing for trusted metadata
-      - Mandatory schema constraints (1-10 items per array, 200 char limit on purpose, field type validation)
-      - Retrofitting mechanism for applying frontmatter to existing documents lacking metadata
+      - Frontmatter schema with type identifier, title, purpose, content_details, applicable_tasks, keywords, and body_hash
+      - Body hash normalization rules including line ending conversion, whitespace trimming, and SHA-256 calculation
+      - Trust judgment predicate validating doc-advisor type marker, field schema compliance, and body hash verification
+      - Script module architecture with fm_core, fm_read, fm_write, and fm_to_pending modules
+      - Integration workflow with index-docs supporting both frontmatter transfer and fallback to AI extraction
+      - Language rule allowing source document language instead of English-only restriction
+      - Existing document support through write-back SKILL for posterior metadata injection
+      - Warning mechanism for detecting invalid frontmatter in type-marked documents
     applicable_tasks:
-      - Designing fastpath metadata indexing to reduce AI extraction costs
-      - Building frontmatter parser and validation logic
-      - Implementing body hash verification for metadata staleness detection
-      - Planning frontmatter write skill for document metadata generation
-      - Retrofitting existing documents with frontmatter metadata
-      - Integrating frontmatter into index-docs indexing workflow
+      - Design specification of frontmatter metadata schema
+      - Implementation of frontmatter parsing and validation scripts
+      - Integration of frontmatter features with ToC generation pipeline
+      - Update of toc_format specification document
+      - Development of write-back SKILL for existing documents
     keywords:
       - frontmatter
       - body_hash
-      - metadata extraction
-      - ToC indexing
       - trust judgment
-      - schema validation
-      - AI extraction fallback
-      - checksum verification
+      - metadata extraction
+      - schema definition
+      - doc-advisor
+      - ToC generation
+      - pending YAML
   docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
-    title: REQ-006 Frontmatter Metadata Requirements Specification
-    purpose: Specifies requirements for Markdown documents to carry search metadata in frontmatter, accelerating index generation without re-reading document content
+    title: REQ-006 Frontmatter Metadata Requirement Specification
+    purpose: Defines requirements for frontmatter metadata in Markdown documents to enable doc-advisor to skip body re-reading during indexing, reducing large-scale indexing time
     content_details:
-      - Functional requirements for metadata embedding and index generation integration
-      - Constraints on source document preservation and fallback extraction
-      - Error handling for missing, incomplete, or invalid metadata with spec violation detection
-      - Retroactive metadata annotation capability for existing documents
-      - Metadata validation and mismatch detection mechanisms
-      - Performance targets for index generation time reduction
-      - Language alignment between metadata and document content
-      - Operational reporting of metadata inconsistencies
+      - Metadata storage in document headers
+      - Machine-detectable validity and freshness checking
+      - Skip body reading when metadata valid
+      - Fallback to body reading for missing/invalid metadata
+      - Metadata attachment means for existing documents
+      - Distribution with documents without per-environment regeneration
+      - Non-destructive indexing preserving original documents
+      - Coexistence with other tools existing metadata
+      - Metadata language matching source document language
+      - Search index items unchanged before/after feature
     applicable_tasks:
-      - Implementing frontmatter metadata storage and extraction
-      - Designing metadata validation and mismatch detection
-      - Implementing index generation fallback mechanisms
-      - Creating metadata annotation interface for users
-      - Designing consistency checking between metadata and content
-      - Planning performance optimization of index generation
-      - Reviewing metadata requirements and constraints
+      - Frontmatter metadata specification implementation
+      - Document indexing performance optimization
+      - Metadata validity detection implementation
+      - Fallback strategy design
+      - Tool interoperability for metadata formats
     keywords:
       - frontmatter
-      - metadata storage
-      - index generation
-      - metadata validation
-      - fallback mechanism
-      - content extraction
-      - mismatch detection
-      - metadata annotation
-      - content hash verification
-      - search indexing
+      - metadata
+      - document indexing
+      - search index acceleration
+      - indexing performance
+      - validity detection
+      - fallback strategy
+      - metadata attachment
+      - cache efficiency
+      - doc-advisor

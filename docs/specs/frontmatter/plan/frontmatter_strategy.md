@@ -1,0 +1,128 @@
+# frontmatter 実装戦略
+
+## 前提（本戦略が依拠する確定事項）
+
+- 書き込み手段は **専用 SKILL を新設**（`index-docs` のモードにしない）→ 読み取り経路と書き込み経路が別フェーズに分離できる
+- 適用対象は **`docs/` 配下に限定**（`plugins/doc-advisor/` 配下の配布物は対象外）→ 除外の強制点をどこに置くかが実装判断として発生する（D4）
+- script は `plugins/doc-advisor/scripts/frontmatter/` に完全独立で配置し、`toc_store.py` / `toc_utils.py` を import しない
+- テストは `tests/scripts/frontmatter/` に置く
+- DES-008 §9 が挙げる他文書の更新も実装スコープに含める
+
+## アプローチ
+
+**選択**: リスク駆動 + ボトムアップ（併用）
+
+**根拠**:
+
+本 feature の技術的不確実性は、モジュール間依存の複雑さではなく **1 点に集中している**。すなわち「PyYAML を使わず（NFR-003 / REQ-001 NFR-N01・標準ライブラリのみ）、任意の既存フロントマター（SKILL.md の `name` / `description` / `applicable_when` 等の未知キー）を失わずにマージ書き込みし、かつ本文の正規化ハッシュを不動点で打刻する」という部分である。既存の `toc_utils.parse_simple_yaml` は pending YAML 専用の簡易パーサで、ネスト・ブロックスカラ・引用符の往復再現性を持たないため **そのまま流用できない**（かつ DES-008 §6.1 により import も禁止）。ここを外すと DES-008 §4.5 の共存要件が崩れる。
+
+一方、依存構造そのものは単純である。`fm_core` を土台に `fm_read` / `fm_write` / `fm_to_pending` が乗る一方向の 3 分岐で、循環はなく、既存 ToC パイプラインとは完全独立（§6.1）。したがってフェーズ分割はボトムアップ（`fm_core` → 各 script → SKILL → 統合）が自然に成立する。
+
+そこで **最も不確実な `fm_core`（パース保存性・正規化・スキーマ判定・二重実装の整合）を Phase 1 に前倒し**し、以降はボトムアップに積む。フィーチャースライス（縦断で薄く通す）は採らない。理由は、本 feature の失敗モードが「早期に E2E が通らないこと」ではなく「**不正な pending が merge の `validate_toc` を落とし `toc.yaml` 全体をロールバックさせること**」（DES-008 §5.1）であり、縦断を急ぐより判定ロジックを先に固めるほうがリスクを潰せるためである。
+
+## フェーズ
+
+### フェーズ 1: `fm_core` / `fm_read` — 判定基盤の確立
+
+- **目標**: 任意の Markdown に対し「フロントマターの信頼判定（DES-008 §5.1 の述語）」と「`body_hash` の算出」が決定論的に行え、未知キーを 1 バイトも壊さずにマージ書き込みできる下地が揃う。書き込み系 script はまだ無く、原本は一切変更されない
+- **スコープ**:
+  - `plugins/doc-advisor/scripts/frontmatter/fm_core.py`（DES-008 §4.1 / §4.2 / §5.1 / §6.2）
+    - フロントマター境界の切り出し（先頭 `---` 〜 終端 `---`。`has_substantive_content` と同じステートマシン方針を **再実装**して踏襲）
+    - 本文正規化（CRLF → LF、末尾空白・空行除去 + 改行 1 つ）と SHA-256 → `sha256:<64hex>`
+    - スキーマ検証（型・件数 1〜10・`purpose` 200 文字・`^sha256:[0-9a-f]{64}$`）
+    - YAML 値のエスケープ（`toc_utils.yaml_escape` と同一出力になる独立実装）
+    - **行保存型マージ**: doc-advisor が単独所有する 6 キー（`type` 以外）のブロックのみを差し替え、それ以外の行は原文のままバイト保持する（下記リスク R1 の対策。「パースして再出力する」方式は採らない）
+    - **`type` の和集合更新**: `type` は forge の `temporary-feature-*` 等と同居しうる共有キーのため、置換せず既存値を保持したまま `doc-advisor` を追加する（DES-008 §4.1 / §4.5）。スカラ・配列の双方を入力として受理する
+  - `plugins/doc-advisor/scripts/frontmatter/fm_read.py`（§6.2、JSON 出力は DES-005 §8.1 の `status` / `error_code` / `warnings` 契約に準拠）
+  - `tests/scripts/frontmatter/test_fm_core.py` / `test_fm_read.py`
+  - 文書更新: `CLAUDE.md` の Repository Layout に `plugins/doc-advisor/scripts/frontmatter/` を追加（DES-008 §9）。REQ-006 の TBD-001 / TBD-002 を解決済みに更新し、DES-008 §10 の未決 1・2 を決定事項として書き換える
+- **検証ポイント**:
+  - `python3 -m unittest discover -s tests -p 'test_*.py' -v` が全通過
+  - DES-008 §6.4 の必須テストが存在し通過すること
+    - `body_hash`: CRLF / 末尾空行で不変、本文変更で変化、**フロントマター変更で不変**（自己参照回避の要）
+    - 信頼判定の全分岐（`type` 欠落 / フィールド欠落 / 空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / 形式不正 / 未知接頭辞）
+    - YAML エスケープ一致テスト（`toc_utils.yaml_escape` と同一入力で同一出力。日本語・`:` 含み・数値様文字列を含む）
+    - スキーマ規約の一致テスト（`validate_toc.py` との関係。**ただし D3 の判断が前提**）
+  - 実リポジトリの `plugins/doc-advisor/skills/*/SKILL.md` と `formats/toc_format.md`（既存フロントマター保持）を入力にした round-trip テストで、doc-advisor キーを足しても既存キーの行がバイト一致すること
+  - `fm_read` の判定を本リポジトリ `docs/` 全件に流し、全件が「フロントマター無し → 正常な対象外（warning なし）」になること
+
+### フェーズ 2: `fm_write` と書き込み SKILL — コーパスへの付与
+
+- **目標**: 利用者が明示的に起動した場合に限り、既存文書へフロントマターを付与できる。整形器実行後に打刻され、再実行しても差分が出ない（冪等）
+- **スコープ**:
+  - `fm_write.py`（§6.2 / §6.3）: メタデータを受け取り `fm_core` の行保存マージで書き込み → `--format-command "dprint fmt {file}"` を実行（未指定なら実行しない）→ **その後に** `body_hash` を計算・打刻
+  - 新規 SKILL `plugins/doc-advisor/skills/write-frontmatter/SKILL.md`（名称は D2）。継承型（`context:` 未指定）とし、`skill_authoring_notes.md` の「継承型の必須事項」（責務境界の明記・`$ARGUMENTS` への大量 context 貼り付け禁止・副作用の発生条件明示）を満たす。対象提示とユーザ確認は **AskUserQuestion** を使用する
+  - 対象列挙は script が担う（`fm_read.py` の走査モード）。AI に列挙・手転記をさせない（CLAUDE.md「決定論的な定型処理は script 化する」）
+  - `tests/scripts/frontmatter/test_fm_write.py`
+- **検証ポイント**:
+  - 未知キー（`name` / `description` / `applicable_when`）が保持されることのテスト通過（§6.4）
+  - `--format-command` 指定時に「書き込み → 整形 → 打刻」の順が守られ、直後に `fm_read` が `trust == true` を返す（打刻が整形の不動点に置かれている証明）
+  - 同一文書に 2 回連続適用して `git diff` が空（冪等）
+  - `--format-command` 未指定でも正常終了し `trust == true`
+  - **ドッグフーディング**: 本リポジトリの `docs/rules/` 数件に実適用し、`dprint check` が通り、対象外である `plugins/doc-advisor/` 配下が一切変更されないこと（D4 の強制点が効いていること）
+
+### フェーズ 3: `fm_to_pending` と `index-docs` 統合 — コスト削減の実現
+
+- **目標**: フロントマターを持つ文書が `toc-updater` Agent を起動せずに ToC へ載る。持たない文書は従来どおり AI 抽出に落ち、ToC の内容と品質は変わらない
+- **スコープ**:
+  - `fm_to_pending.py`（§6.2）: 信頼できるフロントマターを pending YAML（`status: completed`）として書き出す。pending の書式は `write_pending.py` の出力と同一になるよう固定（エスケープ含む）
+  - `workflows/index_toc_orchestrator.md` に **Phase 1.5（転記）** を追加。Phase 1（prepare）と Phase 2（連続ディスパッチ充填）の間に 1 コマンドで実行し、Phase 2 の `toc_store.py --work-status` は残った pending だけを見る。`prepare_toc.py` / `merge_toc.py` / `toc_store.py` の **コードは変更しない**（DES-008 §7.1）
+  - `skills/index-docs/SKILL.md` に Phase 1.5 と warning の扱いを反映
+  - 文書更新（同一変更内）: `formats/toc_format.md` の Language Rule を「本文の言語に合わせる」へ改訂（DES-008 §4.4 / §9）、DES-005 §6.1 のシーケンスに転記経路を追記し §4.1 のモジュール一覧に `frontmatter/` の位置づけを追記（§9）
+  - `tests/scripts/frontmatter/test_fm_to_pending.py` および `tests/integration/` に「フロントマター有り → Agent 起動ゼロで merge 完了」の統合テスト
+- **検証ポイント**:
+  - 統合テスト: フロントマター有り 1 件 + 無し 1 件を prepare → Phase 1.5 → merge し、`toc.yaml` の 2 エントリが正しく生成される（有り側は Agent を起動していない）
+  - `validate_toc.py` が転記由来エントリを弾かないこと（**ロールバック回帰の防止。本 feature 最大の失敗モード**）
+  - 不正フロントマター（`type: doc-advisor` 有り + スキーマ違反）で pending が生成されず、warning が JSON に出て AI 抽出へ落ちること
+  - 実測: 本リポジトリ `docs/` を Phase 2 前後で比較し、起動グループ数の削減を確認（REQ-006 の性能目的の一次確認。TBD-004 の数値確定は導入後実測に委ねる）
+  - **検索品質の回帰**: 日本語メタデータが `toc.yaml` に載るため、`DEVELOPMENT.md` のゴールデンセットで FN/FP がベースラインから劣化しないことを確認する。ADR-006 が k=3 バッチングに課したのと同じ品質ゲートを、Language Rule 変更に対しても適用する
+
+### フェーズ 4: 書き戻し来歴（`extracted_by`）— コーパスの自己修復
+
+- **目標**: ToC 生成後に「AI 抽出に落ちた文書」を利用者へ提示し、承認を得てフロントマターへ書き戻せる。索引処理そのものは原本を書き換えない（REQ-006 制約）
+- **スコープ**:
+  - pending `_meta.extracted_by`（`frontmatter` | `ai`）: `fm_to_pending.py` は `frontmatter`、`write_pending.py` は `ai` を書く（**`write_pending.py` の `_meta` 再構築の改修が必要** — D6）
+  - `merge_toc.py` の JSON 出力に `extracted_by: ai` の source_file 一覧を集約（`toc.yaml` には書き出さない）
+  - `skills/index-docs/SKILL.md`: merge 完了後に AskUserQuestion で提示し、承認時に書き込み SKILL へ引き渡す
+  - 文書更新: `formats/toc_format.md` の `_meta` フィールド表に `extracted_by` を追加（DES-008 §9）
+  - 既存テスト（`test_write_pending.py` / `test_merge_toc.py`）の追随更新
+- **検証ポイント**:
+  - AI 抽出経路を通った pending に `extracted_by: ai` が付き、`toc.yaml` には**出ない**こと
+  - `merge_toc.py` の JSON に候補一覧が出ること
+  - 索引実行のみでは原本に `git diff` が出ないこと（REQ-006 制約の回帰テスト）
+
+## リスクと対策
+
+| リスク                                                                                                                                    | 影響度 | 対策（どのフェーズで潰すか）                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| R1: PyYAML 不使用での既存フロントマター往復破壊（未知キー消失・引用符/ネストの再出力ずれ）。DES-008 §4.5 の共存要件が崩れる               | 高     | **Phase 1**。パース→再出力ではなく「doc-advisor 所有キーのブロックのみ差し替える行保存型マージ」を採用し、未知キーは原文行のままバイト保持する。実配布物 SKILL.md を入力にした round-trip テストで固定 |
+| R2: 転記した pending が `validate_toc` を落とし、`toc.yaml` 全体がロールバックする（DES-005 §6.5）                                        | 高     | **Phase 1**（判定を転記より前に置き、all-or-nothing で落とす）+ **Phase 3**（統合テストで固定）。加えて D3 で「fm が通す集合 ⊆ validate が通す集合」を明示的な不変条件として test 化                   |
+| R3: 二重実装の乖離（`yaml_escape` / スキーマ規約が `toc_utils` `validate_toc` と `fm_core` の 2 箇所）                                    | 中     | **Phase 1** の一致テスト（§6.4）。テーブル駆動の共通ケース表を 1 箇所に置き、両実装へ流す                                                                                                              |
+| R4: 打刻順序の破れ（別経路の整形でハッシュ無効化）                                                                                        | 低     | **Phase 2**。帰結は AI 抽出へのフォールバック＝現行挙動への復帰にとどまる（DES-008 §6.3）。完全保証は狙わず、冪等テストで違反頻度を下げる                                                              |
+| R5: `--format-command` による任意コマンド実行                                                                                             | 中     | **Phase 2**。`shlex.split` + `shell=False` で実行し、`{file}` 以外の展開を行わない。設定ファイルからは読まない（§6.3 の CLI 引数受け取りを厳守）                                                       |
+| R6: 日本語メタデータ流入による検索品質劣化（FNC-002 の見落としゼロ）                                                                      | 中     | **Phase 3** のゴールデンセット実測をゲートにする。劣化時は Language Rule 改訂を切り戻し、転記時に英語化を要求する方針へ後退                                                                            |
+| R7: 適用対象外（`plugins/doc-advisor/` 配下）への誤書き込み                                                                               | 中     | **Phase 2**。除外を対象列挙 script 側に持たせ（D4）、ドッグフーディングで実地確認                                                                                                                      |
+| R8: 大量文書への書き込み SKILL 実行時の並列制御（ADR-006 の claim/lease は `toc_store.py` にあり、frontmatter script からは import 禁止） | 中     | **Phase 2**。v1 では claim/lease を持ち込まず、対象リストを script が決定論的に分割して Agent へ渡す。同一ファイルへの同時書き込みが起きない分割であることを保証する。規模で問題が出たら別途 ADR 化    |
+| R9: 打刻がファイル hash を変え `.toc_checksums.yaml` が `updated` を出す                                                                  | 低     | 設計上の想定内（DES-008 §7.2）。`updated` も転記経路で処理されるため一巡で収束する。Phase 3 の統合テストで収束を確認                                                                                   |
+
+## 実装着手前に解くべき判断事項
+
+以下は設計書の記述だけでは実装が一意に決まらない点である。推奨案を併記する。
+
+| ID | 論点                                                                                                                                                                                                                                 | 選択肢                                                                                                                                                                                                                                                 | 推奨                                                                                                                                                                                                                                                   |
+| -- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1 | `fm_to_pending.py` の呼び出し粒度。DES-008 §6.1 は `--out <path>` の 1 ファイル単位を規定するが、`.toc_work/` 配下の全 pending を処理するには誰かが列挙する必要があり、AI に列挙させるのは CLAUDE.md の禁止事項                      | (a) `--work-dir <dir>` を追加し、pending の `_meta.source_file` を読んで **その場で in-place 完了化**する（key / store_dir 解決は行わないため §6.1 の独立性は保たれる）／(b) `prepare_toc.py` の JSON に pending マップを出させ、`--pairs-file` で渡す | **(a)**。既存 script を一切変更せず 1 コマンドで済み、work file 命名規則も知らずに済む。DES-008 §6.1 の `--out` 記述には同一変更内で追記が必要                                                                                                         |
+| D2 | 書き込み SKILL の名称・起動経路                                                                                                                                                                                                      | `write-frontmatter` / `stamp-frontmatter` / `fill-frontmatter`。継承型 or fork 型                                                                                                                                                                      | 名称 **`write-frontmatter`**（既存 `index-docs` / `query-docs` / `check-toc` の動詞-目的語に整合）、**継承型**（`skill_authoring_notes.md` の「デフォルトは継承型」。fork 型は COMMON-DES-001 §6 の規定リスト記載が前提であり、本 SKILL は該当しない） |
+| D3 | `validate_toc.py` と `fm_core` の「スキーマ規約の一致テスト」（§6.4）。**現行 `validate_toc.py` は 200 文字上限も 10 件上限も検査していない**（非空チェックのみ）。文字どおり「同じ合否」を要求すると成立しない                      | (a) `validate_toc.py` を強化して上限を課す（既存の AI 抽出エントリが 10 件超なら **ToC 全体ロールバック**を誘発する副作用あり）／(b) 不変条件を「fm が通す ⊆ validate が通す」の一方向に定義し、その含意をテストで固定                                 | **(b)**。§5.1 が守ろうとしている性質（転記側が通したものを merge 側が弾かない）は一方向で十分に保たれ、既存 ToC への破壊的影響がない。DES-008 §6.4 の文言修正が必要                                                                                    |
+| D4 | 適用対象外（`plugins/doc-advisor/` 配下）の強制点                                                                                                                                                                                    | (a) `fm_write.py` が拒否／(b) 対象列挙（`fm_read` 走査モード）で除外／(c) SKILL の指示のみ                                                                                                                                                             | **(b)**。`fm_write.py` は汎用ツールとして保ち、方針は列挙側に置く。(c) 単独はプロンプト規律に依存するため不可                                                                                                                                          |
+| D5 | フロントマター内のキー順序、および `type` の値の並び                                                                                                                                                                                 | 既存キーの後ろに追記／`type` を先頭に固定                                                                                                                                                                                                              | 行保存の帰結として **既存キーは原位置維持・doc-advisor キーは末尾に追記**。`type` の先頭固定は既存ファイルの差分を無用に広げる。`type` の値は既存要素の順序を保ち `doc-advisor` を末尾に追加する（和集合更新。既に含まれていれば無変更＝冪等）         |
+| D6 | DES-008 内の矛盾。§7.1 は「`merge_toc.py` 以降は一切変更しない」とするが、§8.2 は「`_meta.extracted_by` を `merge_toc.py` の JSON 出力を通じて SKILL が参照する」と要求しており、`merge_toc.py` と `write_pending.py` の改修が不可避 | (a) §7.1 の「無改造」を「pending 統合・原子的書き込み・検証・checksums 更新のロジックは変更しない（JSON 出力への集約追加は除く）」と限定する／(b) `extracted_by` を Phase 4 ごと見送る                                                                 | **(a)**。設計書の該当箇所を同一変更内で修正する                                                                                                                                                                                                        |
+
+## 設計書に対して同一変更内で必要になる修正
+
+DES-008 §9 が挙げる 3 件（`toc_format.md` / DES-005 / CLAUDE.md）に加え、上記 D1・D3・D6 の決着に応じて **DES-008 自身の §6.1 / §6.4 / §7.1 の修正が必要**になる。加えて確定事項に伴う REQ-006 未確定事項表（TBD-001 / TBD-002）と DES-008 §10 の更新がある。いずれもコードと同一 PR で行う（`implementation_guidelines.md`「設計書の保守」）。
+
+## 補足（フェーズ分割で採らなかった案）
+
+- 「Phase 3（index 統合）を先、Phase 2（書き込み）を後」も成立するが、**採らない**。実コーパスにフロントマターが 1 件も無い状態では統合の効果を実測できず、フィクスチャのみの検証に留まるため。書き込みを先に置けば、Phase 3 で本リポジトリ `docs/` を実データとしてゴールデンセット回帰まで一気に測れる。
+- 単一フェーズ（一括実装）も検討したが、R1・R2 が独立に致命的であり、かつ Phase 1 の成果物だけで「原本を一切変更せずに判定を検証できる」安全な検証点が作れるため、分割の利得が明確である。
