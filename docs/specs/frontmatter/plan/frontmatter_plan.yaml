@@ -133,7 +133,7 @@ tasks:
   - task_id: TASK-005
     title: fm_write を実装し整形後に本文ハッシュを打刻する
     priority: 78
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-003
