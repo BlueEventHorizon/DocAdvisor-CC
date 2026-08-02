@@ -42,6 +42,7 @@ ToC（キーワード／メタデータ）でルール・仕様文書をイン�
 | `plugins/doc-advisor/skills/{skill}/SKILL.md`    | 配布 SKILL（3 件: index-docs / query-docs / check-toc。ToC の生成・検索・鮮度確認） |
 | `plugins/doc-advisor/agents/toc-updater.md`      | 配布 agent（ToC 更新の並列処理用）                                                  |
 | `plugins/doc-advisor/scripts/`                   | SKILL から呼ばれる Python スクリプト                                                |
+| `plugins/doc-advisor/scripts/frontmatter/`       | フロントマター専用スクリプト（ToC パイプラインから独立。DES-008）                   |
 | `plugins/doc-advisor/workflows/`                 | SKILL がランタイム Read する手順文書                                                |
 | `plugins/doc-advisor/formats/`                   | SKILL がランタイム Read するスキーマ文書                                            |
 | `docs/rules/`                                    | プロジェクトルール（`query-docs` で参照）                                           |

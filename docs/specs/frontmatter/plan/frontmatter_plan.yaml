@@ -65,7 +65,7 @@ tasks:
   - task_id: TASK-002
     title: fm_core の読み取り系（境界切り出し・正規化・本文ハッシュ・スキーマ検証）を実装する
     priority: 90
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-001
