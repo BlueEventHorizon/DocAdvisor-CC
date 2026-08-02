@@ -1,3 +1,36 @@
+---
+type: doc-advisor
+title: SKILL / Agent / subagent 起動経路と名称 定義
+purpose: 処理を他へ委譲する起動経路 5 種に公式短縮名称を定め、曖昧語による誤読を防ぐ定義文書。subagent_type の値域と無効値も規定する。
+content_details:
+  - 起動経路 5 種の分類（継承型 SKILL / fork 型 SKILL / 汎用 Agent / カスタム Agent / Bash subprocess）
+  - 各経路の起動ツール・手順書の所在・親 context の継承・入力・出力の比較
+  - 汎用 Agent とカスタム Agent の差は手順書がどこにあるか（prompt か agents/<name>.md か）
+  - fork 型 SKILL とカスタム Agent は隔離 context + 事前定義ロールとして動作モデルが同等
+  - 継承型 SKILL のみ親 context を継承する
+  - 「subagent」を文書中で単独使用しない用法統一と正しい呼称の対応
+  - subagent_type の値域（汎用 Agent の組み込み型 / カスタム Agent 名）
+  - subagent_type に Skill 名・slash 表記・ファイルパスを指定するのは無効
+  - 機械可読 subset docs/rules/skill_launch_terms.toml の位置づけ
+applicable_tasks:
+  - SKILL.md や設計書での起動経路の記述
+  - Agent ツール呼び出し時の subagent_type 指定
+  - 委譲方式の選定時の用語確認
+  - 既存文書の曖昧語（subagent）の置換
+keywords:
+  - 起動経路
+  - 継承型 SKILL
+  - fork 型 SKILL
+  - 汎用 Agent
+  - カスタム Agent
+  - Bash subprocess
+  - subagent_type
+  - Skill ツール
+  - Agent ツール
+  - skill_launch_terms.toml
+body_hash: sha256:d7c1d352e7ca5aebb034237f7a4edb3a60d2485260bb2f5e5eeaea75d9e60c2d
+---
+
 # SKILL / Agent / subagent 起動経路と名称 定義
 
 ## 本文書の性質

@@ -1,3 +1,38 @@
+---
+type: doc-advisor
+title: SKILL.md 作成時の注意点
+purpose: Claude Code の SKILL.md を作成・編集する際の規約を定める。frontmatter フィールド、継承型 / fork 型の判別と多重防御、description の書き方、分割基準、ユーザー確認の方法を規定する。
+content_details:
+  - frontmatter フィールド一覧（name / description / user-invocable / argument-hint / disable-model-invocation / allowed-tools / context / agent）と既定値
+  - user-invocable と disable-model-invocation の組み合わせごとの表示・呼び出し可否
+  - "継承型（context 未指定）と fork 型（context: fork）の実行モデルと親 context 継承の差"
+  - 継承型の必須事項（責務境界の明記・$ARGUMENTS への大量 context 貼り付け禁止・副作用の発生条件明示）
+  - fork 型の必須事項（否定的制約の明記・引数解釈ガード）
+  - allowed-tools は承認なしで使える allowlist であり書き込み系ツールの物理 deny ではない
+  - 使える変数（${CLAUDE_PLUGIN_ROOT} / ${CLAUDE_SKILL_DIR} / ${CLAUDE_SESSION_ID}）
+  - 別スキルの呼び出し方法と自己再帰禁止
+  - SKILL.md の分割基準（手順は SKILL.md に残し、テンプレート等は外部ファイルへ）
+  - ユーザーへの質問・選択・確認はすべて AskUserQuestion を使う
+applicable_tasks:
+  - 新規 SKILL.md の作成
+  - 既存 SKILL.md の改訂・レビュー
+  - 継承型 / fork 型の型選定
+  - frontmatter フィールド・allowed-tools の指定
+  - ユーザー確認手順の記述
+keywords:
+  - SKILL.md
+  - frontmatter
+  - "context: fork"
+  - allowed-tools
+  - user-invocable
+  - disable-model-invocation
+  - AskUserQuestion
+  - CLAUDE_PLUGIN_ROOT
+  - 継承型
+  - 自己再帰禁止
+body_hash: sha256:aaa7d378a6411827f082689212a008e6eee5a3dec20c1173f8de44273fe10e7a
+---
+
 # SKILL.md 作成時の注意点
 
 Claude Code プラグイン/スキルの SKILL.md を作成・編集する際の注意点をまとめる。
