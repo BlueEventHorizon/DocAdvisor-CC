@@ -44,7 +44,7 @@ tasks:
   - task_id: TASK-001
     title: 確定した判断事項を設計書・要件定義書へ反映する
     priority: 95
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on: []
     group_id: null
