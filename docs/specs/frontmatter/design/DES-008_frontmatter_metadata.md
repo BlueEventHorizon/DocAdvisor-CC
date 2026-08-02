@@ -374,20 +374,22 @@ fm_write.py --entries-json '[{"path": "docs/a.md", "metadata": {...}}]' [--forma
 ```mermaid
 sequenceDiagram
     participant Prep as prepare_toc.py
-    participant FM as fm_read / fm_to_pending
+    participant FM as fm_to_pending.py
     participant Agent as toc-updater agent
     participant Merge as merge_toc.py
 
     Prep->>Prep: paths 検証 + desired-state diff
-    Prep->>FM: added / updated の各ファイルを判定
-    alt trust == true
-        FM->>FM: pending を completed で生成（転記のみ）
-    else trust == false
-        FM->>Agent: AI 抽出（warning は type 有りの場合のみ）
-        Agent->>Agent: write_pending.py で充填
-    end
+    Prep->>Prep: added / updated の pending を .toc_work/ へ生成
+    Prep->>FM: --work-dir .toc_work（転記フェーズ）
+    FM->>FM: 直下の pending を列挙し source_file を §5.1 の述語で判定
+    FM->>FM: trust 真 → 当該 pending を completed へ in-place 書き直し
+    FM->>FM: trust 偽 → pending を無変更で残す（type 有りなら warning）
+    FM->>Agent: 残った pending のみ（work-status の pending_groups）
+    Agent->>Agent: write_pending.py で充填
     Prep->>Merge: merge（既存フローを流用）
 ```
+
+転記は prepare と充填の**間に置く独立したフェーズ**であり、per-file の判定を prepare が行うわけではない。転記済みの pending は `_meta.status: completed` になるため `toc_store.py --work-status` の `pending` / `pending_groups` に現れず、充填フェーズの対象から自動的に外れる。全件転記できた場合は `next_action: merge` となり Agent 起動ゼロで merge へ直行する。
 
 `merge_toc.py` 以降の**処理ロジック**（pending の統合、backup → 原子的書き込み、`validate_toc` による検証、checksums 更新、`.toc_work/` 削除）は変更しない。`toc.yaml` に書き出される内容も、それを書き出す手順も本設計の前後で同一である。
 

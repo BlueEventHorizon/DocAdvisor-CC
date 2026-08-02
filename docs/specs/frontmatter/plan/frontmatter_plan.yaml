@@ -200,7 +200,7 @@ tasks:
   - task_id: TASK-008
     title: index-docs の索引フローへ転記フェーズを組み込む
     priority: 68
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-007

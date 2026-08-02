@@ -21,7 +21,7 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 
 > **このスキルの責務境界**: このスキルは「指定 key（または `--all` の予約 key `all`）の ToC を desired-state 同期する」ことのみを行う。親が依頼している他の作業を引き継いではならない。
 >
-> **起動経路**: このスキルは **継承型 SKILL**（`context: fork` を指定しない）。`prepare_toc.py`（差分検出）→ `doc-advisor:toc-updater` **カスタム Agent** を **Agent ツール**で並列起動（メタデータ充填）→ `merge_toc.py`（統合）の協調フローを駆動する。Agent ツールでカスタム Agent を並列起動するために fork しない（fork 型 SKILL は Agent を起動できないため）。起動経路の名称は `docs/rules/skill_launch_paths_definitions.md` の公式短縮名称に従う。
+> **起動経路**: このスキルは **継承型 SKILL**（`context: fork` を指定しない）。`prepare_toc.py`（差分検出）→ `fm_to_pending.py`（信頼できるフロントマターからの転記）→ 残った pending を `doc-advisor:toc-updater` **カスタム Agent** で **Agent ツール**で並列起動（メタデータ充填）→ `merge_toc.py`（統合）の協調フローを駆動する。Agent ツールでカスタム Agent を並列起動するために fork しない（fork 型 SKILL は Agent を起動できないため）。起動経路の名称は `docs/rules/skill_launch_paths_definitions.md` の公式短縮名称に従う。
 
 ## Usage
 
@@ -68,16 +68,20 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status --lease-ttl 0   # 単体モードは --all
 ```
 
-stdout の JSON から `next_action` / `pending` / `completed` / `error_pending` / `has_work_dir` を読み、`next_action` に従う:
+stdout の JSON から `next_action` / `pending` / `completed` / `error_pending` / `has_work_dir` / `toc_path` を読み、`next_action` に従う:
 
-| `next_action` | 意味                                            | 動作                                                          |
-| ------------- | ----------------------------------------------- | ------------------------------------------------------------- |
-| `prepare`     | `.toc_work/` なし                               | 通常どおり Step 1（prepare）から開始する                      |
-| `fill`        | 充填可能な pending あり                         | `prepare_toc.py` を **再実行せず** Step 2（充填）から再開する |
-| `blocked`     | 充填可能 pending は無いが `error_pending` あり  | **silent merge 禁止。Step 2.5（エラー対応）** へ              |
-| `merge`       | pending も error_pending も無い（全 completed） | Step 3（merge）へ直行する                                     |
+| `next_action` | 意味                                            | 動作                                                                            |
+| ------------- | ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| `prepare`     | `.toc_work/` なし                               | 通常どおり Step 1（prepare）から開始する                                        |
+| `fill`        | 充填可能な pending あり                         | `prepare_toc.py` を **再実行せず** Step 1.6（転記）→ Step 2（充填）から再開する |
+| `blocked`     | 充填可能 pending は無いが `error_pending` あり  | **silent merge 禁止。Step 2.5（エラー対応）** へ                                |
+| `merge`       | pending も error_pending も無い（全 completed） | Step 3（merge）へ直行する                                                       |
 
-> `store_dir` の特定や `.toc_work/` の有無・pending 列挙を AI が手で導出・走査しない。`--work-status` が `pending`（project-root 相対の entry_file 一覧）まで返すため、Step 2 はそのリストをそのまま使う。
+> `.toc_work/` の有無・pending 列挙・グループ化を AI が手で判定・走査しない。`--work-status` が `pending`（project-root 相対の entry_file 一覧）まで返すため、Step 2 はそのリストをそのまま使う。
+>
+> ここで禁じているのは work dir の**中身**を手で調べることである。`toc_path` から `.toc_work/` の**パスを組み立てる**ことは Step 1.6 が `--work-dir` へ渡すために必要な規定された手順であり、これには当たらない。
+
+> **ここで `toc_path` を読んで保持する [MANDATORY]**: `next_action: fill` で再開した場合は Step 1 を飛ばすため、Step 1.6 が必要とする `toc_path` を得られるのは**ここだけ**である。Step 3（`merge_toc.py`）はまだ実行しておらず、前回セッションで見た値は compaction を越えて残らない。再開が成立するのはこの `toc_path` から `.toc_work/` を導出できるからである。
 
 ### Step 0.5: ディレクトリ展開（`--dirs-json` 指定時のみ）
 
@@ -113,7 +117,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 `prepare_toc.py` は paths 検証（traversal / 絶対パス / 不在 / 非 Markdown を reject。root 外を指す symlink は default-deny で確認待ちにする）と desired-state 差分検出を行い、added + updated 分の pending YAML を `store_dir/.toc_work/` に生成する。stdout の単一 JSON から以下を読む:
 
 - `status`（`ok` / `partial` / `needs_confirmation` / `error`）/ `error_code`
-- `toc_path`（生成された toc.yaml の project-relative パス。報告用。`.toc_work/` の所在・pending は AI が手で導出せず Step 2 で `--work-status` から取得する）
+- `toc_path`（生成された toc.yaml の project-relative パス。完了レポートに使うほか、**Step 1.6 が `--work-dir` へ渡す `.toc_work/` の導出元になる**（親ディレクトリ配下の `.toc_work/`）。ただし work dir の**中身**——存在の有無・充填可能な pending・そのグループ化——は AI が手で導出せず、Step 2 で `--work-status` から取得する）
 - `counts.added` / `counts.updated` / `counts.deleted` / `counts.unchanged`
 - `rejected_paths`（reject された path と理由）/ `warnings`
 - `external_pending`（`status == needs_confirmation` 時。root 外を指す未承認 symlink の `[{symlink, resolved, affected_count}]`）
@@ -123,7 +127,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
 - `status == error` → エラー内容を報告し、AskUserQuestion を使用してユーザーに対応を確認する
 - `status == needs_confirmation` → **Step 1.5（越境 symlink の承認）** へ。書き込みは行われていない
 - `counts.added == 0` かつ `counts.updated == 0` → 充填対象なし。`counts.deleted > 0` なら Step 3（merge）へ直行して削除を反映、両方 0 なら冪等成功（空 ToC を含む）として完了
-- `counts.added > 0` または `counts.updated > 0` → Step 2 へ
+- `counts.added > 0` または `counts.updated > 0` → **Step 1.6（フロントマターからの転記）** を経て Step 2 へ
 
 > **事前確認（任意）**: 削除予定が不安な場合、`prepare_toc.py` に `--dry-run` を付けて実行すると、書き込みなしで `counts` と path 一覧のみ JSON 出力する。破壊的削除が想定外であれば、AskUserQuestion を使用して続行可否をユーザーに確認する。
 
@@ -140,7 +144,42 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json 
 
 - すべて拒否する場合は `--allow-external-json '[]'`（越境分は drop され、残りで通常処理される）
 - 再実行は decided モードになり、未承認の越境 path は drop（warning に列挙）されるため `needs_confirmation` でループしない
-- 再実行の結果（`status == ok` / `partial` など）に応じて以降の Step（2 / 3）へ進む
+- 再実行の結果（`status == ok` / `partial` など）に応じて以降の Step（1.6 / 2 / 3）へ進む
+
+### Step 1.6: フロントマターからの転記（workflow の Phase 1.5 / DES-008 §7.1）
+
+pending のうち、元文書が既に信頼できる doc-advisor フロントマターを持つものは、Agent を起動せず **転記**で完了させる。pending の列挙・判定は script が行う（AI が `ls` や `_meta` 手読みで列挙・分類しない）。
+
+**適用条件**: Step 1 の判断で `counts.added > 0` または `counts.updated > 0` となり Step 2 へ進む枝。**Step 0 で `next_action: fill` となった再開時も実行する**。充填対象が無い枝（冪等成功 / 削除のみ）や `next_action` が `blocked` / `merge` の場合は実行しない。
+
+```bash
+# cwd は project root であること
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_to_pending.py \
+  --work-dir "$(dirname "{toc_path}")/.toc_work"
+```
+
+- `{toc_path}` は直前に読んだ JSON の `toc_path` を埋める。取得元は経路によって異なる
+  - **通常の開始** — Step 1 の `prepare_toc.py` の `toc_path`
+  - **再開時**（`next_action: fill`） — Step 0 の `toc_store.py --work-status` の `toc_path`
+
+  `merge_toc.py` から得ようとしてはならない（Step 3 は未実行）。前回セッションで見た値に頼ってもならない（compaction を越えて残らない）。どちらの script も `work_dir` フィールドを**出さない**ため、`index_toc_orchestrator.md` の Store Directory Layout の規定どおり `toc_path` の親ディレクトリ配下の `.toc_work/` として導出する
+- **project root を cwd として実行する**。`toc_path` は project-relative であり、各 pending の `_meta.source_file` も cwd 起点で解決されるため、この条件でのみ両者が整合する
+- この script は pending のみを書き換え、**元文書には一切書き込まない**（索引実行が原本を書き換えないという REQ-006 の制約）。原本への書き込みは `write-frontmatter` SKILL の責務
+
+stdout の単一 JSON から以下を読む:
+
+| 観測                                       | 動作                                                                                                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status == error`                          | 引数不正。`error_code` / `message` を報告し、AskUserQuestion を使用してユーザーに対応を確認する                                                                           |
+| `counts.failed > 0`（`status == partial`） | 該当 pending は無変更で残り Step 2 で AI 抽出へ落ちるだけなので続行してよい。その旨を報告する                                                                             |
+| `warnings` が空でない                      | ユーザーに提示する。内容は「`type` に `doc-advisor` を含むのに信頼できない」ケースのみ（DES-008 §5.3）。フロントマターを持たない文書は正常な対象外であり warning は出ない |
+| `counts.transcribed`                       | Step 4 の完了レポートに載せる（Agent 起動を何件省略できたかの実測値）                                                                                                     |
+
+> **転記済み pending は充填対象から自動的に外れる [MANDATORY]**: 転記された pending は `_meta.status: completed` になるため、`toc_store.py --work-status` は `completed` に数え、`pending` にも `pending_groups` にも載せない。したがって Step 2 の連続ディスパッチは転記済みを投入せず、SKILL 側で除外処理を書く必要はない。
+>
+> このため、**転記後に `--work-status` を引き直してから** Step 2 / Step 3 へ進む。新しい分岐は不要で、全件転記できた場合は `pending` / `in_flight` / `error_pending` がすべて空になり `next_action: merge` となるため、**Agent 起動ゼロで Step 3（merge）へ直行する**。
+>
+> **再開時も実行する [MANDATORY]**: `fm_to_pending.py` は既に `completed` の pending を `already_completed` として無変更でスキップするため冪等である。かつ前回実行後に元文書へフロントマターが付与された可能性があるため、再開時にスキップせず再実行する方が正しい。
 
 ### Step 2: toc-updater カスタム Agent による連続ディスパッチ充填
 
@@ -243,9 +282,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
 [Summary]
 - Mode: {key | all} / {full prepare | continuation}
 - added / updated / deleted / unchanged: {counts}
+- フロントマター転記 / AI 抽出: {counts.transcribed} / {Agent で充填した件数}
 - toc_path: {toc_path}
 - Errors: {E} (if any)
+- フロントマター warning: {W} (if any / Step 1.6)
 ```
+
+Step 1.6 の `warnings` が出ていた場合は握りつぶさず一覧し、「`doc-advisor` の標識を持つのに信頼できないフロントマター（規約違反または本文からの取り残され）であり、当該文書は AI 抽出で索引されている」ことを伝える。
 
 エラー pending（`_meta.error_message` あり）が残る場合は一覧し、「次回再実行で再試行される。恒常的失敗は元文書を確認」とユーザーに伝える。
 
