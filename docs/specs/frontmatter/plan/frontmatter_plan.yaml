@@ -154,7 +154,7 @@ tasks:
   - task_id: TASK-006
     title: write-frontmatter SKILL を新設する
     priority: 75
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-004
