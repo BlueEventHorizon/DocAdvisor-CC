@@ -285,7 +285,7 @@ tasks:
   - task_id: TASK-012
     title: AI 抽出結果の書き戻し候補を提示する経路を追加する
     priority: 42
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-006

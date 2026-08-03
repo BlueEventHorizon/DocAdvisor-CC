@@ -15,6 +15,8 @@ DES-005 §6.1（prepare/merge 2 フェーズ）/ §6.2（差分検出）/ §6.3�
 - backup → 原子的書き込み → validate → OK で checksums 更新 + work 削除 / NG で復元（§6.5）
 - --key 引数の値を toc.yaml の metadata.key へ書き出す（§7.2）
 - added/updated/deleted/unchanged 件数と deleted paths を JSON 出力（FR-N02-4 / FR-N08）
+- AI 抽出だった対象（pending の `_meta.extracted_by: ai`）を `ai_extracted_paths` として
+  成功時の JSON へ集約（DES-008 §8.2 の書き戻し候補。報告用の出力のみで toc.yaml には出さない）
 
 CLI:
     python3 merge_toc.py --key <key>
@@ -73,6 +75,11 @@ BACKUP_SUFFIX = ".bak"
 # ToC エントリのスカラ / 配列フィールド描画順（DES-005 §7.1: doc_type なし）
 SCALAR_FIELDS = ("title", "purpose")
 LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
+
+# pending の `_meta.extracted_by` が AI 抽出由来を示す値（DES-008 §8.2）。
+# `write_pending.py` が書き込む値と一致させる。転記由来（`frontmatter`）や
+# 値を持たない pending（既存持ち越し等）は集約に含めない。
+EXTRACTED_BY_AI = "ai"
 
 
 # ---------------------------------------------------------------------------
@@ -171,20 +178,26 @@ def write_toc_atomic(docs, toc_path, *, key, toc_rel):
 def load_completed_pendings(work_dir):
     """work_dir 配下の pending YAML を読み、status: completed のみ抽出する。
 
+    entries の意味は従来どおり（completed な pending の source_file -> entry）。
+    加えて `_meta.extracted_by`（DES-008 §8.2 の来歴。`frontmatter` | `ai`）を
+    provenance として返す。報告用の情報であり toc.yaml の内容には影響しない。
+
     Args:
         work_dir: store_dir/.toc_work/ の Path
 
     Returns:
-        tuple: (entries, errors)
+        tuple: (entries, provenance, errors)
             entries: source_file -> entry の dict（completed のみ）
+            provenance: source_file -> extracted_by 値（欠落時は None）の dict
             errors: 警告メッセージのリスト（source_file 欠落 / 未完了 等）
     """
     entries = {}
+    provenance = {}
     errors = []
 
     work_dir = Path(work_dir)
     if not work_dir.exists():
-        return entries, errors
+        return entries, provenance, errors
 
     # 隠しファイル（.toc_checksums_pending.yaml 等）を除外し、決定的順序で処理
     yaml_files = sorted(
@@ -209,9 +222,11 @@ def load_completed_pendings(work_dir):
             errors.append(f"{filename}: status is not completed ({status})")
             continue
 
-        entries[normalize_path(source_file)] = entry
+        normalized = normalize_path(source_file)
+        entries[normalized] = entry
+        provenance[normalized] = meta.get("extracted_by")
 
-    return entries, errors
+    return entries, provenance, errors
 
 
 # ---------------------------------------------------------------------------
@@ -411,7 +426,11 @@ def run_merge(store_dir, key, project_root, *, delete_only=False):
     Returns:
         tuple: (ok, payload_kwargs)
             ok: True on success
-            payload_kwargs: emit_json に渡す追加 kwargs（counts / warnings 等）
+            payload_kwargs: emit_json に渡す追加 kwargs（counts / warnings 等）。
+                成功時のみ `ai_extracted_paths`（AI 抽出だった対象の一覧。
+                DES-008 §8.2 の書き戻し候補）を含む。ToC の生成が完了して
+                いない経路（書き込み失敗・validation 失敗で `.toc_work/` を
+                保持する経路）では提示しないため出力しない
     """
     store_dir = Path(store_dir)
     toc_path = store_dir / TOC_FILENAME
@@ -428,8 +447,9 @@ def run_merge(store_dir, key, project_root, *, delete_only=False):
 
     # 1. pending 統合（delete-only では行わない）
     completed = {}
+    provenance = {}
     if not delete_only:
-        completed, merge_errors = load_completed_pendings(work_dir)
+        completed, provenance, merge_errors = load_completed_pendings(work_dir)
         warnings.extend(merge_errors)
 
     # 2. docs を構築（既存 + pending 上書き）。
@@ -518,11 +538,21 @@ def run_merge(store_dir, key, project_root, *, delete_only=False):
         f"file_count={len(docs)}"
     )
 
+    # 6. AI 抽出だった対象の集約（DES-008 §8.2 の書き戻し候補 / 報告用の出力のみ）。
+    #    ToC の生成完了後に SKILL がユーザへ提示するための一時情報であり、
+    #    toc.yaml にも checksums にも書き出さない。最終 docs に残っている path に
+    #    限る（削除された path は書き戻し先が存在しないため候補にならない）。
+    ai_extracted_paths = sorted(
+        path for path, extracted_by in provenance.items()
+        if extracted_by == EXTRACTED_BY_AI and path in docs
+    )
+
     return True, {
         "error_code": None,
         "counts": counts,
         "deleted_paths": deleted,
         "warnings": warnings,
+        "ai_extracted_paths": ai_extracted_paths,
     }
 
 
@@ -599,6 +629,11 @@ def main(argv=None):
     )
 
     status = STATUS_OK if ok else STATUS_ERROR
+    # ai_extracted_paths は merge 成功時のみ出力する（DES-008 §8.2 は「ToC の
+    # 生成完了後に提示」と規定するため、ロールバック経路では候補を出さない）。
+    extra = None
+    if "ai_extracted_paths" in payload:
+        extra = {"ai_extracted_paths": payload["ai_extracted_paths"]}
     emit_json(
         status,
         error_code=payload.get("error_code"),
@@ -608,6 +643,7 @@ def main(argv=None):
         counts=payload.get("counts"),
         warnings=payload.get("warnings"),
         deleted_paths=payload.get("deleted_paths"),
+        extra=extra,
     )
     return 0 if ok else 1
 

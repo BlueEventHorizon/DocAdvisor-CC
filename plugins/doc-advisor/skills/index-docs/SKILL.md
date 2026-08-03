@@ -10,7 +10,7 @@ description: |
   Trigger:
   - After an upper layer decides a key and its desired-state paths
   - "Index docs", "Rebuild the ToC for key X", "Index all Markdown"
-allowed-tools: Bash, Read, Agent
+allowed-tools: Bash, Read, Agent, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "--key <key> --paths-json '[...]' | --key <key> --dirs-json '[...]' | --all | (no args = --all)"
 ---
@@ -19,7 +19,7 @@ argument-hint: "--key <key> --paths-json '[...]' | --key <key> --dirs-json '[...
 
 key + project-root-relative paths から ToC（AI 検索用インデックス）を desired-state で生成・更新する生成系 SKILL。
 
-> **このスキルの責務境界**: このスキルは「指定 key（または `--all` の予約 key `all`）の ToC を desired-state 同期する」ことのみを行う。親が依頼している他の作業を引き継いではならない。
+> **このスキルの責務境界**: このスキルは「指定 key（または `--all` の予約 key `all`）の ToC を desired-state 同期する」ことのみを行う。親が依頼している他の作業を引き継いではならない。**原本の Markdown は書き換えない**（Step 5 で AI 抽出結果の書き戻し候補を提示し、承認された場合に限り `write-frontmatter` SKILL へ引き渡す。書き込みはその SKILL の責務）。
 >
 > **起動経路**: このスキルは **継承型 SKILL**（`context: fork` を指定しない）。`prepare_toc.py`（差分検出）→ `fm_to_pending.py`（信頼できるフロントマターからの転記）→ 残った pending を `doc-advisor:toc-updater` **カスタム Agent** で **Agent ツール**で並列起動（メタデータ充填）→ `merge_toc.py`（統合）の協調フローを駆動する。Agent ツールでカスタム Agent を並列起動するために fork しない（fork 型 SKILL は Agent を起動できないため）。起動経路の名称は `docs/rules/skill_launch_paths_definitions.md` の公式短縮名称に従う。
 
@@ -269,8 +269,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --all
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
 ```
 
-`merge_toc.py` は backup → 原子的書き込み（`os.replace`）→ validate → **OK で checksums 更新 + `.toc_work/` 削除 / NG で backup から復元・checksums 据え置き・`.toc_work/` 保持** までを **内部で完結**する。SKILL 側で追加の checksums promote / work dir 削除コマンドを呼ぶ必要はない。stdout JSON から `status` / `counts` / `deleted_paths` / `warnings` を読む。
+`merge_toc.py` は backup → 原子的書き込み（`os.replace`）→ validate → **OK で checksums 更新 + `.toc_work/` 削除 / NG で backup から復元・checksums 据え置き・`.toc_work/` 保持** までを **内部で完結**する。SKILL 側で追加の checksums promote / work dir 削除コマンドを呼ぶ必要はない。stdout JSON から `status` / `counts` / `deleted_paths` / `warnings` / `ai_extracted_paths` を読む。
 
+- `ai_extracted_paths` は **AI 抽出（`toc-updater`）で索引された文書のパス一覧**（`status == ok` のときのみ出力される）。Step 5 の書き戻し候補として使う。**この値をファイルへ保存してはならない**（実行中の確認を簡便にするための一時情報であり永続状態ではない / DES-008 §8.2）
 - `status == ok` → 完了レポート（Step 4）
 - `status == error` → 検証失敗時は toc.yaml が復元され `.toc_work/` が保持されている。エラー内容を報告し、AskUserQuestion を使用してユーザーに対応（元文書修正後の再実行など）を確認する
 
@@ -291,6 +292,35 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
 Step 1.6 の `warnings` が出ていた場合は握りつぶさず一覧し、「`doc-advisor` の標識を持つのに信頼できないフロントマター（規約違反または本文からの取り残され）であり、当該文書は AI 抽出で索引されている」ことを伝える。
 
 エラー pending（`_meta.error_message` あり）が残る場合は一覧し、「次回再実行で再試行される。恒常的失敗は元文書を確認」とユーザーに伝える。
+
+### Step 5: AI 抽出結果の書き戻しの確認（`ai_extracted_paths` が空でない場合のみ / DES-008 §8.2）
+
+Step 3 の merge が `status == ok` で完了し、`ai_extracted_paths` が空でない場合のみ実行する。これらの文書は信頼できるフロントマターを持たなかったため AI 抽出（`toc-updater`）で索引された。抽出結果を原本のフロントマターへ書き戻すと、以降その文書は転記だけで索引できるようになり、結果は git を通じて全クローンへ伝播する（コーパスの自己修復）。
+
+**このステップは ToC の生成完了「後」に行う [MANDATORY]**。索引処理と同時に書き戻してはならない。索引という読み取り操作の副作用で原本に git diff が生じるのは驚きがあるためである（REQ-006 の制約「索引の生成は原本の文書を書き換えない」）。Step 1〜4 の時点で原本は 1 バイトも変わっていない。
+
+手順:
+
+1. `ai_extracted_paths` の一覧（件数とパス）を提示し、**書き戻すと原本の Markdown に diff が生じる**ことを明示して `AskUserQuestion` を使用して確認する
+
+   | 選択                 | 動作                                                                               |
+   | -------------------- | ---------------------------------------------------------------------------------- |
+   | **書き戻す**         | 一覧の全件を対象として手順 2 へ                                                    |
+   | **対象を絞って書く** | 除外する対象を `AskUserQuestion` で確認し、**残った対象のみ**を対象として手順 2 へ |
+   | **書き戻さない**     | 何もせず終了する（既定。原本は変更されない）                                       |
+
+2. 承認された対象のみを `--paths-json` に並べ、`Skill` ツールで `doc-advisor:write-frontmatter` を起動する
+
+   ```
+   Skill(skill: doc-advisor:write-frontmatter,
+         args: "--paths-json '[\"{approved_path_1}\", \"{approved_path_2}\"]'")
+   ```
+
+   - 引数は **`--paths-json`（project-root-relative の配列）のみ**。`write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
+   - **承認されなかった対象を渡してはならない**
+   - **merge の JSON や `.toc_work/` を `write-frontmatter` に読ませてはならない**。`write-frontmatter` は ToC / `.toc_work/` / checksums を読み書きしない SKILL であり、候補パスは本 SKILL が引数として渡す
+
+> **集約結果をファイルに残さない [MANDATORY]**: `ai_extracted_paths` は実行中の確認を簡便にするための一時情報である（DES-008 §8.2）。候補一覧を別ファイル・作業ファイル・ToC へ書き出してはならない。「信頼できるフロントマターを持たない文書の集合」は `fm_read.py` でいつでも再計算できる。
 
 ## Continuation の手動クリーンアップ（異常時のみ）
 
