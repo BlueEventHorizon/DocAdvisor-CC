@@ -1,3 +1,38 @@
+---
+type: doc-advisor
+title: ADR-006 index-docs Parallel Fill Performance
+purpose: Records the decision to speed up the toc-updater fill phase via a wider window, a compressed format doc, and limited batching, gated on measured extraction quality.
+content_details:
+  - Measurements - ~18s and ~24K tokens per document, effective parallelism verified at 10, per-document time independent of the window
+  - The bottleneck is launch-count overhead and tail latency, not insufficient parallelism
+  - context rot is the central concern - mixing documents in one context causes cross-document keyword misattribution
+  - Plan A - raise the distributed default window from 5 to 10 (verified safe; 429 on a low tier degrades to 5 then 3)
+  - Plan C - compress formats/toc_format.md so per-document context shrinks (speed and quality move together)
+  - Plan B - limited batching of k=2..3 same-directory neighbours, gated on a quality measurement
+  - Grouping is decided deterministically by script; AI grouping by hand is forbidden
+  - "Addendum (Issue #29) - continuous dispatch with claim/lease replaced foreground barrier waves; 12.6% makespan gain measured"
+  - Addendum 2 - the free-slot arithmetic moved into index_docs.py because window minus in_flight_groups must not be recomputed by AI
+  - Rejected - official multi-agent orchestration (not reachable from the SKILL runtime), and auto-selecting barrier vs continuous
+applicable_tasks:
+  - Changing the parallel window or the batch size of toc-updater fill
+  - Diagnosing slow or rate-limited indexing on a large corpus
+  - Deciding whether dispatch control belongs to a script or to the AI
+  - Reviewing extraction quality after a batching change
+  - Understanding why claim and lease exist in toc_store.py
+keywords:
+  - ADR-006
+  - context rot
+  - continuous dispatch
+  - sliding-window
+  - claim
+  - lease
+  - in_flight_groups
+  - max_batch
+  - tail latency
+  - makespan
+body_hash: sha256:b23115aa7ed595560eb1be5189dde94bc1608ca4a44988d53d936e4d6838f3f2
+---
+
 # ADR-006: index-docs 並列充填の高速化（並列度引き上げ・規約圧縮・限定バッチング）
 
 ## ステータス
