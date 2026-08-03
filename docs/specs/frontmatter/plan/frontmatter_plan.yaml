@@ -221,7 +221,7 @@ tasks:
   - task_id: TASK-009
     title: 言語ルール改訂と既存設計書への追記を行う
     priority: 65
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-008

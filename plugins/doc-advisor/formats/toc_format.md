@@ -30,8 +30,13 @@ The quality of this file determines task execution success. **Missing informatio
 
 ### Language Rule
 
-- **All field values must be written in English**, regardless of the source document's language
-- ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
+**This section is the single place that governs the language of field values.** The Field Guidelines below describe what each field must convey, never the wording to use in a particular language.
+
+- **Write every field value in the same language as the source document's body.** Never translate
+- The same values are embedded in the source document as frontmatter and read by humans there, so metadata in a language other than the body's goes unmaintained when the body is edited
+- The writing AI is more accurate in the body's language; interposing a translation degrades the values and adds AI work that the cost goals do not allow
+- Search is unaffected: `query-docs` reads the whole ToC and matches by meaning rather than token equality, so mixed languages are tolerated (base/FNC-002)
+- `keywords`, the field that contributes most to search, is dominated by identifiers, which do not depend on the document's language
 
 ### YAML Formatting Rules
 
@@ -197,7 +202,7 @@ docs:
 ### purpose
 
 - Describe the file's role concisely (max 200 characters)
-- Use phrases like "Defines rules for...", "Specifies requirements for...", "Describes design for..."
+- State plainly what the document establishes and for what subject (the rules it defines, the requirements it specifies, the design it describes) — the point is the subject, not a fixed opening phrase
 
 ### content_details
 
@@ -205,14 +210,14 @@ docs:
 - Detailed enough for the query SKILL / Agent to understand the overview without reading the file
 - Must include important constraints/requirements
 - Prioritize items **unique to this document** — generic items (e.g., "error handling", "overview") add little value
-- Describe **concrete details under each heading**, not the heading itself (e.g., not "Error handling" but "ContactContainerError enum with differentContainer, readOnlyContainer variants")
+- Describe **concrete details under each heading**, not the heading itself — name the specific element defined under it, using its identifiers where they exist (`ContactContainerError` enum with `differentContainer` / `readOnlyContainer` variants, rather than the heading's own wording)
 - Max 10 items
 
 ### applicable_tasks
 
 - List **specific task types** that need this file
 - Avoid vague expressions, use specific task names
-- Include actions like "implementation", "creation", "modification", "review"
+- Name the action performed as well as its subject (implementing, creating, modifying, reviewing something), not the subject alone
 - Prioritize the most specific and distinguishing tasks
 - Max 10 items
 
