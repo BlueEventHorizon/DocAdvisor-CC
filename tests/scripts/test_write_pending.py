@@ -8,9 +8,12 @@ doc_type 廃止・--key 対応に合わせて改修。
 - --key / --all（予約 key all）でストアパス対応
 - title/purpose/3 配列の欠落・不足を検出すること
 - --error モードで status pending 保持
+- _meta.extracted_by に AI 抽出由来（ai）が記録され、error 経路には出ないこと、
+  および toc.yaml には書き出されないこと（DES-008 §8.2）
 subprocess.run でスクリプトを呼び出す形式でテスト。
 """
 
+import json
 import os
 import sys
 import subprocess
@@ -24,6 +27,8 @@ SCRIPTS_DIR = os.path.abspath(os.path.join(
     os.path.dirname(__file__), '..', '..', 'plugins', 'doc-advisor', 'scripts'
 ))
 WRITE_SCRIPT = os.path.join(SCRIPTS_DIR, 'write_pending.py')
+MERGE_SCRIPT = os.path.join(SCRIPTS_DIR, 'merge_toc.py')
+TOC_STORE_SCRIPT = os.path.join(SCRIPTS_DIR, 'toc_store.py')
 
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
@@ -89,11 +94,27 @@ keywords: []
 
     def _run_write(self, args):
         """write_pending.py を subprocess で実行する。"""
-        cmd = [sys.executable, WRITE_SCRIPT] + args
+        return self._run_script(WRITE_SCRIPT, args)
+
+    def _run_script(self, script, args):
+        """scripts/ 配下のスクリプトを subprocess で実行する。"""
+        cmd = [sys.executable, script] + args
         return subprocess.run(
             cmd, capture_output=True, text=True, cwd=self.tmpdir,
             env={**os.environ, 'PYTHONPATH': SCRIPTS_DIR}
         )
+
+    def _fill(self, entry):
+        """代表値で pending を充填する（正常モード）。"""
+        return self._run_write([
+            '--key', self.KEY,
+            '--entry-file', entry,
+            '--title', 'Coding Standards',
+            '--purpose', 'Define consistent coding practices',
+            '--content-details', 'Naming ||| Structure ||| Errors ||| Testing ||| Docs',
+            '--applicable-tasks', 'Code review',
+            '--keywords', 'coding ||| standards ||| naming ||| structure ||| testing',
+        ])
 
 
 # ===========================================================================
@@ -360,6 +381,71 @@ class TestWritePendingErrorMode(TestWritePendingBase):
             '--error',
         ])
         self.assertEqual(proc.returncode, 2)
+
+
+# ===========================================================================
+# 抽出来歴 _meta.extracted_by（DES-008 §8.2）
+# ===========================================================================
+
+class TestWritePendingExtractedBy(TestWritePendingBase):
+    """AI 抽出経路の来歴が記録され、error 経路と toc.yaml には出ないこと。"""
+
+    def test_completed_output_has_extracted_by_ai(self):
+        """充填した pending に extracted_by: ai が書かれる"""
+        entry = self._create_pending_yaml('docs/coding_standards.md')
+        proc = self._fill(entry)
+        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
+
+        with open(entry, 'r') as f:
+            content = f.read()
+        self.assertIn('  extracted_by: ai\n', content)
+
+    def test_extracted_by_is_last_meta_key(self):
+        """extracted_by は _meta の最終キー（_meta ブロック直後は空行）"""
+        entry = self._create_pending_yaml('docs/coding_standards.md')
+        self._fill(entry)
+
+        with open(entry, 'r') as f:
+            content = f.read()
+        self.assertIn('  extracted_by: ai\n\ntitle:', content)
+
+    def test_error_mode_has_no_extracted_by(self):
+        """--error の出力に extracted_by は書かない（充填失敗は書き戻し候補でない）"""
+        entry = self._create_pending_yaml('docs/coding_standards.md')
+        proc = self._run_write([
+            '--key', self.KEY,
+            '--entry-file', entry,
+            '--error',
+            '--error-message', 'Source file not found',
+        ])
+        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
+
+        with open(entry, 'r') as f:
+            content = f.read()
+        self.assertNotIn('extracted_by', content)
+
+    def test_work_status_handles_extracted_by(self):
+        """extracted_by を持つ pending でも --work-status が壊れない"""
+        entry = self._create_pending_yaml('docs/coding_standards.md')
+        self._fill(entry)
+
+        proc = self._run_script(TOC_STORE_SCRIPT, ['--key', self.KEY, '--work-status'])
+        self.assertEqual(proc.returncode, 0, f'stderr: {proc.stderr}')
+        payload = json.loads(proc.stdout.strip())
+        self.assertEqual(payload['completed'], 1)
+        self.assertEqual(payload['pending'], [])
+
+    def test_toc_yaml_has_no_extracted_by(self):
+        """merge 後の toc.yaml に extracted_by が現れない（DES-008 §8.2）"""
+        entry = self._create_pending_yaml('docs/coding_standards.md')
+        self._fill(entry)
+
+        merge = self._run_script(MERGE_SCRIPT, ['--key', self.KEY])
+        self.assertEqual(merge.returncode, 0, f'stderr: {merge.stderr}')
+
+        toc = (self.store_dir / 'toc.yaml').read_text(encoding='utf-8')
+        self.assertIn('docs/coding_standards.md:', toc)
+        self.assertNotIn('extracted_by', toc)
 
 
 if __name__ == '__main__':

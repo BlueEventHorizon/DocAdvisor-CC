@@ -17,6 +17,11 @@ script 層 統合テスト（key + path I/F / DES-005 §13 統合テスト対象
   （prepare 直後の pending は status: pending でメタデータ未充填。充填は
   write_pending 経路のみ。merge は充填済み pending のみ統合）
 - FR-N08-2: 全 script の stdout が単一 JSON で status / error_code が enum に収まる
+- REQ-006 制約: prepare → fm_to_pending → write_pending → merge を流した前後で
+  原本の文書がバイト単位で不変（索引の生成は原本を書き換えない）。あわせて merge の
+  `ai_extracted_paths` に AI 抽出経路の文書のみが並ぶこと（DES-008 §8.2）
+- 戦略書 R9: `body_hash` の打刻でファイル全体ハッシュが変わり `updated` となった文書が、
+  転記 → merge を経て次回 prepare で `unchanged` に収束すること（DES-008 §7.2）
 
 各 script は subprocess 経由で呼び、stdout の単一 JSON 契約（FR-N08-1）も同時に検証する。
 標準ライブラリのみ使用（NFR-N01）。
@@ -35,16 +40,25 @@ from pathlib import Path
 SCRIPTS_DIR = os.path.abspath(os.path.join(
     os.path.dirname(__file__), '..', '..', 'plugins', 'doc-advisor', 'scripts'
 ))
-if SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, SCRIPTS_DIR)
+FRONTMATTER_DIR = os.path.join(SCRIPTS_DIR, 'frontmatter')
+for _path in (FRONTMATTER_DIR, SCRIPTS_DIR):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 
+from fm_core import MARKER, compute_body_hash
 from toc_store import (
     resolve_store_dir,
+    CHECKSUMS_FILENAME,
     WORK_DIRNAME,
     STATUSES,
     ERROR_CODES,
 )
-from toc_utils import load_existing_toc, parse_simple_yaml
+from toc_utils import (
+    calculate_file_hash,
+    load_checksums,
+    load_existing_toc,
+    parse_simple_yaml,
+)
 
 PREPARE_SCRIPT = os.path.join(SCRIPTS_DIR, 'prepare_toc.py')
 MERGE_SCRIPT = os.path.join(SCRIPTS_DIR, 'merge_toc.py')
@@ -52,6 +66,8 @@ WRITE_PENDING_SCRIPT = os.path.join(SCRIPTS_DIR, 'write_pending.py')
 GET_SCRIPT = os.path.join(SCRIPTS_DIR, 'get_toc.py')
 REMOVE_SCRIPT = os.path.join(SCRIPTS_DIR, 'remove_toc.py')
 VALIDATE_SCRIPT = os.path.join(SCRIPTS_DIR, 'validate_toc.py')
+FM_TO_PENDING_SCRIPT = os.path.join(FRONTMATTER_DIR, 'fm_to_pending.py')
+FM_WRITE_SCRIPT = os.path.join(FRONTMATTER_DIR, 'fm_write.py')
 
 # write_pending の最小充填件数を満たすサンプルメタデータ
 SAMPLE_TITLE = "Coding Standards"
@@ -59,6 +75,38 @@ SAMPLE_PURPOSE = "Defines the coding rules used across the project."
 SAMPLE_CONTENT = " ||| ".join(f"detail-{i}" for i in range(1, 6))      # 5 items
 SAMPLE_TASKS = " ||| ".join(f"task-{i}" for i in range(1, 3))          # 2 items
 SAMPLE_KEYWORDS = " ||| ".join(f"keyword-{i}" for i in range(1, 6))    # 5 items
+
+# 信頼判定（DES-008 §5.1）が真になるフロントマターの内容
+TRUSTED_BODY = "# Trusted\n\nBody of a document that carries its own metadata.\n"
+TRUSTED_METADATA = {
+    'title': 'Trusted Document',
+    'purpose': 'Carries doc-advisor metadata in its own frontmatter.',
+    'content_details': ['detail A', 'detail B'],
+    'applicable_tasks': ['task A'],
+    'keywords': ['Trusted', 'frontmatter'],
+}
+
+
+def trusted_document(body=TRUSTED_BODY):
+    """信頼できる doc-advisor フロントマターを持つ文書を組み立てる。
+
+    Args:
+        body: 本文（body_hash はこの本文から算出する）
+
+    Returns:
+        str: 文書全体
+    """
+    lines = ["---", f"type: {MARKER}"]
+    for key, value in TRUSTED_METADATA.items():
+        if isinstance(value, list):
+            lines.append(f"{key}:")
+            for item in value:
+                lines.append(f'  - "{item}"')
+        else:
+            lines.append(f'{key}: "{value}"')
+    lines.append(f"body_hash: {compute_body_hash(body)}")
+    lines.append("---")
+    return "\n".join(lines) + "\n" + body
 
 
 class PipelineTestBase(unittest.TestCase):
@@ -466,6 +514,242 @@ class TestNoMetadataExtractionByScript(PipelineTestBase):
         if toc_path.exists():
             docs = load_existing_toc(toc_path)
             self.assertNotIn("docs/a.md", docs)
+
+
+# ===========================================================================
+# REQ-006 制約: 索引の生成は原本の文書を書き換えない
+# ===========================================================================
+
+class TestIndexingDoesNotModifySources(PipelineTestBase):
+    """prepare → fm_to_pending → write_pending → merge が原本を 1 バイトも変えない。
+
+    REQ-006 の制約「索引の生成は、原本の文書を書き換えない。原本への書き込みは
+    利用者が明示的に指示した場合にのみ行う」の回帰テスト。原本への書き込みは
+    `write-frontmatter` SKILL（`fm_write.py`）の責務であり、索引経路には無い。
+
+    転記経路（フロントマターあり）と AI 抽出経路（フロントマターなし）の双方を
+    通し、merge の JSON が AI 抽出だった対象のみを `ai_extracted_paths` に
+    集約することも同時に固定する（DES-008 §8.2）。
+    """
+
+    def _remaining_pendings(self, key):
+        """status が completed でない pending（AI 抽出待ち）を返す。"""
+        remaining = []
+        for pending in self._pending_files(key):
+            meta, _ = parse_simple_yaml(pending.read_text(encoding="utf-8"))
+            if meta.get("status") != "completed":
+                remaining.append(pending)
+        return remaining
+
+    def test_pipeline_leaves_source_documents_untouched(self):
+        key = "rules"
+        fm_rel = "docs/with_frontmatter.md"
+        plain_rel = "docs/without_frontmatter.md"
+
+        self._write_md(fm_rel, trusted_document())
+        self._write_md(plain_rel, "# Plain\n\nNo frontmatter here.\n")
+
+        before = {
+            rel: (self.project_root / rel).read_bytes()
+            for rel in (fm_rel, plain_rel)
+        }
+
+        # 1. prepare
+        prep_json = self._parse_json(self._run(
+            PREPARE_SCRIPT, "--key", key,
+            "--paths-json", json.dumps([fm_rel, plain_rel]),
+        ))
+        self.assertEqual(prep_json["status"], "ok")
+        self.assertEqual(prep_json["counts"]["added"], 2)
+
+        # 2. 転記フェーズ（フロントマターを持つ 1 件のみ completed になる）
+        work_dir = self._store_dir(key) / WORK_DIRNAME
+        fm_json = self._parse_json(self._run(
+            FM_TO_PENDING_SCRIPT, "--work-dir", str(work_dir),
+        ))
+        self.assertEqual(fm_json["counts"]["transcribed"], 1)
+
+        # 3. 残った pending を AI 抽出（write_pending）で充填
+        remaining = self._remaining_pendings(key)
+        self.assertEqual(len(remaining), 1)
+        self._fill_pending(key, remaining[0])
+
+        # 4. merge
+        merge_json = self._parse_json(self._run(MERGE_SCRIPT, "--key", key))
+        self.assertEqual(merge_json["status"], "ok", f"merge not ok: {merge_json}")
+        self.assertEqual(merge_json["counts"]["added"], 2)
+        # AI 抽出だった対象のみが書き戻し候補になる（転記側は含まれない）
+        self.assertEqual(merge_json["ai_extracted_paths"], [plain_rel])
+
+        # 5. 両経路が toc.yaml に載っている（索引としては成立している）
+        docs = load_existing_toc(self._store_dir(key) / "toc.yaml")
+        self.assertEqual(set(docs.keys()), {fm_rel, plain_rel})
+
+        # 6. 原本はバイト列が一致する（索引は原本を書き換えない）
+        for rel, original in before.items():
+            self.assertEqual(
+                (self.project_root / rel).read_bytes(), original,
+                f"索引の実行で原本が変更された: {rel}",
+            )
+
+
+# ===========================================================================
+# 戦略書 R9: 打刻によるファイル全体ハッシュ変化が一巡で収束する
+# ===========================================================================
+
+class TestStampedFileConvergesInOneCycle(PipelineTestBase):
+    """打刻 → prepare(updated) → 転記 → merge → 再 prepare(unchanged) の収束。
+
+    `body_hash` の打刻はファイル全体のバイト列を変えるため、`.toc_checksums.yaml`
+    は次回 prepare で `updated` を出す。これは設計上の想定内であり（DES-008 §7.2）、
+    戦略書 R9 の緩和策は「`updated` も転記経路で処理されるため一巡で収束する」
+    ことを根拠としている。本テストはその収束（`updated` が無限に繰り返されず、
+    1 回の索引で `unchanged` に落ち着くこと）を固定する。
+
+    収束の機構は `merge_toc.compute_checksums_for_docs` にある。今回の run で
+    充填（転記を含む）された doc には現内容ハッシュ = 打刻後のハッシュを書くため、
+    次回 prepare は差分を検出しない。
+    """
+
+    # 打刻するメタデータ（DES-008 §4.4 により英語。§5.1 の型・件数・文字数に適合）
+    STAMP_METADATA = {
+        'title': 'Release Checklist',
+        'purpose': 'Lists the steps to follow before publishing a release.',
+        'content_details': [
+            'Version bump order',
+            'Changelog entry format',
+            'Tag naming convention',
+        ],
+        'applicable_tasks': [
+            'Preparing a release',
+            'Reviewing a release commit',
+        ],
+        'keywords': ['release', 'checklist', 'version bump', 'tag'],
+    }
+
+    def _checksum_of(self, key, rel_path):
+        """`.toc_checksums.yaml` に記録された rel_path のハッシュを返す。"""
+        checksums = load_checksums(self._store_dir(key) / CHECKSUMS_FILENAME)
+        self.assertIn(
+            rel_path, checksums,
+            f"checksums に記録が無い: {rel_path} / {checksums}",
+        )
+        return checksums[rel_path]
+
+    def test_body_hash_stamp_converges_after_one_indexing_cycle(self):
+        key = "rules"
+        rel = "docs/release_checklist.md"
+        body = "# Release Checklist\n\nBump the version, then tag the commit.\n"
+        self._write_md(rel, body)
+
+        # ------------------------------------------------------------------
+        # 1. フロントマターを持たない状態で 1 巡（AI 抽出経路 = write_pending）
+        # ------------------------------------------------------------------
+        prep1 = self._parse_json(self._run(
+            PREPARE_SCRIPT, "--key", key,
+            "--paths-json", json.dumps([rel]),
+        ))
+        self.assertEqual(prep1["status"], "ok")
+        self.assertEqual(prep1["counts"]["added"], 1)
+
+        pendings = self._pending_files(key)
+        self.assertEqual(len(pendings), 1)
+        self._fill_pending(key, pendings[0])
+
+        merge1 = self._parse_json(self._run(MERGE_SCRIPT, "--key", key))
+        self.assertEqual(merge1["status"], "ok", f"merge not ok: {merge1}")
+        self.assertEqual(merge1["counts"]["added"], 1)
+
+        # 打刻前のファイル全体ハッシュ（= hash A）
+        hash_a = self._checksum_of(key, rel)
+        self.assertEqual(hash_a, calculate_file_hash(self.project_root / rel))
+
+        # ------------------------------------------------------------------
+        # 2. fm_write.py でフロントマターを付与・打刻する
+        # ------------------------------------------------------------------
+        write = self._parse_json(self._run(
+            FM_WRITE_SCRIPT,
+            "--entries-json", json.dumps([
+                {"path": rel, "metadata": self.STAMP_METADATA},
+            ]),
+        ))
+        self.assertEqual(write["status"], "ok", f"fm_write not ok: {write}")
+        self.assertEqual(write["counts"]["written"], 1)
+        self.assertTrue(write["results"][0]["changed"])
+
+        # 打刻でファイル全体のハッシュが変わる（= hash B / 戦略書 R9 の前提）
+        hash_b = calculate_file_hash(self.project_root / rel)
+        self.assertNotEqual(
+            hash_b, hash_a,
+            "打刻でファイル全体のハッシュが変わるはずである（R9 の前提）",
+        )
+
+        # 補助確認: body_hash は本文のみを対象とするため打刻の前後で不変（§4.2）
+        self.assertEqual(
+            write["results"][0]["body_hash"], compute_body_hash(body),
+            "打刻された body_hash が打刻前の本文から算出した値と一致しない",
+        )
+
+        # ------------------------------------------------------------------
+        # 3. prepare は updated を検出する（R9 が予測する現象 / DES-008 §7.2）
+        # ------------------------------------------------------------------
+        prep2 = self._parse_json(self._run(
+            PREPARE_SCRIPT, "--key", key,
+            "--paths-json", json.dumps([rel]),
+        ))
+        self.assertEqual(prep2["status"], "ok")
+        self.assertEqual(
+            prep2["counts"]["updated"], 1,
+            f"打刻後の prepare は updated=1 を出すはずである: {prep2}",
+        )
+        self.assertEqual(prep2["counts"]["unchanged"], 0)
+
+        # ------------------------------------------------------------------
+        # 4. 転記フェーズで完了化する（Agent 起動ゼロ / DES-008 §7.1）
+        # ------------------------------------------------------------------
+        work_dir = self._store_dir(key) / WORK_DIRNAME
+        fm_json = self._parse_json(self._run(
+            FM_TO_PENDING_SCRIPT, "--work-dir", str(work_dir),
+        ))
+        self.assertEqual(fm_json["status"], "ok", f"fm_to_pending not ok: {fm_json}")
+        self.assertEqual(
+            fm_json["counts"]["transcribed"], 1,
+            f"打刻済み文書は転記のみで完了化されるはずである: {fm_json}",
+        )
+        self.assertEqual(fm_json["counts"]["failed"], 0)
+
+        # ------------------------------------------------------------------
+        # 5. merge が成功し、checksums が hash B へ更新される
+        # ------------------------------------------------------------------
+        merge2 = self._parse_json(self._run(MERGE_SCRIPT, "--key", key))
+        self.assertEqual(merge2["status"], "ok", f"merge not ok: {merge2}")
+        self.assertEqual(merge2["counts"]["updated"], 1)
+        self.assertEqual(
+            self._checksum_of(key, rel), hash_b,
+            "merge 後の checksums が打刻後のハッシュ（hash B）になっていない",
+        )
+        # 転記由来なので AI 抽出の書き戻し候補には現れない（DES-008 §8.2）
+        self.assertEqual(merge2["ai_extracted_paths"], [])
+        # 転記されたメタデータが toc.yaml に載っている
+        docs = load_existing_toc(self._store_dir(key) / "toc.yaml")
+        self.assertEqual(docs[rel]["title"], self.STAMP_METADATA["title"])
+
+        # ------------------------------------------------------------------
+        # 6. 再度の prepare は unchanged（= 一巡で収束。本テストの主張）
+        # ------------------------------------------------------------------
+        prep3 = self._parse_json(self._run(
+            PREPARE_SCRIPT, "--key", key,
+            "--paths-json", json.dumps([rel]),
+        ))
+        self.assertEqual(prep3["status"], "ok")
+        self.assertEqual(
+            prep3["counts"]["unchanged"], 1,
+            f"打刻による updated は一巡で収束するはずである: {prep3}",
+        )
+        self.assertEqual(prep3["counts"]["updated"], 0)
+        self.assertEqual(prep3["counts"]["added"], 0)
+        # 収束しているため pending も生成されない（再抽出・再転記が走らない）
+        self.assertEqual(self._pending_files(key), [])
 
 
 # ===========================================================================

@@ -1,3 +1,39 @@
+---
+type: doc-advisor
+title: DES-005 key + path ToC Provider Design
+purpose: Defines the design for the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, and merge.
+content_details:
+  - "store_dir(key) resolution - NFC-normalized slug of [a-z0-9_-], 40-char truncation, empty slug falls back to \"k\""
+  - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work/ per key, .toc_work intentionally not gitignored
+  - "Key validation - KEY_EMPTY for an empty key, KEY_RESERVED for an explicitly passed \"all\""
+  - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / OUTSIDE_ROOT / NOT_MARKDOWN rejections
+  - resolve_within_root() and find_escaping_symlink() - default-deny for root-escaping symlinks, approved via --allow-external-json
+  - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
+  - The transcription phase (fm_to_pending.py) sits between prepare and AI fill; all-transcribed skips every Agent
+  - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
+  - JSON contract - status and error_code are required, and the error_code enum applies to rejected_paths[].reason
+  - ai_extracted_paths is report-only, emitted on status ok, always empty for --delete-only
+applicable_tasks:
+  - Implementing or modifying prepare_toc.py / merge_toc.py
+  - Adding a script to the ToC pipeline
+  - Changing the JSON output contract or the error_code enum
+  - Designing path validation for symlinks that escape the project root
+  - Reviewing where the transcription phase is placed
+  - Debugging continuation and .toc_work resume behavior
+keywords:
+  - DES-005
+  - resolve_store_dir
+  - prepare_toc.py
+  - merge_toc.py
+  - fm_to_pending.py
+  - desired-state sync
+  - find_escaping_symlink
+  - .toc_checksums.yaml
+  - ai_extracted_paths
+  - continuation
+body_hash: sha256:e1e7e875d831548862b93c4af9f70bd8b8326c4b53b64a7977646dfaa43d5fa7
+---
+
 # DES-005 key + path ToC Provider 設計書
 
 ## メタデータ
@@ -11,12 +47,12 @@
 
 ## 1. 概要
 
-REQ-001 が定める「key + project-root-relative paths を入力とする汎用 ToC Provider」を実装するための設計を定義する。旧 category（rules/specs）固定・`.doc_structure.yaml` 探索ベースの実装を、**opaque key 単位のストア**へ再編し、文書集合の決定責務を上位層へ委譲する。決定的処理（path 検証・差分検出・merge）と AI 処理（メタデータ抽出）の境界を script 構成で明示する。
+REQ-001 が定める「key + project-root-relative paths を入力とする汎用 ToC Provider」を実装するための設計を定義する。旧 category（rules/specs）固定・`.doc_structure.yaml` 探索ベースの実装を、**opaque key 単位のストア**へ再編し、文書集合の決定責務を上位層へ委譲する。決定的処理（path 検証・差分検出・フロントマターからの転記・merge）と AI 処理（転記できなかった文書のメタデータ抽出）の境界を script 構成で明示する。
 
 採用アプローチ:
 
 - ToC を `key` 単位のストアディレクトリに分離（category 固定パスを廃止）
-- desired-state sync を `prepare_toc.py`（差分検出 + pending 生成）と `merge_toc.py`（統合）の 2 フェーズに分割し、間に AI メタデータ充填を挟む
+- desired-state sync を `prepare_toc.py`（差分検出 + pending 生成）と `merge_toc.py`（統合）の 2 フェーズに分割し、間に script 層の転記（`fm_to_pending.py`）と、転記できなかった pending への AI メタデータ充填を順に挟む
 - path 検証は既存の論理パス検証（traversal）を流用しつつ、symlink 実体解決を**新規ロジック**として追加
 - 全 script を単一 JSON の stdout 契約に統一
 
@@ -50,6 +86,13 @@ flowchart TB
         C1[toc_store.py 共通]
     end
 
+    subgraph FM["frontmatter 系統 (独立: toc_store / toc_utils に依存しない)"]
+        F1[fm_to_pending.py 転記]
+        F2[fm_read.py]
+        F3[fm_write.py]
+        F0[fm_core.py 共通]
+    end
+
     subgraph Store["key 単位 ToC ストア"]
         ST[.claude/.doc-advisor/toc/&lt;slug&gt;/]
     end
@@ -61,7 +104,12 @@ flowchart TB
     S3 --> P5
     P5 --> C1
     S1 --> P1
-    P1 -->|pending YAML| A1
+    S1 --> F1
+    P1 -->|pending YAML| F1
+    F1 -->|転記できなかった pending| A1
+    F1 --> F0
+    F2 --> F0
+    F3 --> F0
     A1 -->|充填| S1
     S1 --> P2
     S2 -->|検索依頼| A2
@@ -78,8 +126,8 @@ flowchart TB
 レイヤード依存とし、下位が上位を参照しない。
 
 1. AI 層 → script 層 → 共通モジュール（`toc_store.py` / `toc_utils.py`）→ ストアの単方向
-2. script 層は AI 層を呼ばない（メタデータ抽出は AI 層が `prepare → merge` の間で実施）
-3. 循環依存を作らない。共通ロジックは `toc_utils.py`（既存）と新設 `toc_store.py`（key 解決・ストア I/O）に集約
+2. script 層は AI 層を呼ばない。`prepare → merge` の間はまず script 層が転記（`fm_to_pending.py`）を行い、転記できなかった pending のメタデータ抽出のみを AI 層が担う
+3. 循環依存を作らない。ToC パイプラインの共通ロジックは `toc_utils.py`（既存）と `toc_store.py`（key 解決・ストア I/O）に集約する。`frontmatter/fm_core.py` はこの 2 つを import しない独立系統の共通ロジックであり、意図的に第 3 の集約点として分離する（DES-008 §6.1。フロントマター方式を撤回する際に 1 ディレクトリの削除で戻せることを優先する）
 
 生成系 `index-docs` と検索系 `query-docs` はいずれも継承型 SKILL であり、カスタム Agent を Agent ツールで起動する（fork 型 SKILL は Agent を起動できないため）。`index-docs` は `toc-updater` を並列起動し、`query-docs` dispatcher は read-only な `query-worker` を起動して実検索を隔離する（ADR-002 改訂版）。
 
@@ -127,29 +175,38 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 
 ### 4.1 モジュール一覧
 
-| モジュール                                                   | 責務                                                                                 | 依存                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------ |
-| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                 | `toc_utils`              |
-| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                 | 標準ライブラリ           |
-| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力           | `toc_store`, `toc_utils` |
-| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力 | `toc_store`, `toc_utils` |
-| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力     | `toc_store`, `toc_utils` |
-| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                 | `toc_store`, `toc_utils` |
-| `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009） | `toc_store`, `toc_utils` |
-| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）     | `toc_utils`              |
-| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                             | `toc_store`, `toc_utils` |
+| モジュール                                                   | 責務                                                                                 | 依存                                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                 | `toc_utils`                                                      |
+| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                 | 標準ライブラリ                                                   |
+| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力           | `toc_store`, `toc_utils`                                         |
+| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力 | `toc_store`, `toc_utils`                                         |
+| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力     | `toc_store`, `toc_utils`                                         |
+| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                 | `toc_store`, `toc_utils`                                         |
+| `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009） | `toc_store`, `toc_utils`                                         |
+| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）     | `toc_utils`                                                      |
+| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                             | `toc_store`, `toc_utils`                                         |
+| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証      | 標準ライブラリのみ（`toc_store` / `toc_utils` を import しない） |
+| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                | `fm_core`、標準ライブラリのみ（同上）                            |
+| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                            | `fm_core`、標準ライブラリのみ（同上）                            |
+| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力      | `fm_core`、標準ライブラリのみ（同上）                            |
 
 `create_checksums.py` の `--promote-pending` / `--clean-work-dir` 機能は `toc_store.py` に統合し、key 単位で扱う。
 
+`frontmatter/` 配下は ToC パイプラインから独立した系統であり、フロントマターの読み書きと pending への転記のみを担う（DES-008 §6.1）。転記は prepare と AI 充填の間に置かれる独立したフェーズであり、key 解決も store_dir 解決も行わず、pending の置き場所は呼び出し側が引数で渡す。
+
 各 script の主な CLI オプション:
 
-| script           | 主なオプション                                                                          |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| `prepare_toc.py` | `--key` / `--paths-json` / `--paths-file` / `--all` / `--dry-run`                       |
-| `merge_toc.py`   | `--key` / `--all` / `--delete-only`                                                     |
-| `get_toc.py`     | `--key` / `--all` / `--paths`（`--all` / `--key all` は REQ-001 FR-N04-4）              |
-| `remove_toc.py`  | `--key` / `--all` / `--paths-json`（`--all` / `--key all` は REQ-001 FR-N04-4）         |
-| `check_toc.py`   | `--key` / `--all` / `--max-age`（必須）。列挙外の引数は受け取らない（REQ-005 FR-C01-4） |
+| script                         | 主なオプション                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------- |
+| `prepare_toc.py`               | `--key` / `--paths-json` / `--paths-file` / `--all` / `--dry-run`                       |
+| `merge_toc.py`                 | `--key` / `--all` / `--delete-only`                                                     |
+| `get_toc.py`                   | `--key` / `--all` / `--paths`（`--all` / `--key all` は REQ-001 FR-N04-4）              |
+| `remove_toc.py`                | `--key` / `--all` / `--paths-json`（`--all` / `--key all` は REQ-001 FR-N04-4）         |
+| `check_toc.py`                 | `--key` / `--all` / `--max-age`（必須）。列挙外の引数は受け取らない（REQ-005 FR-C01-4） |
+| `frontmatter/fm_to_pending.py` | `--work-dir`                                                                            |
+| `frontmatter/fm_read.py`       | `--paths-json`                                                                          |
+| `frontmatter/fm_write.py`      | `--entries-json` / `--format-command`                                                   |
 
 ### 4.2 toc_utils.py の改修方針
 
@@ -235,6 +292,7 @@ sequenceDiagram
     actor Caller as 上位層 / index-docs SKILL
     participant Prep as prepare_toc.py
     participant Work as .toc_work/
+    participant FM as fm_to_pending.py
     participant Agent as toc-updater agent
     participant Merge as merge_toc.py
     participant Store as toc.yaml
@@ -243,13 +301,19 @@ sequenceDiagram
     Prep->>Prep: paths 検証 (§5) + desired-state diff
     Prep->>Work: 追加/変更分の pending YAML 生成
     Prep->>Caller: JSON (added/updated/deleted/unchanged, rejected_paths)
-    Note over Caller,Agent: AI 層がメタデータ充填
-    Caller->>Agent: 各 pending を並列処理
+    Caller->>FM: --work-dir .toc_work (転記フェーズ, DES-008 §7.1)
+    FM->>Work: 直下の pending を列挙し source_file のフロントマターを判定
+    FM->>Work: 信頼できるものを completed へ in-place 書き直し
+    FM->>Caller: JSON (転記件数, warnings)
+    Note over Caller,Agent: 残った pending を AI 層が充填
+    Caller->>Agent: 残った pending を並列処理
     Agent->>Work: write_pending.py で充填 (status: completed)
     Caller->>Merge: --key K
     Merge->>Store: pending 統合 + 削除反映 (原子的書き込み)
     Merge->>Caller: JSON (file_count, deleted)
 ```
+
+転記は per-file の判定を `prepare_toc.py` に持たせるものではなく、prepare と充填の間に置く独立したフェーズである。転記済みの pending は `_meta.status: completed` になるため `toc_store.py --work-status` の `pending` / `pending_groups` に現れず、充填フェーズの対象から自動的に外れる。全件を転記できた場合は Agent を 1 つも起動せず merge へ直行する（DES-008 §7.1）。
 
 ### 6.2 差分検出アルゴリズム
 
@@ -298,11 +362,11 @@ flowchart TD
 
 continuation モードを key 単位ストアで成立させる。`.toc_work/` を `store_dir/.toc_work/` に置くことで、再開判定と work dir 競合回避を key 単位に閉じる。
 
-| 状況                                         | 判定                                                         |
-| -------------------------------------------- | ------------------------------------------------------------ |
-| `store_dir/.toc_work/` が存在し pending あり | 当該 key の prepare を再実行せず、残 pending から merge 待ち |
-| `store_dir/.toc_work/` が存在し全 completed  | 当該 key の merge へ直行                                     |
-| `store_dir/.toc_work/` なし                  | 通常の prepare から開始                                      |
+| 状況                                         | 判定                                                                          |
+| -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `store_dir/.toc_work/` が存在し pending あり | 当該 key の prepare を再実行せず、残 pending を転記 → 充填 → merge の順で処理 |
+| `store_dir/.toc_work/` が存在し全 completed  | 当該 key の merge へ直行                                                      |
+| `store_dir/.toc_work/` なし                  | 通常の prepare から開始                                                       |
 
 - 複数 key を同時に処理しても、各 key の `.toc_work/` は別ディレクトリのため競合しない
 - continuation 判定は `index-docs` SKILL が key ごとに行う（orchestrator パターン §10 を key 単位で適用）
@@ -346,7 +410,7 @@ docs:
 ```json
 {
   "status": "ok | error | partial | needs_confirmation",
-  "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | INVALID_MAX_AGE | TOC_READ_ERROR | null",
+  "error_code": "INVALID_PATH | PATH_TRAVERSAL | ABSOLUTE_PATH | OUTSIDE_ROOT | NOT_FOUND | NOT_MARKDOWN | KEY_EMPTY | KEY_RESERVED | TOC_NOT_FOUND | NO_TARGETS | UNSUPPORTED_ARG | INVALID_MAX_AGE | TOC_READ_ERROR | READ_ERROR | null",
   "message": "human-readable",
   "key": "rules",
   "toc_path": ".claude/.doc-advisor/toc/rules-<hash>/toc.yaml",
@@ -354,6 +418,7 @@ docs:
   "rejected_paths": [{ "path": "../x.md", "reason": "PATH_TRAVERSAL" }],
   "counts": { "added": 0, "updated": 0, "deleted": 0, "unchanged": 0 },
   "warnings": ["case-insensitive collision: docs/A.md vs docs/a.md"],
+  "ai_extracted_paths": ["docs/a.md"],
   "external_pending": [
     {
       "symlink": "meta",
@@ -366,19 +431,33 @@ docs:
 
 ### 8.2 enum 定義
 
-| フィールド         | 値域                                                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `status`           | `ok` / `error` / `partial`（一部 path を reject しつつ処理続行）/ `needs_confirmation`（未承認の root 外 symlink があり、書き込みをせず承認を待つ。NFR-N06） |
-| `error_code`       | §8.1 の列挙値 + `null`。`toc_store.py` に定数として集約し、テストで enum を固定（REQ-001 FR-N08-2）                                                          |
-| `external_pending` | `status: needs_confirmation` 時に出力。`[{symlink, resolved, affected_count}]`（越境 symlink 単位に集約。`--all` で skip した場合は warning にも列挙）       |
+| フィールド           | 値域                                                                                                                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`             | `ok` / `error` / `partial`（一部 path を reject しつつ処理続行）/ `needs_confirmation`（未承認の root 外 symlink があり、書き込みをせず承認を待つ。NFR-N06）                                                                  |
+| `error_code`         | §8.1 の列挙値 + `null`。`toc_store.py` に定数として集約し、テストで enum を固定（REQ-001 FR-N08-2）                                                                                                                           |
+| `external_pending`   | `status: needs_confirmation` 時に出力。`[{symlink, resolved, affected_count}]`（越境 symlink 単位に集約。`--all` で skip した場合は warning にも列挙）                                                                        |
+| `ai_extracted_paths` | project-root-relative path の配列（昇順）。`merge_toc.py` 固有。今回の run で AI 抽出（pending の `_meta.extracted_by: ai`）により索引された文書のうち、最終 `docs` に残ったもの。`status: ok` 時のみ出力し、該当なしは空配列 |
 
 各 script は使うフィールドのみ出力してよいが、`status` / `error_code` は必須。越境 symlink 関連の `OUTSIDE_ROOT` は「symlink を介さない真の root 外」専用に残し、symlink 経由の越境は `needs_confirmation` + `external_pending` で扱う。
+
+`error_code` の値域は最上位フィールドだけでなく、`rejected_paths[].reason` のように
+error_code 値を載せる入れ子フィールドにも適用する。
+
+`READ_ERROR`（対象文書そのものを読めない。権限不足・デコード不能等）はフロントマターの
+読み取り経路が個々のファイルの失敗理由として使う（DES-008 §6.2）。不在は `NOT_FOUND`、
+`toc.yaml` の読み取り失敗は `TOC_READ_ERROR` と区別する。
 
 `INVALID_MAX_AGE`（`--max-age` が未指定・非整数・0 以下）と `TOC_READ_ERROR`（`toc.yaml` を読めない）は
 `check_toc.py` が使う（DES-009 §5.2）。`check_toc.py` は §8.1 の共通フィールドに加えて `freshness` / `reason` /
 `generated_at` / `age_seconds` / `max_age_seconds` を出力し、`status` は `ok` / `error` の 2 値のみを取る。
 ToC 不在は `TOC_NOT_FOUND` ではなく `status: ok` + `freshness: stale` として返す（REQ-005 FR-C03-3。
 `get_toc.py` が不在を `TOC_NOT_FOUND` とするのと意図的に異なる）。
+
+`ai_extracted_paths` は `merge_toc.py` が出力する報告専用フィールドであり、DES-008 §8.2 の書き戻し候補を
+`index-docs` SKILL へ渡すためにある。`toc.yaml` にも checksums にも書き出さず、pending 統合・原子的書き込み・
+検証・checksums 更新の**処理ロジックには影響しない**（DES-008 §7.1 の無改造範囲は JSON 出力への項目追加を含まない）。
+ToC の生成が完了していない経路（書き込み失敗・validation 失敗で `.toc_work/` を保持する経路）では出力しない。
+`--delete-only` は pending を統合しないため常に空配列となる。
 
 ## 9. 単体モード（all-markdown）設計
 
@@ -402,6 +481,7 @@ sequenceDiagram
     actor User
     participant I as index-docs SKILL
     participant P as prepare_toc.py --all
+    participant FM as fm_to_pending.py
     participant Agent as toc-updater agent
     participant M as merge_toc.py
 
@@ -414,24 +494,30 @@ sequenceDiagram
         P->>I: status ok / file_count 0 (空 ToC 冪等出力)
     else 対象あり
         P->>I: pending 生成 + JSON (counts, warnings)
-        I->>Agent: 各 pending を並列充填
+        I->>FM: --work-dir .toc_work (転記フェーズ, §6.1 と同一)
+        FM->>I: JSON (転記件数, warnings)
+        I->>Agent: 残った pending を並列充填
         I->>M: merge --all
         M->>I: toc.yaml 書き出し + JSON
     end
     I->>User: 完了レポート
 ```
 
+転記フェーズは単体モードでも key 指定と同一である。prepare が生成する pending の形式は
+モードによらず同じであり、転記を省く根拠がないためである（§6.1 の記述を正典とする）。
+
 ## 10. SKILL / agent 設計
 
 key + path 汎用化（REQ-001 §6.2）に伴い、SKILL / agent を以下のコンポーネントへ一本化する。
 
-| コンポーネント | 種別                            | 責務                                                                                                          |
-| -------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `index-docs`   | SKILL（継承型）                 | `prepare_toc` → toc-updater 並列 → `merge_toc` を駆動。`--key` / `--all`                                      |
-| `query-docs`   | SKILL（継承型 dispatcher）      | `$ARGUMENTS`・親 context・guidance から検索依頼を構築し `query-worker` を起動。`--key` 省略時は予約 key `all` |
-| `check-toc`    | SKILL（継承型）                 | `check_toc.py` を 1 回呼び `freshness` を返す read-only なラッパ。`--key` / `--all` / `--max-age`（DES-009）  |
-| `query-worker` | Agent（Read, Grep, Glob, Bash） | `get_toc` を呼び ToC 全エントリ読解・関連判断・`Required documents:` 返却（read-only）                        |
-| `toc-updater`  | Agent（Read, Bash）             | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填                                      |
+| コンポーネント      | 種別                            | 責務                                                                                                                                                                                                                                                           |
+| ------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index-docs`        | SKILL（継承型）                 | `prepare_toc` → `fm_to_pending`（転記） → toc-updater 並列 → `merge_toc` を駆動。`--key` / `--all`。merge 完了後に `ai_extracted_paths` を提示し、承認された対象のみ `write-frontmatter` へ `--paths-json` で引き渡す（原本は自ら書き換えない / DES-008 §8.2） |
+| `query-docs`        | SKILL（継承型 dispatcher）      | `$ARGUMENTS`・親 context・guidance から検索依頼を構築し `query-worker` を起動。`--key` 省略時は予約 key `all`                                                                                                                                                  |
+| `check-toc`         | SKILL（継承型）                 | `check_toc.py` を 1 回呼び `freshness` を返す read-only なラッパ。`--key` / `--all` / `--max-age`（DES-009）                                                                                                                                                   |
+| `write-frontmatter` | SKILL（継承型）                 | 対象文書の本文からメタデータを作成し `fm_write.py` でフロントマターへ書き込む。原本を書き換えるため実行前にユーザ承認を取る（DES-008 §8.1 / §10.1）                                                                                                            |
+| `query-worker`      | Agent（Read, Grep, Glob, Bash） | `get_toc` を呼び ToC 全エントリ読解・関連判断・`Required documents:` 返却（read-only）                                                                                                                                                                         |
+| `toc-updater`       | Agent（Read, Bash）             | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填                                                                                                                                                                                       |
 
 ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-docs` / `query-worker` が実装する。orchestrator パターン（Phase 2 並列・中断耐性・continue モード、§6.6）を `index-docs` が用いる。
 
@@ -512,8 +598,11 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 
 ## 改定履歴
 
-| 日付       | バージョン | 内容                                                                                                                                                                                                                                                                                                                  |
-| ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-05-30 | 0.1        | 初版作成（追加 feature new-if の DES-006 として）。REQ-004 を実装する設計を定義                                                                                                                                                                                                                                       |
-| 2026-06-01 | 0.2        | `/forge:merge-specs` により DES-006 を本 DES-005 へ溶融（additive_development_spec §4）。旧 ToC 生成フロー設計（Phase 0 config_required 等）を key + path provider 設計へ全面再編。参照は REQ-001 へ更新                                                                                                              |
-| 2026-07-30 | 0.3        | check-toc（DES-009）の追加に伴い、`check_toc.py` を §2.1 レイヤ図・§4.1 モジュール一覧・CLI オプション表へ、`check-toc` を §10 / §11.1 へ追記。§8 の `error_code` 値域に `INVALID_MAX_AGE` / `TOC_READ_ERROR` を追加し、鮮度確認の JSON 契約（`status` 2 値・ToC 不在の扱い）を明記。§13 に鮮度判定のテスト方針を追記 |
+| 日付       | バージョン | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-05-30 | 0.1        | 初版作成（追加 feature new-if の DES-006 として）。REQ-004 を実装する設計を定義                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-06-01 | 0.2        | `/forge:merge-specs` により DES-006 を本 DES-005 へ溶融（additive_development_spec §4）。旧 ToC 生成フロー設計（Phase 0 config_required 等）を key + path provider 設計へ全面再編。参照は REQ-001 へ更新                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 2026-07-30 | 0.3        | check-toc（DES-009）の追加に伴い、`check_toc.py` を §2.1 レイヤ図・§4.1 モジュール一覧・CLI オプション表へ、`check-toc` を §10 / §11.1 へ追記。§8 の `error_code` 値域に `INVALID_MAX_AGE` / `TOC_READ_ERROR` を追加し、鮮度確認の JSON 契約（`status` 2 値・ToC 不在の扱い）を明記。§13 に鮮度判定のテスト方針を追記                                                                                                                                                                                                                                                                                                                      |
+| 2026-08-03 | 0.4        | フロントマターメタデータ（DES-008）の追加に伴い、転記フェーズを反映。§1 概要と §2.2 依存方向規範を「script 層の転記 → 残りを AI 層が充填」の 2 段へ改め、`fm_core.py` を独立系統の共通ロジックとして明記。§2.1 レイヤ図へ `frontmatter/` 系統を追加し、§4.1 に `frontmatter/` 配下 4 件のモジュール表と CLI オプション表を追記。§6.1 のシーケンスへ `fm_to_pending.py` の転記経路を追記し、§6.6 の再開判定を転記を含む順序へ更新。§9.3 の単体モードシーケンスにも同じ転記経路を追記し、§10 の `index-docs` 責務と `write-frontmatter` SKILL の行を追加。あわせて `formats/toc_format.md` の Language Rule を本文追従へ改訂（DES-008 §4.4） |
+| 2026-08-03 | 0.5        | AI 抽出結果の書き戻し候補（DES-008 §8.2）の受け渡し経路を反映。§8.1 のスキーマ例と §8.2 の enum 定義表へ `merge_toc.py` 固有フィールド `ai_extracted_paths` を追記し、報告専用であること・`status: ok` 時のみ出力すること・`--delete-only` では常に空配列であることを明記。§10 の `index-docs` は merge 完了後に候補を提示し、承認された対象のみを `write-frontmatter` へ `--paths-json` で引き渡す                                                                                                                                                                                                                                        |
+| 2026-08-03 | 0.6        | 0.4 で行った `formats/toc_format.md` の Language Rule の本文追従化を**撤回**し、英語統一へ戻した（DES-008 §4.4 の 1.5 改訂）。desired-state 差分で `unchanged` が再抽出されないため、言語を本文に追従させると `toc.yaml` 内の言語混在が恒久化することが実データで判明したこと、および腐敗検出は `body_hash` が言語非依存に担っていることが理由。本 DES-005 が規定する生成フロー自体（転記フェーズ・シーケンス・モジュール一覧）に変更はない                                                                                                                                                                                                |

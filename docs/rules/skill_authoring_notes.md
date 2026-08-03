@@ -1,3 +1,39 @@
+---
+type: doc-advisor
+title: Notes on Authoring SKILL.md
+purpose: "Defines the conventions for authoring a Claude Code SKILL.md: frontmatter fields, inherited versus fork type selection with defense in depth, writing description, split criteria, and asking the user."
+content_details:
+  - Frontmatter field list (name, description, user-invocable, argument-hint, disable-model-invocation, allowed-tools, context, agent) with defaults and limits
+  - Visibility and invocability for each combination of user-invocable and disable-model-invocation
+  - "Execution model of the inherited type (context unset) versus the fork type (context: fork) and the difference in parent context inheritance"
+  - "Mandatory items for the inherited type: state the responsibility boundary, never paste bulk parent context into $ARGUMENTS, state when side effects occur"
+  - "Mandatory items for the fork type: negative constraints in the Role section and an argument-interpretation guard"
+  - The four defense-in-depth layers (fork boundary, Role constraints, allowed-tools allowlist, permissions.deny)
+  - allowed-tools is an approval-free allowlist, not a physical deny of write tools; only permissions.deny removes a tool
+  - Usable variables CLAUDE_PLUGIN_ROOT, CLAUDE_SKILL_DIR, CLAUDE_SESSION_ID and how to reference scripts with them
+  - How to invoke another skill and the ban on self-recursion (notably query-docs), which hangs the harness
+  - "Criteria for splitting SKILL.md: keep procedures inline, move templates and long guidelines to external files; ask the user only via AskUserQuestion"
+applicable_tasks:
+  - Authoring a new SKILL.md
+  - Revising or reviewing an existing SKILL.md
+  - Choosing between the inherited type and the fork type
+  - Specifying frontmatter fields and allowed-tools
+  - Writing user confirmation steps in a skill
+  - Deciding whether to split content out of SKILL.md
+keywords:
+  - SKILL.md
+  - frontmatter
+  - "context: fork"
+  - allowed-tools
+  - user-invocable
+  - disable-model-invocation
+  - AskUserQuestion
+  - CLAUDE_PLUGIN_ROOT
+  - inherited type
+  - self-recursion ban
+body_hash: sha256:aaa7d378a6411827f082689212a008e6eee5a3dec20c1173f8de44273fe10e7a
+---
+
 # SKILL.md 作成時の注意点
 
 Claude Code プラグイン/スキルの SKILL.md を作成・編集する際の注意点をまとめる。

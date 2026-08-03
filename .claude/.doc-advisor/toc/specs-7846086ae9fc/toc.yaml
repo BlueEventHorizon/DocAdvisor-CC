@@ -5,8 +5,8 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-07-29T15:55:49Z
-  file_count: 15
+  generated_at: 2026-08-03T12:22:04Z
+  file_count: 18
 
 docs:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
@@ -128,35 +128,36 @@ docs:
       - single mode
   docs/specs/base/design/DES-005_toc_generation_flow.md:
     title: DES-005 key + path ToC Provider Design
-    purpose: Defines the design for implementing a generic ToC Provider using opaque keys and file paths, with separated phases for deterministic processing and AI-driven metadata extraction.
+    purpose: Defines the design for the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, and merge.
     content_details:
-      - Opaque key-based storage architecture with key-to-slug conversion
-      - Desired-state sync with prepare and merge two-phase flow
-      - Path validation including traversal checks and symlink resolution logic
-      - Module design with toc_store.py and toc_utils.py common layer
-      - Difference detection algorithm tracking added, updated, unchanged, and deleted states
-      - Backup and restore flow for merge failure recovery
-      - Continuation mode with work directory per key
-      - Removal of doc_type field from ToC schema
-      - JSON output contracts with standardized error codes and status enums
-      - Single JSON stdout contract across all scripts
+      - "store_dir(key) resolution - NFC-normalized slug of [a-z0-9_-], 40-char truncation, empty slug falls back to \\\"k\\"
+      - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work/ per key, .toc_work intentionally not gitignored
+      - "Key validation - KEY_EMPTY for an empty key, KEY_RESERVED for an explicitly passed \\\"all\\"
+      - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / OUTSIDE_ROOT / NOT_MARKDOWN rejections
+      - resolve_within_root() and find_escaping_symlink() - default-deny for root-escaping symlinks, approved via --allow-external-json
+      - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
+      - The transcription phase (fm_to_pending.py) sits between prepare and AI fill; all-transcribed skips every Agent
+      - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
+      - JSON contract - status and error_code are required, and the error_code enum applies to rejected_paths[].reason
+      - ai_extracted_paths is report-only, emitted on status ok, always empty for --delete-only
     applicable_tasks:
-      - ToC generation architecture design
-      - Key and path provider implementation
-      - Script layer interface definition
-      - Storage system design review
-      - Path validation and symlink handling specification
+      - Implementing or modifying prepare_toc.py / merge_toc.py
+      - Adding a script to the ToC pipeline
+      - Changing the JSON output contract or the error_code enum
+      - Designing path validation for symlinks that escape the project root
+      - Reviewing where the transcription phase is placed
+      - Debugging continuation and .toc_work resume behavior
     keywords:
-      - ToC provider
-      - opaque key
-      - desired-state sync
-      - path validation
-      - symlink resolution
-      - slug conversion
-      - toc_store.py
+      - DES-005
+      - resolve_store_dir
       - prepare_toc.py
       - merge_toc.py
-      - continuation mode
+      - fm_to_pending.py
+      - desired-state sync
+      - find_escaping_symlink
+      - .toc_checksums.yaml
+      - ai_extracted_paths
+      - continuation
   docs/specs/base/design/DES-009_check_toc_freshness_design.md:
     title: DES-009 check-toc (ToC Freshness Check) Design
     purpose: Defines the design for check-toc SKILL that validates ToC freshness by comparing generation timestamp against a configurable age threshold, with deterministic judgment logic in a dedicated script and read-only metadata inspection.
@@ -434,3 +435,96 @@ docs:
       - pure function
       - FileNotFoundError
       - UnicodeDecodeError
+  docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md:
+    title: DES-008 doc-advisor Frontmatter Design
+    purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, and script layout.
+    content_details:
+      - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
+      - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
+      - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
+      - body_hash covers the body only (self-reference avoidance), sha256:<64hex> with an algorithm prefix, stamped after the formatter
+      - Language Rule - every field value in English regardless of the body language
+      - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
+      - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
+      - all-or-nothing fallback, with a warning only when the doc-advisor marker is present
+      - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
+      - fm_write.py 7-step order (merge without body_hash, write, format, re-read, stamp) with rollback from step 3 onward
+    applicable_tasks:
+      - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py
+      - Changing the trust predicate or the frontmatter schema
+      - Deciding where body_hash is stamped relative to formatting
+      - "Reviewing whether the type union update preserves other tools' markers"
+      - Adding frontmatter to existing documents via write-frontmatter
+      - Designing the write-back of AI extraction results
+    keywords:
+      - DES-008
+      - body_hash
+      - fm_core.py
+      - fm_write.py
+      - fm_to_pending.py
+      - type union update
+      - trust predicate
+      - OKF
+      - extracted_by
+      - "--format-command"
+  docs/specs/frontmatter/plan/frontmatter_strategy.md:
+    title: Frontmatter Implementation Strategy
+    purpose: Specifies phased implementation strategy for frontmatter support, covering assumptions, risk-driven approach, four phases, risk mitigations, and design decisions.
+    content_details:
+      - Implementation assumptions and constraints (dedicated SKILL, scope to docs/ directory, independent scripts)
+      - "Four-phase implementation approach: foundation (fm_core/fm_read), augmentation (fm_write), integration (fm_to_pending), corpus repair (extracted_by tracking)"
+      - Risk-driven bottom-up approach justified by YAML parsing uncertainty without PyYAML dependency
+      - Line-preserving merge mechanism for unknown frontmatter key preservation
+      - Body hash normalization (CRLF → LF, trailing whitespace removal) and SHA-256 stamping
+      - Schema validation rules (type presence, field count 1-10, purpose max 200 chars, hash format validation)
+      - Risk assessment table covering 9 risks with phase-specific mitigations
+      - Six design decision points (D1-D6) requiring implementation judgment
+    applicable_tasks:
+      - Planning phased frontmatter implementation with risk-driven approach
+      - Evaluating YAML parsing and merging risks under PyYAML-free constraint
+      - Implementing line-preserving merge to protect existing frontmatter keys
+      - Designing trust judgment logic for frontmatter validation
+      - Integrating frontmatter transcription into index-docs workflow
+      - Validating round-trip preservation of unknown frontmatter keys
+    keywords:
+      - fm_core
+      - fm_read
+      - fm_write
+      - fm_to_pending
+      - body_hash
+      - line-preserving merge
+      - trust judgment
+      - frontmatter
+      - validate_toc
+      - extracted_by
+  docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
+    title: REQ-006 Frontmatter Metadata Requirements Specification
+    purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.
+    content_details:
+      - Documents carry the metadata the search index needs at their own head
+      - Indexing transcribes such metadata without re-reading the body
+      - Metadata not matching the current body is detectable mechanically
+      - Documents without metadata, or judged untrustworthy, fall back to body extraction
+      - A user-facing means to add metadata to existing documents is provided
+      - Metadata travels with the document, so it need not be re-derived per environment
+      - Constraint - indexing never rewrites the source; writes happen only on explicit user instruction
+      - "Constraint - existing non-doc-advisor frontmatter and other tools' markers survive the write"
+      - Constraint - metadata language follows the search index rule (English) regardless of body language
+      - Undecided items - TBD-003 (authoring contract for upper skills) and TBD-004 (indexing time target)
+    applicable_tasks:
+      - Implementing frontmatter metadata indexing
+      - Reviewing whether the frontmatter design satisfies REQ-006
+      - Deciding fallback behavior for untrustworthy metadata
+      - Confirming the constraint that indexing does not rewrite sources
+      - Resolving TBD-003 or TBD-004
+    keywords:
+      - REQ-006
+      - frontmatter
+      - body_hash
+      - transcription
+      - fallback
+      - doc-advisor marker
+      - TBD-003
+      - TBD-004
+      - desired-state indexing
+      - metadata language rule

@@ -1,3 +1,39 @@
+---
+type: doc-advisor
+title: DES-008 doc-advisor Frontmatter Design
+purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, and script layout.
+content_details:
+  - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
+  - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
+  - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
+  - body_hash covers the body only (self-reference avoidance), sha256:<64hex> with an algorithm prefix, stamped after the formatter
+  - Language Rule - every field value in English regardless of the body language
+  - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
+  - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
+  - all-or-nothing fallback, with a warning only when the doc-advisor marker is present
+  - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
+  - fm_write.py 7-step order (merge without body_hash, write, format, re-read, stamp) with rollback from step 3 onward
+applicable_tasks:
+  - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py
+  - Changing the trust predicate or the frontmatter schema
+  - Deciding where body_hash is stamped relative to formatting
+  - "Reviewing whether the type union update preserves other tools' markers"
+  - Adding frontmatter to existing documents via write-frontmatter
+  - Designing the write-back of AI extraction results
+keywords:
+  - DES-008
+  - body_hash
+  - fm_core.py
+  - fm_write.py
+  - fm_to_pending.py
+  - type union update
+  - trust predicate
+  - OKF
+  - extracted_by
+  - "--format-command"
+body_hash: sha256:7e719d196d17e048572238680b4d2e132678b9a8162400ab4c5d1cd8e4665adb
+---
+
 # DES-008: doc-advisor フロントマター設計書
 
 ## メタデータ
@@ -23,7 +59,7 @@ doc-advisor が扱う Markdown 文書に、ToC 相当のメタデータをフロ
 - 文書の作成・編集がほぼ全て AI スキル経由であるという前提のもと、作成時点でその AI が既に文書内容を完全に理解している状態でメタデータを書けば、限界コストはほぼゼロになる
 - 編集時にも同じ AI スキルがフロントマターを見直す契約を持たせることで鮮度を保つ。ただしその契約をプロンプト規律のみに委ねず、本文ハッシュによる機械的な不一致検出を安全網として持たせる
 - `toc.yaml` を廃止して query 時に都度フロントマターを解析する方式は、コストを「index 構築時の 1 回」から「query 実行のたびの毎回」へ付け替えるだけであり、原子的書き込み・検証・ロールバックという既存の安全機構（`merge_toc.py`）も失うため不採用とした
-- 実装上の着地点は、pending YAML を `toc-updater` Agent を呼ばずにフロントマターから直接 `status: completed` として生成し、その後は `merge_toc.py` の既存フロー（backup → 原子的書き込み → `validate_toc` → checksums 更新）を無改造で流用することである
+- 実装上の着地点は、pending YAML を `toc-updater` Agent を呼ばずにフロントマターから直接 `status: completed` として生成し、その後は `merge_toc.py` の既存フロー（backup → 原子的書き込み → `validate_toc` → checksums 更新）をそのまま流用することである
 - フロントマターを持たない既存文書に対しては、書き込み用 SKILL で後から埋める（§8）。1 度コールドリードを払えば結果が文書内に残り、git を通じて全クローンで再利用される
 
 ---
@@ -72,11 +108,11 @@ OKF のリファレンス実装は**外部リソースのカタログ**であり
 
 doc-advisor の対象は散文の文書（ルール・要件・設計）であり、対応する外部実体が存在しない。したがって `resource` に入れるべき値が無く、`resource` を落とした時点で `type` は相方を失って退化する。doc-advisor の文脈で `type` が取りうる意味は次の 3 つしかなく、いずれも成立しない。
 
-| 読み方                                   | 帰結                                                           |
-| ---------------------------------------- | -------------------------------------------------------------- |
-| 対象の種別（OKF 本来の意味）             | `resource` が無いため `title` の主辞の重複。情報量ゼロ         |
-| 文書の分類（`Rule` / `Design Document`） | FNC-002 が検索寄与なしとして廃止した `doc_type` の復活         |
-| 定数マーカー                             | OKF の意味ではない。必須フィールドをプレースホルダで埋めるだけ |
+| 読み方                                   | 帰結                                                     |
+| ---------------------------------------- | -------------------------------------------------------- |
+| 対象の種別（OKF 本来の意味）             | `resource` が無いため `title` の主辞の重複。情報量ゼロ   |
+| 文書の分類（`Rule` / `Design Document`） | FNC-002 が検索寄与なしとして廃止した `doc_type` の復活   |
+| 規約への適合を示すマーカー               | OKF の意味ではない。必須フィールドを別用途で流用するだけ |
 
 ### 3.3 `tags` と `keywords` は思想が逆向き
 
@@ -99,15 +135,15 @@ OKF の `tags` には `BigQuery` / `Google Analytics` のような大分類語�
 ```yaml
 ---
 type: doc-advisor
-title: ドキュメントのタイトル
-purpose: この文書が何のためにあるかの要約（最大 200 文字）
+title: Title of the document
+purpose: What this document exists for, in at most 200 characters
 content_details:
-  - 具体的な内容項目（最大 10 件）
+  - A concrete item the document covers, up to 10 entries
 applicable_tasks:
-  - この文書が必要になるタスク種別（最大 10 件）
+  - A task type that needs this document, up to 10 entries
 keywords:
-  - 照合語（最大 10 語）
-body_hash: sha256:3f2a9c...（64 桁）
+  - A matching term, up to 10 words
+body_hash: sha256:3f2a9c...(64 hex digits)
 ---
 ```
 
@@ -115,16 +151,36 @@ body_hash: sha256:3f2a9c...（64 桁）
 
 #### `type`
 
-固定値 `doc-advisor` を取る**識別マーカー**である。OKF の `type`（対象の種別）とは意味が異なる。
+**識別マーカーの集合**である。OKF の `type`（対象の種別）とは意味が異なる。
 
 用途は、フロントマターを読む側が「これは doc-advisor 規約に従ったフロントマターか」を、フィールドの有無を探ることなく 1 行で判定できるようにすることである。これにより次の 2 ケースを区別できる。
 
-- `type` が無い（SKILL.md の `name` / `description` 等、別種のフロントマター）→ 正常な対象外として AI 抽出へ
-- `type` があるのに内容が不完全 → 規約違反であり異常。挙動は AI 抽出だが warning を出す（§5.3）
+- `type` に `doc-advisor` が含まれない（別ツールのマーカーのみ、または `type` 自体が無い）→ 正常な対象外として AI 抽出へ
+- `doc-advisor` が含まれるのに内容が不完全 → 規約違反であり異常。挙動は AI 抽出だが warning を出す（§5.3）
 
 このマーカーが無いと上記 2 つを区別できず、壊れたフロントマターを「対象外の文書」として黙って見逃す。
 
-全文書で同値であり検索の識別情報を持たないため、**`toc.yaml` には書き出さない**（`doc_type` を廃した FNC-002 の判断と整合）。
+**複数値を許容する理由**: `type` は doc-advisor が単独で所有するキーではない。上位層の forge は追加開発の一時文書に `type: temporary-feature-requirement` / `temporary-feature-design` を付与しており（`additive_development_spec` §6）、同一文書が両方の標識を持つ状況が実運用で発生する。単一値に固定すると、doc-advisor が書き込んだ時点で forge の標識が失われ、その文書が「実装完了後に旧仕様へ merge して削除される一時文書である」という情報が消える。
+
+したがって値は**文字列または文字列の配列**とし、`doc-advisor` を含むかどうかで判定する。
+
+doc-advisor のみが標識を持つ場合:
+
+```yaml
+type: doc-advisor
+```
+
+forge の一時文書に doc-advisor が書き込んだ場合:
+
+```yaml
+type:
+  - temporary-feature-requirement
+  - doc-advisor
+```
+
+この帰結として、**`type` だけは書き込み時に置換ではなく和集合で更新する**（§4.5）。
+
+全文書で同じ値を含み検索の識別情報を持たないため、**`toc.yaml` には書き出さない**（`doc_type` を廃した FNC-002 の判断と整合）。
 
 #### `body_hash`
 
@@ -169,18 +225,18 @@ body_hash: sha256:3f2a9c...（64 桁）
 
 ### 4.4 言語ルール
 
-**本文の言語に合わせる。** 従来 ToC に課していた「全フィールド値を英語」という制約は解除する。
+**全フィールド値を英語で書く。** ToC に従来から課している制約をフロントマターにも同じく適用し、本文の言語によらず英語で統一する。
 
 根拠:
 
-1. フロントマターは原本に埋め込まれるため人間が読む。日本語文書に英語メタデータだけが浮いていると、編集時に更新されず腐りやすい
-2. 書き手である AI にとっても、本文と同じ言語の方が正確に書ける。翻訳を挟むと劣化し、かつ翻訳のための AI 介在はコスト削減目標と両立しない
-3. 検索は壊れない。FNC-002 のとおり query-worker は ToC を全量読んで意味理解で照合するため、言語混在に耐える（トークン一致ではない）
-4. 最も検索に効く `keywords`（クラス名・メソッド名）は識別子であり、文書の言語に依存しない
+1. **`toc.yaml` 内で言語が混在しない。** ToC は desired-state 差分で更新されるため、`unchanged` のエントリは再抽出されない。言語を本文に追従させると「新規・変更分だけが本文の言語、それ以外は従前の言語」という混在が発生し、しかも `unchanged` は触られないため恒久的に残る。言語を固定すればこの状態が原理的に生じない
+2. **query-worker が一貫した基準で全エントリを比較できる。** 検索は ToC を全量読んで意味理解で照合する（FNC-002）。エントリごとに言語が異なると、同義判定や横断的な関連判断の基準が揺れる余地を残す
+3. `keywords` は識別子（クラス名・メソッド名）が主であり、英語で書いても情報が落ちない
+4. **フロントマターの陳腐化は `body_hash` が機械的に検出する**（§4.2）。言語を本文に合わせることで人間が更新しやすくなるという期待に、腐敗検出を依存させる必要がない
 
-副次的な影響として、`purpose` の 200 文字上限は言語により実質的な情報量が変わるが、上限としては引き続き妥当なため数値は変更しない。
+`purpose` の 200 文字上限は英語前提の値として維持する。
 
-プロジェクト単位で言語を固定する設定は、必要性が確認されるまで導入しない。
+プロジェクト単位で言語を切り替える設定は導入しない。
 
 ### 4.5 既存フロントマターとの共存
 
@@ -189,6 +245,8 @@ body_hash: sha256:3f2a9c...（64 桁）
 - フロントマターの書き込みは**マージであり上書きではない**。doc-advisor が定義していないキーは値を変更せず保持する
 - doc-advisor 側の判定は §5.1 の述語のみで行い、未知キーの存在は判定に影響しない
 
+**`type` の扱いは他のキーと異なる**。doc-advisor が定義する 7 キーのうち、`type` 以外の 6 キーは doc-advisor が単独で所有するため書き込み時に値ごと置換してよい。`type` は他ツールの標識が同居しうる共有キーであり（§4.1）、**既存の値を保持したまま `doc-advisor` を追加する和集合更新**とする。置換すると forge の一時文書標識を消してしまう。
+
 ---
 
 ## 5. 信頼判定とフォールバック
@@ -196,26 +254,26 @@ body_hash: sha256:3f2a9c...（64 桁）
 ### 5.1 判定述語
 
 ```
-trust = (type == "doc-advisor")
+trust = ("doc-advisor" ∈ type)
       ∧ (5 フィールドが全て存在し、非空で、下表のスキーマに適合する)
       ∧ (body_hash が存在し、接頭辞が既知で、現在の本文と一致)
 ```
 
 検証するスキーマ（`toc_format` の規約を機械判定可能な形に落としたもの）:
 
-| フィールド         | 型            | 制約                                       |
-| ------------------ | ------------- | ------------------------------------------ |
-| `type`             | string        | `doc-advisor` に一致                       |
-| `title`            | string        | 非空                                       |
-| `purpose`          | string        | 非空、200 文字以内                         |
-| `content_details`  | array[string] | 1〜10 件、各要素は非空文字列               |
-| `applicable_tasks` | array[string] | 1〜10 件、各要素は非空文字列               |
-| `keywords`         | array[string] | 1〜10 件、各要素は非空文字列               |
-| `body_hash`        | string        | `^sha256:[0-9a-f]{64}$` に一致し本文と一致 |
+| フィールド         | 型                          | 制約                                                    |
+| ------------------ | --------------------------- | ------------------------------------------------------- |
+| `type`             | string または array[string] | `doc-advisor` を要素に含む（スカラは 1 要素として扱う） |
+| `title`            | string                      | 非空                                                    |
+| `purpose`          | string                      | 非空、200 文字以内                                      |
+| `content_details`  | array[string]               | 1〜10 件、各要素は非空文字列                            |
+| `applicable_tasks` | array[string]               | 1〜10 件、各要素は非空文字列                            |
+| `keywords`         | array[string]               | 1〜10 件、各要素は非空文字列                            |
+| `body_hash`        | string                      | `^sha256:[0-9a-f]{64}$` に一致し本文と一致              |
 
 ```mermaid
 flowchart TD
-    A[Markdown ファイル] --> B{type == doc-advisor?}
+    A[Markdown ファイル] --> B{type に doc-advisor を含む?}
     B -->|No| F[AI 抽出<br/>toc-updater Agent]
     B -->|Yes| C{5 フィールドがスキーマに適合?}
     C -->|No| W[warning を出力] --> F
@@ -236,7 +294,7 @@ flowchart TD
 
 ### 5.3 warning
 
-挙動は上記のとおり一律フォールバックとするが、**`type: doc-advisor` が存在するのに `trust` が偽になったケース**は warning として出力する。フィールドの欠落・空値・スキーマ違反（型・件数・文字数上限）・`body_hash` の不一致および形式不正のすべてを含む。script が書いたものが壊れている、あるいはフロントマターが本文から取り残されている状態を、黙って高コスト経路に落として気づかないまま放置することを避けるためである。
+挙動は上記のとおり一律フォールバックとするが、**`type` に `doc-advisor` が含まれるのに `trust` が偽になったケース**は warning として出力する。フィールドの欠落・空値・スキーマ違反（型・件数・文字数上限）・`body_hash` の不一致および形式不正のすべてを含む。script が書いたものが壊れている、あるいはフロントマターが本文から取り残されている状態を、黙って高コスト経路に落として気づかないまま放置することを避けるためである。
 
 DES-005 §8.1 の JSON 契約に既に `warnings` フィールドがあるため、追加コストはない。
 
@@ -261,21 +319,38 @@ tests/scripts/frontmatter/test_fm_*.py
 独立性の境界を次のとおり定義する。
 
 - `toc_store.py` / `toc_utils.py` を **import しない**。key 解決も store_dir 解決も行わない
-- `fm_to_pending.py` は pending の**形式は知るが、置き場所は知らない**。出力先はコマンド引数（`--out <path>`）で受け取る
-- 呼び出し側（`index-docs` SKILL / `prepare_toc.py`）が場所を決めて渡す
+- どの script も**対象を自ら探索しない**。処理対象はコマンド引数で受け取る。`fm_read.py` は `--paths-json` で対象パスの配列を受け取り、ディレクトリを走査しない
+- `fm_to_pending.py` は pending の**形式は知るが、置き場所は知らない**
+- 呼び出し側（`index-docs` SKILL / `write-frontmatter` SKILL / `prepare_toc.py`）が場所を決めて渡す
+
+対象を受け取る形にするのは、既存の `index-docs`（`--paths-json` で上位層から対象を受け取る）と同一の思想に揃えるためである。script 側に探索を持たせると、除外規則が `prepare_toc.py` の列挙と 2 箇所に分かれ、片方だけが改訂される。
+
+`fm_to_pending.py` の処理単位は**ディレクトリ 1 つのみ**とする。
+
+| オプション         | 処理単位     | 挙動                                                                                |
+| ------------------ | ------------ | ----------------------------------------------------------------------------------- |
+| `--work-dir <dir>` | ディレクトリ | 指定ディレクトリ直下の pending を一括処理し、信頼できるものを in-place で完了化する |
+
+`--work-dir` は、そのディレクトリ直下にある pending を列挙し、各 pending の `_meta.source_file` が指す文書を §5.1 の述語で判定する。信頼できるものはその pending をその場で `status: completed` に更新し、信頼できないものは変更せず AI 抽出の対象として残す。列挙規則は `merge_toc.py` の pending 列挙と揃える（`*.yaml` かつ先頭 `.` 以外、昇順）。転記した pending を読む相手が merge であり、列挙集合が食い違うと「転記したのに merge が拾わない」状態が生まれる。書き出す pending は `write_pending.py` の出力と**バイト一致**させる。同一ディレクトリに AI 抽出由来と転記由来が混在するため、書式が揺れると merge 側に 2 系統の入力を作ることになる。
+
+`--work-dir` を処理単位とする理由は 2 つある。ディレクトリ内の pending の列挙は決定論的な定型処理であり、AI に列挙・手転記をさせないため script 側に置く。かつ、渡されたディレクトリを走査するだけで key 解決も store_dir 解決も行わないため、本節の独立性の境界を保ったまま 1 コマンドで済む。
+
+1 ファイル単位の処理単位（`--out <path>` で 1 件の結果を指定先へ書き出す形）は**持たせない**。呼び出し側は `index-docs` の転記フェーズのみであり、そこでは常に `.toc_work/` 配下の pending を一括で扱う。呼び出し元のない経路を実装すると `implementation_guidelines`「使わないコードは削除する」に反する。
 
 この分離により、フロントマター方式を将来撤回する場合に 1 ディレクトリの削除で戻せる。
 
 ### 6.2 各 script の責務
 
-| script             | 責務                                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------------- |
-| `fm_core.py`       | フロントマターのパース / 生成、本文抽出、正規化、`body_hash` 計算。他 3 script が共有する純粋ロジック |
-| `fm_read.py`       | 対象ファイルのフロントマターを読み、§5.1 の述語で信頼判定した結果を JSON 出力                         |
-| `fm_write.py`      | メタデータを受け取りフロントマターへマージ書き込み。整形器を呼んだ後に `body_hash` を計算・打刻       |
-| `fm_to_pending.py` | 信頼できるフロントマターを pending YAML（`status: completed`）として `--out` の指定先へ書き出す       |
+| script             | 責務                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `fm_core.py`       | フロントマターのパース / 生成、本文抽出、正規化、`body_hash` 計算。他 3 script が共有する純粋ロジック              |
+| `fm_read.py`       | `--paths-json` で渡されたパスのフロントマターを読み、§5.1 の述語で信頼判定した結果を JSON 出力                     |
+| `fm_write.py`      | メタデータを受け取りフロントマターへマージ書き込み。整形器を呼んだ後に `body_hash` を計算・打刻                    |
+| `fm_to_pending.py` | `--work-dir` 直下の pending を一括処理し、信頼できるフロントマターを pending YAML（`status: completed`）へ転記する |
 
 `fm_to_pending.py` は pending の `_meta` に来歴を記録する（§8.2）。
+
+`fm_read.py` の出力は per-file の判定を `results` 配列へ**入力順**で並べ、`status` は `ok` / `partial` / `error` の 3 値を取る。個別ファイルの読み取り失敗は 1 件で全体を落とさず `partial` へ写像し、他のファイルの判定はそのまま返す（`error` は引数自体が不正な場合に限る）。各フィールドの詳細は script の docstring とテストに委ねる。
 
 ### 6.3 整形コマンド
 
@@ -290,6 +365,28 @@ fm_write.py --format-command "dprint fmt {file}"
 
 設定ファイルではなく CLI 引数で受け取る理由は 2 つある。doc-advisor は通常経路で設定ファイルを読まない設計（DES-005 §4.2）であり、「何を使うかは上位層が決めて渡す」という思想と一貫すること。および、設定ファイルに記述された任意コマンドを script が実行するリスクを避け、呼び出し側に責任を明示することである。
 
+`fm_write.py` は対象とメタデータを `--entries-json` で一括して受け取る。要素は `{"path": <パス>, "metadata": {<doc-advisor 所有キー>}}` であり、per-file の結果を `results` へ入力順で並べ、部分失敗は `status: partial` で表す（`fm_read.py` と同じ契約）。`body_hash` は本 script が算出するため `metadata` では渡せない。
+
+```text
+fm_write.py --entries-json '[{"path": "docs/a.md", "metadata": {...}}]' [--format-command "dprint fmt {file}"]
+```
+
+1 件あたりの処理順序は次のとおりとする。手順 2 に `body_hash` を含めず、手順 6 で `body_hash` 単独をマージするのは、§4.5 のマージ規則（与えられたキーだけを差し替える）のもとで他のキーに触れずに打刻するためである。
+
+1. 対象を読む
+2. メタデータをマージする（`body_hash` を含めない）
+3. 原子的に書き込む
+4. `--format-command` が指定されていれば実行する（未指定ならスキップ）
+5. 再読込して本文から `body_hash` を算出する
+6. `body_hash` 単独をマージする
+7. 原子的に書き込む
+
+手順 3 以降のいずれかで失敗した場合（整形コマンドの実行不能・非ゼロ終了、整形後の再読込失敗、打刻のマージ失敗、打刻の書き込み失敗）は、当該 entry の失敗として報告したうえで**書き込み前の内容へ復元する**。
+
+復元する理由は、打刻に到達しなかった entry を信頼できる状態のまま残さないためである。§4.5 のマージ規則は与えられたキーだけを差し替えるため、元の文書が既に `body_hash` を持っていた場合、手順 2 を通ってもその値は残る。整形器が本文を変えていなければそのハッシュは依然として本文と一致し、失敗を報告したはずの entry を `fm_read` が `trust` 真と判定してしまう。加えて、メタデータだけが新しく書き換わった中間状態が残る。復元すれば失敗した entry は実行前と同じ状態になり、この 2 つの問題が同時に消える。
+
+復元自体に失敗した場合は、その旨を当該 entry の詳細として報告する。この場合は変更が残っていることが確定するため、変更の有無を示す観測値は「変更あり」とする。
+
 なお、打刻後に別経路（commit フック、CI、エディタの保存時整形）で整形が走った場合はハッシュが無効化される。ただしその帰結は AI 抽出へのフォールバック、すなわち現行挙動への復帰にとどまり、誤ったメタデータが混入することはない。必要な不変条件は「打刻時点で本文が整形の不動点にあること」であり、完全な保証ではなく違反頻度の低減で足りる。
 
 ### 6.4 テスト
@@ -297,10 +394,10 @@ fm_write.py --format-command "dprint fmt {file}"
 `scripts/` 配下のテストは必須である。上記に加え、独立性に伴う固有のリスクへ対処するテストを設ける。
 
 - **YAML エスケープ一致テスト**: 完全独立の帰結として、YAML 値のエスケープ実装が `toc_utils.yaml_escape` と `fm_core` の 2 つになる。同一の値がフロントマターと `toc.yaml` で異なるエスケープを受けると、無用な不一致や壊れた `toc.yaml` を生む。**同じ値を両実装に通して出力が一致すること**を固定するテストを置く
-- **スキーマ規約の一致テスト**: §5.1 の型・件数・文字数の規約は `validate_toc.py` と `fm_core` の 2 箇所に実装される。**同じ入力に対して両者が同じ合否を返すこと**を固定するテストを置く。乖離すると、転記側が通したものを merge 側が弾き、§5.1 が防ごうとした ToC 全体のロールバックが再発する
+- **スキーマ規約の包含テスト**: 守るべき不変条件は **`fm_core` が信頼と判定する集合 ⊆ `validate_toc.py` が通す集合** という一方向の包含関係である。すなわち `fm_core` が転記した pending 由来のエントリは、必ず `validate_toc.py` を通る。同一の入力集合を両実装へ流し、`fm_core` が真を返した入力すべてについて `validate_toc.py` も真を返すことを固定するテストを置く。逆向き（`validate_toc.py` が通すものを `fm_core` も通す）は要求しない。`validate_toc.py` の検査は必須フィールドの非空性に留まり、`fm_core` は §5.1 の型・件数・文字数まで検証するため `fm_core` の方が狭く、双方向の一致は成立しない。§5.1 が防ごうとしているのは「転記側が通したものを merge 側が弾き ToC 全体のロールバックが起きる」ことだけであり、一方向の包含で必要十分である
 - `body_hash`: 正規化（CRLF / 末尾空行）で値が変わらないこと、本文変更で値が変わること、フロントマター変更で値が変わらないこと
-- 信頼判定: §5.1 述語の各分岐（`type` 欠落 / フィールド欠落 / 空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / ハッシュの形式不正 / 未知の接頭辞）
-- `fm_write.py`: 未知キー（`name` / `description` 等）が保持されること
+- 信頼判定: §5.1 述語の各分岐（`type` 欠落 / `doc-advisor` を含まない `type` / フィールド欠落 / 空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / ハッシュの形式不正 / 未知の接頭辞）。`type` はスカラ・配列の双方で判定できること
+- `fm_write.py`: 未知キー（`name` / `description` 等）が保持されること、および **`type` が和集合更新されること**（`temporary-feature-requirement` のみを持つ文書へ書き込むと `[temporary-feature-requirement, doc-advisor]` になり、既存値が消えない）
 
 ---
 
@@ -313,22 +410,26 @@ fm_write.py --format-command "dprint fmt {file}"
 ```mermaid
 sequenceDiagram
     participant Prep as prepare_toc.py
-    participant FM as fm_read / fm_to_pending
+    participant FM as fm_to_pending.py
     participant Agent as toc-updater agent
     participant Merge as merge_toc.py
 
     Prep->>Prep: paths 検証 + desired-state diff
-    Prep->>FM: added / updated の各ファイルを判定
-    alt trust == true
-        FM->>FM: pending を completed で生成（転記のみ）
-    else trust == false
-        FM->>Agent: AI 抽出（warning は type 有りの場合のみ）
-        Agent->>Agent: write_pending.py で充填
-    end
-    Prep->>Merge: merge（既存フローを無改造で流用）
+    Prep->>Prep: added / updated の pending を .toc_work/ へ生成
+    Prep->>FM: --work-dir .toc_work（転記フェーズ）
+    FM->>FM: 直下の pending を列挙し source_file を §5.1 の述語で判定
+    FM->>FM: trust 真 → 当該 pending を completed へ in-place 書き直し
+    FM->>FM: trust 偽 → pending を無変更で残す（type 有りなら warning）
+    FM->>Agent: 残った pending のみ（work-status の pending_groups）
+    Agent->>Agent: write_pending.py で充填
+    Prep->>Merge: merge（既存フローを流用）
 ```
 
-`merge_toc.py` 以降（backup → 原子的書き込み → `validate_toc` → checksums 更新 → `.toc_work/` 削除）は一切変更しない。
+転記は prepare と充填の**間に置く独立したフェーズ**であり、per-file の判定を prepare が行うわけではない。転記済みの pending は `_meta.status: completed` になるため `toc_store.py --work-status` の `pending` / `pending_groups` に現れず、充填フェーズの対象から自動的に外れる。全件転記できた場合は `next_action: merge` となり Agent 起動ゼロで merge へ直行する。
+
+`merge_toc.py` 以降の**処理ロジック**（pending の統合、backup → 原子的書き込み、`validate_toc` による検証、checksums 更新、`.toc_work/` 削除）は変更しない。`toc.yaml` に書き出される内容も、それを書き出す手順も本設計の前後で同一である。
+
+この無改造の範囲に **JSON 出力への項目追加は含まない**。§8.2 の書き戻し候補を SKILL へ渡すため、`merge_toc.py` の JSON 出力に `extracted_by: ai` の集約を追加し、`write_pending.py` の `_meta` に `extracted_by` を付与する。いずれも報告用の出力であり、上記の処理ロジックと `toc.yaml` の内容には影響しない。
 
 ### 7.2 2 種のハッシュの関係
 
@@ -386,17 +487,37 @@ sequenceDiagram
 
 ---
 
-## 10. 未決事項・次のステップ
+## 10. 決定事項・次のステップ
 
-本設計書でフィールド定義・信頼判定・script 構成は確定した。実装に着手する前に次を決める必要がある。
+フィールド定義・信頼判定・script 構成に加え、書き込み SKILL の形態と適用対象を次のとおり確定する。
 
-1. **書き込み SKILL の名称と配置**（§8.1）。新規 SKILL として追加するか、既存の `index-docs` にモードとして持たせるか
-2. **配布物 SKILL.md への適用可否**。SKILL.md のフロントマターは Claude Code 仕様に従うため、doc-advisor 独自キーを追加してよいか（§4.5 のマージ規則により既存キーは保持されるが、未知キー追加の許容度は未確認）
-3. **上位スキルへの契約反映**。forge / anvil の文書作成・編集スキルに「作成時にフロントマターを書く / 編集時に見直す」契約を持たせる範囲と手順。実装計画として別途策定する
+### 10.1 書き込み SKILL の名称と配置
+
+§8.1 の書き込み SKILL は、`plugins/doc-advisor/skills/write-frontmatter/` に**新規 SKILL** として置く。`index-docs` のモードとしては持たせない。
+
+- 索引生成（読み取り）と原本への書き込みは、起動する主体も副作用の有無も異なる。SKILL を分けることで「索引実行では原本を書き換えない」という制約が起動単位で保証される
+- 名称は既存の `index-docs` / `query-docs` / `check-toc` と同じ動詞-目的語の形に揃える
+
+### 10.2 配布物への適用可否
+
+このリポジトリでフロントマターを付与する対象は `docs/` 配下の文書とし、`plugins/doc-advisor/` 配下の配布物は**対象に含めない**。配布物の SKILL.md のフロントマターは Claude Code 仕様に従うため、独自キーの追加が許容されるかが仕様側に依存し、doc-advisor の側では担保できないためである。
+
+ただしこれは**このリポジトリの運用方針であり、script の機能仕様ではない**。script は対象を自ら探索せず、処理対象のパスを呼び出し側から受け取る（§6.1）。したがって配布物が除外されるのは、書き込み SKILL へ渡すパスの集合にそれが含まれないからである。
+
+script 側に「`plugins/doc-advisor/` を除外する」という判定は持たせない。配布先のプロジェクトにそのディレクトリは存在せず、この判定は doc-advisor 自身を開発するときにしか一致しない。配布物へ開発リポジトリ固有のパスを焼き込むことになるため採らない。
+
+### 10.3 上位スキルへの契約反映（未決）
+
+forge / anvil の文書作成・編集スキルに「作成時にフロントマターを書く / 編集時に見直す」契約を持たせる範囲と手順は未決である。実装計画として別途策定する。
 
 ## 改定履歴
 
-| 日付       | バージョン | 内容                                                                                                                                                                                                                                                                     |
-| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-07-31 | 0.1        | 初版作成。OKF 準拠の可否を検討するたたき台として、フィールド比較表と未決定事項を提示                                                                                                                                                                                     |
-| 2026-08-01 | 1.0        | OKF 準拠を不採用と決定し（§3）、独自スキーマを確定。`type` を識別マーカーとして再定義、`body_hash` の仕様確定、all-or-nothing の信頼判定（§5）、`scripts/frontmatter/` への分離（§6）、英語限定ルールの解除（§4.4）、既存文書の書き込み SKILL と書き戻し方針（§8）を追記 |
+| 日付       | バージョン | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-31 | 0.1        | 初版作成。OKF 準拠の可否を検討するたたき台として、フィールド比較表と未決定事項を提示                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 2026-08-01 | 1.0        | OKF 準拠を不採用と決定し（§3）、独自スキーマを確定。`type` を識別マーカーとして再定義、`body_hash` の仕様確定、all-or-nothing の信頼判定（§5）、`scripts/frontmatter/` への分離（§6）、英語限定ルールの解除（§4.4）、既存文書の書き込み SKILL と書き戻し方針（§8）を追記                                                                                                                                                                                                                         |
+| 2026-08-01 | 1.1        | `type` を複数値許容に変更（§4.1）。forge が追加開発の一時文書に `type: temporary-feature-*` を既に付与しており、単一値では上書きで標識が失われるため。判定を membership に、書き込みを和集合更新に改め（§4.5 / §5.1 / §5.3 / §6.4）                                                                                                                                                                                                                                                              |
+| 2026-08-02 | 1.2        | 実装着手前の判断事項を反映。`fm_to_pending.py` に `--work-dir` の一括処理を追加（§6.1 / §6.2）、スキーマ規約のテストを一方向の包含関係へ変更（§6.4）、§7.1 の無改造範囲を JSON 出力への項目追加を除く形へ限定して §8.2 との矛盾を解消、書き込み SKILL の形態と適用対象を決定（§10）                                                                                                                                                                                                              |
+| 2026-08-02 | 1.3        | `fm_read.py` の走査モードを廃止し、対象を `--paths-json` で受け取る形へ変更（§6.1 / §6.2）。§10.2 の配布物除外を script の機能仕様から運用方針へ位置づけ直した。配布先に存在しないパスの判定を配布物へ焼き込むことになり、対象を上位層が決める `index-docs --paths-json` の思想とも矛盾するため                                                                                                                                                                                                  |
+| 2026-08-02 | 1.4        | `fm_to_pending.py` の処理単位を `--work-dir` のみへ限定し、1 ファイル単位（`--out`）を廃した（§6.1 / §6.2）。呼び出し元は転記フェーズの一括処理だけであり、使われない経路を実装しないため。あわせて pending の列挙規則を `merge_toc.py` と揃えること、および書式を `write_pending.py` の出力とバイト一致させることを §6.1 に明記                                                                                                                                                                 |
+| 2026-08-03 | 1.5        | §4.4 の言語ルールを英語統一へ戻した。1.0 で「本文の言語に合わせる」へ解除したが、その 4 根拠のうち 2 つ（検索が壊れない・`keywords` は識別子）は「日本語でも問題ない」という中立の主張で英語を撤廃する理由になっておらず、残る 2 つ（腐敗しにくい・翻訳の劣化とコスト）も弱いと判断した。腐敗検出は `body_hash` が担っており言語に依存しない。加えて desired-state 差分で `unchanged` が再抽出されないため、言語を本文追従にすると `toc.yaml` 内で言語混在が恒久的に残ることが実データで判明した |

@@ -27,6 +27,7 @@ into another workflow document.
 
 ### Design Philosophy
 
+- **Transcription before fill**: pending whose source document already carries a trustworthy doc-advisor frontmatter are completed by transcription (`fm_to_pending.py`, Phase 1.5) before the fill phase, so no Agent is launched for them (DES-008 §7.1).
 - **1 group = 1 custom Agent**: Added/updated documents are processed via the `doc-advisor:toc-updater` custom Agent, one Agent per same-directory group of 1〜k documents (ADR-006 案 B). Each document is extracted independently within the Agent (context rot 回避).
 - **Continuous dispatch (sliding-window)**: groups are dispatched with a parallel window and refilled as each completes (ADR-006 / Issue #29), guarded by claim/lease so no group is dispatched twice.
 - **Persistent artifacts**: Each custom Agent's output remains as a pending file until merge.
@@ -77,8 +78,13 @@ Each key has its own store directory; there is no shared category directory.
 ```
 
 The concrete `store_dir` is obtained from the `toc_path` field of the JSON emitted by
-`prepare_toc.py` / `merge_toc.py` (its parent directory). `.toc_work/` for a key lives under that
-key's `store_dir`, so multiple keys never collide.
+`prepare_toc.py` / `toc_store.py --work-status` / `merge_toc.py` (its parent directory).
+`.toc_work/` for a key lives under that key's `store_dir`, so multiple keys never collide.
+
+Phase 1.5 needs `.toc_work/` as an explicit argument, so deriving it from `toc_path` this way is a
+prescribed step, not a hand-rolled guess. What must **not** be hand-derived is the _content_ of the
+work dir — whether it exists, which pending are fillable, how they group. Those come from
+`toc_store.py --work-status` (Phase 0) and are never obtained by listing files.
 
 `.toc_work/` is intentionally not gitignored. In normal operation, `merge_toc.py` removes it on
 success. If it remains visible in `git status`, that signals an interrupted or abnormal run that
@@ -90,9 +96,10 @@ Phase 0 can resume.
 
 ### Phase 0: Continuation determination (per key, DES-005 §6.6)
 
-Before preparing, decide whether to resume an interrupted run. **Do not derive `store_dir`, run
-`test -d`, or read `_meta.status` by hand** — run the deterministic helper and follow `next_action`
-(Issue #22):
+Before preparing, decide whether to resume an interrupted run. **Do not probe the work dir by
+hand** — no `test -d`, no reading `_meta.status`, no listing pending files. Run the deterministic
+helper and follow `next_action` (Issue #22). (Assembling the `.toc_work/` _path_ from `toc_path` is
+a different matter and is prescribed under "Store Directory Layout"; Phase 1.5 requires it.)
 
 ```bash
 # On resume, pass --lease-ttl 0 so a previous session's claim leftovers (in-flight) are treated
@@ -102,14 +109,19 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status -
 ```
 
 It emits JSON with `next_action` / `pending` (project-root-relative entry_files) / `completed` /
-`error_pending` / `has_work_dir`.
+`error_pending` / `has_work_dir` / `toc_path`.
 
-| `next_action` | Meaning                                                 | Action                                                      |
-| ------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
-| `prepare`     | no `.toc_work/`                                         | Normal start from Phase 1 (prepare)                         |
-| `fill`        | fillable pending exist                                  | Do **not** re-run `prepare_toc.py`. Resume Phase 2 (fill)   |
-| `blocked`     | no fillable pending but `error_pending` exist           | **Do not silently merge.** Go to Phase 2.5 (error handling) |
-| `merge`       | no pending and no error_pending (all completed / empty) | Go directly to Phase 3 (merge)                              |
+**Read `toc_path` here and keep it [MANDATORY]**: on a resumed run (`next_action: fill`) Phase 1 is
+skipped, so this is the **only** place that yields `toc_path` before Phase 1.5 needs it. Phase 3
+(`merge_toc.py`) has not run yet, and a value seen in an earlier session does not survive
+compaction. Deriving `.toc_work/` from this `toc_path` is what makes resume work.
+
+| `next_action` | Meaning                                                 | Action                                                                                     |
+| ------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `prepare`     | no `.toc_work/`                                         | Normal start from Phase 1 (prepare)                                                        |
+| `fill`        | fillable pending exist                                  | Do **not** re-run `prepare_toc.py`. Resume from Phase 1.5 (transcription) → Phase 2 (fill) |
+| `blocked`     | no fillable pending but `error_pending` exist           | **Do not silently merge.** Go to Phase 2.5 (error handling)                                |
+| `merge`       | no pending and no error_pending (all completed / empty) | Go directly to Phase 3 (merge)                                                             |
 
 > To discard `.toc_work/` and re-prepare from scratch (e.g. corrupted pending), use
 > `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`).
@@ -153,6 +165,61 @@ unapproved external paths are then dropped with warnings and processing continue
 
 > **Dry-run (optional)**: add `--dry-run` to `prepare_toc.py` to print `counts` and path lists
 > without writing. If destructive deletions are unexpected, confirm with the user before continuing.
+
+### Phase 1.5: Frontmatter transcription (fm_to_pending, DES-008 §7.1)
+
+Pending entries whose source document already carries a trustworthy doc-advisor frontmatter are
+completed by **transcription** instead of by an Agent. Run one command over the whole work dir; do
+not enumerate, read, or classify pending files by hand (determinism is the script's job).
+
+**When it applies**: the `added > 0` or `updated > 0` branch of the Phase 1 decision logic (the
+branch that proceeds to Phase 2), and **also on resume** when Phase 0 returned `next_action: fill`.
+Skip it only when Phase 1 needs no fill at all (idempotent success / delete-only) or when Phase 0
+returned `blocked` / `merge`.
+
+```bash
+# cwd MUST be the project root
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_to_pending.py \
+  --work-dir "$(dirname "{toc_path}")/.toc_work"
+```
+
+- `{toc_path}` comes from whichever JSON was read immediately before this phase:
+  - **normal start** — the `toc_path` of `prepare_toc.py` (Phase 1)
+  - **resumed run** (`next_action: fill`) — the `toc_path` of `toc_store.py --work-status` (Phase 0)
+
+  Do **not** expect it from `merge_toc.py` (Phase 3 has not run yet) or from a value remembered
+  across sessions (it does not survive compaction). Neither script emits a `work_dir` field —
+  derive it as "Store Directory Layout" prescribes: the parent directory of `toc_path`, then
+  `.toc_work/` under it.
+- **Run from the project root.** `toc_path` is project-relative and each pending's
+  `_meta.source_file` is also resolved against cwd, so the two only agree when cwd is the project
+  root.
+- The script rewrites pending files only. It **never writes to the source documents** (REQ-006:
+  indexing does not modify originals).
+
+Read the single stdout JSON:
+
+| Observation                               | Action                                                                                                                                                                                         |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status == error`                         | Invalid arguments. Report `error_code` / `message` and ask the user how to proceed (AskUserQuestion)                                                                                           |
+| `counts.failed > 0` (`status == partial`) | Those pending are left unchanged and simply fall through to AI extraction in Phase 2. Continue, and report the fact                                                                            |
+| `warnings` non-empty                      | Present them to the user. They only ever mean "`type` contains `doc-advisor` but `trust` is false" (DES-008 §5.3). A document without frontmatter is a normal non-target and yields no warning |
+| `counts.transcribed`                      | Carry into the completion report (it is the measured number of Agent launches avoided)                                                                                                         |
+
+**Transcribed pending drop out of the fill phase [MANDATORY]**: a transcribed pending has
+`_meta.status: completed`, so `toc_store.py --work-status` counts it in `completed` and lists it in
+neither `pending` nor `pending_groups`. The Phase 2 sliding window therefore never dispatches it,
+and the orchestrator needs no filtering of its own.
+
+Consequently, **re-run `--work-status` after transcription** and drive Phase 2 / Phase 3 from the
+fresh `next_action`. No new branch is needed: if every pending was transcribed, `pending`,
+`in_flight`, and `error_pending` are all empty, `next_action` is `merge`, and the run goes straight
+to Phase 3 with **zero Agents launched**.
+
+**Re-run it on resume too [MANDATORY]**: `fm_to_pending.py` reports pending that are already
+`completed` as `already_completed` and leaves them byte-identical, so re-running is idempotent. And
+frontmatter may have been added to a source document since the previous run, so re-running is
+strictly better than skipping.
 
 ### Phase 2: Continuous-dispatch fill (toc-updater custom Agent)
 
@@ -330,7 +397,7 @@ clean-work-dir commands are maintenance / abnormal-recovery tools only; the norm
 
 ### Continuation (when store_dir/.toc_work/ exists)
 
-- Resume from pending files (Phase 2)
+- Resume from pending files (Phase 1.5 transcription, then Phase 2)
 - If all completed → proceed to merge (Phase 3)
 
 ### On Custom Agent Error
@@ -395,8 +462,10 @@ After generation/update, verify from the merge output and final ToC:
 [Summary]
 - Mode: {key | all} / {full prepare | continuation}
 - added / updated / deleted / unchanged: {counts}
+- transcribed from frontmatter / AI-extracted: {counts.transcribed} / {filled by Agents}
 - toc_path: {toc_path}
 - Errors: {E} (if any)
+- Frontmatter warnings: {W} (if any; from Phase 1.5)
 
 [Errors] (only if E > 0)
 - {source_file}: {error_message}

@@ -59,6 +59,11 @@ MIN_CONTENT_DETAILS = 5
 MIN_APPLICABLE_TASKS = 1
 MIN_KEYWORDS = 5
 
+# _meta.extracted_by の値域（DES-008 §8.2）。本 script は toc-updater Agent 経由の
+# AI 抽出経路であり、常に 'ai' を書く（転記経路の 'frontmatter' は
+# frontmatter/fm_to_pending.py が書く）。CLI 引数では受け取らない。
+EXTRACTED_BY_AI = 'ai'
+
 
 def parse_args(argv=None):
     """Parse command-line arguments"""
@@ -116,6 +121,9 @@ def write_error_yaml(filepath, meta, error_message):
     """
     Write error status to entry YAML file (DES-005 §7.1: doc_type なし)
 
+    extracted_by は書かない。DES-008 §8.2 の来歴は「AI 抽出結果の書き戻し候補」を
+    識別するためのものであり、充填に失敗した error pending は候補にならない。
+
     Args:
         filepath: Output file path
         meta: _meta section dict (source_file preserved)
@@ -156,9 +164,13 @@ def write_entry_yaml(filepath, meta, entry):
     """
     Write entry YAML file (DES-005 §7.1: doc_type なし)
 
+    extracted_by は列挙値であり yaml_escape を適用しない（status と同じ扱い）。
+    転記経路（frontmatter/fm_to_pending.py）と本 script で値が異なるため、
+    値は meta 経由で受け取る（CLI 引数では受け取らない）。
+
     Args:
         filepath: Output file path
-        meta: _meta section dict (source_file / status / updated_at)
+        meta: _meta section dict (source_file / status / updated_at / extracted_by)
         entry: Entry data dict
 
     Returns:
@@ -171,6 +183,7 @@ def write_entry_yaml(filepath, meta, entry):
     lines.append(f"  source_file: {yaml_escape(meta.get('source_file', ''))}")
     lines.append(f"  status: {meta.get('status', 'completed')}")
     lines.append(f"  updated_at: {meta.get('updated_at', '')}")
+    lines.append(f"  extracted_by: {meta.get('extracted_by', EXTRACTED_BY_AI)}")
     lines.append("")
 
     # Scalar fields
@@ -284,10 +297,12 @@ def main(argv=None):
         return 3
 
     # Update _meta (doc_type なし / DES-005 §7.1)
+    # extracted_by は AI 抽出由来を表す（DES-008 §8.2）
     updated_meta = {
         'source_file': meta['source_file'],
         'status': 'completed',
-        'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        'updated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'extracted_by': EXTRACTED_BY_AI
     }
 
     # Entry data
@@ -307,6 +322,7 @@ def main(argv=None):
     log(f"  source_file: {updated_meta['source_file']}")
     log(f"  status: {updated_meta['status']}")
     log(f"  updated_at: {updated_meta['updated_at']}")
+    log(f"  extracted_by: {updated_meta['extracted_by']}")
 
     return 0
 

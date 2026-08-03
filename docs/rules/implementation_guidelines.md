@@ -1,3 +1,39 @@
+---
+type: doc-advisor
+title: Implementation Guidelines
+purpose: "Defines the rules for implementing plugin scripts and SKILL.md: language selection, mandatory test scope and placement, the inline-script ban, design doc sync, and the ban on editing version files."
+content_details:
+  - Criteria for choosing Python or Bash by workload (Python for data transformation and YAML/JSON handling, Bash for invoking external commands)
+  - Python scripts use the standard library only; external dependencies are forbidden
+  - Tests are mandatory for .py files under scripts/; SKILL.md is exempt because AI behavior is hard to test automatically; .claude/ is out of scope
+  - Test placement under tests/scripts, tests/skills, tests/integration and the test_{module}.py naming convention
+  - Why inline scripts are banned in SKILL.md (the AI rewrites or omits the code and fails) and the correct pattern of calling a standalone script
+  - Script placement (skills/{skill}/ for skill-specific, scripts/ for plugin-wide) referenced via CLAUDE_PLUGIN_ROOT or CLAUDE_SKILL_DIR
+  - Design documents are updated in the same PR as the code, and ADRs live under docs/specs/base/design/
+  - Unused code is deleted outright, including its tests, rather than left as deprecation markers or commented-out blocks
+  - Never apply a rigid token parser to input the AI is meant to interpret; fill gaps with AskUserQuestion instead
+  - Ordinary feature/fix/refactor PRs must not edit plugin.json version, README version lines, CHANGELOG entries, or git tags
+applicable_tasks:
+  - Choosing the implementation language for a new script
+  - Adding tests and deciding where to place them
+  - Writing a script invocation from SKILL.md
+  - Updating design documents and ADRs alongside code
+  - Judging whether a version or CHANGELOG edit is allowed in the current PR
+  - Removing code that is no longer used
+keywords:
+  - standard library only
+  - inline script ban
+  - tests/scripts
+  - test_{module}.py
+  - CLAUDE_PLUGIN_ROOT
+  - design doc maintenance
+  - CHANGELOG
+  - plugin.json
+  - ADR
+  - no external dependencies
+body_hash: sha256:968583e1c640d25b73ab06a95c4eaf4c0d1e0fb79d595b4528920a41f3d6678c
+---
+
 # 実装ガイドライン
 
 プラグインのスクリプト（Python / Bash）および SKILL.md 実装時のルールを定義する。

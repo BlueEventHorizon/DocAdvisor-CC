@@ -12,6 +12,8 @@ key + path I/F へ作り替え。category / doc_type 依存テストは廃止。
 - metadata.key が --key 引数と一致する（§7.2）
 - 原子的書き込み（os.replace 経路で破損なし）
 - JSON 契約（status / error_code enum・counts・deleted_paths）
+- AI 抽出結果の書き戻し候補 `ai_extracted_paths`（DES-008 §8.2 / DES-005 §8.2。
+  extracted_by: ai のみ集約・toc.yaml には出さない・成功時のみ出力）
 - docs 順序の決定性（path 昇順）
 - prepare → write_pending → merge の協調フロー（discover 全体は TASK-008）
 
@@ -88,18 +90,30 @@ class MergeTestBase(unittest.TestCase):
     def _toc_path(self, key):
         return self._store_dir(key) / 'toc.yaml'
 
-    def _write_completed_pending(self, key, source_file, *, title='Test Title'):
-        """充填済み（status: completed）pending YAML を手動作成する。"""
+    def _write_completed_pending(self, key, source_file, *, title='Test Title',
+                                 extracted_by=None):
+        """充填済み（status: completed）pending YAML を手動作成する。
+
+        Args:
+            key: 対象 key
+            source_file: pending の _meta.source_file
+            title: entry の title
+            extracted_by: _meta.extracted_by の値（None なら行を書かない。
+                既存持ち越し等の来歴不明 pending を表す / DES-008 §8.2）
+        """
         work_dir = self._work_dir(key)
         work_dir.mkdir(parents=True, exist_ok=True)
         import hashlib
         name = hashlib.sha256(source_file.encode('utf-8')).hexdigest()[:16] + '.yaml'
+        provenance_line = (
+            f"  extracted_by: {extracted_by}\n" if extracted_by is not None else ""
+        )
         content = f"""\
 _meta:
   source_file: {source_file}
   status: completed
   updated_at: "2026-01-31T00:00:00Z"
-
+{provenance_line}
 title: {title}
 purpose: Purpose of {title}
 content_details:
@@ -535,11 +549,33 @@ class TestHelpers(MergeTestBase):
     def test_load_completed_pendings(self):
         self._write_completed_pending("rules", "docs/a.md", title="A")
         self._write_pending_status("rules", "docs/b.md", "pending")
-        entries, errors = load_completed_pendings(self._work_dir("rules"))
+        entries, provenance, errors = load_completed_pendings(self._work_dir("rules"))
         self.assertIn("docs/a.md", entries)
         self.assertNotIn("docs/b.md", entries)
         self.assertTrue(any("docs/b.md" in e or "b.md" in e or "not completed" in e
                             for e in errors) or len(errors) >= 1)
+        # provenance は completed な pending のみ。extracted_by 無しは None（DES-008 §8.2）
+        self.assertEqual(set(provenance.keys()), {"docs/a.md"})
+        self.assertIsNone(provenance["docs/a.md"])
+
+    def test_load_completed_pendings_provenance(self):
+        """_meta.extracted_by が provenance として返る（entries の意味は不変）。"""
+        self._write_completed_pending(
+            "rules", "docs/ai.md", title="AI", extracted_by="ai"
+        )
+        self._write_completed_pending(
+            "rules", "docs/fm.md", title="FM", extracted_by="frontmatter"
+        )
+        entries, provenance, _ = load_completed_pendings(self._work_dir("rules"))
+        self.assertEqual(set(entries.keys()), {"docs/ai.md", "docs/fm.md"})
+        self.assertEqual(provenance["docs/ai.md"], "ai")
+        self.assertEqual(provenance["docs/fm.md"], "frontmatter")
+
+    def test_load_completed_pendings_missing_work_dir(self):
+        entries, provenance, errors = load_completed_pendings(self._work_dir("rules"))
+        self.assertEqual(entries, {})
+        self.assertEqual(provenance, {})
+        self.assertEqual(errors, [])
 
     def test_load_deleted_sidecar(self):
         self._write_sidecar("rules", ["docs/x.md", "docs/y.md"])
@@ -561,6 +597,103 @@ class TestHelpers(MergeTestBase):
         self.assertIn("docs/stale.md", deleted)
         self.assertIn("docs/sidecar.md", deleted)
         self.assertNotIn("docs/keep.md", deleted)
+
+
+# ===========================================================================
+# AI 抽出結果の書き戻し候補の集約（DES-008 §8.2 / DES-005 §8.2）
+# ===========================================================================
+
+class TestAiExtractedPaths(MergeTestBase):
+    """merge の JSON が ai_extracted_paths を出す（toc.yaml には出さない）。"""
+
+    def test_only_ai_extracted_paths_listed(self):
+        """extracted_by: ai の source_file のみが並ぶ（転記由来は含まれない）。"""
+        self._write_md("docs/ai1.md")
+        self._write_md("docs/ai2.md")
+        self._write_md("docs/fm.md")
+        self._write_completed_pending("rules", "docs/ai2.md", extracted_by="ai")
+        self._write_completed_pending("rules", "docs/ai1.md", extracted_by="ai")
+        self._write_completed_pending("rules", "docs/fm.md", extracted_by="frontmatter")
+
+        proc = self._run_merge('--key', 'rules')
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        # 昇順で決定的に並ぶ
+        self.assertEqual(obj["ai_extracted_paths"], ["docs/ai1.md", "docs/ai2.md"])
+        self.assertNotIn("docs/fm.md", obj["ai_extracted_paths"])
+
+    def test_pending_without_extracted_by_excluded(self):
+        """extracted_by を持たない pending は候補に含めない（決定論的）。"""
+        self._write_md("docs/legacy.md")
+        self._write_md("docs/ai.md")
+        self._write_completed_pending("rules", "docs/legacy.md")  # extracted_by なし
+        self._write_completed_pending("rules", "docs/ai.md", extracted_by="ai")
+
+        obj = self._parse_stdout(self._run_merge('--key', 'rules'))
+        self.assertEqual(obj["ai_extracted_paths"], ["docs/ai.md"])
+
+    def test_no_ai_extraction_yields_empty_array(self):
+        """AI 抽出が 1 件も無ければ空配列（フィールド自体は出る）。"""
+        self._write_md("docs/fm.md")
+        self._write_completed_pending("rules", "docs/fm.md", extracted_by="frontmatter")
+        obj = self._parse_stdout(self._run_merge('--key', 'rules'))
+        self.assertEqual(obj["ai_extracted_paths"], [])
+
+    def test_delete_only_yields_empty_array(self):
+        """--delete-only は pending を統合しないため常に空配列。"""
+        self._write_md("docs/a.md")
+        self._write_md("docs/b.md")
+        self._write_completed_pending("rules", "docs/a.md", extracted_by="ai")
+        self._write_completed_pending("rules", "docs/b.md", extracted_by="ai")
+        self._run_merge('--key', 'rules')
+
+        os.remove(self.project_root / "docs/b.md")
+        obj = self._parse_stdout(self._run_merge('--key', 'rules', '--delete-only'))
+        self.assertEqual(obj["status"], "ok")
+        self.assertEqual(obj["ai_extracted_paths"], [])
+
+    def test_toc_yaml_has_no_provenance_fields(self):
+        """toc.yaml に ai_extracted_paths も extracted_by も出ない（DES-008 §4.3）。"""
+        self._write_md("docs/ai.md")
+        self._write_completed_pending("rules", "docs/ai.md", extracted_by="ai")
+        self._run_merge('--key', 'rules')
+
+        content = self._toc_path("rules").read_text(encoding='utf-8')
+        self.assertNotIn("ai_extracted_paths", content)
+        self.assertNotIn("extracted_by", content)
+
+    def test_validation_failure_omits_aggregation(self):
+        """validation 失敗（ToC 未完成）では候補を出さない。"""
+        self._write_md("docs/bad.md")
+        work_dir = self._work_dir("rules")
+        work_dir.mkdir(parents=True, exist_ok=True)
+        import hashlib
+        name = hashlib.sha256(b"docs/bad.md").hexdigest()[:16] + '.yaml'
+        (work_dir / name).write_text(
+            """\
+_meta:
+  source_file: docs/bad.md
+  status: completed
+  updated_at: "2026-01-31T00:00:00Z"
+  extracted_by: ai
+
+title: Bad Entry
+purpose: Bad purpose
+content_details: []
+applicable_tasks: []
+keywords: []
+""",
+            encoding='utf-8',
+        )
+
+        proc = self._run_merge('--key', 'rules')
+        self.assertNotEqual(proc.returncode, 0)
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "error")
+        self.assertNotIn(
+            "ai_extracted_paths", obj,
+            "ToC 生成が完了していない経路では書き戻し候補を提示しない",
+        )
 
 
 # ===========================================================================
