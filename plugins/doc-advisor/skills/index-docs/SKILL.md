@@ -182,10 +182,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --key "{key}" --dirs {dirs} 
 
    ```
    Skill(skill: doc-advisor:write-frontmatter,
-         args: "--paths-json '[\"{approved_path_1}\", \"{approved_path_2}\"]'")
+         args: "--paths {approved_path_1} {approved_path_2}")
    ```
 
-   - 引数は **`--paths-json` のみ**。`write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
+   - 引数は **`--paths` のみ**。`write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
    - **承認されなかった対象を渡してはならない**
    - **ToC の JSON や `.toc_work/` を `write-frontmatter` に読ませてはならない**。候補パスは本 SKILL が引数として渡す
 

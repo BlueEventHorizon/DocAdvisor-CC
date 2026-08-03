@@ -101,6 +101,7 @@ def emit_json(
     rejected_paths=None,
     counts=None,
     warnings=None,
+    extra=None,
     stream=None,
 ):
     """stdout に単一 JSON を出力する（DES-005 §8.1）。
@@ -116,6 +117,8 @@ def emit_json(
         rejected_paths: [{path, reason}] の list（読み取れなかったファイル）
         counts: 件数の dict
         warnings: warning 文字列の list
+        extra: 追加フィールドの dict（payload にマージ）。fm_run の plan 出力
+            （targets / skipped 等）に使う。toc_store.emit_json と同じ拡張点
         stream: 出力先（省略時 sys.stdout。テスト用）
     """
     payload = {
@@ -132,6 +135,8 @@ def emit_json(
         payload["rejected_paths"] = rejected_paths
     if warnings is not None:
         payload["warnings"] = warnings
+    if extra is not None:
+        payload.update(extra)
 
     out = stream if stream is not None else sys.stdout
     out.write(json.dumps(payload, ensure_ascii=False))
