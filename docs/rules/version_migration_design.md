@@ -1,3 +1,38 @@
+---
+type: doc-advisor
+title: Version Migration Design Rules
+purpose: Defines how to design migrations when a config file or database schema changes shape across versions. The pipeline principle is the core rule.
+content_details:
+  - "Four kinds of breakage a version change causes: key rename, structure change, type change, key addition or removal"
+  - Anti-pattern of reading old data directly, where a key absent in the old version silently yields None
+  - Anti-pattern of passing the original data to every migration step, found in DocAdvisor v4.x, which loses values converted by an intermediate step
+  - "Pipeline principle: each migration takes the previous step's output as its input, which makes version-skipping conversion safe"
+  - "Five basic principles: pipeline, single source of truth for the version number with self-describing data, idempotency, preserving unknown keys for forward compatibility, persisting the applied history"
+  - YAML and JSON pattern with a MIGRATIONS registry table and apply_migrations selecting old_ver < v <= new_ver
+  - Swift Codable pattern with versioned structs kept per version and a switch that converts stepwise
+  - Database pattern with sequentially numbered migration files, an idempotent guard per file, and a schema_migrations history table
+  - Selection logic for version-skipping updates and its processing flow
+  - Pre-release checklist covering design, implementation, and tests, including the easily missed multi-step v4 to v6 test
+applicable_tasks:
+  - Designing a migration for a config file or schema change
+  - Adding a step to an existing multi-step migration chain
+  - Reviewing whether a migration is idempotent and preserves unknown keys
+  - Writing migration tests before a major version bump
+  - Choosing an implementation pattern for a given storage format
+keywords:
+  - pipeline principle
+  - idempotency
+  - forward compatibility
+  - MIGRATIONS
+  - apply_migrations
+  - setdefault
+  - versioned struct
+  - schema_migrations
+  - single source of truth
+  - self-describing
+body_hash: sha256:1d8d6150065459e3a9c6a7e30cc10b20680d7cbcc5d7ce22c736bd087f677e3f
+---
+
 # バージョンアップ・マイグレーション設計ルール
 
 Created by: k_terada
