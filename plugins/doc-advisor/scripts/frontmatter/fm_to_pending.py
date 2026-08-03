@@ -12,7 +12,8 @@ status: completed へ書き直す」ことだけを担う。
 責務:
 - --work-dir 直下の pending を決定論的順序で列挙する
 - 各 pending の _meta.source_file が指す文書を fm_core で判定する
-- 信頼できるものはその pending を completed として原子的に書き直す
+- 信頼できるものはその pending を completed として原子的に書き直し、
+  _meta.extracted_by に転記由来（frontmatter）を記録する（DES-008 §8.2）
 - 信頼できないもの・読めないものは pending を**バイト単位で無変更のまま残す**
   （AI 抽出の対象として prepare の出力を壊さない）
 
@@ -91,6 +92,11 @@ STATUS_KEY = "status"
 # _meta.status の値域（同上）
 PENDING_STATUS = "pending"
 COMPLETED_STATUS = "completed"
+
+# _meta.extracted_by の値域（DES-008 §8.2）。本 script は転記経路であり常に
+# frontmatter を書く（AI 抽出経路の 'ai' は write_pending.py が書く）
+EXTRACTED_BY_KEY = "extracted_by"
+EXTRACTED_BY_FRONTMATTER = "frontmatter"
 
 # results[].action の値域。ok（成否）とは別軸で「pending をどう扱ったか」を表す
 ACTION_TRANSCRIBED = "transcribed"
@@ -201,7 +207,8 @@ def build_pending_text(source_file, metadata, updated_at):
 
     write_pending.write_entry_yaml の出力と**バイト一致**させる:
     - _meta は source_file（yaml_escape 適用）/ status: completed /
-      updated_at（生値）の 3 キー、インデント 2 スペース
+      updated_at（生値）/ extracted_by: frontmatter（列挙値のためエスケープ
+      しない）の 4 キー、インデント 2 スペース
     - _meta ブロックの直後に空行 1 行
     - title / purpose はスカラ（yaml_escape 適用）
     - content_details / applicable_tasks / keywords はブロック配列
@@ -223,6 +230,7 @@ def build_pending_text(source_file, metadata, updated_at):
     lines.append(f"  {SOURCE_FILE_KEY}: {yaml_escape(source_file)}")
     lines.append(f"  {STATUS_KEY}: {COMPLETED_STATUS}")
     lines.append(f"  updated_at: {updated_at}")
+    lines.append(f"  {EXTRACTED_BY_KEY}: {EXTRACTED_BY_FRONTMATTER}")
     lines.append("")
 
     for field in STRING_FIELDS:

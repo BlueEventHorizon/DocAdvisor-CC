@@ -264,7 +264,7 @@ tasks:
   - task_id: TASK-011
     title: pending へ抽出来歴を記録する
     priority: 45
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-007

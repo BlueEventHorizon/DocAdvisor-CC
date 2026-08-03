@@ -5,6 +5,8 @@
 テスト対象:
 - 転記した pending が write_pending.write_entry_yaml の出力と**バイト一致**すること
 - 信頼できるフロントマターを持つ文書の pending が status: completed になること
+- 転記由来の pending が _meta.extracted_by: frontmatter を持ち、toc.yaml には
+  extracted_by が出ないこと（DES-008 §8.2）
 - スキーマ違反を含む文書の pending が未完了のまま**バイト単位で無変更**で残ること
 - フロントマターを持たない文書の pending も無変更で残ること（warning なし）
 - 既に completed の pending を再処理しないこと
@@ -168,10 +170,14 @@ class TestByteIdenticalOutput(FmToPendingTestBase):
     def _expected_bytes(self, source_file, metadata):
         """write_pending.write_entry_yaml に同じ値を渡した出力を得る。"""
         expected_path = self.project_root / 'expected.yaml'
+        # extracted_by は転記経路の値を明示的に渡す。値を除外して比較すると
+        # 書式（キーの位置・インデント・エスケープ）の一致検証が緩むため、
+        # write_entry_yaml 側が meta 経由で値を受ける形にしてある（DES-008 §8.2）。
         meta = {
             'source_file': source_file,
             'status': 'completed',
             'updated_at': FIXED_TIMESTAMP,
+            'extracted_by': 'frontmatter',
         }
         self.assertTrue(write_entry_yaml(str(expected_path), meta, metadata))
         return expected_path.read_bytes()
@@ -254,6 +260,19 @@ class TestTranscription(FmToPendingTestBase):
         self.assertEqual(meta['status'], 'completed')
         self.assertEqual(meta['source_file'], rel)
         self.assertEqual(meta['updated_at'], FIXED_TIMESTAMP)
+
+    def test_extracted_by_records_frontmatter_provenance(self):
+        """転記経路の pending は _meta.extracted_by: frontmatter を持つ（DES-008 §8.2）"""
+        rel = self._write_doc('docs/a.md', trusted_document())
+        pending = self._write_pending(rel)
+
+        process_pending(pending, updated_at=FIXED_TIMESTAMP)
+
+        text = pending.read_text(encoding='utf-8')
+        self.assertIn('  extracted_by: frontmatter\n', text)
+        self.assertEqual(
+            read_pending_meta(text)['extracted_by'], 'frontmatter'
+        )
 
     def test_transcribed_content_comes_from_frontmatter(self):
         """本文フィールドはフロントマター由来の値で書き直される"""
@@ -339,13 +358,22 @@ class TestSkipAndFailure(FmToPendingTestBase):
         """既に completed の pending は再処理しない（--force なしの write_pending と同様）"""
         rel = self._write_doc('docs/a.md', trusted_document())
         pending = self._write_pending(rel)
-        pending.write_text(
-            build_pending_text(rel, {
+        # AI 抽出で既に completed になった pending を正本（write_entry_yaml）で作る。
+        # build_pending_text は転記由来（extracted_by: frontmatter）を書くため、
+        # AI 抽出済みの代用にはならない。
+        write_entry_yaml(
+            str(pending),
+            {
+                'source_file': rel,
+                'status': 'completed',
+                'updated_at': "2026-01-01T00:00:00Z",
+                'extracted_by': 'ai',
+            },
+            {
                 'title': 'AI 抽出のタイトル', 'purpose': 'AI 抽出の purpose',
                 'content_details': ['AI 1'], 'applicable_tasks': ['AI T'],
                 'keywords': ['AI'],
-            }, "2026-01-01T00:00:00Z"),
-            encoding='utf-8',
+            },
         )
         before = pending.read_bytes()
 
@@ -599,6 +627,10 @@ class TestMergeIntegration(FmToPendingTestBase):
         toc = (self.store_dir / 'toc.yaml').read_text(encoding='utf-8')
         self.assertIn('docs/a.md:', toc)
         self.assertIn('Foo: Bar 設計', toc)
+        self.assertNotIn(
+            'extracted_by', toc,
+            "extracted_by は pending の来歴であり toc.yaml には書き出さない（DES-008 §8.2）",
+        )
         self.assertFalse(self.work_dir.exists(), ".toc_work は merge 成功で除去される")
 
     def test_untrusted_pending_blocks_merge_until_filled(self):
