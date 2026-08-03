@@ -5,7 +5,7 @@ requirements_traceability:
   - requirement_id: REQ-006
     title: フロントマターメタデータ 要件定義書
     design_id: DES-008
-    status: pending
+    status: completed
     task_ids:
       - TASK-001
       - TASK-002
@@ -240,26 +240,22 @@ tasks:
       - docs/rules/document_writing_rules.md
 
   - task_id: TASK-010
-    title: 索引フロー全体の統合テストと検索品質の回帰確認を行う
+    title: 打刻によるファイルハッシュ変化が一巡で収束することを固定する
     priority: 62
-    status: pending
+    status: completed
     design_id: DES-008
     depends_on:
       - TASK-008
     group_id: null
     build_check: per_task
     description:
-      - フロントマターを持つ文書と持たない文書を混在させた統合テストを追加する
-      - 転記由来のエントリで validate_toc が失敗しないことを固定する
-      - スキーマ違反のフロントマターで警告が出て転記されないことを固定する
-      - 打刻によるファイル全体ハッシュの変化が一巡で収束することを確認する
-      - 検索品質のゴールデンセットで、転記フェーズの追加が検索精度（見落とし・過剰包含）に影響していないことを確認する
-    acceptance_criteria: 統合テストが全通過し、混在ケースで toc.yaml の全エントリが生成され、ゴールデンセットの結果が実施前の基準と比べて悪化していない
+      - 打刻でファイル全体ハッシュが変わり updated となった文書が、転記を経て次回 unchanged に収束することを統合テストで固定する（戦略書 R9）
+      - 混在ケース・転記由来エントリの validate_toc 通過・スキーマ違反時の警告と非転記は既存テストでカバー済みのため新規に追加しない
+      - 検索品質のゴールデンセット測定は行わない（言語ルールを英語統一へ戻し R6 が不発生になったため測定の根拠が消えた）
+    acceptance_criteria: 打刻 → prepare で updated → 転記 → merge → 再 prepare で unchanged となる一巡が統合テストで固定され、既存テストが全通過する
     required_reading:
       - docs/specs/frontmatter/plan/frontmatter_strategy.md
       - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
-      - docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md
-      - DEVELOPMENT.md
 
   - task_id: TASK-011
     title: pending へ抽出来歴を記録する
