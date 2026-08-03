@@ -11,6 +11,9 @@
 - type が和集合で更新されること
 - 整形コマンドが非ゼロ終了したとき当該 entry が失敗として報告され打刻されないこと
 - 未閉鎖フロントマター・不正キーが当該 entry の失敗になり、他の entry は処理されること
+- 値域違反（purpose 超過・配列件数超過・空・型不一致）が書き込みの**前**に弾かれ、
+  対象ファイルのバイト列が 1 バイトも変わらないこと（§6.3 手順 0）
+- 書き込み側が受理した値が読み取り側の値域判定を通ること（一方向の包含）
 - 整形コマンドがシェルを介さず実行され、対象ファイル以外を書き換えないこと
 - 原子的書き込みがパーミッションを維持し、一時ファイルを残さないこと
 - status / error_code の値域が定義された集合に含まれること
@@ -43,7 +46,15 @@ for _path in (FRONTMATTER_DIR, SCRIPTS_DIR):
         sys.path.insert(0, _path)
 
 import fm_write as fm_write_module
-from fm_core import MARKER, compute_body_hash, evaluate, split_document
+from fm_core import (
+    MARKER,
+    compute_body_hash,
+    evaluate,
+    parse_frontmatter,
+    split_document,
+    validate_field_values,
+    validate_metadata,
+)
 from fm_read import ERROR_CODES, STATUSES, STATUS_ERROR, STATUS_OK, STATUS_PARTIAL, ErrorCode
 from fm_write import (
     build_format_argv,
@@ -484,6 +495,129 @@ class TestEntryFailures(FmWriteTestBase):
         self.assertEqual(counts['written'], 1)
         self.assertEqual(counts['failed'], 2)
         self.assertTrue(evaluate(self._read(good)).trust)
+
+
+class TestValueValidationBeforeWrite(FmWriteTestBase):
+    """値域違反が書き込みの前に弾かれること（DES-008 §6.3 手順 0）
+
+    上限違反を書き込んでしまうと「書けたのに fm_read が信頼しない」文書が生まれる。
+    §5.2 は「script が書いた成果物が不完全であることは契約の**外側**で何かが起きた
+    証拠」としており、契約の内側で不完全なものを書けてはならない。
+
+    ファイルが変わらないことは `changed` の値ではなく**バイト列の読み比べ**で確認する。
+    `changed` は script の自己申告であり、実際に書かれていないことの証明にならない。
+    """
+
+    def _assert_rejected_without_writing(self, metadata, expected_code):
+        text = plain_document()
+        path = self._write('docs/a.md', text)
+
+        result = write_entry(path, metadata)
+
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['error_code'], ErrorCode.UNSUPPORTED_ARG)
+        self.assertFalse(result['changed'])
+        self.assertFalse(result['formatted'])
+        self.assertIsNone(result['body_hash'])
+        self.assertEqual(
+            [item['code'] for item in result['violations']], [expected_code]
+        )
+        self.assertEqual(self._read(path), text, '1 バイトも書き換えられない')
+
+    def test_purpose_over_the_limit_is_rejected(self):
+        metadata = dict(WRITE_METADATA, purpose='x' * 201)
+        self._assert_rejected_without_writing(metadata, 'FIELD_TOO_LONG')
+
+    def test_purpose_at_the_limit_is_accepted(self):
+        """上限ちょうど（200 文字）は違反でない（境界の固定）。"""
+        path = self._write('docs/a.md', plain_document())
+
+        result = write_entry(path, dict(WRITE_METADATA, purpose='x' * 200))
+
+        self.assertTrue(result['ok'], result.get('detail'))
+        self.assertEqual(result['violations'], [])
+
+    def test_list_over_the_limit_is_rejected(self):
+        metadata = dict(WRITE_METADATA, keywords=[f'k{i}' for i in range(11)])
+        self._assert_rejected_without_writing(metadata, 'FIELD_TOO_MANY_ITEMS')
+
+    def test_empty_list_is_rejected(self):
+        metadata = dict(WRITE_METADATA, content_details=[])
+        self._assert_rejected_without_writing(metadata, 'FIELD_EMPTY')
+
+    def test_empty_string_is_rejected(self):
+        metadata = dict(WRITE_METADATA, title='   ')
+        self._assert_rejected_without_writing(metadata, 'FIELD_EMPTY')
+
+    def test_list_with_empty_element_is_rejected(self):
+        metadata = dict(WRITE_METADATA, keywords=['ok', '  '])
+        self._assert_rejected_without_writing(metadata, 'FIELD_EMPTY')
+
+    def test_string_given_for_a_list_field_is_rejected(self):
+        """content_details が配列でなく文字列（DES-008 §5.1 が挙げる代表例）。"""
+        metadata = dict(WRITE_METADATA, content_details='x')
+        self._assert_rejected_without_writing(metadata, 'FIELD_TYPE_MISMATCH')
+
+    def test_partial_metadata_is_not_rejected_for_missing_fields(self):
+        """部分指定（purpose のみ）が欠落を理由に弾かれないこと。
+
+        既存文書の一部フィールドだけを差し替える使い方を壊さないための固定。
+        """
+        path = self._write('docs/a.md', plain_document())
+        write_entry(path, dict(WRITE_METADATA))
+
+        result = write_entry(path, {'purpose': '差し替えた purpose'})
+
+        self.assertTrue(result['ok'], result.get('detail'))
+        self.assertEqual(result['violations'], [])
+        self.assertIn('差し替えた purpose', self._read(path))
+        self.assertIn('項目 A', self._read(path), '他のフィールドは保持される')
+
+    def test_violations_carry_the_measured_value(self):
+        """detail に実測値が入ること（AI に数え直させないため）。"""
+        path = self._write('docs/a.md', plain_document())
+
+        result = write_entry(path, dict(WRITE_METADATA, purpose='x' * 206))
+
+        self.assertIn('206', result['violations'][0]['detail'])
+
+    def test_written_metadata_never_violates_the_read_side_value_rules(self):
+        """一方向の包含: 書けた値は読み取り側の値域判定を通る。
+
+        validate_field_values（書き込み側）が空を返した metadata を書き込んだ結果に、
+        validate_metadata（読み取り側）が**値域**違反を返さないことを固定する。
+        両者が別々の値域規則を持つと「書ける集合 ⊄ 信頼される集合」が再発する。
+        欠落（FIELD_MISSING）と type 系は書き込み側の対象外なので除外して比較する。
+        """
+        value_codes = {
+            'FIELD_EMPTY', 'FIELD_TYPE_MISMATCH',
+            'FIELD_TOO_LONG', 'FIELD_TOO_MANY_ITEMS',
+        }
+        accepted = [
+            dict(WRITE_METADATA),
+            dict(WRITE_METADATA, purpose='x' * 200),
+            dict(WRITE_METADATA, keywords=[f'k{i}' for i in range(10)]),
+            dict(WRITE_METADATA, content_details=['single']),
+        ]
+        for metadata in accepted:
+            with self.subTest(metadata=metadata):
+                self.assertEqual(
+                    validate_field_values(metadata), [],
+                    '前提: 書き込み側が受理する metadata であること',
+                )
+                path = self._write('docs/a.md', plain_document())
+                result = write_entry(path, metadata)
+                self.assertTrue(result['ok'], result.get('detail'))
+
+                parts = split_document(self._read(path))
+                parsed = parse_frontmatter(parts.frontmatter_text)
+                codes = {
+                    code for code, _field, _detail in validate_metadata(parsed)
+                }
+                self.assertEqual(
+                    codes & value_codes, set(),
+                    '書き込めた値が読み取り側の値域判定で違反になってはならない',
+                )
 
 
 class TestFormatCommandSafety(FmWriteTestBase):

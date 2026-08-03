@@ -120,7 +120,7 @@ Step 1 で対象になった文書を 1 件ずつ `Read` し、`formats/toc_form
 
 - **5 フィールドの値は英語で書く**（対象文書の本文が何語であっても英語）。言語の規定とその根拠は `formats/toc_format.md` の **Language Rule** 節にあり、自分で言語を決めない。フロントマターの値は転記経路で `toc.yaml` に載るため、ToC と同一の言語規定に従う
 - `type` は指定しない（`fm_write.py` が `doc-advisor` を和集合で追加する）。`body_hash` は指定できない（整形後に script が算出・打刻する）
-- 上限を超えるフィールドを作らない。上限違反は書き込み後の `fm_read` 判定で信頼できないと判定され、付与が無駄になる
+- 上限を超えるフィールドを作らない。**上限違反は `fm_write.py` が書き込みの前に弾き**、その entry は 1 バイトも書き換えられずに失敗する（`violations` に実測値が入る）。文字数を自分で数える必要はないが、弾かれた場合は作り直しになる
 
 ### Step 3: 対象とメタデータの提示・承認 [MANDATORY]
 
@@ -149,6 +149,7 @@ stdout の単一 JSON から読む:
 - `status`（`ok` / `partial` / `error`）
 - `counts.total` / `counts.written` / `counts.failed` / `counts.changed` / `counts.formatted`
 - `results[]` — **entry の成否は `ok` で判定する**（`error_code` は共通列挙で表せる失敗にのみ入るため、`error_code` が `null` でも失敗しうる）。失敗した entry は `detail` を読む
+- `results[].violations` — 値域違反で書き込みの前に弾かれた場合のみ入る（`[{code, field, detail}]`）。`detail` に実測値（何文字か・何件か）が入っているので、それに従って作り直す。**この場合そのファイルは 1 バイトも変わっていない**
 - `status == error` → 引数自体の不正。書き込みは行われていない。エラー内容を報告し `AskUserQuestion` でユーザーに対応を確認する
 - `status == partial` → 一部 entry が失敗した状態。失敗した entry は書き込み前の内容へ復元されている（復元にも失敗した場合は `changed` が真で `detail` に理由が入る）。成功分はそのまま有効
 
