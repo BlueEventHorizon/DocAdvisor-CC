@@ -5,36 +5,39 @@
 metadata:
   name: Document Search Index (rules)
   key: rules
-  generated_at: 2026-08-03T11:37:50Z
+  generated_at: 2026-08-03T16:11:07Z
   file_count: 6
 
 docs:
   docs/rules/cli_output_formatting.md:
     title: CLI Output Formatting Guidelines
-    purpose: Defines color code standards and formatting patterns for shell script and CLI tool output to ensure consistency and accessibility across project tools
+    purpose: Defines how shell scripts and CLI tools color and lay out their output, assigning a role to each of the four colors and giving the echo patterns for each role.
     content_details:
-      - Color code definitions (RED, GREEN, BLUE, YELLOW, NC/reset)
-      - Color usage guidelines by semantic meaning (success, configuration, commands, warnings)
-      - Header and footer banner patterns with green color
-      - Configuration value display patterns using blue
-      - Warning and error message patterns using red
-      - Next steps and command display patterns using yellow
-      - Complete example script implementation
-      - ANSI escape sequence usage requirements with echo -e
-      - Color reset requirement after styled text
-      - Accessibility principles beyond color dependency
+      - ANSI color code definitions RED / GREEN / BLUE / YELLOW and the NC reset sequence
+      - "Role assigned to each color: green for success and banners, blue for configuration values and paths, yellow for commands the user should run, red for warnings and errors, uncolored for labels and prose"
+      - Header and footer banner pattern using a green line of equals signs around the tool name and version
+      - Configuration display pattern that colors only the value, leaving the label uncolored
+      - Warning and error message patterns, including the parenthesized note form
+      - Next-steps pattern that numbers the commands and colors only the command itself
+      - PASS and FAIL prefixes for test result lines
+      - Requirement to use echo -e so escape sequences are interpreted
+      - Requirement to always reset with NC after a colored string
+      - Accessibility rule that information must be conveyed by text as well, never by color alone
     applicable_tasks:
-      - Script output design
-      - Shell script development
-      - CLI tool implementation
-      - Output format standardization
-      - Error message design
+      - Writing output for a new shell script
+      - Adding colored output to an existing CLI tool
+      - "Reviewing whether a script's color usage is consistent with the project"
+      - Deciding which color a message belongs to
     keywords:
-      - CLI formatting
-      - Color codes
-      - ANSI escape sequences
-      - Output styling
-      - Shell script standards
+      - echo -e
+      - NC
+      - ANSI escape sequence
+      - banner
+      - PASS
+      - FAIL
+      - Next steps
+      - color reset
+      - accessibility
   docs/rules/document_writing_rules.md:
     title: Document Writing Rules
     purpose: "Meta-rule that keeps all documents consistent. Governs heading tags, terminology unification, document structure, emphasis notation, document reference notation, and each directory's document nature."
@@ -161,27 +164,32 @@ docs:
       - skill_launch_terms.toml
   docs/rules/version_migration_design.md:
     title: Version Migration Design Rules
-    purpose: Defines patterns and principles for safe multi-version data format migrations, with implementation examples for YAML/JSON, Swift Codable, and database systems.
+    purpose: Defines how to design migrations when a config file or database schema changes shape across versions. The pipeline principle is the core rule.
     content_details:
-      - Pipeline principle - each migration step receives output from previous step
-      - Single Source of Truth for version numbering
-      - Idempotency - migrations must be safely repeatable
-      - Forward compatibility - preserving unknown keys
-      - Migration history tracking
-      - Multi-format implementation patterns for YAML/JSON, Swift, and databases
-      - Skip-version handling for version jumping
-      - Pre-release checklist for version upgrades
+      - "Four kinds of breakage a version change causes: key rename, structure change, type change, key addition or removal"
+      - Anti-pattern of reading old data directly, where a key absent in the old version silently yields None
+      - Anti-pattern of passing the original data to every migration step, found in DocAdvisor v4.x, which loses values converted by an intermediate step
+      - "Pipeline principle: each migration takes the previous step's output as its input, which makes version-skipping conversion safe"
+      - "Five basic principles: pipeline, single source of truth for the version number with self-describing data, idempotency, preserving unknown keys for forward compatibility, persisting the applied history"
+      - YAML and JSON pattern with a MIGRATIONS registry table and apply_migrations selecting old_ver < v <= new_ver
+      - Swift Codable pattern with versioned structs kept per version and a switch that converts stepwise
+      - Database pattern with sequentially numbered migration files, an idempotent guard per file, and a schema_migrations history table
+      - Selection logic for version-skipping updates and its processing flow
+      - Pre-release checklist covering design, implementation, and tests, including the easily missed multi-step v4 to v6 test
     applicable_tasks:
-      - Version upgrade implementation planning
-      - Multi-version data migration design
-      - Version migration testing
-      - Database schema evolution
+      - Designing a migration for a config file or schema change
+      - Adding a step to an existing multi-step migration chain
+      - Reviewing whether a migration is idempotent and preserves unknown keys
+      - Writing migration tests before a major version bump
+      - Choosing an implementation pattern for a given storage format
     keywords:
-      - migration
-      - versioning
-      - pipeline
+      - pipeline principle
       - idempotency
       - forward compatibility
-      - Single Source of Truth
-      - Codable
-      - schema evolution
+      - MIGRATIONS
+      - apply_migrations
+      - setdefault
+      - versioned struct
+      - schema_migrations
+      - single source of truth
+      - self-describing
