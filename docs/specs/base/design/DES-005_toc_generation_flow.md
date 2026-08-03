@@ -1,3 +1,39 @@
+---
+type: doc-advisor
+title: DES-005 key + path ToC Provider Design
+purpose: Defines the design for the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, and merge.
+content_details:
+  - "store_dir(key) resolution - NFC-normalized slug of [a-z0-9_-], 40-char truncation, empty slug falls back to \"k\""
+  - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work/ per key, .toc_work intentionally not gitignored
+  - "Key validation - KEY_EMPTY for an empty key, KEY_RESERVED for an explicitly passed \"all\""
+  - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / OUTSIDE_ROOT / NOT_MARKDOWN rejections
+  - resolve_within_root() and find_escaping_symlink() - default-deny for root-escaping symlinks, approved via --allow-external-json
+  - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
+  - The transcription phase (fm_to_pending.py) sits between prepare and AI fill; all-transcribed skips every Agent
+  - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
+  - JSON contract - status and error_code are required, and the error_code enum applies to rejected_paths[].reason
+  - ai_extracted_paths is report-only, emitted on status ok, always empty for --delete-only
+applicable_tasks:
+  - Implementing or modifying prepare_toc.py / merge_toc.py
+  - Adding a script to the ToC pipeline
+  - Changing the JSON output contract or the error_code enum
+  - Designing path validation for symlinks that escape the project root
+  - Reviewing where the transcription phase is placed
+  - Debugging continuation and .toc_work resume behavior
+keywords:
+  - DES-005
+  - resolve_store_dir
+  - prepare_toc.py
+  - merge_toc.py
+  - fm_to_pending.py
+  - desired-state sync
+  - find_escaping_symlink
+  - .toc_checksums.yaml
+  - ai_extracted_paths
+  - continuation
+body_hash: sha256:e1e7e875d831548862b93c4af9f70bd8b8326c4b53b64a7977646dfaa43d5fa7
+---
+
 # DES-005 key + path ToC Provider 設計書
 
 ## メタデータ

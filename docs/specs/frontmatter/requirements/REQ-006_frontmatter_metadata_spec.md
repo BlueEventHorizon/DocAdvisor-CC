@@ -1,3 +1,38 @@
+---
+type: doc-advisor
+title: REQ-006 Frontmatter Metadata Requirements Specification
+purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.
+content_details:
+  - Documents carry the metadata the search index needs at their own head
+  - Indexing transcribes such metadata without re-reading the body
+  - Metadata not matching the current body is detectable mechanically
+  - Documents without metadata, or judged untrustworthy, fall back to body extraction
+  - A user-facing means to add metadata to existing documents is provided
+  - Metadata travels with the document, so it need not be re-derived per environment
+  - Constraint - indexing never rewrites the source; writes happen only on explicit user instruction
+  - "Constraint - existing non-doc-advisor frontmatter and other tools' markers survive the write"
+  - Constraint - metadata language follows the search index rule (English) regardless of body language
+  - Undecided items - TBD-003 (authoring contract for upper skills) and TBD-004 (indexing time target)
+applicable_tasks:
+  - Implementing frontmatter metadata indexing
+  - Reviewing whether the frontmatter design satisfies REQ-006
+  - Deciding fallback behavior for untrustworthy metadata
+  - Confirming the constraint that indexing does not rewrite sources
+  - Resolving TBD-003 or TBD-004
+keywords:
+  - REQ-006
+  - frontmatter
+  - body_hash
+  - transcription
+  - fallback
+  - doc-advisor marker
+  - TBD-003
+  - TBD-004
+  - desired-state indexing
+  - metadata language rule
+body_hash: sha256:3c236cc16caa92da3bae87efb7205d7e956785cb82fce01a58f77736035ee3f9
+---
+
 # REQ-006 フロントマターメタデータ 要件定義書
 
 ## メタデータ

@@ -1,3 +1,39 @@
+---
+type: doc-advisor
+title: DES-008 doc-advisor Frontmatter Design
+purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, and script layout.
+content_details:
+  - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
+  - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
+  - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
+  - body_hash covers the body only (self-reference avoidance), sha256:<64hex> with an algorithm prefix, stamped after the formatter
+  - Language Rule - every field value in English regardless of the body language
+  - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
+  - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
+  - all-or-nothing fallback, with a warning only when the doc-advisor marker is present
+  - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
+  - fm_write.py 7-step order (merge without body_hash, write, format, re-read, stamp) with rollback from step 3 onward
+applicable_tasks:
+  - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py
+  - Changing the trust predicate or the frontmatter schema
+  - Deciding where body_hash is stamped relative to formatting
+  - "Reviewing whether the type union update preserves other tools' markers"
+  - Adding frontmatter to existing documents via write-frontmatter
+  - Designing the write-back of AI extraction results
+keywords:
+  - DES-008
+  - body_hash
+  - fm_core.py
+  - fm_write.py
+  - fm_to_pending.py
+  - type union update
+  - trust predicate
+  - OKF
+  - extracted_by
+  - "--format-command"
+body_hash: sha256:7e719d196d17e048572238680b4d2e132678b9a8162400ab4c5d1cd8e4665adb
+---
+
 # DES-008: doc-advisor フロントマター設計書
 
 ## メタデータ
