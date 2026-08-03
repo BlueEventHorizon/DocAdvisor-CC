@@ -1,35 +1,36 @@
 ---
 type: doc-advisor
-title: 実装ガイドライン
-purpose: プラグインのスクリプトと SKILL.md 実装時のルールを定める。言語選定、テスト必須範囲と配置、インラインスクリプト禁止、設計書の追従更新、バージョン関連ファイルの編集禁止を規定する。
+title: Implementation Guidelines
+purpose: "Defines the rules for implementing plugin scripts and SKILL.md: language selection, mandatory test scope and placement, the inline-script ban, design doc sync, and the ban on editing version files."
 content_details:
-  - 処理内容に応じた Python / Bash の選定基準（データ変換は Python、外部コマンド呼び出しは Bash）
-  - Python スクリプトは標準ライブラリのみ使用（外部依存禁止）
-  - scripts/ 配下の .py はテスト必須、SKILL.md は自動テスト困難のため例外、.claude/ 配下は対象外
-  - テストの配置（tests/scripts / tests/skills / tests/integration）と命名規則 test_{module}.py
-  - SKILL.md にインラインスクリプトを書かない理由（AI がコードを改変・省略して失敗する）と正しい呼び出しパターン
-  - スクリプトの配置先（skills/{skill}/ はスキル固有、scripts/ はプラグイン共通）
-  - 設計書はコードと同一 PR で追従更新し、ADR は docs/specs/base/design/ に置く
-  - 使わないコードは非推奨マーカー・コメントアウトで残さず削除する
-  - AI が解釈すべき入力にリジッドなトークンパーサーを使わない
-  - 通常の作業 PR で plugin.json の version / README のバージョン表記 / CHANGELOG / git tag を編集しない
+  - Criteria for choosing Python or Bash by workload (Python for data transformation and YAML/JSON handling, Bash for invoking external commands)
+  - Python scripts use the standard library only; external dependencies are forbidden
+  - Tests are mandatory for .py files under scripts/; SKILL.md is exempt because AI behavior is hard to test automatically; .claude/ is out of scope
+  - Test placement under tests/scripts, tests/skills, tests/integration and the test_{module}.py naming convention
+  - Why inline scripts are banned in SKILL.md (the AI rewrites or omits the code and fails) and the correct pattern of calling a standalone script
+  - Script placement (skills/{skill}/ for skill-specific, scripts/ for plugin-wide) referenced via CLAUDE_PLUGIN_ROOT or CLAUDE_SKILL_DIR
+  - Design documents are updated in the same PR as the code, and ADRs live under docs/specs/base/design/
+  - Unused code is deleted outright, including its tests, rather than left as deprecation markers or commented-out blocks
+  - Never apply a rigid token parser to input the AI is meant to interpret; fill gaps with AskUserQuestion instead
+  - Ordinary feature/fix/refactor PRs must not edit plugin.json version, README version lines, CHANGELOG entries, or git tags
 applicable_tasks:
-  - スクリプト新規実装時の言語選定
-  - テストの追加とテスト配置先の決定
-  - SKILL.md からのスクリプト呼び出しの記述
-  - 設計書・ADR の追従更新
-  - バージョン・CHANGELOG 編集の可否判断
+  - Choosing the implementation language for a new script
+  - Adding tests and deciding where to place them
+  - Writing a script invocation from SKILL.md
+  - Updating design documents and ADRs alongside code
+  - Judging whether a version or CHANGELOG edit is allowed in the current PR
+  - Removing code that is no longer used
 keywords:
-  - 標準ライブラリのみ
-  - インラインスクリプト禁止
+  - standard library only
+  - inline script ban
   - tests/scripts
   - test_{module}.py
   - CLAUDE_PLUGIN_ROOT
-  - 設計書の保守
+  - design doc maintenance
   - CHANGELOG
   - plugin.json
   - ADR
-  - 外部依存禁止
+  - no external dependencies
 body_hash: sha256:968583e1c640d25b73ab06a95c4eaf4c0d1e0fb79d595b4528920a41f3d6678c
 ---
 

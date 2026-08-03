@@ -1,24 +1,25 @@
 ---
 type: doc-advisor
-title: SKILL.md 作成時の注意点
-purpose: Claude Code の SKILL.md を作成・編集する際の規約を定める。frontmatter フィールド、継承型 / fork 型の判別と多重防御、description の書き方、分割基準、ユーザー確認の方法を規定する。
+title: Notes on Authoring SKILL.md
+purpose: "Defines the conventions for authoring a Claude Code SKILL.md: frontmatter fields, inherited versus fork type selection with defense in depth, writing description, split criteria, and asking the user."
 content_details:
-  - frontmatter フィールド一覧（name / description / user-invocable / argument-hint / disable-model-invocation / allowed-tools / context / agent）と既定値
-  - user-invocable と disable-model-invocation の組み合わせごとの表示・呼び出し可否
-  - "継承型（context 未指定）と fork 型（context: fork）の実行モデルと親 context 継承の差"
-  - 継承型の必須事項（責務境界の明記・$ARGUMENTS への大量 context 貼り付け禁止・副作用の発生条件明示）
-  - fork 型の必須事項（否定的制約の明記・引数解釈ガード）
-  - allowed-tools は承認なしで使える allowlist であり書き込み系ツールの物理 deny ではない
-  - 使える変数（${CLAUDE_PLUGIN_ROOT} / ${CLAUDE_SKILL_DIR} / ${CLAUDE_SESSION_ID}）
-  - 別スキルの呼び出し方法と自己再帰禁止
-  - SKILL.md の分割基準（手順は SKILL.md に残し、テンプレート等は外部ファイルへ）
-  - ユーザーへの質問・選択・確認はすべて AskUserQuestion を使う
+  - Frontmatter field list (name, description, user-invocable, argument-hint, disable-model-invocation, allowed-tools, context, agent) with defaults and limits
+  - Visibility and invocability for each combination of user-invocable and disable-model-invocation
+  - "Execution model of the inherited type (context unset) versus the fork type (context: fork) and the difference in parent context inheritance"
+  - "Mandatory items for the inherited type: state the responsibility boundary, never paste bulk parent context into $ARGUMENTS, state when side effects occur"
+  - "Mandatory items for the fork type: negative constraints in the Role section and an argument-interpretation guard"
+  - The four defense-in-depth layers (fork boundary, Role constraints, allowed-tools allowlist, permissions.deny)
+  - allowed-tools is an approval-free allowlist, not a physical deny of write tools; only permissions.deny removes a tool
+  - Usable variables CLAUDE_PLUGIN_ROOT, CLAUDE_SKILL_DIR, CLAUDE_SESSION_ID and how to reference scripts with them
+  - How to invoke another skill and the ban on self-recursion (notably query-docs), which hangs the harness
+  - "Criteria for splitting SKILL.md: keep procedures inline, move templates and long guidelines to external files; ask the user only via AskUserQuestion"
 applicable_tasks:
-  - 新規 SKILL.md の作成
-  - 既存 SKILL.md の改訂・レビュー
-  - 継承型 / fork 型の型選定
-  - frontmatter フィールド・allowed-tools の指定
-  - ユーザー確認手順の記述
+  - Authoring a new SKILL.md
+  - Revising or reviewing an existing SKILL.md
+  - Choosing between the inherited type and the fork type
+  - Specifying frontmatter fields and allowed-tools
+  - Writing user confirmation steps in a skill
+  - Deciding whether to split content out of SKILL.md
 keywords:
   - SKILL.md
   - frontmatter
@@ -28,8 +29,8 @@ keywords:
   - disable-model-invocation
   - AskUserQuestion
   - CLAUDE_PLUGIN_ROOT
-  - 継承型
-  - 自己再帰禁止
+  - inherited type
+  - self-recursion ban
 body_hash: sha256:aaa7d378a6411827f082689212a008e6eee5a3dec20c1173f8de44273fe10e7a
 ---
 

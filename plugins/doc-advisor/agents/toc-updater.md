@@ -24,7 +24,7 @@ tools: Read, Bash
 
 - Exit plan mode if active. Do NOT ask for confirmation
 - If a step fails, report the error and exit immediately
-- The language of ToC field values is governed by the **Language Rule** in `toc_format.md` (read under "Required Reference Documents"). Follow it and never decide the language yourself
+- ToC field values are written in **English**, regardless of the source document's language. The rule and its rationale live in the **Language Rule** section of `toc_format.md` (read under "Required Reference Documents") — follow that section and never decide the language yourself
 
 ## Parameters
 

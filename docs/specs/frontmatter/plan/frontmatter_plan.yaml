@@ -228,11 +228,11 @@ tasks:
     group_id: null
     build_check: per_task
     description:
-      - toc_format.md の言語規定を本文追従へ改訂する（DES-008 §4.4）
+      - toc_format.md の言語規定を英語統一として明確化し、言語を規定する唯一の箇所へ集約する（DES-008 §4.4）
       - DES-005 のシーケンスへ転記経路を追記する
       - DES-005 のモジュール一覧へ frontmatter 配下の位置づけを追記する
       - 改訂により嘘になる記述が他に残っていないか確認する
-    acceptance_criteria: toc_format.md に全フィールドを英語で書くことを要求する記述が残っておらず、DES-005 のシーケンスとモジュール一覧の双方に転記経路が記載されている
+    acceptance_criteria: toc_format.md の Language Rule 節が全フィールドを英語で書くことを要求する唯一の箇所になっており、他文書（toc-updater / write-frontmatter）は同節を参照するだけで規定を複製しておらず、DES-005 のシーケンスとモジュール一覧の双方に転記経路が記載されている
     required_reading:
       - docs/specs/frontmatter/plan/frontmatter_strategy.md
       - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
@@ -253,7 +253,7 @@ tasks:
       - 転記由来のエントリで validate_toc が失敗しないことを固定する
       - スキーマ違反のフロントマターで警告が出て転記されないことを固定する
       - 打刻によるファイル全体ハッシュの変化が一巡で収束することを確認する
-      - 検索品質のゴールデンセットで見落としと過剰包含が基準から劣化しないことを確認する
+      - 検索品質のゴールデンセットで、転記フェーズの追加が検索精度（見落とし・過剰包含）に影響していないことを確認する
     acceptance_criteria: 統合テストが全通過し、混在ケースで toc.yaml の全エントリが生成され、ゴールデンセットの結果が実施前の基準と比べて悪化していない
     required_reading:
       - docs/specs/frontmatter/plan/frontmatter_strategy.md

@@ -68,14 +68,14 @@
   - `fm_to_pending.py`（§6.2）: 信頼できるフロントマターを pending YAML（`status: completed`）として書き出す。pending の書式は `write_pending.py` の出力と同一になるよう固定（エスケープ含む）
   - `workflows/index_toc_orchestrator.md` に **Phase 1.5（転記）** を追加。Phase 1（prepare）と Phase 2（連続ディスパッチ充填）の間に 1 コマンドで実行し、Phase 2 の `toc_store.py --work-status` は残った pending だけを見る。`prepare_toc.py` / `merge_toc.py` / `toc_store.py` の **コードは変更しない**（DES-008 §7.1）
   - `skills/index-docs/SKILL.md` に Phase 1.5 と warning の扱いを反映
-  - 文書更新（同一変更内）: `formats/toc_format.md` の Language Rule を「本文の言語に合わせる」へ改訂（DES-008 §4.4 / §9）、DES-005 §6.1 のシーケンスに転記経路を追記し §4.1 のモジュール一覧に `frontmatter/` の位置づけを追記（§9）
+  - 文書更新（同一変更内）: `formats/toc_format.md` の Language Rule を「全フィールド値を英語で書く」として明確化し、言語を規定する唯一の箇所へ集約（DES-008 §4.4 / §9）、DES-005 §6.1 のシーケンスに転記経路を追記し §4.1 のモジュール一覧に `frontmatter/` の位置づけを追記（§9）
   - `tests/scripts/frontmatter/test_fm_to_pending.py` および `tests/integration/` に「フロントマター有り → Agent 起動ゼロで merge 完了」の統合テスト
 - **検証ポイント**:
   - 統合テスト: フロントマター有り 1 件 + 無し 1 件を prepare → Phase 1.5 → merge し、`toc.yaml` の 2 エントリが正しく生成される（有り側は Agent を起動していない）
   - `validate_toc.py` が転記由来エントリを弾かないこと（**ロールバック回帰の防止。本 feature 最大の失敗モード**）
   - 不正フロントマター（`type: doc-advisor` 有り + スキーマ違反）で pending が生成されず、warning が JSON に出て AI 抽出へ落ちること
   - 実測: 本リポジトリ `docs/` を Phase 2 前後で比較し、起動グループ数の削減を確認（REQ-006 の性能目的の一次確認。TBD-004 の数値確定は導入後実測に委ねる）
-  - **検索品質の回帰**: 日本語メタデータが `toc.yaml` に載るため、`DEVELOPMENT.md` のゴールデンセットで FN/FP がベースラインから劣化しないことを確認する。ADR-006 が k=3 バッチングに課したのと同じ品質ゲートを、Language Rule 変更に対しても適用する
+  - **検索品質の回帰**: 転記フェーズの追加によって `toc.yaml` のエントリ生成経路が 2 系統になるため、`DEVELOPMENT.md` のゴールデンセットで FN/FP がベースラインから劣化しないことを確認する。ADR-006 が k=3 バッチングに課したのと同じ品質ゲートを、転記経路の追加に対しても適用する（言語は英語で固定されており言語混在に起因する劣化はない）
 
 ### フェーズ 4: 書き戻し来歴（`extracted_by`）— コーパスの自己修復
 
@@ -100,7 +100,7 @@
 | R3: 二重実装の乖離（`yaml_escape` / スキーマ規約が `toc_utils` `validate_toc` と `fm_core` の 2 箇所）                                    | 中     | **Phase 1** の一致テスト（§6.4）。テーブル駆動の共通ケース表を 1 箇所に置き、両実装へ流す                                                                                                              |
 | R4: 打刻順序の破れ（別経路の整形でハッシュ無効化）                                                                                        | 低     | **Phase 2**。帰結は AI 抽出へのフォールバック＝現行挙動への復帰にとどまる（DES-008 §6.3）。完全保証は狙わず、冪等テストで違反頻度を下げる                                                              |
 | R5: `--format-command` による任意コマンド実行                                                                                             | 中     | **Phase 2**。`shlex.split` + `shell=False` で実行し、`{file}` 以外の展開を行わない。設定ファイルからは読まない（§6.3 の CLI 引数受け取りを厳守）                                                       |
-| R6: 日本語メタデータ流入による検索品質劣化（FNC-002 の見落としゼロ）                                                                      | 中     | **Phase 3** のゴールデンセット実測をゲートにする。劣化時は Language Rule 改訂を切り戻し、転記時に英語化を要求する方針へ後退                                                                            |
+| R6: 日本語メタデータ流入による検索品質劣化（FNC-002 の見落としゼロ）                                                                      | —      | **発生しない。** 言語を英語で固定したためこのリスクは発生しない（DES-008 §4.4 の 1.5 改訂）。フロントマターも ToC と同一の言語規定に従うため、転記経路から日本語メタデータが `toc.yaml` へ流入しない   |
 | R7: 適用対象外（`plugins/doc-advisor/` 配下）への誤書き込み                                                                               | 中     | **Phase 2**。script は渡されたパスしか触らない（D4）。SKILL が対象を提示してユーザ確認を取る手順と、ドッグフーディングでの実地確認で担保する                                                           |
 | R8: 大量文書への書き込み SKILL 実行時の並列制御（ADR-006 の claim/lease は `toc_store.py` にあり、frontmatter script からは import 禁止） | 中     | **Phase 2**。v1 では claim/lease を持ち込まず、対象リストを script が決定論的に分割して Agent へ渡す。同一ファイルへの同時書き込みが起きない分割であることを保証する。規模で問題が出たら別途 ADR 化    |
 | R9: 打刻がファイル hash を変え `.toc_checksums.yaml` が `updated` を出す                                                                  | 低     | 設計上の想定内（DES-008 §7.2）。`updated` も転記経路で処理されるため一巡で収束する。Phase 3 の統合テストで収束を確認                                                                                   |

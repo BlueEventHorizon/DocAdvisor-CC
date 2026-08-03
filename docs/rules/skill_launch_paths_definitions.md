@@ -1,32 +1,32 @@
 ---
 type: doc-advisor
-title: SKILL / Agent / subagent 起動経路と名称 定義
-purpose: 処理を他へ委譲する起動経路 5 種に公式短縮名称を定め、曖昧語による誤読を防ぐ定義文書。subagent_type の値域と無効値も規定する。
+title: Definitions of SKILL / Agent / subagent Launch Paths and Names
+purpose: Definition document that assigns official short names to the five delegation launch paths so ambiguous wording cannot be misread. It also fixes the value range of subagent_type and its invalid values.
 content_details:
-  - 起動経路 5 種の分類（継承型 SKILL / fork 型 SKILL / 汎用 Agent / カスタム Agent / Bash subprocess）
-  - 各経路の起動ツール・手順書の所在・親 context の継承・入力・出力の比較
-  - 汎用 Agent とカスタム Agent の差は手順書がどこにあるか（prompt か agents/<name>.md か）
-  - fork 型 SKILL とカスタム Agent は隔離 context + 事前定義ロールとして動作モデルが同等
-  - 継承型 SKILL のみ親 context を継承する
-  - 「subagent」を文書中で単独使用しない用法統一と正しい呼称の対応
-  - subagent_type の値域（汎用 Agent の組み込み型 / カスタム Agent 名）
-  - subagent_type に Skill 名・slash 表記・ファイルパスを指定するのは無効
-  - 機械可読 subset docs/rules/skill_launch_terms.toml の位置づけ
+  - "Classification of the five launch paths: inherited SKILL, fork SKILL, general-purpose Agent, custom Agent, Bash subprocess"
+  - Per-path comparison of launch tool, where the procedure lives, parent context inheritance, input, and output
+  - The difference between a general-purpose Agent and a custom Agent is where the procedure lives (the caller prompt versus agents/<name>.md)
+  - A fork SKILL and a custom Agent share one execution model, isolated context plus a predefined role, differing only in launch tool and definition file location
+  - Only the inherited SKILL inherits the parent context; the other four paths all run in an isolated context
+  - Usage rule banning the standalone word subagent, with the correct term for each referent
+  - "Value range of subagent_type: built-in general-purpose Agent types and custom Agent names"
+  - "Passing a Skill name, slash notation, or a file path as subagent_type is invalid, and the correct way to make an Agent play a skill's role"
+  - Positioning of the machine-readable subset docs/rules/skill_launch_terms.toml
 applicable_tasks:
-  - SKILL.md や設計書での起動経路の記述
-  - Agent ツール呼び出し時の subagent_type 指定
-  - 委譲方式の選定時の用語確認
-  - 既存文書の曖昧語（subagent）の置換
+  - Describing a launch path in SKILL.md or a design document
+  - Specifying subagent_type when calling the Agent tool
+  - Confirming terminology while choosing a delegation method
+  - Replacing standalone uses of the word subagent in existing documents
 keywords:
-  - 起動経路
-  - 継承型 SKILL
-  - fork 型 SKILL
-  - 汎用 Agent
-  - カスタム Agent
+  - launch path
+  - inherited SKILL
+  - fork SKILL
+  - general-purpose Agent
+  - custom Agent
   - Bash subprocess
   - subagent_type
-  - Skill ツール
-  - Agent ツール
+  - Skill tool
+  - Agent tool
   - skill_launch_terms.toml
 body_hash: sha256:d7c1d352e7ca5aebb034237f7a4edb3a60d2485260bb2f5e5eeaea75d9e60c2d
 ---

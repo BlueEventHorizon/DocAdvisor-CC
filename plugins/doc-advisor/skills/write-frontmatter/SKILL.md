@@ -60,7 +60,7 @@ argument-hint: "--paths-json '[...]' | --dirs-json '[...]' [--exclude-json '[...
 
 **NEVER skip.** 処理前に以下を読むこと:
 
-- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` — メタデータ 5 フィールドの内容規約（Field Guidelines。`purpose` 200 文字・各配列 10 件・`keywords` の書き方）
+- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` — メタデータ 5 フィールドの内容規約（Field Guidelines。`purpose` 200 文字・各配列 10 件・`keywords` の書き方）と、フィールド値の言語規定（Language Rule）
 
 ## Execution Flow
 
@@ -118,7 +118,7 @@ Step 1 で対象になった文書を 1 件ずつ `Read` し、`formats/toc_form
 | `applicable_tasks` | 1〜10 件。その文書が必要になるタスク種別                                       |
 | `keywords`         | 1〜10 語。クラス名・メソッド名・ドメイン固有語を優先し、カテゴリラベルを避ける |
 
-- **言語は対象文書の本文の言語に合わせる**（日本語の文書には日本語のメタデータを書く）。フロントマターは原本に埋め込まれ人間が読むため、本文と異なる言語では編集時に更新されず腐る
+- **5 フィールドの値は英語で書く**（対象文書の本文が何語であっても英語）。言語の規定とその根拠は `formats/toc_format.md` の **Language Rule** 節にあり、自分で言語を決めない。フロントマターの値は転記経路で `toc.yaml` に載るため、ToC と同一の言語規定に従う
 - `type` は指定しない（`fm_write.py` が `doc-advisor` を和集合で追加する）。`body_hash` は指定できない（整形後に script が算出・打刻する）
 - 上限を超えるフィールドを作らない。上限違反は書き込み後の `fm_read` 判定で信頼できないと判定され、付与が無駄になる
 
@@ -189,7 +189,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_read.py --paths-json '{writ
 - ❌ **配布物・生成物・依存ディレクトリを対象に含めること**。プラグイン配布物、ビルド成果物、索引・作業ディレクトリ等の生成物、外部から取得した依存物は対象にしない。これらを含む指定を受けた場合は `AskUserQuestion` で除外の確認を取る
 - ❌ **`body_hash` / `type` を metadata として渡すこと**。`body_hash` は script が整形後に算出し、`type` は script が和集合で更新する
 - ❌ **ToC（`toc.yaml`）・`.toc_work/`・checksums を読み書きすること**。索引の生成・更新は `index-docs` の責務
-- ❌ **メタデータを英語へ翻訳すること**。言語は対象文書の本文に合わせる
+- ❌ **本文の言語に合わせてメタデータを書くこと**。言語は `formats/toc_format.md` の Language Rule に従い英語で固定する（自分で言語を判断しない）
 - ❌ commit / push を行うこと
 
 ## Error Handling

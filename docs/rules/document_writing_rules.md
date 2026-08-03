@@ -1,34 +1,35 @@
 ---
 type: doc-advisor
-title: 文書記述ルール
-purpose: 全文書の一貫性を確保するメタルール。見出しタグ・用語統一・文書構成・強調記法・文書参照記法・ディレクトリごとの文書の性質を規定する。
+title: Document Writing Rules
+purpose: "Meta-rule that keeps all documents consistent. Governs heading tags, terminology unification, document structure, emphasis notation, document reference notation, and each directory's document nature."
 content_details:
-  - "[MANDATORY] / [CRITICAL] / [IMPORTANT] タグの意味と、見出し行末に付けるスペース 1 個の配置ルール"
-  - 見出しレベルの使い分け（# はファイルタイトル、#### まで、##### は使用しない）
-  - 用語統一（必読文書 → 必須参照文書）と NEVER skip. / MUST / NEVER 等の英語強調フレーズ
-  - 長音ルール（JIS Z 8301 準拠でディレクトリ・カテゴリ・エントリ等の語尾長音を省略）
-  - 文書タイプ別の必須セクション構成（ワークフロー文書・ルール文書）と frontmatter の必須キー
-  - specs は ID プレフィックスで参照、rules / workflows / formats はプロジェクトルート起点のフルパスで参照
-  - パス省略が許容される条件と、表・コードブロック・見出し内で省略できないこと
-  - 本文は現在状態のみを記述し、移行・廃止の履歴は CHANGELOG にのみ置く
-  - docs/rules 配下ではプロジェクト固有名を使わず Foo / Bar 等のプレースホルダを使う
-  - 表記の揺れを検出する Grep コマンドと修正時のチェックリスト
+  - Meaning of the [MANDATORY] / [CRITICAL] / [IMPORTANT] tags and the exactly-one-space placement at the end of a heading line
+  - "Heading level usage (# is the file title, #### is the deepest, ##### is never used)"
+  - Terminology unification for the required-reference-documents heading label and the English emphasis phrases NEVER skip. / MUST / NEVER / DO NOT / ALWAYS
+  - Long-vowel rule per JIS Z 8301, dropping the trailing long vowel in katakana loanwords such as directory, category, factory, entry
+  - Required section structure per document type (workflow documents, rule documents) and the required frontmatter keys
+  - Documents under specs are referenced by ID prefix (REQ / DES / ADR); rules, workflows, and formats are referenced by full project-root-relative path
+  - Conditions that allow a path to be abbreviated, and the cases that forbid it (tables, code blocks, headings, other paragraphs, intermediate path elision)
+  - Body text states the current state only; migration and deprecation narrative belongs in CHANGELOG, with exceptions for legacy names that are the functional subject
+  - Documents under docs/rules use Foo / Bar / Hoge / Fuga placeholders and generic wording instead of project-specific names
+  - Grep commands that detect notation drift and the correction checklist
 applicable_tasks:
-  - ルール文書・仕様書の新規作成
-  - 既存文書の改訂・表記統一
-  - 見出しタグ・文書参照記法の修正
-  - 文書レビューでの規約適合確認
+  - Authoring a new rule document or specification
+  - Revising an existing document and unifying its notation
+  - Fixing heading tags and document reference notation
+  - Checking convention compliance during a document review
+  - Deciding which directory a piece of information belongs to
 keywords:
   - MANDATORY
-  - 必須参照文書
   - NEVER skip.
-  - 長音ルール
+  - required reference documents
+  - long-vowel rule
   - JIS Z 8301
-  - 見出しレベル
-  - フルパス参照
-  - 現在状態
-  - プレースホルダ
-  - 用語統一
+  - heading level
+  - full-path reference
+  - current state only
+  - placeholder
+  - terminology unification
 body_hash: sha256:6735cc00839e6cae62a573c6b5ac120307ab6ceb981665e33421ef39f1756524
 ---
 

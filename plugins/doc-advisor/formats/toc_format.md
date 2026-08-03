@@ -30,13 +30,13 @@ The quality of this file determines task execution success. **Missing informatio
 
 ### Language Rule
 
-**This section is the single place that governs the language of field values.** The Field Guidelines below describe what each field must convey, never the wording to use in a particular language.
+**This section is the single place that governs the language of field values.** The Field Guidelines below describe what each field must convey; any English wording they show is an example of the content, not a language rule of its own.
 
-- **Write every field value in the same language as the source document's body.** Never translate
-- The same values are embedded in the source document as frontmatter and read by humans there, so metadata in a language other than the body's goes unmaintained when the body is edited
-- The writing AI is more accurate in the body's language; interposing a translation degrades the values and adds AI work that the cost goals do not allow
-- Search is unaffected: `query-docs` reads the whole ToC and matches by meaning rather than token equality, so mixed languages are tolerated (base/FNC-002)
-- `keywords`, the field that contributes most to search, is dominated by identifiers, which do not depend on the document's language
+- **Write every field value in English, regardless of the source document's body language.** This holds for values written by the AI and for values transcribed from a document's frontmatter alike
+- **No language mixing inside `toc.yaml`.** The ToC is updated by desired-state diff, so `unchanged` entries are never re-extracted. Following the body's language would leave "new/changed entries in the body's language, everything else in the previous language" permanently in place; fixing the language makes that state impossible
+- **query-worker can compare every entry against one consistent basis.** Search reads the whole ToC and matches by meaning (base/FNC-002); per-entry language differences leave room for the synonym and cross-document judgements to drift
+- `keywords`, the field that contributes most to search, is dominated by identifiers (class names, method names), so writing it in English loses no information
+- **Staleness of a document's frontmatter is detected mechanically by `body_hash`**, so there is no need to rely on matching the body's language to keep metadata maintained
 
 ### YAML Formatting Rules
 
@@ -202,7 +202,7 @@ docs:
 ### purpose
 
 - Describe the file's role concisely (max 200 characters)
-- State plainly what the document establishes and for what subject (the rules it defines, the requirements it specifies, the design it describes) — the point is the subject, not a fixed opening phrase
+- State plainly what the document establishes and for what subject; e.g. "Defines rules for ...", "Specifies requirements for ...", "Describes design for ...". What matters is the subject, not the opening phrase
 
 ### content_details
 
@@ -210,14 +210,14 @@ docs:
 - Detailed enough for the query SKILL / Agent to understand the overview without reading the file
 - Must include important constraints/requirements
 - Prioritize items **unique to this document** — generic items (e.g., "error handling", "overview") add little value
-- Describe **concrete details under each heading**, not the heading itself — name the specific element defined under it, using its identifiers where they exist (`ContactContainerError` enum with `differentContainer` / `readOnlyContainer` variants, rather than the heading's own wording)
+- Describe **concrete details under each heading**, not the heading itself — name the specific element defined under it, using its identifiers where they exist (e.g., not "Error handling" but "ContactContainerError enum with differentContainer, readOnlyContainer variants")
 - Max 10 items
 
 ### applicable_tasks
 
 - List **specific task types** that need this file
 - Avoid vague expressions, use specific task names
-- Name the action performed as well as its subject (implementing, creating, modifying, reviewing something), not the subject alone
+- Name the action performed as well as its subject, not the subject alone; e.g. "implementation", "creation", "modification", "review" of something specific
 - Prioritize the most specific and distinguishing tasks
 - Max 10 items
 
