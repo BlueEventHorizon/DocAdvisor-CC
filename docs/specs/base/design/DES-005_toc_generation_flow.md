@@ -201,18 +201,18 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 
 各 script の主な CLI オプション:
 
-| script                         | 主なオプション                                                                                                                                       |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `index_docs.py`                | `--key` / `--all` / `--dirs` / `--paths` / `--paths-json` / `--paths-file` / `--exclude`（例外経路のみ `--allow-external` / `--on-fill-error`）      |
-| `toc_store.py`                 | `--work-status` / `--claim` / `--reset-error` / `--promote-pending` / `--clean-work-dir`（**保守・障害切り分け用**。通常経路はラッパーが内部で呼ぶ） |
-| `prepare_toc.py`               | `--key` / `--paths-json` / `--paths-file` / `--all` / `--dry-run`                                                                                    |
-| `merge_toc.py`                 | `--key` / `--all` / `--delete-only`                                                                                                                  |
-| `get_toc.py`                   | `--key` / `--all` / `--paths`（`--all` / `--key all` は REQ-001 FR-N04-4）                                                                           |
-| `remove_toc.py`                | `--key` / `--all` / `--paths-json`（`--all` / `--key all` は REQ-001 FR-N04-4）                                                                      |
-| `check_toc.py`                 | `--key` / `--all` / `--max-age`（必須）。列挙外の引数は受け取らない（REQ-005 FR-C01-4）                                                              |
-| `frontmatter/fm_to_pending.py` | `--work-dir`                                                                                                                                         |
-| `frontmatter/fm_read.py`       | `--paths-json`                                                                                                                                       |
-| `frontmatter/fm_write.py`      | `--entries-json` / `--format-command`                                                                                                                |
+| script                         | 主なオプション                                                                                                                                                                                                          |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index_docs.py`                | `--key` / `--all` / `--dirs` / `--paths` / `--exclude`（上位層が機械的に渡す JSON 形 `--dirs-json` / `--paths-json` / `--exclude-json` / `--paths-file` も受ける。例外経路のみ `--allow-external` / `--on-fill-error`） |
+| `toc_store.py`                 | `--work-status` / `--claim` / `--reset-error` / `--promote-pending` / `--clean-work-dir`（**保守・障害切り分け用**。通常経路はラッパーが内部で呼ぶ）                                                                    |
+| `prepare_toc.py`               | `--key` / `--paths-json` / `--paths-file` / `--all` / `--dry-run`                                                                                                                                                       |
+| `merge_toc.py`                 | `--key` / `--all` / `--delete-only`                                                                                                                                                                                     |
+| `get_toc.py`                   | `--key` / `--all` / `--paths`（`--all` / `--key all` は REQ-001 FR-N04-4）                                                                                                                                              |
+| `remove_toc.py`                | `--key` / `--all` / `--paths-json`（`--all` / `--key all` は REQ-001 FR-N04-4）                                                                                                                                         |
+| `check_toc.py`                 | `--key` / `--all` / `--max-age`（必須）。列挙外の引数は受け取らない（REQ-005 FR-C01-4）                                                                                                                                 |
+| `frontmatter/fm_to_pending.py` | `--work-dir`                                                                                                                                                                                                            |
+| `frontmatter/fm_read.py`       | `--paths-json`                                                                                                                                                                                                          |
+| `frontmatter/fm_write.py`      | `--entries-json` / `--format-command`                                                                                                                                                                                   |
 
 ### 4.1.1 ラッパー `index_docs.py`（AI が呼ぶ唯一の入口）
 
@@ -226,6 +226,21 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 #### 呼び出し形
 
 通常経路は 1 コマンドであり、**Agent の完了通知を受けるたびに同じコマンドを再実行する**。初回と再開を呼び出し側が区別しない（状態は `.toc_work/` が持ち、ラッパーが段階を判定する）。ウィンドウ幅・バッチサイズ・リース TTL は呼び出し側の判断材料にならないため **CLI に出さない**（ラッパー内の定数とする）。
+
+#### 呼び出し元は 2 種類ある [MANDATORY]
+
+「オプションをほぼ持たない入口にする」という方針は、**上位層との既存の契約を壊す理由にならない**。対象指定には 2 通りの形を両方受け付ける。
+
+| 呼び出し元               | 形                               | 理由                                                                     |
+| ------------------------ | -------------------------------- | ------------------------------------------------------------------------ |
+| 人間・AI が手で打つ      | `--dirs docs/rules/ docs/specs/` | 短く、引用符のエスケープが要らない                                       |
+| **上位層が機械的に渡す** | `--dirs-json '["docs/rules/"]'`  | 設定ファイルから解決した配列をそのまま渡せる。文字列へ組み立て直させない |
+
+`--exclude` / `--paths` も同様に JSON 形（`--exclude-json` / `--paths-json`）を受け、指定されていれば連結する。
+
+**この規定は実際に壊した経験から来ている。** ラッパー化の際に `--dirs-json` / `--exclude-json` を落として `--dirs` / `--exclude` のみとしたところ、forge の `update-db-rules` / `update-db-specs`（`.doc_structure.yaml` から解決した配列を `--dirs-json` で渡し、**index-docs を 1 回だけ呼ぶ**）が `unrecognized arguments` で失敗するようになった。上位層は再実行も引数の組み替えもしないため、**索引が動かないまま、上位層には理由が分からない**状態になる。
+
+入口の数を絞ることと、受け付ける引数の形を絞ることは別である。前者は AI の負担を減らすが、後者は**呼び出し元を壊す**。
 
 #### `action` の値域
 
@@ -660,6 +675,7 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
   - claim により同じコマンドの再実行が二重投入しないこと
   - **空きスロットを走行中 Agent 数で数えること**（`window` より `in_flight_groups` が多いとき `available` が負にならず `wait` になる。ADR-006 の回帰固定）
   - 全件転記できたとき Agent を 1 つも返さず `done` へ直行すること
+  - **上位層が渡す JSON 形の対象指定を受けること**（§4.1.1「呼び出し元は 2 種類ある」）: `--dirs-json` / `--exclude-json` / `--paths-json` / `--paths-file` がそれぞれ機能し、繰り返し指定形と併用したとき連結されること。不正な JSON・配列でない値・空文字列を含む配列を `INVALID_PATH` で拒否すること。`--all` との併用時に**どの引数が併用されたかをメッセージで報告する**こと
   - **`frontmatter/` を含まない `scripts/` のコピーで索引が完了すること**（撤回可能性の実証）
   - **`frontmatter/` はあるが読み込めない場合に `action: error` になること**（撤回と破損の区別。破損が `done` として隠れないことの固定）。破損の作り方を 3 通り固定する: モジュールの欠落 / 構文エラー / 依存モジュールの破損。いずれも **stdout が単一 JSON であり stderr に traceback が出ないこと**を確認する（`ImportError` のみを捕捉する実装に戻ると構文エラーで traceback になり失敗する）
   - **再試行が claim/lease に乗ること**: `--on-fill-error retry` の後に同じコマンドを再実行すると `action: wait` になり二重投入しないこと。および retry 後の entry が `error_pending` でなく通常の pending になっていること
@@ -684,6 +700,7 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 | 2026-07-30 | 0.3        | check-toc（DES-009）の追加に伴い、`check_toc.py` を §2.1 レイヤ図・§4.1 モジュール一覧・CLI オプション表へ、`check-toc` を §10 / §11.1 へ追記。§8 の `error_code` 値域に `INVALID_MAX_AGE` / `TOC_READ_ERROR` を追加し、鮮度確認の JSON 契約（`status` 2 値・ToC 不在の扱い）を明記。§13 に鮮度判定のテスト方針を追記                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 2026-08-03 | 0.4        | フロントマターメタデータ（DES-008）の追加に伴い、転記フェーズを反映。§1 概要と §2.2 依存方向規範を「script 層の転記 → 残りを AI 層が充填」の 2 段へ改め、`fm_core.py` を独立系統の共通ロジックとして明記。§2.1 レイヤ図へ `frontmatter/` 系統を追加し、§4.1 に `frontmatter/` 配下 4 件のモジュール表と CLI オプション表を追記。§6.1 のシーケンスへ `fm_to_pending.py` の転記経路を追記し、§6.6 の再開判定を転記を含む順序へ更新。§9.3 の単体モードシーケンスにも同じ転記経路を追記し、§10 の `index-docs` 責務と `write-frontmatter` SKILL の行を追加。あわせて `formats/toc_format.md` の Language Rule を本文追従へ改訂（DES-008 §4.4）                                                                                                                                                                                                                                                                                                                                                        |
 | 2026-08-03 | 0.5        | AI 抽出結果の書き戻し候補（DES-008 §8.2）の受け渡し経路を反映。§8.1 のスキーマ例と §8.2 の enum 定義表へ `merge_toc.py` 固有フィールド `ai_extracted_paths` を追記し、報告専用であること・`status: ok` 時のみ出力すること・`--delete-only` では常に空配列であることを明記。§10 の `index-docs` は merge 完了後に候補を提示し、承認された対象のみを `write-frontmatter` へ `--paths-json` で引き渡す                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2026-08-04 | 1.0        | **上位層との契約を壊していた不具合を修復した**（§4.1.1 に「呼び出し元は 2 種類ある」を新設・§4.1 の CLI 表・§13 のテスト）。0.7 のラッパー化で対象指定を `--dirs` / `--exclude` のみとし、`--dirs-json` / `--exclude-json` を落としたため、これらを渡して **index-docs を 1 回だけ呼ぶ** forge の `update-db-rules` / `update-db-specs` が `unrecognized arguments` で失敗していた。上位層は再実行も引数の組み替えもしないため、索引が動かないまま理由も分からない状態になる。「入口の数を絞る」ことと「受け付ける引数の形を絞る」ことは別であり、後者は呼び出し元を壊すという教訓を規定として残した                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-08-04 | 0.9        | Codex レビュー round 3（🟡 major 1 件）を反映。転記モジュールの読み込み失敗の捕捉を `ImportError` から `Exception` 全体へ広げた（§4.1.1 / §13）。構文エラーは `SyntaxError` であり `ImportError` ではないため、捕まえ損ねると traceback で終了し §8.1 の「stdout に単一 JSON」契約を破る。0.8 の時点では「破損が露見する方向なので放置」と判断していたが、silent success を避けることと CLI 契約を満たすことは別の要求であり、後者を落としていた。回帰テストを 3 通り（欠落 / 構文エラー / 依存の破損）へ拡張し、stdout が単一 JSON で stderr に traceback が出ないことを固定した                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 2026-08-04 | 0.8        | Codex レビュー（🟡 major 2 件）を反映。①転記の「撤回」と「破損」を区別し、`frontmatter/` があるのに転記モジュールを読み込めない場合は `action: error`（`READ_ERROR`）とした（§4.1.1）。`ImportError` の捕捉だけでは破損を撤回と同一視していた。**この判断の根拠は「誤った ToC が出ること」ではない**——破損時も AI 抽出へフォールバックするため `toc.yaml` の内容は正しく、失われるのは転記による高速化だけである。防ぐのは「配布物が壊れたまま性能劣化が黙って続くこと」であり、可用性（AI 抽出では索引できるのに止まる）とのトレードオフを取ったうえで、配布物の部分破損は放置してよい状態ではないと判断した。②充填エラーの再試行を claim/lease に乗せた（ADR-006 追補 2）。`error_pending` をそのまま投入すると `claim_entries` が拒否するため claim が効かず、同じコマンドの再実行で二重投入が起きていた。`toc_store.reset_error_entries()` / `--reset-error` を追加し、error 状態を解除してから通常の claim 経路へ合流させる。§4.1 の CLI 表に `toc_store.py` の行を追加し §13 にテストを追記 |
 | 2026-08-04 | 0.7        | 索引パイプラインのラッパー `index_docs.py` を追加した（§4.1 モジュール一覧・§4.1.1 新節・§2.1 レイヤ図・§10 の `index-docs` 責務・§13 のテスト設計）。個々の処理は script 化されていたが **script 間の配管が AI に残っており**、1 回の索引で AI が 15 回以上のコマンドを手で組み立て、各段の JSON から次の引数へフィールドを転記していた。とくに連続ディスパッチの空きスロット計算は ADR-006 が明示的に警告している計算であり、AI に委ねる根拠がなかった。AI が呼ぶ入口を 1 本に集約し、残す責務を「Agent の起動」と「判断」のみとした。コア script の CLI は残すが SKILL からは呼ばないことを規約とした。ウィンドウ幅等のチューニング値は CLI に出さない                                                                                                                                                                                                                                                                                                                                         |

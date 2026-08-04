@@ -39,19 +39,26 @@ AI が担うのは次の 2 つだけである。
 /doc-advisor:index-docs --key <key> --dirs 'docs/specs/**/design/'   # グロブ可
 /doc-advisor:index-docs --key <key> --dirs docs/ --exclude docs/draft/
 /doc-advisor:index-docs --key <key> --paths docs/a.md docs/b.md
-/doc-advisor:index-docs --key <key> --paths-json '["docs/a.md"]'     # 上位層からの機械的な受け渡し
 /doc-advisor:index-docs --all
+
+# 上位層（forge 等）が機械的に渡す形
+/doc-advisor:index-docs --key <key> --dirs-json '["docs/rules/"]' --exclude-json '["docs/rules/draft/"]'
+/doc-advisor:index-docs --key <key> --paths-json '["docs/a.md"]'
 ```
 
-| Argument               | Description                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--key <key>`          | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                                |
-| `--dirs <dir>...`      | 索引するディレクトリ（複数指定可）。グロブメタ文字（`*` `?` `[`）を含めるとパターン展開                 |
-| `--paths <path>...`    | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                             |
-| `--paths-json '[...]'` | paths の JSON 配列（上位層が機械的に渡す場合）                                                          |
-| `--paths-file <path>`  | paths 配列を含む JSON ファイル                                                                          |
-| `--exclude <path>...`  | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                               |
-| `--all`                | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない |
+| Argument                 | Description                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                                |
+| `--dirs <dir>...`        | 索引するディレクトリ（複数指定可）。グロブメタ文字（`*` `?` `[`）を含めるとパターン展開                 |
+| `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                      |
+| `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                             |
+| `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                        |
+| `--paths-file <path>`    | paths 配列を含む JSON ファイル                                                                          |
+| `--exclude <path>...`    | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                               |
+| `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                |
+| `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない |
+
+> **JSON 形をそのまま渡す [MANDATORY]**: 上位層（forge の `update-db-rules` / `update-db-specs` 等）は `.doc_structure.yaml` から解決した配列を `--dirs-json` / `--exclude-json` で渡し、**本 SKILL を 1 回だけ呼ぶ**（再実行や引数の組み替えをしない）。受け取った JSON 形は**そのまま script へ渡す**こと。`--dirs` へ書き換えたり要素を並べ替えたりしない。script が両形を受け付けて連結する。
 
 > **desired-state の破壊性 [MANDATORY]**: 渡す対象は当該 key の **完全な desired state** である。前回 ToC に存在し今回含まれない path は **削除** される（部分指定すると残りが消える）。上位層の責務である。
 
@@ -72,7 +79,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --key "{key}" --dirs {dirs}
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all
 ```
 
-`$ARGUMENTS` から `--key` / `--dirs` / `--paths` / `--paths-json` / `--paths-file` / `--exclude` / `--all` を解釈して渡す。引数が空なら `--all` として扱う。
+`$ARGUMENTS` から `--key` / `--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file` / `--exclude` / `--exclude-json` / `--all` を解釈して渡す。引数が空なら `--all` として扱う。**JSON 形（`--dirs-json` 等）は形を変えずそのまま渡す**（前掲の [MANDATORY]）。
 
 **初回と再開を区別しない [MANDATORY]**。状態は `.toc_work/` が持ち、script が今どの段階かを判定する。**Agent の完了通知を受けたら、同じコマンドをそのまま再実行する**。前回セッションの続きであっても、compaction を越えていても、同じコマンドで再開できる。
 
