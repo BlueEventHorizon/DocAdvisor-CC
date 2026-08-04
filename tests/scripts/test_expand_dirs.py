@@ -314,8 +314,14 @@ class TestSymlinks(ExpandTestBase):
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 
-    def test_expanded_external_symlink_triggers_prepare_confirmation(self):
-        """展開結果を prepare_toc.py に渡すと needs_confirmation になる。"""
+    def test_expanded_external_symlink_is_indexed_with_warning(self):
+        """展開結果を prepare_toc.py に渡すと、越境 symlink も索引される（NFR-N06）。
+
+        これは実運用の構成そのものである。上位層（forge）が `--dirs-json '["docs/"]'`
+        を渡し、その配下に外部仕様書への symlink が置かれている。上位層は index-docs
+        を 1 回だけ呼び確認に答える経路を持たないため、ここで止めると索引が動かない
+        まま理由も伝わらない。注意喚起は warning で行う。
+        """
         outside = Path(tempfile.mkdtemp()).resolve()
         try:
             target = outside / "secret.md"
@@ -334,8 +340,13 @@ class TestSymlinks(ExpandTestBase):
             )
             self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
             obj = self._parse_stdout(proc)
-            self.assertEqual(obj["status"], "needs_confirmation")
-            self.assertEqual(obj["external_pending"][0]["symlink"], "docs/external")
+            self.assertEqual(obj["status"], "ok")
+            self.assertEqual(obj["counts"]["added"], 1)
+            self.assertTrue(
+                any("external symlink indexed" in w and "docs/external" in w
+                    for w in obj["warnings"]),
+                f"warnings: {obj.get('warnings')}",
+            )
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 

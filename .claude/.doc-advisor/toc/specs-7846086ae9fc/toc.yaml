@@ -5,8 +5,8 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-07-29T15:55:49Z
-  file_count: 15
+  generated_at: 2026-08-03T16:34:11Z
+  file_count: 18
 
 docs:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
@@ -40,35 +40,36 @@ docs:
       - Agent
       - $ARGUMENTS
   docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md:
-    title: "ADR-006: index-docs Parallel Fill Performance Optimization (Increased Parallelism, Format Compression, Limited Batching)"
-    purpose: Defines optimization strategy for index-docs Phase 2 to accelerate ToC filling from 1-2 hours to ~10 minutes via parallelism increase, format compression, and limited batching with quality verification
+    title: ADR-006 index-docs Parallel Fill Performance
+    purpose: Records the decision to speed up the toc-updater fill phase via a wider window, a compressed format doc, and limited batching, gated on measured extraction quality.
     content_details:
-      - "Three-tier optimization strategy: parallelism increase (5→10), toc_format.md compression, limited batching (k=2-3)"
-      - Context rot risk analysis and context-independent extraction requirement for multiple documents per agent
-      - Sliding-window continuous dispatch (claim/lease based) instead of barrier-based wave loops to reduce tail latency
-      - Quality measurement gate for batch mode using golden set testing (rules+specs, 43 queries, FN/FP=0)
-      - "Measured performance improvement: 38% time reduction, 53% token reduction per document with batching"
-      - Agent tool subagents adopted as only reliable orchestration basis for marketplace plugin distribution
-      - Rejection of official multi-agent options (Dynamic Workflows, Agent Teams) as unsuitable for isolated document processing
-      - Parallelism constraint (10 max, proven safe; 20/30 unverified), 429 rate limiting handling for low tiers
-      - Lease TTL (900s default) for stale claim cleanup and preventing double dispatch race conditions
+      - Measurements - ~18s and ~24K tokens per document, effective parallelism verified at 10, per-document time independent of the window
+      - The bottleneck is launch-count overhead and tail latency, not insufficient parallelism
+      - context rot is the central concern - mixing documents in one context causes cross-document keyword misattribution
+      - Plan A - raise the distributed default window from 5 to 10 (verified safe; 429 on a low tier degrades to 5 then 3)
+      - Plan C - compress formats/toc_format.md so per-document context shrinks (speed and quality move together)
+      - Plan B - limited batching of k=2..3 same-directory neighbours, gated on a quality measurement
+      - Grouping is decided deterministically by script; AI grouping by hand is forbidden
+      - "Addendum (Issue #29) - continuous dispatch with claim/lease replaced foreground barrier waves; 12.6% makespan gain measured"
+      - Addendum 2 - the free-slot arithmetic moved into index_docs.py because window minus in_flight_groups must not be recomputed by AI
+      - Rejected - official multi-agent orchestration (not reachable from the SKILL runtime), and auto-selecting barrier vs continuous
     applicable_tasks:
-      - index-docs SKILL performance optimization and parallelism tuning
-      - Quality assurance testing for batch processing with multi-document context isolation
-      - Orchestration architecture design for marketplace plugin constraints
-      - Rate limit handling for different user tiers
-      - Agent tool discovery and subagent isolation design
+      - Changing the parallel window or the batch size of toc-updater fill
+      - Diagnosing slow or rate-limited indexing on a large corpus
+      - Deciding whether dispatch control belongs to a script or to the AI
+      - Reviewing extraction quality after a batching change
+      - Understanding why claim and lease exist in toc_store.py
     keywords:
-      - parallel fill
-      - batching
+      - ADR-006
       - context rot
-      - claim/lease
+      - continuous dispatch
       - sliding-window
-      - golden set
-      - orchestration
-      - toc_format compression
-      - subagents
+      - claim
+      - lease
+      - in_flight_groups
+      - max_batch
       - tail latency
+      - makespan
   docs/specs/base/design/DES-003_document_identifier.md:
     title: "DES-003: Document Identifier Design"
     purpose: Defines document identification using project-root-relative file paths as sole identifier, eliminating ID prefix requirements and enabling key+path two-layer identification for ToC management
@@ -128,35 +129,36 @@ docs:
       - single mode
   docs/specs/base/design/DES-005_toc_generation_flow.md:
     title: DES-005 key + path ToC Provider Design
-    purpose: Defines the design for implementing a generic ToC Provider using opaque keys and file paths, with separated phases for deterministic processing and AI-driven metadata extraction.
+    purpose: Defines the design for the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, and merge.
     content_details:
-      - Opaque key-based storage architecture with key-to-slug conversion
-      - Desired-state sync with prepare and merge two-phase flow
-      - Path validation including traversal checks and symlink resolution logic
-      - Module design with toc_store.py and toc_utils.py common layer
-      - Difference detection algorithm tracking added, updated, unchanged, and deleted states
-      - Backup and restore flow for merge failure recovery
-      - Continuation mode with work directory per key
-      - Removal of doc_type field from ToC schema
-      - JSON output contracts with standardized error codes and status enums
-      - Single JSON stdout contract across all scripts
+      - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and an action payload
+      - action values - dispatch / wait / confirm / done / error, with agents[].prompt ready to pass through
+      - Core CLIs stay but SKILLs must not call them (a second entry point makes state diverge)
+      - store_dir(key) resolution - NFC-normalized slug, 40-char truncation, empty slug falls back to k
+      - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work per key, .toc_work intentionally not gitignored
+      - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / OUTSIDE_ROOT / NOT_MARKDOWN rejections
+      - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
+      - The transcription phase sits between prepare and AI fill, closed into one wrapper block for withdrawal
+      - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
+      - JSON contract - status and error_code required, and the enum applies to rejected_paths[].reason
     applicable_tasks:
-      - ToC generation architecture design
-      - Key and path provider implementation
-      - Script layer interface definition
-      - Storage system design review
-      - Path validation and symlink handling specification
+      - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
+      - Adding a script to the ToC pipeline or changing what the wrapper plumbs
+      - Changing the JSON output contract or the error_code enum
+      - Designing path validation for symlinks that escape the project root
+      - Deciding what the AI does versus what a script does in the pipeline
+      - Debugging continuation and .toc_work resume behavior
     keywords:
-      - ToC provider
-      - opaque key
-      - desired-state sync
-      - path validation
-      - symlink resolution
-      - slug conversion
-      - toc_store.py
+      - DES-005
+      - index_docs.py
+      - resolve_store_dir
       - prepare_toc.py
       - merge_toc.py
-      - continuation mode
+      - fm_to_pending.py
+      - desired-state sync
+      - find_escaping_symlink
+      - ai_extracted_paths
+      - continuation
   docs/specs/base/design/DES-009_check_toc_freshness_design.md:
     title: DES-009 check-toc (ToC Freshness Check) Design
     purpose: Defines the design for check-toc SKILL that validates ToC freshness by comparing generation timestamp against a configurable age threshold, with deterministic judgment logic in a dedicated script and read-only metadata inspection.
@@ -434,3 +436,97 @@ docs:
       - pure function
       - FileNotFoundError
       - UnicodeDecodeError
+  docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md:
+    title: DES-008 doc-advisor Frontmatter Design
+    purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, and script layout.
+    content_details:
+      - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
+      - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
+      - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
+      - body_hash covers the body only (self-reference avoidance), stamped after the formatter
+      - Language Rule - every field value in English regardless of the body language
+      - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
+      - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
+      - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
+      - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
+      - fm_run.py wrapper - plan resolves targets, apply writes and verifies trust so the caller compares nothing
+    applicable_tasks:
+      - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
+      - Changing the trust predicate or the frontmatter schema
+      - Deciding where body_hash is stamped relative to formatting
+      - Deciding whether a validation belongs to the write side or the read side
+      - "Reviewing whether the type union update preserves other tools' markers"
+      - Adding frontmatter to existing documents via write-frontmatter
+      - Designing the write-back of AI extraction results
+    keywords:
+      - DES-008
+      - body_hash
+      - fm_core.py
+      - fm_run.py
+      - fm_to_pending.py
+      - type union update
+      - trust predicate
+      - OKF
+      - extracted_by
+      - "--format-command"
+  docs/specs/frontmatter/plan/frontmatter_strategy.md:
+    title: Frontmatter Implementation Strategy
+    purpose: Specifies phased implementation strategy for frontmatter support, covering assumptions, risk-driven approach, four phases, risk mitigations, and design decisions.
+    content_details:
+      - Implementation assumptions and constraints (dedicated SKILL, scope to docs/ directory, independent scripts)
+      - "Four-phase implementation approach: foundation (fm_core/fm_read), augmentation (fm_write), integration (fm_to_pending), corpus repair (extracted_by tracking)"
+      - Risk-driven bottom-up approach justified by YAML parsing uncertainty without PyYAML dependency
+      - Line-preserving merge mechanism for unknown frontmatter key preservation
+      - Body hash normalization (CRLF → LF, trailing whitespace removal) and SHA-256 stamping
+      - Schema validation rules (type presence, field count 1-10, purpose max 200 chars, hash format validation)
+      - Risk assessment table covering 9 risks with phase-specific mitigations
+      - Six design decision points (D1-D6) requiring implementation judgment
+    applicable_tasks:
+      - Planning phased frontmatter implementation with risk-driven approach
+      - Evaluating YAML parsing and merging risks under PyYAML-free constraint
+      - Implementing line-preserving merge to protect existing frontmatter keys
+      - Designing trust judgment logic for frontmatter validation
+      - Integrating frontmatter transcription into index-docs workflow
+      - Validating round-trip preservation of unknown frontmatter keys
+    keywords:
+      - fm_core
+      - fm_read
+      - fm_write
+      - fm_to_pending
+      - body_hash
+      - line-preserving merge
+      - trust judgment
+      - frontmatter
+      - validate_toc
+      - extracted_by
+  docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
+    title: REQ-006 Frontmatter Metadata Requirements Specification
+    purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.
+    content_details:
+      - Documents carry the metadata the search index needs at their own head
+      - Indexing transcribes such metadata without re-reading the body
+      - Metadata not matching the current body is detectable mechanically
+      - Documents without metadata, or judged untrustworthy, fall back to body extraction
+      - A user-facing means to add metadata to existing documents is provided
+      - Metadata travels with the document, so it need not be re-derived per environment
+      - Constraint - indexing never rewrites the source; writes happen only on explicit user instruction
+      - "Constraint - existing non-doc-advisor frontmatter and other tools' markers survive the write"
+      - Constraint - metadata language follows the search index rule (English) regardless of body language
+      - Undecided items - TBD-003 (authoring contract for upper skills) and TBD-004 (indexing time target)
+    applicable_tasks:
+      - Implementing frontmatter metadata indexing
+      - Reviewing whether the frontmatter design satisfies REQ-006
+      - Deciding fallback behavior for untrustworthy metadata
+      - Confirming the constraint that indexing does not rewrite sources
+      - Resolving TBD-003 or TBD-004
+    keywords:
+      - REQ-006
+      - frontmatter
+      - body_hash
+      - transcription
+      - fallback
+      - doc-advisor marker
+      - TBD-003
+      - TBD-004
+      - desired-state indexing
+      - metadata language rule

@@ -30,8 +30,13 @@ The quality of this file determines task execution success. **Missing informatio
 
 ### Language Rule
 
-- **All field values must be written in English**, regardless of the source document's language
-- ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
+**This section is the single place that governs the language of field values.** The Field Guidelines below describe what each field must convey; any English wording they show is an example of the content, not a language rule of its own.
+
+- **Write every field value in English, regardless of the source document's body language.** This holds for values written by the AI and for values transcribed from a document's frontmatter alike
+- **No language mixing inside `toc.yaml`.** The ToC is updated by desired-state diff, so `unchanged` entries are never re-extracted. Following the body's language would leave "new/changed entries in the body's language, everything else in the previous language" permanently in place; fixing the language makes that state impossible
+- **query-worker can compare every entry against one consistent basis.** Search reads the whole ToC and matches by meaning (base/FNC-002); per-entry language differences leave room for the synonym and cross-document judgements to drift
+- `keywords`, the field that contributes most to search, is dominated by identifiers (class names, method names), so writing it in English loses no information
+- **Staleness of a document's frontmatter is detected mechanically by `body_hash`**, so there is no need to rely on matching the body's language to keep metadata maintained
 
 ### YAML Formatting Rules
 
@@ -95,15 +100,18 @@ keywords: []
 
 `claimed_at` is likewise **not** in the base template. In continuous-dispatch fill (ADR-006 / Issue #29) `toc_store.py --claim` stamps it into `_meta` right before a `toc-updater` Agent is launched, so `--work-status` can exclude in-flight entries from `pending` (prevents double-dispatch). It is a transient runtime marker: `write_pending.py` rebuilds `_meta` on `completed` / `error`, so it disappears once the entry is filled; a stale `claimed_at` (older than the lease TTL) is treated as un-claimed and re-dispatched.
 
+`extracted_by` is likewise **not** in the base template. It records how the entry was filled and is written only when an entry reaches `completed`, so the base template (still `pending`) has no value to record. It is absent on the `--error` path as well, because a failed entry was never filled.
+
 ### _meta Field Description
 
-| Field           | Type          | Description                                                                                                                      |
-| --------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `source_file`   | string        | Target document path (from project root)                                                                                         |
-| `status`        | enum          | `pending` (unprocessed) or `completed` (done)                                                                                    |
-| `error_message` | string        | Error details, set only on failure by `write_pending.py --error` (`status` remains `pending`)                                    |
-| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                                                          |
-| `claimed_at`    | datetime      | Optional, transient. Set by `toc_store.py --claim` for continuous-dispatch lease; absent until claimed and cleared on completion |
+| Field           | Type          | Description                                                                                                                                                                                              |
+| --------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source_file`   | string        | Target document path (from project root)                                                                                                                                                                 |
+| `status`        | enum          | `pending` (unprocessed) or `completed` (done)                                                                                                                                                            |
+| `error_message` | string        | Error details, set only on failure by `write_pending.py --error` (`status` remains `pending`)                                                                                                            |
+| `updated_at`    | datetime/null | Completion time (ISO 8601 format), `null` if incomplete                                                                                                                                                  |
+| `claimed_at`    | datetime      | Optional, transient. Set by `toc_store.py --claim` for continuous-dispatch lease; absent until claimed and cleared on completion                                                                         |
+| `extracted_by`  | enum          | Provenance, set on `completed`. `frontmatter` = transcribed by `fm_to_pending.py`; `ai` = extracted by `write_pending.py` via the `toc-updater` Agent. **Never emitted to `toc.yaml`** (report use only) |
 
 ---
 
@@ -194,7 +202,7 @@ docs:
 ### purpose
 
 - Describe the file's role concisely (max 200 characters)
-- Use phrases like "Defines rules for...", "Specifies requirements for...", "Describes design for..."
+- State plainly what the document establishes and for what subject; e.g. "Defines rules for ...", "Specifies requirements for ...", "Describes design for ...". What matters is the subject, not the opening phrase
 
 ### content_details
 
@@ -202,14 +210,14 @@ docs:
 - Detailed enough for the query SKILL / Agent to understand the overview without reading the file
 - Must include important constraints/requirements
 - Prioritize items **unique to this document** — generic items (e.g., "error handling", "overview") add little value
-- Describe **concrete details under each heading**, not the heading itself (e.g., not "Error handling" but "ContactContainerError enum with differentContainer, readOnlyContainer variants")
+- Describe **concrete details under each heading**, not the heading itself — name the specific element defined under it, using its identifiers where they exist (e.g., not "Error handling" but "ContactContainerError enum with differentContainer, readOnlyContainer variants")
 - Max 10 items
 
 ### applicable_tasks
 
 - List **specific task types** that need this file
 - Avoid vague expressions, use specific task names
-- Include actions like "implementation", "creation", "modification", "review"
+- Name the action performed as well as its subject, not the subject alone; e.g. "implementation", "creation", "modification", "review" of something specific
 - Prioritize the most specific and distinguishing tasks
 - Max 10 items
 

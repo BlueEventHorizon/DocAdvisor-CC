@@ -44,7 +44,6 @@ from toc_utils import (
     find_escaping_symlink,
     detect_case_collisions,
     PathRejection,
-    ExternalSymlinkPending,
     log,
     SYSTEM_EXCLUDE_PATTERNS,
     MARKDOWN_GLOB,
@@ -186,8 +185,8 @@ def create_pending_yaml(source_file, work_dir):
 # paths 検証（DES-005 §5.1 / FR-N03）
 # ---------------------------------------------------------------------------
 
-def _build_external_pending(external_counts, project_root):
-    """越境 symlink prefix → 件数 の dict を JSON 出力用リストに整形する（NFR-N06）。
+def _build_external_symlinks(external_counts, project_root):
+    """越境 symlink prefix → 件数 の dict を warning 生成用リストに整形する（NFR-N06）。
 
     Returns:
         list[{"symlink", "resolved", "affected_count"}]（symlink 昇順）
@@ -208,25 +207,26 @@ def _build_external_pending(external_counts, project_root):
     return out
 
 
-def validate_paths(paths, project_root, allow_external=None):
+def validate_paths(paths, project_root):
     """入力 paths を §5.1 の検証フローで検証する。
 
     重複（正規化後同一）は除去し、初出順を保持する。
 
+    越境 symlink 経由の path は **索引対象に含める**（NFR-N06）。呼び出し元が
+    索引対象として渡したものであり、それが symlink であることは渡す側が知っている。
+    透明化のため warning として提示するが、reject も確認待ちもしない。
+
     Args:
         paths: 入力 path 文字列のリスト
         project_root: project root（Path）
-        allow_external: 承認済み越境 symlink prefix の集合（str iterable）。
-            None は承認なし（= 越境 symlink はすべて external_pending に積む）。
 
     Returns:
-        tuple: (normalized_paths, rejected_paths, external_pending)
+        tuple: (normalized_paths, rejected_paths, external_symlinks)
             normalized_paths: 検証を通過した project-root-relative path（重複除去・順序保持）
             rejected_paths: [{"path": <入力>, "reason": <error_code>}] のリスト
-            external_pending: 未承認の越境 symlink リスト
-                [{symlink, resolved, affected_count}]（NFR-N06）
+            external_symlinks: 索引に含めた越境 symlink リスト
+                [{symlink, resolved, affected_count}]（warning 用 / NFR-N06）
     """
-    allowed = set(allow_external) if allow_external else set()
     normalized_paths = []
     seen = set()
     rejected_paths = []
@@ -234,11 +234,7 @@ def validate_paths(paths, project_root, allow_external=None):
 
     for p in paths:
         try:
-            norm = validate_path(p, project_root, allow_external=allowed)
-        except ExternalSymlinkPending as e:
-            sym = e.symlink or str(p)
-            external_counts[sym] = external_counts.get(sym, 0) + 1
-            continue
+            norm, external_symlink = validate_path(p, project_root)
         except PathRejection as e:
             rejected_paths.append({"path": str(p), "reason": e.error_code})
             continue
@@ -246,9 +242,11 @@ def validate_paths(paths, project_root, allow_external=None):
             continue
         seen.add(norm)
         normalized_paths.append(norm)
+        if external_symlink:
+            external_counts[external_symlink] = external_counts.get(external_symlink, 0) + 1
 
-    external_pending = _build_external_pending(external_counts, project_root)
-    return normalized_paths, rejected_paths, external_pending
+    external_symlinks = _build_external_symlinks(external_counts, project_root)
+    return normalized_paths, rejected_paths, external_symlinks
 
 
 # ---------------------------------------------------------------------------
@@ -264,9 +262,11 @@ def collect_all_markdown(project_root, allow_external=None):
        - 越境 symlink が `allow_external` で承認済み → 収集対象に含める
        - 未承認 → 収集から外し external_pending に集計（§5.3 / NFR-N06）
 
-    `--all` は非対話のバルク索引のため、未承認の越境 symlink は **skip** し
-    （needs_confirmation でブロックしない）、external_pending を warning として
-    上位層に提示する。取り込みたい場合は `--allow-external-json` で明示承認する。
+    **明示 paths と単体モードの非対称は意図的である**。明示 paths（`validate_paths`）は
+    呼び出し元が索引対象として渡したものであり、それが symlink であることは渡す側が
+    知っているため確認せず索引する。一方この走査で見つかる symlink は誰も渡していない
+    ため、project root の外へ勝手に広げない。承認は `--allow-external-json` で受ける
+    （SKILL が `AskUserQuestion` で取った決定を戻す通路であり、上位層との契約ではない）。
 
     Args:
         project_root: project root（Path）
@@ -309,7 +309,7 @@ def collect_all_markdown(project_root, allow_external=None):
             continue
         collected.add(rel)
 
-    external_pending = _build_external_pending(external_counts, root)
+    external_pending = _build_external_symlinks(external_counts, root)
     return sorted(collected), external_pending
 
 
@@ -436,6 +436,14 @@ def load_input_paths(args):
         raise ValueError(f"Invalid JSON for paths: {e}") from e
 
     if not isinstance(data, list):
+        # 誤用ガード: 「paths 配列を含むファイル」という説明は object 形
+        # （{"paths": [...]}）と読めるため、実際にそう書かれる。argparse の
+        # 素の型エラーではなく、何をどう直すかを含めたエラーにする。
+        if isinstance(data, dict) and isinstance(data.get("paths"), list):
+            raise ValueError(
+                'paths must be a JSON array, not an object. '
+                'Pass the array itself (["docs/a.md", ...]), not {"paths": [...]}'
+            )
         raise ValueError("paths must be a JSON array")
     if not all(isinstance(p, str) for p in data):
         raise ValueError("paths array must contain only strings")
@@ -513,7 +521,8 @@ def main(argv=None):
     # 2. desired paths の決定
     if single_mode:
         # --all 単体モード: project root 以下の Markdown を収集（§9.1 / §5.3）。
-        # 越境 symlink は非対話で skip し external_pending を warning に回す。
+        # 走査で見つかった越境 symlink は「渡された対象」ではないため、承認済みのみ
+        # 取り込み、未承認は external_pending に積んで確認を要求する（NFR-N06）。
         desired_paths, external_pending = collect_all_markdown(project_root, allow_set)
         rejected_paths = []
     else:
@@ -529,40 +538,41 @@ def main(argv=None):
                 toc_path=toc_rel,
             )
             return 1
+        # 明示 paths は呼び出し元が索引対象として決めたものであり、越境 symlink も
+        # そのまま索引する（NFR-N06）。確認は求めない。
         desired_paths, rejected_paths, external_pending = validate_paths(
-            input_paths, project_root, allow_set
+            input_paths, project_root
         )
 
     # 2.5 未承認の越境 symlink がある場合の分岐（NFR-N06）。
-    if external_pending:
-        if single_mode:
-            # --all は非対話: skip した越境 symlink を warning として提示し処理続行。
-            pass
-        elif not decided:
-            # 明示 paths の discovery モード: 承認を取るため確認を要求し、書き込みはしない。
-            emit_json(
-                STATUS_NEEDS_CONFIRMATION,
-                error_code=None,
-                message=(
-                    "Some paths cross the project root via a symlink and need approval. "
-                    "Review the resolved targets, then re-run with "
-                    "--allow-external-json '[\"<symlink>\", ...]' listing the symlinks you approve "
-                    "(omit any you reject; pass '[]' to reject all)."
-                ),
-                key=key,
-                toc_path=toc_rel,
-                external_pending=external_pending,
-            )
-            return 0
-        # decided モード（明示 paths）: 未承認分は drop 済み。warning で透明化して続行。
+    #     単体モードの走査のみ確認を要求する。明示 paths では external_pending は
+    #     「索引に含めた越境 symlink」であり確認対象ではない。
+    if external_pending and single_mode and not decided:
+        emit_json(
+            STATUS_NEEDS_CONFIRMATION,
+            error_code=None,
+            message=(
+                "Scanning found symlinks that cross the project root. These were not "
+                "passed in explicitly, so confirm before indexing them. Review the "
+                "resolved targets, then re-run with "
+                "--allow-external-json '[\"<symlink>\", ...]' listing the symlinks you approve "
+                "(omit any you reject; pass '[]' to reject all)."
+            ),
+            key=key,
+            toc_path=toc_rel,
+            external_pending=external_pending,
+        )
+        return 0
 
     # 3. 大小衝突 warning（§5.2 / REQ-001 §6.1）
     warnings = detect_case_collisions(desired_paths)
 
-    # 越境 symlink を skip / drop した場合の透明化 warning（no silent caps）
+    # 越境 symlink の透明化 warning（no silent caps）。明示 paths では「索引した」、
+    # 単体モードの decided では「承認されず落とした」を意味する。
     for ext in external_pending:
+        verb = "not indexed (rejected)" if single_mode else "indexed"
         warnings.append(
-            f"external symlink not indexed (needs approval): {ext['symlink']} "
+            f"external symlink {verb}: {ext['symlink']} "
             f"-> {ext['resolved']} ({ext['affected_count']} file(s))"
         )
 

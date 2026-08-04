@@ -24,7 +24,7 @@ tools: Read, Bash
 
 - Exit plan mode if active. Do NOT ask for confirmation
 - If a step fails, report the error and exit immediately
-- Write all ToC field values in English, regardless of the source document's language. ToC is a search index for AI agents — English ensures consistent keyword matching across multilingual projects
+- ToC field values are written in **English**, regardless of the source document's language. The rule and its rationale live in the **Language Rule** section of `toc_format.md` (read under "Required Reference Documents") — follow that section and never decide the language yourself
 
 ## Parameters
 
@@ -41,7 +41,7 @@ tools: Read, Bash
 
 Read the following before processing:
 
-- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` - "Field Guidelines" section defines how to extract each field. `doc_type` is no longer part of the ToC schema; ignore any `doc_type` mention and never extract or emit it.
+- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` - "Field Guidelines" section defines how to extract each field, and "Language Rule" defines the language of the field values. `doc_type` is no longer part of the ToC schema; ignore any `doc_type` mention and never extract or emit it.
 
 ## Procedure
 

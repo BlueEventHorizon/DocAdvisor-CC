@@ -5,177 +5,191 @@
 metadata:
   name: Document Search Index (rules)
   key: rules
-  generated_at: 2026-06-01T14:59:54Z
+  generated_at: 2026-08-03T16:11:07Z
   file_count: 6
 
 docs:
   docs/rules/cli_output_formatting.md:
     title: CLI Output Formatting Guidelines
-    purpose: Defines color code standards and formatting patterns for shell script and CLI tool output to ensure consistency and accessibility across project tools
+    purpose: Defines how shell scripts and CLI tools color and lay out their output, assigning a role to each of the four colors and giving the echo patterns for each role.
     content_details:
-      - Color code definitions (RED, GREEN, BLUE, YELLOW, NC/reset)
-      - Color usage guidelines by semantic meaning (success, configuration, commands, warnings)
-      - Header and footer banner patterns with green color
-      - Configuration value display patterns using blue
-      - Warning and error message patterns using red
-      - Next steps and command display patterns using yellow
-      - Complete example script implementation
-      - ANSI escape sequence usage requirements with echo -e
-      - Color reset requirement after styled text
-      - Accessibility principles beyond color dependency
+      - ANSI color code definitions RED / GREEN / BLUE / YELLOW and the NC reset sequence
+      - "Role assigned to each color: green for success and banners, blue for configuration values and paths, yellow for commands the user should run, red for warnings and errors, uncolored for labels and prose"
+      - Header and footer banner pattern using a green line of equals signs around the tool name and version
+      - Configuration display pattern that colors only the value, leaving the label uncolored
+      - Warning and error message patterns, including the parenthesized note form
+      - Next-steps pattern that numbers the commands and colors only the command itself
+      - PASS and FAIL prefixes for test result lines
+      - Requirement to use echo -e so escape sequences are interpreted
+      - Requirement to always reset with NC after a colored string
+      - Accessibility rule that information must be conveyed by text as well, never by color alone
     applicable_tasks:
-      - Script output design
-      - Shell script development
-      - CLI tool implementation
-      - Output format standardization
-      - Error message design
+      - Writing output for a new shell script
+      - Adding colored output to an existing CLI tool
+      - "Reviewing whether a script's color usage is consistent with the project"
+      - Deciding which color a message belongs to
     keywords:
-      - CLI formatting
-      - Color codes
-      - ANSI escape sequences
-      - Output styling
-      - Shell script standards
+      - echo -e
+      - NC
+      - ANSI escape sequence
+      - banner
+      - PASS
+      - FAIL
+      - Next steps
+      - color reset
+      - accessibility
   docs/rules/document_writing_rules.md:
     title: Document Writing Rules
-    purpose: Establishes writing conventions and structural guidelines for project documentation to ensure consistency across all rule, specification, workflow, and format documents.
+    purpose: "Meta-rule that keeps all documents consistent. Governs heading tags, terminology unification, document structure, emphasis notation, document reference notation, and each directory's document nature."
     content_details:
-      - Heading and tag conventions with mandatory tag placement rules
-      - Unified terminology standards for document language
-      - Document structure requirements by type (workflows, rules, specs)
-      - Frontmatter metadata specifications for SKILL and workflow documents
-      - Text formatting and emphasis rules (bold, code blocks, lists, tables)
-      - Document reference notation using ID prefixes and absolute paths
-      - Directory-based document classification and roles (rules vs specs vs workflows)
-      - "Current-state only policy: moving historical narratives to CHANGELOG"
-      - Abstract examples and generic placeholders in docs/rules content
-      - Specification metadata requirements for related document references
+      - Meaning of the [MANDATORY] / [CRITICAL] / [IMPORTANT] tags and the exactly-one-space placement at the end of a heading line
+      - "Heading level usage (# is the file title, #### is the deepest, ##### is never used)"
+      - Terminology unification for the required-reference-documents heading label and the English emphasis phrases NEVER skip. / MUST / NEVER / DO NOT / ALWAYS
+      - Long-vowel rule per JIS Z 8301, dropping the trailing long vowel in katakana loanwords such as directory, category, factory, entry
+      - Required section structure per document type (workflow documents, rule documents) and the required frontmatter keys
+      - Documents under specs are referenced by ID prefix (REQ / DES / ADR); rules, workflows, and formats are referenced by full project-root-relative path
+      - Conditions that allow a path to be abbreviated, and the cases that forbid it (tables, code blocks, headings, other paragraphs, intermediate path elision)
+      - Body text states the current state only; migration and deprecation narrative belongs in CHANGELOG, with exceptions for legacy names that are the functional subject
+      - Documents under docs/rules use Foo / Bar / Hoge / Fuga placeholders and generic wording instead of project-specific names
+      - Grep commands that detect notation drift and the correction checklist
     applicable_tasks:
-      - Documentation review for compliance
-      - New rule document creation
-      - Technical specification writing
-      - Workflow document authoring
-      - Documentation style standardization
+      - Authoring a new rule document or specification
+      - Revising an existing document and unifying its notation
+      - Fixing heading tags and document reference notation
+      - Checking convention compliance during a document review
+      - Deciding which directory a piece of information belongs to
     keywords:
-      - document writing
-      - Markdown formatting
-      - frontmatter
-      - heading conventions
-      - terminology standards
-      - SKILL documentation
-      - documentation structure
-      - path references
-      - content guidelines
-      - rule enforcement
+      - MANDATORY
+      - NEVER skip.
+      - required reference documents
+      - long-vowel rule
+      - JIS Z 8301
+      - heading level
+      - full-path reference
+      - current state only
+      - placeholder
+      - terminology unification
   docs/rules/implementation_guidelines.md:
     title: Implementation Guidelines
-    purpose: Defines mandatory rules for plugin script implementation (Python/Bash), skill authoring, testing, design documentation, and version management
+    purpose: "Defines the rules for implementing plugin scripts and SKILL.md: language selection, mandatory test scope and placement, the inline-script ban, design doc sync, and the ban on editing version files."
     content_details:
-      - Language selection criteria for Python vs Bash scripts
-      - Standard library only policy for Python scripts
-      - Test requirements for scripts/ directory modules
-      - Test placement and naming conventions
-      - Prohibition of inline scripts in SKILL.md files
-      - Design documentation maintenance and ADR placement rules
-      - Unused code deletion policy
-      - User input interpretation guidelines without rigid parsers
-      - Version file editing restrictions for plugin.json, CHANGELOG, git tags
-      - Release commit procedures and parallel PR conflict avoidance
+      - Criteria for choosing Python or Bash by workload (Python for data transformation and YAML/JSON handling, Bash for invoking external commands)
+      - Python scripts use the standard library only; external dependencies are forbidden
+      - Tests are mandatory for .py files under scripts/; SKILL.md is exempt because AI behavior is hard to test automatically; .claude/ is out of scope
+      - Test placement under tests/scripts, tests/skills, tests/integration and the test_{module}.py naming convention
+      - Why inline scripts are banned in SKILL.md (the AI rewrites or omits the code and fails) and the correct pattern of calling a standalone script
+      - Script placement (skills/{skill}/ for skill-specific, scripts/ for plugin-wide) referenced via CLAUDE_PLUGIN_ROOT or CLAUDE_SKILL_DIR
+      - Design documents are updated in the same PR as the code, and ADRs live under docs/specs/base/design/
+      - Unused code is deleted outright, including its tests, rather than left as deprecation markers or commented-out blocks
+      - Never apply a rigid token parser to input the AI is meant to interpret; fill gaps with AskUserQuestion instead
+      - Ordinary feature/fix/refactor PRs must not edit plugin.json version, README version lines, CHANGELOG entries, or git tags
     applicable_tasks:
-      - Plugin script development
-      - SKILL.md implementation
-      - Test implementation for scripts
-      - Design documentation creation and updates
-      - Code cleanup and refactoring
+      - Choosing the implementation language for a new script
+      - Adding tests and deciding where to place them
+      - Writing a script invocation from SKILL.md
+      - Updating design documents and ADRs alongside code
+      - Judging whether a version or CHANGELOG edit is allowed in the current PR
+      - Removing code that is no longer used
     keywords:
-      - Implementation guidelines
-      - Python scripts
-      - Bash scripts
-      - Test requirements
-      - Version management
-      - SKILL.md authoring
-      - Design documentation
+      - standard library only
+      - inline script ban
+      - tests/scripts
+      - test_{module}.py
+      - CLAUDE_PLUGIN_ROOT
+      - design doc maintenance
+      - CHANGELOG
+      - plugin.json
       - ADR
-      - Release commit
+      - no external dependencies
   docs/rules/skill_authoring_notes.md:
-    title: SKILL.md Authoring Guidelines
-    purpose: Guidance for writing and maintaining SKILL.md files in Claude Code plugins, covering frontmatter fields, fork vs inheritance models, security practices, and design patterns
+    title: Notes on Authoring SKILL.md
+    purpose: "Defines the conventions for authoring a Claude Code SKILL.md: frontmatter fields, inherited versus fork type selection with defense in depth, writing description, split criteria, and asking the user."
     content_details:
-      - Frontmatter field definitions and requirements (name, description, user-invocable, disable-model-invocation, allowed-tools, context, agent)
-      - Fork vs inheritance execution models and decision criteria
-      - Multi-layered security constraints (fork boundaries, Role restrictions, allowlist, physical deny)
-      - Recursive call prevention (self-invocation prohibition, especially for query-docs)
-      - SKILL.md split guidelines and external resource references
-      - Description field best practices and auto-invocation triggers
-      - Tool invocation syntax and variable usage (CLAUDE_PLUGIN_ROOT, CLAUDE_SKILL_DIR, CLAUDE_SESSION_ID)
-      - Dependency SKILL existence checking patterns
-      - User interaction guidelines with AskUserQuestion tool
-      - Project-specific conventions for Japanese documentation and invocation markers
+      - Frontmatter field list (name, description, user-invocable, argument-hint, disable-model-invocation, allowed-tools, context, agent) with defaults and limits
+      - Visibility and invocability for each combination of user-invocable and disable-model-invocation
+      - "Execution model of the inherited type (context unset) versus the fork type (context: fork) and the difference in parent context inheritance"
+      - "Mandatory items for the inherited type: state the responsibility boundary, never paste bulk parent context into $ARGUMENTS, state when side effects occur"
+      - "Mandatory items for the fork type: negative constraints in the Role section and an argument-interpretation guard"
+      - The four defense-in-depth layers (fork boundary, Role constraints, allowed-tools allowlist, permissions.deny)
+      - allowed-tools is an approval-free allowlist, not a physical deny of write tools; only permissions.deny removes a tool
+      - Usable variables CLAUDE_PLUGIN_ROOT, CLAUDE_SKILL_DIR, CLAUDE_SESSION_ID and how to reference scripts with them
+      - How to invoke another skill and the ban on self-recursion (notably query-docs), which hangs the harness
+      - "Criteria for splitting SKILL.md: keep procedures inline, move templates and long guidelines to external files; ask the user only via AskUserQuestion"
     applicable_tasks:
-      - Writing new SKILL.md files
-      - SKILL.md review and security audit
-      - Migration decisions between fork and inheritance models
-      - Plugin documentation maintenance
-      - Security guideline enforcement and compliance verification
+      - Authoring a new SKILL.md
+      - Revising or reviewing an existing SKILL.md
+      - Choosing between the inherited type and the fork type
+      - Specifying frontmatter fields and allowed-tools
+      - Writing user confirmation steps in a skill
+      - Deciding whether to split content out of SKILL.md
     keywords:
       - SKILL.md
-      - fork context
-      - inheritance model
       - frontmatter
+      - "context: fork"
       - allowed-tools
-      - multi-layer security
-      - recursive call prevention
-      - context isolation
-      - ADR-002
+      - user-invocable
+      - disable-model-invocation
       - AskUserQuestion
+      - CLAUDE_PLUGIN_ROOT
+      - inherited type
+      - self-recursion ban
   docs/rules/skill_launch_paths_definitions.md:
-    title: SKILL / Agent / subagent launch paths and terminology definitions
-    purpose: Provides unified terminology for five types of process delegation paths to prevent confusion and ensure consistent naming across project documentation
+    title: Definitions of SKILL / Agent / subagent Launch Paths and Names
+    purpose: Definition document that assigns official short names to the five delegation launch paths so ambiguous wording cannot be misread. It also fixes the value range of subagent_type and its invalid values.
     content_details:
-      - Five launch path types (inherited SKILL, fork SKILL, general-purpose Agent, custom Agent, Bash subprocess)
-      - Context inheritance model across delegation paths
-      - Distinction between custom and general-purpose Agents (procedure location)
-      - Fork SKILL and custom Agent operational equivalence
-      - "Unified terminology rules for avoiding 'subagent' ambiguity"
-      - Valid and invalid values for subagent_type parameter
-      - Agent tool vs Skill tool invocation differences
+      - "Classification of the five launch paths: inherited SKILL, fork SKILL, general-purpose Agent, custom Agent, Bash subprocess"
+      - Per-path comparison of launch tool, where the procedure lives, parent context inheritance, input, and output
+      - The difference between a general-purpose Agent and a custom Agent is where the procedure lives (the caller prompt versus agents/<name>.md)
+      - A fork SKILL and a custom Agent share one execution model, isolated context plus a predefined role, differing only in launch tool and definition file location
+      - Only the inherited SKILL inherits the parent context; the other four paths all run in an isolated context
+      - Usage rule banning the standalone word subagent, with the correct term for each referent
+      - "Value range of subagent_type: built-in general-purpose Agent types and custom Agent names"
+      - "Passing a Skill name, slash notation, or a file path as subagent_type is invalid, and the correct way to make an Agent play a skill's role"
+      - Positioning of the machine-readable subset docs/rules/skill_launch_terms.toml
     applicable_tasks:
-      - Writing SKILL or Agent documentation
-      - Documentation terminology standardization
-      - Agent type and subagent_type specification
-      - Process delegation architecture review
+      - Describing a launch path in SKILL.md or a design document
+      - Specifying subagent_type when calling the Agent tool
+      - Confirming terminology while choosing a delegation method
+      - Replacing standalone uses of the word subagent in existing documents
     keywords:
-      - SKILL
-      - Agent
-      - subagent
       - launch path
-      - fork
-      - context inheritance
-      - subagent_type
+      - inherited SKILL
+      - fork SKILL
+      - general-purpose Agent
       - custom Agent
-      - general-purpose
+      - Bash subprocess
+      - subagent_type
+      - Skill tool
+      - Agent tool
+      - skill_launch_terms.toml
   docs/rules/version_migration_design.md:
     title: Version Migration Design Rules
-    purpose: Defines patterns and principles for safe multi-version data format migrations, with implementation examples for YAML/JSON, Swift Codable, and database systems.
+    purpose: Defines how to design migrations when a config file or database schema changes shape across versions. The pipeline principle is the core rule.
     content_details:
-      - Pipeline principle - each migration step receives output from previous step
-      - Single Source of Truth for version numbering
-      - Idempotency - migrations must be safely repeatable
-      - Forward compatibility - preserving unknown keys
-      - Migration history tracking
-      - Multi-format implementation patterns for YAML/JSON, Swift, and databases
-      - Skip-version handling for version jumping
-      - Pre-release checklist for version upgrades
+      - "Four kinds of breakage a version change causes: key rename, structure change, type change, key addition or removal"
+      - Anti-pattern of reading old data directly, where a key absent in the old version silently yields None
+      - Anti-pattern of passing the original data to every migration step, found in DocAdvisor v4.x, which loses values converted by an intermediate step
+      - "Pipeline principle: each migration takes the previous step's output as its input, which makes version-skipping conversion safe"
+      - "Five basic principles: pipeline, single source of truth for the version number with self-describing data, idempotency, preserving unknown keys for forward compatibility, persisting the applied history"
+      - YAML and JSON pattern with a MIGRATIONS registry table and apply_migrations selecting old_ver < v <= new_ver
+      - Swift Codable pattern with versioned structs kept per version and a switch that converts stepwise
+      - Database pattern with sequentially numbered migration files, an idempotent guard per file, and a schema_migrations history table
+      - Selection logic for version-skipping updates and its processing flow
+      - Pre-release checklist covering design, implementation, and tests, including the easily missed multi-step v4 to v6 test
     applicable_tasks:
-      - Version upgrade implementation planning
-      - Multi-version data migration design
-      - Version migration testing
-      - Database schema evolution
+      - Designing a migration for a config file or schema change
+      - Adding a step to an existing multi-step migration chain
+      - Reviewing whether a migration is idempotent and preserves unknown keys
+      - Writing migration tests before a major version bump
+      - Choosing an implementation pattern for a given storage format
     keywords:
-      - migration
-      - versioning
-      - pipeline
+      - pipeline principle
       - idempotency
       - forward compatibility
-      - Single Source of Truth
-      - Codable
-      - schema evolution
+      - MIGRATIONS
+      - apply_migrations
+      - setdefault
+      - versioned struct
+      - schema_migrations
+      - single source of truth
+      - self-describing

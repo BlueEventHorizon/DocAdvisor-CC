@@ -255,7 +255,7 @@ class TestEmitJson(unittest.TestCase):
             "INVALID_PATH", "PATH_TRAVERSAL", "ABSOLUTE_PATH", "OUTSIDE_ROOT",
             "NOT_FOUND", "NOT_MARKDOWN", "KEY_EMPTY", "KEY_RESERVED",
             "TOC_NOT_FOUND", "NO_TARGETS", "UNSUPPORTED_ARG",
-            "INVALID_MAX_AGE", "TOC_READ_ERROR",
+            "INVALID_MAX_AGE", "TOC_READ_ERROR", "READ_ERROR",
         }
         self.assertEqual(set(ERROR_CODES), expected)
 
@@ -631,6 +631,129 @@ class TestClaimEntries(unittest.TestCase):
         self.assertEqual([r["reason"] for r in res["rejected"]], ["completed"])
 
 
+class TestResetErrorEntries(unittest.TestCase):
+    """reset_error_entries（error_pending の再試行前段）のテスト。
+
+    error_message を持つ entry は claim_entries が reject するため（正しい仕様）、
+    そのまま Agent へ投入すると claim/lease の保護が働かず二重投入が起きる。
+    再試行は「error 状態を解除して通常の pending に戻し、そのうえで claim する」
+    順序で行う必要があり、本関数がその前段を担う。
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = Path(self.tmpdir)
+        self.store_dir = self.root / "store"
+        self.work_dir = self.store_dir / toc_store.WORK_DIRNAME
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+        self.now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write_pending(self, name, *, status="pending", source_file="rules/a.md",
+                       error_message=None, claimed_at=None):
+        lines = ["_meta:", f"  source_file: {source_file}", f"  status: {status}"]
+        if error_message is not None:
+            lines.append(f"  error_message: {error_message}")
+        if claimed_at is not None:
+            lines.append(f"  claimed_at: {claimed_at}")
+        lines += ["", "title: null", "purpose: null",
+                  "content_details: []", "applicable_tasks: []", "keywords: []", ""]
+        (self.work_dir / name).write_text("\n".join(lines), encoding="utf-8")
+        return f"store/.toc_work/{name}"
+
+    def test_reset_makes_the_entry_claimable(self):
+        rel = self._write_pending("a.yaml", error_message="boom")
+
+        # 前提: error_pending は claim できない
+        before = claim_entries(self.store_dir, self.root, [rel], now=self.now)
+        self.assertEqual(before["rejected"][0]["reason"], "error_pending")
+
+        res = toc_store.reset_error_entries(self.store_dir, self.root, [rel])
+
+        self.assertEqual(res["reset"], [rel])
+        self.assertEqual(res["rejected"], [])
+        # 解除後は通常の pending として claim できる
+        after = claim_entries(self.store_dir, self.root, [rel], now=self.now)
+        self.assertEqual(after["claimed"], [rel])
+
+    def test_reset_moves_the_entry_from_error_pending_to_pending(self):
+        rel = self._write_pending("a.yaml", error_message="boom")
+
+        before = work_status(self.store_dir, self.root, now=self.now)
+        self.assertEqual([e["entry_file"] for e in before["error_pending"]], [rel])
+        self.assertEqual(before["next_action"], "blocked")
+
+        toc_store.reset_error_entries(self.store_dir, self.root, [rel])
+
+        after = work_status(self.store_dir, self.root, now=self.now)
+        self.assertEqual(after["error_pending"], [])
+        self.assertEqual(after["pending"], [rel])
+        self.assertEqual(after["next_action"], "fill")
+
+    def test_reset_preserves_the_body_template_and_other_meta(self):
+        rel = self._write_pending("a.yaml", error_message="boom")
+
+        toc_store.reset_error_entries(self.store_dir, self.root, [rel])
+
+        text = (self.work_dir / "a.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("error_message", text)
+        self.assertIn("source_file: rules/a.md", text)
+        self.assertIn("status: pending", text)
+        self.assertIn("title: null", text)
+        self.assertIn("content_details: []", text)
+
+    def test_reset_rejects_an_entry_without_an_error(self):
+        """通常の pending / completed は触らない（誤って状態を変えない）。"""
+        plain = self._write_pending("a.yaml")
+        done = self._write_pending("b.yaml", status="completed", source_file="rules/b.md")
+
+        res = toc_store.reset_error_entries(self.store_dir, self.root, [plain, done])
+
+        self.assertEqual(res["reset"], [])
+        self.assertEqual([r["reason"] for r in res["rejected"]],
+                         ["not_errored", "not_errored"])
+
+    def test_reset_rejects_not_found(self):
+        res = toc_store.reset_error_entries(
+            self.store_dir, self.root, ["store/.toc_work/missing.yaml"]
+        )
+        self.assertEqual(res["reset"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "not_found")
+
+    def test_reset_rejects_outside_work_dir(self):
+        """別 key の work dir や traversal を拒否し、書き込み副作用も残さない。"""
+        outside = self.root / "secret.yaml"
+        outside.write_text(
+            "_meta:\n  source_file: x\n  status: pending\n  error_message: boom\n\ntitle: null\n",
+            encoding="utf-8",
+        )
+        before = outside.read_text(encoding="utf-8")
+
+        res = toc_store.reset_error_entries(
+            self.store_dir, self.root, ["store/.toc_work/../../secret.yaml"]
+        )
+
+        self.assertEqual(res["reset"], [])
+        self.assertEqual(res["rejected"][0]["reason"], "outside_work_dir")
+        self.assertEqual(outside.read_text(encoding="utf-8"), before,
+                         "配下外のファイルを書き換えていない")
+
+    def test_reset_keeps_an_existing_claimed_at(self):
+        """claimed_at は消さない（error 状態のみを解除する）。"""
+        rel = self._write_pending(
+            "a.yaml", error_message="boom",
+            claimed_at=toc_store._utc_now_iso(self.now),
+        )
+
+        toc_store.reset_error_entries(self.store_dir, self.root, [rel])
+
+        text = (self.work_dir / "a.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("error_message", text)
+        self.assertIn("claimed_at: 2026-01-01T12:00:00Z", text)
+
+
 class TestGroupPendingByDir(unittest.TestCase):
     """group_pending_by_dir（ADR-006 案 B の決定論グルーピング）の純粋関数テスト。"""
 
@@ -754,6 +877,29 @@ class TestCli(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         obj = self._parse_stdout(proc)
         self.assertEqual(obj["error_code"], "NO_TARGETS")
+
+    def test_reset_error_emits_reset_and_rejected(self):
+        """--reset-error が reset / rejected を JSON で返す。"""
+        store_dir = self._store_dir('rules')
+        work_dir = store_dir / toc_store.WORK_DIRNAME
+        work_dir.mkdir(parents=True, exist_ok=True)
+        (work_dir / 'a.yaml').write_text(
+            "_meta:\n  source_file: docs/a.md\n  status: pending\n"
+            "  error_message: boom\n\ntitle: null\n",
+            encoding='utf-8',
+        )
+        rel = str((work_dir / 'a.yaml').relative_to(Path(self.project_root)))
+
+        proc = self._run('--key', 'rules', '--reset-error', rel)
+
+        self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertEqual(obj["reset"], [rel])
+        self.assertEqual(obj["rejected"], [])
+        self.assertNotIn(
+            'error_message', (work_dir / 'a.yaml').read_text(encoding='utf-8')
+        )
 
     def test_all_flag_resolves_reserved_key(self):
         """--all は予約 key 'all' に解決し reject されない（clean は冪等成功）。"""

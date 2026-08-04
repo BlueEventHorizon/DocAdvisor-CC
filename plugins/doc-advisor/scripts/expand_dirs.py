@@ -125,8 +125,9 @@ def _collect_file(md_file, project_root, exclude_list, collected):
     同一の should_exclude セマンティクスで判定する（裸名＝任意階層のディレクトリ名
     完全一致、'/' 含み＝セグメント境界のパスマッチ）。
 
-    root 外 symlink はここで除外せず、後段の prepare_toc.py の default-deny +
-    明示承認に委ねる（論理 path を採用）。
+    root 外 symlink はここで除外しない（論理 path を採用）。`--dirs` は呼び出し元が
+    索引対象として渡したディレクトリであり、その配下の symlink も索引する（NFR-N06）。
+    確認を要求するのは project root 全体を走査する単体モードのみである。
     """
     if should_exclude(md_file, project_root, SYSTEM_EXCLUDE_PATTERNS):
         return

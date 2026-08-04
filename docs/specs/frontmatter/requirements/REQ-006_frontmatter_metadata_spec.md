@@ -1,0 +1,93 @@
+---
+type: doc-advisor
+title: REQ-006 Frontmatter Metadata Requirements Specification
+purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.
+content_details:
+  - Documents carry the metadata the search index needs at their own head
+  - Indexing transcribes such metadata without re-reading the body
+  - Metadata not matching the current body is detectable mechanically
+  - Documents without metadata, or judged untrustworthy, fall back to body extraction
+  - A user-facing means to add metadata to existing documents is provided
+  - Metadata travels with the document, so it need not be re-derived per environment
+  - Constraint - indexing never rewrites the source; writes happen only on explicit user instruction
+  - "Constraint - existing non-doc-advisor frontmatter and other tools' markers survive the write"
+  - Constraint - metadata language follows the search index rule (English) regardless of body language
+  - Undecided items - TBD-003 (authoring contract for upper skills) and TBD-004 (indexing time target)
+applicable_tasks:
+  - Implementing frontmatter metadata indexing
+  - Reviewing whether the frontmatter design satisfies REQ-006
+  - Deciding fallback behavior for untrustworthy metadata
+  - Confirming the constraint that indexing does not rewrite sources
+  - Resolving TBD-003 or TBD-004
+keywords:
+  - REQ-006
+  - frontmatter
+  - body_hash
+  - transcription
+  - fallback
+  - doc-advisor marker
+  - TBD-003
+  - TBD-004
+  - desired-state indexing
+  - metadata language rule
+body_hash: sha256:3c236cc16caa92da3bae87efb7205d7e956785cb82fce01a58f77736035ee3f9
+---
+
+# REQ-006 フロントマターメタデータ 要件定義書
+
+## メタデータ
+
+| 項目     | 値                                                                    |
+| -------- | --------------------------------------------------------------------- |
+| 要件 ID  | REQ-006                                                               |
+| 関連要件 | base:REQ-001_doc_advisor, base:FNC-002_zero_miss_search_accuracy_spec |
+| 関連設計 | DES-008                                                               |
+
+## 概要
+
+doc-advisor が索引する Markdown 文書が、自身の先頭に検索用メタデータを保持できるようにする。文書を作成・編集する者がその時点でメタデータを書き残すことで、索引の生成時に文書本文を読み直す処理を省略し、大量の文書を索引する際の所要時間を短縮する。
+
+## 前提条件
+
+- 対象はプロジェクト内の Markdown 文書である
+- 文書の作成・編集は主に AI スキル経由で行われる
+- 検索時の参照先は従来どおり生成済みの索引であり、本 feature はその生成過程のみを対象とする
+
+## 要件一覧
+
+### 機能要件
+
+- 文書は、検索索引に必要なメタデータを自身の先頭に保持できる
+- 索引の生成時、メタデータを保持する文書については本文の読み直しを行わず、そのメタデータを索引に取り込む
+- メタデータが現在の本文に対応していない状態を、機械的に検出できる
+- メタデータを保持しない文書、および検出により信頼できないと判定された文書は、従来どおり本文を読んでメタデータを抽出する
+- メタデータを保持しない既存の文書に対して、後からメタデータを付与できる手段を利用者に提供する
+- メタデータは、それを保持する文書とともに配布・共有される（索引を生成する環境ごとに再取得する必要がない）
+
+### 制約
+
+- 索引の生成は、原本の文書を書き換えない。原本への書き込みは利用者が明示的に指示した場合にのみ行う
+- 文書が doc-advisor 以外の目的で既に先頭にメタデータを持つ場合、その内容を失わせない。他のツールが同じ項目に付与した標識とも同居でき、書き込みによって既存の標識が失われない
+- メタデータの言語は、その文書の本文の言語によらず、検索索引と同一の言語規定に従う（英語で統一する）
+- 検索索引に取り込む項目は、本 feature の導入前後で変わらない
+
+### エラーケース
+
+| 条件                                                      | 動作                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| メタデータを保持しない文書                                | 本文からの抽出にフォールバックする（正常経路として扱い、警告は出さない） |
+| メタデータが不完全・不正・本文と不整合                    | 部分的に利用せず全項目を破棄し、本文からの抽出にフォールバックする       |
+| 上記のうち doc-advisor のメタデータとして書かれていた場合 | 規約違反として警告を出力する（処理は継続する）                           |
+
+### 非機能要件
+
+- **性能**: 本 feature の目的は、索引生成時に本文の読み直しを要する文書の件数を減らすことである。所要時間の目標値は導入後の実測に基づいて当事者が定める（TBD-004）
+- **運用性**: メタデータの不整合は利用者に可視な形で報告される。不整合を放置しても索引の内容は正しさを保つ
+- **可用性・セキュリティ**: 本 feature はローカルのファイルのみを対象とする開発者向けツールの一部であり、外部公開・認証・機密情報の取り扱いを伴わないため、稼働率および認証・認可の要件を定めない
+
+## 未確定事項
+
+| ID      | 内容                                                             | 期限           |
+| ------- | ---------------------------------------------------------------- | -------------- |
+| TBD-003 | 文書を作成・編集する上位スキルに、メタデータ執筆の契約を課す範囲 | 実装計画策定時 |
+| TBD-004 | 索引生成時間の目標値                                             | 導入後の実測時 |

@@ -618,10 +618,14 @@ class TestValidatePath(unittest.TestCase):
             toc_utils.validate_path('docs/missing.md', self.root)
         self.assertEqual(ctx.exception.error_code, 'NOT_FOUND')
 
-    # --- 4. root 外 symlink（default-deny → 確認待ち / 承認で受理。NFR-N06）---
+    # --- 4. root 外 symlink（受理し、越境 prefix を通知する。NFR-N06）---
 
-    def test_outside_root_symlink_needs_confirmation(self):
-        """未承認の越境 symlink は ExternalSymlinkPending（reject ではなく確認待ち）。"""
+    def test_outside_root_symlink_accepted_and_reported(self):
+        """越境 symlink は受理され、越境した prefix が戻り値で通知される。
+
+        呼び出し元（上位層）が索引対象として渡したものであり、それが symlink である
+        ことは渡す側が知っている。doc-advisor は塞がず、warning のために prefix を返す。
+        """
         target = self.outside / 'secret.md'
         target.write_text('# secret\n', encoding='utf-8')
         link = self.root / 'link.md'
@@ -629,23 +633,34 @@ class TestValidatePath(unittest.TestCase):
             link.symlink_to(target)
         except (OSError, NotImplementedError):
             self.skipTest('symlink not supported on this platform')
-        with self.assertRaises(toc_utils.ExternalSymlinkPending) as ctx:
-            toc_utils.validate_path('link.md', self.root)
-        self.assertEqual(ctx.exception.symlink, 'link.md')
-
-    def test_outside_root_symlink_approved_accepted(self):
-        """allow_external で承認された越境 symlink は受理される。"""
-        target = self.outside / 'secret.md'
-        target.write_text('# secret\n', encoding='utf-8')
-        link = self.root / 'link.md'
-        try:
-            link.symlink_to(target)
-        except (OSError, NotImplementedError):
-            self.skipTest('symlink not supported on this platform')
-        result = toc_utils.validate_path(
-            'link.md', self.root, allow_external={'link.md'}
-        )
+        result, external = toc_utils.validate_path('link.md', self.root)
         self.assertEqual(result, 'link.md')
+        self.assertEqual(external, 'link.md')
+
+    def test_outside_root_symlink_via_directory_reports_the_dir(self):
+        """ディレクトリ symlink 経由なら、通知される prefix はそのディレクトリである。"""
+        (self.outside / 'shared').mkdir(parents=True, exist_ok=True)
+        (self.outside / 'shared' / 'spec.md').write_text('# spec\n', encoding='utf-8')
+        link = self.root / 'shared'
+        try:
+            link.symlink_to(self.outside / 'shared', target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        result, external = toc_utils.validate_path('shared/spec.md', self.root)
+        self.assertEqual(result, 'shared/spec.md')
+        self.assertEqual(external, 'shared')
+
+    def test_internal_symlink_reports_no_external(self):
+        """root 内で完結する symlink では external が None になる。"""
+        self._make_md('docs/real.md')
+        link = self.root / 'alias.md'
+        try:
+            link.symlink_to(self.root / 'docs' / 'real.md')
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        result, external = toc_utils.validate_path('alias.md', self.root)
+        self.assertEqual(result, 'alias.md')
+        self.assertIsNone(external)
 
     # --- 5. 非 Markdown ---
 
@@ -660,13 +675,14 @@ class TestValidatePath(unittest.TestCase):
 
     def test_valid_markdown_accepted(self):
         self._make_md('docs/a.md')
-        result = toc_utils.validate_path('docs/a.md', self.root)
+        result, external = toc_utils.validate_path('docs/a.md', self.root)
         self.assertEqual(result, 'docs/a.md')
+        self.assertIsNone(external)
 
     def test_markdown_extension_variant_accepted(self):
         """.markdown 拡張子も受理される"""
         self._make_md('docs/b.markdown')
-        result = toc_utils.validate_path('docs/b.markdown', self.root)
+        result, _external = toc_utils.validate_path('docs/b.markdown', self.root)
         self.assertEqual(result, 'docs/b.markdown')
 
     # --- ./a.md ↔ a.md 同一視 ---
@@ -674,14 +690,14 @@ class TestValidatePath(unittest.TestCase):
     def test_dot_slash_normalized(self):
         """./a.md は a.md に正規化されて同一視される"""
         self._make_md('a.md')
-        result = toc_utils.validate_path('./a.md', self.root)
+        result, _external = toc_utils.validate_path('./a.md', self.root)
         self.assertEqual(result, 'a.md')
 
     def test_dot_slash_matches_plain(self):
         """./a.md と a.md が同一の正規化結果になる"""
         self._make_md('docs/a.md')
-        r1 = toc_utils.validate_path('docs/a.md', self.root)
-        r2 = toc_utils.validate_path('./docs/a.md', self.root)
+        r1, _e1 = toc_utils.validate_path('docs/a.md', self.root)
+        r2, _e2 = toc_utils.validate_path('./docs/a.md', self.root)
         self.assertEqual(r1, r2)
 
 

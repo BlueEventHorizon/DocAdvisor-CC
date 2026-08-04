@@ -4,6 +4,33 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.7] - 2026-08-04
+
+### Added
+
+- 文書に ToC メタデータをフロントマターとして埋め込む仕組みを追加。信頼できるフロントマターを持つ文書は `toc-updater` Agent を起動せず**転記**だけで索引でき、大量文書のコールドリードを省略できる (REQ-006 / DES-008)
+  - フロントマターを書き込むスキル `write-frontmatter` を新設。AI が本文からメタデータを作り、承認を得てから原本へマージ書き込みする（整形の後に `body_hash` を打刻）。既存キーと他ツールの `type` 標識は保持する
+  - 信頼判定は `type` に `doc-advisor` を含むこと・5 フィールドが規約に適合すること・`body_hash` が現在の本文と一致することの全成立（all-or-nothing）。1 つでも欠ければ従来の AI 抽出へフォールバックする
+  - `index-docs` は ToC 生成の完了後に AI 抽出で索引された文書を提示し、承認された対象のみ `write-frontmatter` へ引き渡す。索引の実行で原本が書き換わることはない
+- `index-docs` / `write-frontmatter` が呼ぶ script をラッパー 1 本に集約。AI に残る責務を「Agent の起動」と「判断」だけにした (DES-005 §4.1.1 / DES-008 §6.5)
+  - `index_docs.py` が段階判定・ディレクトリ展開・転記・並列度の計算・claim・統合を内部で配管し、次に何をするかを `action`（`dispatch` / `wait` / `confirm` / `done` / `error`）で返す。呼び出し側は同じコマンドを繰り返すだけでよく、初回と再開を区別しない
+  - `fm_run.py` の `plan` / `apply` が対象の絞り込みと書き込み後の信頼判定までを行う。件数の比較が呼び出し側に残らない
+
+### Changed
+
+- **root 外を指す symlink を既定で拒否する挙動を撤去した。** `--all` 以外のすべての対象指定（`--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file`）は、越境 symlink であっても索引し、解決先の実体パスと件数を warning で提示する (REQ-001 §6.1a / NFR-N06)
+  - 外部の仕様書を symlink で取り込む構成は実運用で使われており、その経路の呼び出し元（forge）は index-docs を 1 回だけ呼ぶため確認に答えられない。既定で拒否すると索引が動かないまま理由も伝わらなかった
+  - 索引するか否かの決定は呼び出し元に属する。安全性は禁止ではなく透明性（何を索引したかの提示）で担保する
+  - 確認を求めるのは project root 全体を走査する `--all` のみ。この経路では誰も対象を渡していない
+- SKILL の引数仕様の正本を設計書（DES-005 §10.1 / DES-008 §8.1）へ移した。配布物の SKILL.md だけが正本だと、方式変更で全面書き換えしたときに上位層との契約が消えても突き合わせる相手がいない
+
+### Fixed
+
+- `index-docs` が `--dirs-json` / `--exclude-json` を受け付けなくなっていた問題を修正。これらを渡して index-docs を 1 回だけ呼ぶ上位層（forge の `update-db-rules` / `update-db-specs` / `query-db-rules` / `query-db-specs`）で索引が動かなくなっていた
+- `fm_write` が metadata の値域（文字数・件数・空・型）を書き込み**前**に検証するようにした。従来は書ける値の集合が信頼される値の集合に収まらず、script が書いた直後の文書が信頼できない状態になりえた
+- 充填エラーの再試行が claim/lease に乗るようにした。`error_pending` をそのまま投入すると claim が効かず、同じコマンドの再実行で二重投入が起きていた
+- `--paths-file` に `{"paths": [...]}` を渡した場合に、配列そのものを渡すよう案内するエラーを返すようにした（受け付ける形は従来どおり配列のみ）
+
 ## [0.4.6] - 2026-07-30
 
 ### Added

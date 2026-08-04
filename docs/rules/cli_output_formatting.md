@@ -1,3 +1,36 @@
+---
+type: doc-advisor
+title: CLI Output Formatting Guidelines
+purpose: Defines how shell scripts and CLI tools color and lay out their output, assigning a role to each of the four colors and giving the echo patterns for each role.
+content_details:
+  - ANSI color code definitions RED / GREEN / BLUE / YELLOW and the NC reset sequence
+  - "Role assigned to each color: green for success and banners, blue for configuration values and paths, yellow for commands the user should run, red for warnings and errors, uncolored for labels and prose"
+  - Header and footer banner pattern using a green line of equals signs around the tool name and version
+  - Configuration display pattern that colors only the value, leaving the label uncolored
+  - Warning and error message patterns, including the parenthesized note form
+  - Next-steps pattern that numbers the commands and colors only the command itself
+  - PASS and FAIL prefixes for test result lines
+  - Requirement to use echo -e so escape sequences are interpreted
+  - Requirement to always reset with NC after a colored string
+  - Accessibility rule that information must be conveyed by text as well, never by color alone
+applicable_tasks:
+  - Writing output for a new shell script
+  - Adding colored output to an existing CLI tool
+  - "Reviewing whether a script's color usage is consistent with the project"
+  - Deciding which color a message belongs to
+keywords:
+  - echo -e
+  - NC
+  - ANSI escape sequence
+  - banner
+  - PASS
+  - FAIL
+  - Next steps
+  - color reset
+  - accessibility
+body_hash: sha256:3790354118e6fb35e6e842ea3bcc7c02bba80c502e182ddbeddd825a5336404b
+---
+
 # CLI 出力フォーマット指針
 
 シェルスクリプトやCLIツールの出力における色分けと表示形式の指針。

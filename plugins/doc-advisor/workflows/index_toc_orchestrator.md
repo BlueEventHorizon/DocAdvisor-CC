@@ -1,6 +1,6 @@
 ---
 name: index_toc_orchestrator
-description: Orchestrator workflow for key-based toc.yaml generation (prepare → toc-updater parallel fill → merge)
+description: Orchestrator workflow for key-based toc.yaml generation (drive index_docs.py and follow its action)
 applicable_when:
   - Executing the /doc-advisor:index-docs skill
   - Coordinating key-based ToC generation/update (key + project-root-relative paths)
@@ -13,55 +13,89 @@ Canonical orchestrator workflow to generate/update a key's ToC at
 project-root-relative `paths` (the complete desired state for that key).
 
 > **Reference**: DES-005 §6.1 (prepare/merge 2-phase), §6.5 (backup/restore), §6.6 (continuation),
-> §9 (single mode), §10 (SKILL/agent). REQ-001 FR-N02 / FR-N04 / FR-N07.
+> §9 (single mode), §10 (SKILL/agent). ADR-006 (continuous dispatch). DES-008 §7.1 (transcription).
+> REQ-001 FR-N02 / FR-N04 / FR-N07.
 
 The orchestrator does **not** read `.doc_structure.yaml` and does **not** classify documents into
 `rules` / `specs` categories. The document set is decided by an upper layer (forge etc.) and passed
 in as `key + paths`, or resolved by single mode (`--all`, reserved key `all`).
 
-This file is the single runtime source of truth for `/doc-advisor:index-docs`. Keep prepare, fill,
-merge, continuation, validation, and cleanup behavior here; do not split the normal ToC update flow
-into another workflow document.
-
-## Architecture
-
-### Design Philosophy
-
-- **1 group = 1 custom Agent**: Added/updated documents are processed via the `doc-advisor:toc-updater` custom Agent, one Agent per same-directory group of 1〜k documents (ADR-006 案 B). Each document is extracted independently within the Agent (context rot 回避).
-- **Continuous dispatch (sliding-window)**: groups are dispatched with a parallel window and refilled as each completes (ADR-006 / Issue #29), guarded by claim/lease so no group is dispatched twice.
-- **Persistent artifacts**: Each custom Agent's output remains as a pending file until merge.
-- **Resumable**: Completed work is preserved on interruption; Phase 0 resumes from incomplete per-key work.
-- **Single Source of Truth**: `formats/toc_format.md` defines the ToC and pending file schemas.
-
-## Key Principles [MANDATORY]
-
-- **All fields required**: Fill all fields in the format definition. `doc_type` is removed from the schema; never extract or emit it.
-- **Keyword extraction**: Actually read each source file and extract keywords from its content.
-- **YAML syntax**: Preserve valid indentation, colons, hyphens, and quote escaping.
-- **Entry key format**: Use project-root-relative paths, e.g. `docs/architecture.md`.
-- **Desired-state destructiveness**: `paths` are the key's complete desired state; paths absent from this run are deleted (FR-N02-2).
-
-## Options / Arguments
-
-| Argument               | Description                                                                                                           |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `--key <key>`          | Target ToC opaque key (decided by the upper layer). `all` is reserved and rejected as a key.                          |
-| `--paths-json '[...]'` | Complete desired-state JSON array of project-root-relative paths for the key                                          |
-| `--paths-file <path>`  | JSON file containing the paths array (alternative to `--paths-json`)                                                  |
-| `--all`                | Single mode. Equivalent to omitting `--key`; resolves to reserved key `all`, indexing all Markdown under project root |
-
-> **Desired-state destructiveness [MANDATORY]**: the `paths` passed to a key are its **complete
-> desired state**. Any path present in the previous ToC but absent from this run's `paths` is
-> **deleted**. This is intentional (FR-N02-2) and is the upper layer's responsibility. Use
-> `prepare_toc.py --dry-run` first if deletions are uncertain.
+This file is the single runtime source of truth for `/doc-advisor:index-docs`.
 
 ---
 
-## Required Reference Documents [MANDATORY]
+## The orchestrator's job
 
-Read the following before processing:
+**Run `index_docs.py` and follow the `action` it returns.** Everything deterministic — directory
+expansion, path validation, desired-state diff, frontmatter transcription, parallel-window
+arithmetic, claim/lease, merge, checksums, work-dir cleanup — happens inside that one script.
 
-- `${CLAUDE_PLUGIN_ROOT}/formats/toc_format.md` - ToC schema and pending (intermediate) file schema (`doc_type` removed)
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --key "{key}" --dirs {dirs}
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all
+```
+
+**Re-run the same command after each agent completes.** Initial run and resume are not
+distinguished by the caller: the state lives in `store_dir/.toc_work/` and the script decides which
+stage the run is in. This holds across sessions and across compaction — nothing needs to be
+remembered between calls.
+
+| `action`   | What it means                   | What the orchestrator does                                    |
+| ---------- | ------------------------------- | ------------------------------------------------------------- |
+| `dispatch` | there are agents to launch      | launch every element of `agents[]`, then re-run the command   |
+| `wait`     | only running agents remain      | wait for a completion notification, then re-run the command   |
+| `confirm`  | a human/AI decision is required | decide per `reason`, add the decision as an argument, re-run  |
+| `done`     | the ToC is up to date           | report; offer write-back if `ai_extracted_paths` is non-empty |
+| `error`    | the run cannot continue         | report `error_code` / `message`; ask the user                 |
+
+`agents[]` elements carry `subagent_type` and a **ready-to-pass `prompt` string**. Launch them with
+`run_in_background: true`, in a single message when there are several. Do not rebuild the prompt,
+do not claim anything first (the script already claimed), and do not decide how many to launch
+(the script already applied the window).
+
+> **Why the arithmetic moved into the script**: the free-slot calculation must be
+> `window − len(in_flight_groups)` (running **agent** count). Using `len(in_flight)` (entry count)
+> over-subtracts, goes negative, and silently stops refilling — collapsing continuous dispatch back
+> to wave batching with its mid-run tail wait (ADR-006 / Issue #29). This is exactly the kind of
+> step that must not depend on an AI recomputing it correctly every round.
+
+### Waiting for completions [MANDATORY]
+
+Completion notifications arrive once per launched agent. **Do not re-run the command in a loop
+without waiting** — the same `wait` comes back and nothing progresses.
+
+If a notification never arrives (a killed agent, a lost notification), the claim lease expires
+after its TTL (900 s by default) and the script returns that entry to `dispatch` on the next run,
+so re-running recovers. If `wait` persists beyond that, treat it as abnormal: report it and ask
+the user rather than looping.
+
+### Deciding on `confirm`
+
+| `reason`           | Material           | Decision passed back as                              |
+| ------------------ | ------------------ | ---------------------------------------------------- |
+| `external_symlink` | `external_pending` | `--allow-external <symlink>...` (empty = reject all) |
+| `fill_error`       | `error_pending`    | `--on-fill-error retry\|merge\|abort`                |
+
+`external_symlink` **only happens under `--all`** (a whole-root scan). Nothing was passed in as a
+target there, so the scan does not leave the project root on its own. Show the **resolved real
+path** and the affected file count for each entry before asking; nothing has been written yet.
+
+**Targets given explicitly (`--dirs` / `--paths`) are indexed even when they cross the root through
+a symlink** (NFR-N06 / REQ-001 §6.1a). The caller decided to index them and knows they are
+symlinks; blocking them here would split that decision across layers, and an upper layer that
+calls index-docs once cannot answer a question. The notice arrives as a `warning` instead — and
+only on the **first** response, since the diff runs once. Surface it there or it is gone.
+
+For `fill_error`, state the consequence plainly before asking. Merging with failed entries drops
+those documents from this run's ToC, and for an **updated** document it also writes a
+current-content checksum — so the next run sees "unchanged" and the revision is never indexed
+again (silent staleness).
+
+`--on-fill-error retry` clears the error state first, then puts the entry through the normal claim
+path — so a second run while the retry is still in flight returns `wait` rather than dispatching the
+same entry twice. Retrying a **permanent** failure (a problem in the source document) will fail
+again every time; the script says so in `warnings`. Fix the document, or accept the drop with
+`merge`.
 
 ---
 
@@ -73,334 +107,166 @@ Each key has its own store directory; there is no shared category directory.
 .claude/.doc-advisor/toc/<slug>/
 ├── toc.yaml             # Final ToC (metadata + docs)
 ├── .toc_checksums.yaml  # Per-key change-detection checksums
-└── .toc_work/           # pending YAMLs generated by prepare (transient; NOT gitignored)
+└── .toc_work/           # pending YAMLs (transient; NOT gitignored)
 ```
 
-The concrete `store_dir` is obtained from the `toc_path` field of the JSON emitted by
-`prepare_toc.py` / `merge_toc.py` (its parent directory). `.toc_work/` for a key lives under that
-key's `store_dir`, so multiple keys never collide.
+`.toc_work/` for a key lives under that key's `store_dir`, so multiple keys never collide.
 
-`.toc_work/` is intentionally not gitignored. In normal operation, `merge_toc.py` removes it on
-success. If it remains visible in `git status`, that signals an interrupted or abnormal run that
-Phase 0 can resume.
+`.toc_work/` is intentionally **not** gitignored. In normal operation the merge removes it on
+success. If it shows up as untracked in `git status`, that is the signal of an interrupted or
+abnormal run — and re-running the same command resumes from it. Hiding it in `.gitignore` would
+remove the only visible symptom.
+
+**Do not inspect the work dir by hand.** No `ls .toc_work/*.yaml`, no reading `_meta.status`, no
+counting pending files. The script's output is the single source of truth for what state the run is
+in; the conversation is not.
 
 ---
 
-## Orchestrator Processing Flow
+## Context Management [IMPORTANT]
 
-### Phase 0: Continuation determination (per key, DES-005 §6.6)
+Subagent results accumulate in the parent conversation context. With many files this can overflow.
 
-Before preparing, decide whether to resume an interrupted run. **Do not derive `store_dir`, run
-`test -d`, or read `_meta.status` by hand** — run the deterministic helper and follow `next_action`
-(Issue #22):
+- Subagents return minimal responses (defined in the agent's "Completion Response" section)
+- After each completion, output a brief progress line (e.g. `completed 12/29, 5 in-flight`)
+- Keep orchestrator messages minimal between completions
+- If context overflows mid-run, **start a new session and re-run the same command**. Completed
+  entries in `store_dir/.toc_work/` are preserved, expired claim leases return to the dispatch
+  pool, and the run continues from where it stopped
 
-```bash
-# On resume, pass --lease-ttl 0 so a previous session's claim leftovers (in-flight) are treated
-# as stale and returned to pending. In a new session the previous Agents have certainly ended,
-# so there is no double-dispatch risk.
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --work-status --lease-ttl 0   # single mode: --all
-```
+### Parallelism (large projects, 100+ files)
 
-It emits JSON with `next_action` / `pending` (project-root-relative entry_files) / `completed` /
-`error_pending` / `has_work_dir`.
+The window is **10 concurrent agents** — the verified safe range (ADR-006 案 A). One agent processes
+a group of up to 3 same-directory neighbours (限定バッチング / 案 B), which cuts launch count and
+規約再読 while keeping each document extracted independently (context rot 回避).
 
-| `next_action` | Meaning                                                 | Action                                                      |
-| ------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
-| `prepare`     | no `.toc_work/`                                         | Normal start from Phase 1 (prepare)                         |
-| `fill`        | fillable pending exist                                  | Do **not** re-run `prepare_toc.py`. Resume Phase 2 (fill)   |
-| `blocked`     | no fillable pending but `error_pending` exist           | **Do not silently merge.** Go to Phase 2.5 (error handling) |
-| `merge`       | no pending and no error_pending (all completed / empty) | Go directly to Phase 3 (merge)                              |
+These values are constants inside `index_docs.py` and are deliberately not exposed as options: they
+are not a judgement the caller makes per run. On a low API tier that hits 429 rate limits, diagnose
+with the core CLIs (`toc_store.py --work-status --max-batch N`) rather than adding flags to the
+wrapper.
 
-> To discard `.toc_work/` and re-prepare from scratch (e.g. corrupted pending), use
-> `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`).
-> This is an abnormal-recovery action; confirm with the user before discarding filled work.
+---
 
-### Phase 1: prepare (desired-state diff + pending generation, DES-005 §6.1 / §6.2)
+## Design Philosophy
 
-```bash
-# key specified (upper-layer driven)
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json '{paths_json}'
-# or paths-file
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-file "{paths_file}"
-# single mode (reserved key all)
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --all
-```
+- **Transcription before fill**: pending whose source document already carries a trustworthy
+  doc-advisor frontmatter are completed by transcription before the fill phase, so no agent is
+  launched for them (DES-008 §7.1). When every pending can be transcribed, the run reaches `done`
+  with **zero agents launched**
+- **1 group = 1 custom agent**: added/updated documents are filled by the `doc-advisor:toc-updater`
+  custom agent, one agent per same-directory group (ADR-006 案 B)
+- **Continuous dispatch (sliding-window)**: groups are dispatched with a parallel window and
+  refilled as each completes, guarded by claim/lease so no group is dispatched twice
+- **Persistent artifacts**: each agent's output stays as a pending file until merge
+- **Resumable**: interrupted runs resume from the preserved work dir; the caller re-runs the same
+  command
+- **Indexing never modifies sources**: the pipeline only writes under `.claude/`. Writing metadata
+  back into a document is a separate, explicitly-approved action (`write-frontmatter`)
+- **Single Source of Truth**: `formats/toc_format.md` defines the ToC and pending file schemas
 
-`prepare_toc.py` validates paths (rejecting traversal / absolute / missing / non-Markdown;
-out-of-root symlinks are default-deny and require explicit confirmation), runs desired-state diff,
-and generates pending YAMLs for added + updated entries under `store_dir/.toc_work/`. Read the
-single stdout JSON:
+---
 
-- `status` (`ok` / `partial` / `needs_confirmation` / `error`) / `error_code`
-- `toc_path` (→ identifies `store_dir` and `.toc_work/`)
-- `counts.added` / `counts.updated` / `counts.deleted` / `counts.unchanged`
-- `rejected_paths` (path + reason) / `warnings`
-- `external_pending` when `status == needs_confirmation`
+## Key Principles for filling [MANDATORY]
 
-Decision logic:
+These apply to the `doc-advisor:toc-updater` agent, not to the orchestrator.
 
-| Condition                                          | Action                                                                                            |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `status == error`                                  | Report `error_code` / `message`; ask the user how to proceed                                      |
-| `status == needs_confirmation`                     | Show `external_pending` resolved targets/counts, ask approval, then re-run with approved symlinks |
-| `added == 0` and `updated == 0` and `deleted == 0` | Idempotent success (including empty ToC). Done (no Phase 2/3 needed)                              |
-| `added == 0` and `updated == 0` and `deleted > 0`  | Delete-only. Skip Phase 2; go to Phase 3 with `merge_toc.py --delete-only`                        |
-| `added > 0` or `updated > 0`                       | Proceed to Phase 2                                                                                |
+- **All fields required**: fill every field in the format definition. `doc_type` is removed from the
+  schema; never extract or emit it
+- **Keyword extraction**: actually read each source file and extract keywords from its content
+- **YAML syntax**: preserve valid indentation, colons, hyphens, and quote escaping
+- **Entry key format**: project-root-relative paths, e.g. `docs/architecture.md`
+- **Desired-state destructiveness**: `paths` are the key's complete desired state; paths absent from
+  this run are deleted (FR-N02-2)
 
-For `status == needs_confirmation`, re-run `prepare_toc.py` with the same arguments plus
-`--allow-external-json '["<approved_symlink>", ...]'`. Use `[]` to reject all external symlinks;
-unapproved external paths are then dropped with warnings and processing continues for the rest.
+---
 
-> **Dry-run (optional)**: add `--dry-run` to `prepare_toc.py` to print `counts` and path lists
-> without writing. If destructive deletions are unexpected, confirm with the user before continuing.
+## Abnormal recovery (core CLIs)
 
-### Phase 2: Continuous-dispatch fill (toc-updater custom Agent)
+The normal pipeline never calls the core scripts directly. Use them only for the cases below, and
+confirm with the user first.
 
-Fill is **continuous dispatch (sliding-window)** (ADR-006 / Issue #29): keep a parallel window of
-running Agents and, as each group completes, immediately dispatch the next un-dispatched group.
-This removes the mid-run tail wait of barrier (wave) batching. Double-dispatch is prevented by
-**claim/lease (script side)** — not by a barrier.
+| Situation                                                                                                               | Command                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Discard `.toc_work/` and start over (corrupted pending, a permanently failing document)                                 | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`) |
+| Return a failed entry to the normal pending pool by hand (diagnosis only; `--on-fill-error retry` does this internally) | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --reset-error <entry...>`                |
+| Inspect deletions before committing to them                                                                             | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json '{paths}' --dry-run`      |
+| Promote pending checksums without a merge (maintenance)                                                                 | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --promote-pending`                       |
 
-> **⚠️ Context Management [IMPORTANT]**
->
-> Subagent results accumulate in the parent conversation context.
-> When processing many files, this can cause context overflow.
->
-> **Rules:**
->
-> - Subagents return minimal responses (defined in the agent's "Completion Response" section)
-> - After each completion, output a brief progress summary (e.g., "completed 12/29, 5 in-flight")
-> - Keep orchestrator messages minimal between completions
-> - State (completed / in-flight / un-dispatched) lives in `--work-status` (the script), NOT in the
->   conversation. Drive every refill decision from `next_action`. If context overflows mid-session,
->   start a new session and re-run the same command; `store_dir/.toc_work/` with completed entries
->   is preserved, Phase 0 (`--lease-ttl 0`) returns claim leftovers to pending, and continuation
->   resumes from pending only (per-key).
->
-> **Parallelism (large projects, 100+ files):**
->
-> - The default window is **10 concurrent Agents** (実証済み安全圏, ADR-006 案 A).
->   On a low API tier hitting 429 (rate limit), lower it to 5, then 3. Do **not** raise above 10
->   (only 10 is verified; 20/30 risk ramp-up・tail・rate effects).
-> - 限定バッチング（ADR-006 案 C/B）: each Agent processes a `pending_groups` group of
->   1〜k 件（既定 k=3）of same-directory neighbors, cutting launch count and 規約再読 by ~1/k
->   while keeping each document independently extracted (context rot 回避).
-
-**Note**: Do not hand-list or hand-filter the work dir, and do not hand-group entries. Get the
-pre-grouped batches from `toc_store.py --work-status` (`pending_groups` field) — never
-`ls .toc_work/*.yaml` + `_meta.status` reading, nor manual neighbor grouping, by the AI
-(determinism is the script's job). `pending` (flat list) remains available for counting.
-
-Refill is "as many as the free slots", NOT fixed to one-per-completion.
-
-```
-1. Get `pending_groups` (un-dispatched) and `in_flight_groups` (dispatched, running, Agent-sized
-   groups) from `--work-status`. Each group (same-directory neighbors, ≤ max_batch) → one Agent.
-    ↓
-2. Compute available = window − len(in_flight_groups). For the first min(available, #groups) groups,
-   "claim → launch run_in_background" each. On a 429 low tier, reduce the window to 5 → 3.
-    ↓
-3. On any Agent completion notification, go back to 1 (re-run `--work-status`, recompute available,
-   refill the free slots). When `next_action` is:
-     wait   → nothing un-dispatched, in-flight only: wait for remaining completions
-     merge  → Phase 3
-     blocked → Phase 2.5 (error handling)
-    ↓
-4. When all groups are completed (`next_action: merge`) → Phase 3.
-```
-
-> **Claim before launch [MANDATORY]**: claim the group's entry_files with
-> `toc_store.py --claim <entry...>` (stamps `claimed_at`) right before launching its Agent. The
-> next `--work-status` then treats it as **in-flight** and drops it from `pending`, so the
-> sliding-window never re-dispatches a running group. Launching without claiming first re-dispatches.
-> `--claim` returns `claimed` / `rejected` — **pass only `claimed` as the Agent's entry_files;
-> never pass `rejected`** (`completed` / `already_claimed` / `error_pending` / `outside_work_dir`,
-> etc.). If `claimed` is empty, do not launch that group (the next `--work-status` corrects state).
->
-> **Count slots by Agents, not entries [IMPORTANT]**: the window is "concurrent Agents", and one
-> Agent processes a group of up to `max_batch` entries. Compute available from
-> **`len(in_flight_groups)` (running Agent count)**, never `len(in_flight)` (entry count) — using
-> entries over-subtracts, goes negative, and stops refilling (collapsing back to wave behavior).
->
-> **Refill the free slots [IMPORTANT]**: multiple completion notifications can batch up before the
-> conversation resumes (compaction / notification delay). One-per-completion refill cannot keep the
-> window full when several Agents finish at once, slowing the run. Recompute `available` each time
-> and refill all free slots.
->
-> **Batch size override**: `--work-status` groups by `--max-batch N` (default 3). Pass
-> `--max-batch 1` to disable batching (one file per Agent) — useful when diagnosing extraction
-> quality. Group size never crosses directory boundaries regardless of N.
-
-### Phase 2.5: Fill-error handling (`next_action: blocked` only)
-
-`pending` is empty but `error_pending` (entries that failed to fill) remain. **Do not merge silently:**
-merge keeps only completed docs and removes `.toc_work/` on success, so errored docs drop out of this
-run's ToC — and an errored **updated** doc gets a current-content checksum written, so the next prepare
-sees "unchanged" and never re-indexes it (silent staleness). Present each `error_pending` entry_file +
-`error_message` and ask (AskUserQuestion): **retry** the error_pending entry_files (re-launch toc-updater
-→ back to step 1), **merge anyway** (accept the dropped docs; report them in the completion summary), or
-**abort** (fix the source documents and re-run).
-
-### Phase 3: Merge (integration + deletion reflection, DES-005 §6.5)
-
-`merge_toc.py` performs backup → atomic write (`os.replace`) → validate, and **internally completes**
-checksums update + `.toc_work/` removal on success / backup restore + checksums kept + `.toc_work/`
-preserved on failure. The orchestrator does **not** call separate checksums-promote / work-dir-clean
-commands in the normal flow.
-
-```bash
-# key specified
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}"
-# single mode (reserved key all)
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --all
-# delete-only (added/updated == 0, deleted > 0)
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_toc.py --key "{key}" --delete-only
-```
-
-Read the stdout JSON: `status` / `counts` / `deleted_paths` / `warnings`.
-
-| Condition         | Action                                                                                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status == ok`    | Proceed to the completion report                                                                                                                      |
-| `status == error` | Validation failed: toc.yaml restored, `.toc_work/` preserved. Report the error; ask the user how to proceed (e.g. fix the source document and re-run) |
+`--clean-work-dir` may discard already-filled work; that is why it needs confirmation.
 
 ---
 
 ## Validation
 
-`merge_toc.py` validates via `validate_toc.py` before committing the new `toc.yaml`. Validation covers:
+Before committing the new `toc.yaml`, the merge validates:
 
-1. **YAML syntax**: the file parses as valid YAML.
-2. **Required per-doc fields**: each `docs` entry has non-empty `title`, `purpose`, `content_details`, `applicable_tasks`, and `keywords`. `doc_type` is not required and must not be emitted.
-3. **Entry keys**: docs keys are project-root-relative paths.
+1. **YAML syntax**: the file parses as valid YAML
+2. **Required per-doc fields**: each `docs` entry has non-empty `title`, `purpose`,
+   `content_details`, `applicable_tasks`, `keywords`. `doc_type` is not required and must not be emitted
+3. **Entry keys**: docs keys are project-root-relative paths
 
-On validation failure, `merge_toc.py` restores `toc.yaml` from backup, keeps checksums unchanged,
-and preserves `.toc_work/` for continuation.
-
----
-
-## Custom Agent Launch Examples
-
-Each group is dispatched as "claim → launch run_in_background" within the sliding window
-(filenames are SHA256 hashes of the source paths). A group is 1〜max_batch same-directory
-entry_files passed together to one Agent.
-
-```bash
-# claim the group's entry_files immediately before launching (single mode: --all)
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key {key} --claim <entry1> <entry2>
-```
-
-```
-# key specified — single-entry group:
-Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
-      prompt: "key: {key}, entry_files: .claude/.doc-advisor/toc/<slug>/.toc_work/a1b2c3d4e5f67890.yaml")
-# key specified — batched group (k entries from the same directory):
-Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
-      prompt: "key: {key}, entry_files: .claude/.doc-advisor/toc/<slug>/.toc_work/1234567890abcdef.yaml, .claude/.doc-advisor/toc/<slug>/.toc_work/fedcba0987654321.yaml")
-
-# single mode (reserved key all): pass `all` instead of a key
-Agent(subagent_type: doc-advisor:toc-updater, run_in_background: true,
-      prompt: "all (single mode), entry_files: .claude/.doc-advisor/toc/all-<hash>/.toc_work/<sha256>.yaml")
-```
-
-> In single mode the agent uses `write_pending.py --all` (`--key all` is rejected as a user-specified key).
-> `entry_files` are passed project-root-relative. A group never mixes documents from different
-> directories (context rot 回避); the agent extracts each document independently.
-
----
-
-## Checksums / Work Directory Responsibility
-
-| Operation                               | Who                                                                                                         |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| checksums promote (active update)       | `merge_toc.py` internally on validation success (recomputed from final docs)                                |
-| `.toc_work/` removal                    | `merge_toc.py` internally on validation success                                                             |
-| checksums kept / `.toc_work/` preserved | `merge_toc.py` internally on validation failure (for retry)                                                 |
-| **Manual** promote (maintenance only)   | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --promote-pending` (single mode: `--all`) |
-| **Manual** work-dir clean (recovery)    | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`)  |
-
-The orchestrator never runs `cp`/`rm` directly against the store. The `toc_store.py` promote /
-clean-work-dir commands are maintenance / abnormal-recovery tools only; the normal pipeline
-(Phase 1–3) does not invoke them. Confirm with the user before running `--clean-work-dir`
-(it may discard already-filled work).
+On failure, `toc.yaml` is restored from backup, checksums are left unchanged, and `.toc_work/` is
+preserved so the run can be retried. The wrapper surfaces this as `action: error`.
 
 ---
 
 ## Error Handling
 
-### Continuation (when store_dir/.toc_work/ exists)
+### On agent error
 
-- Resume from pending files (Phase 2)
-- If all completed → proceed to merge (Phase 3)
-
-### On Custom Agent Error
-
-The `doc-advisor:toc-updater` custom Agent writes error information to the pending YAML
-(status remains `pending`) via `write_pending.py --error` before returning `❌ Error`.
-The orchestrator does NOT need to edit the YAML — just log the error and continue.
-
-1. Log the error file in the completion report
-2. Continue processing the remaining files
-3. Pending files with `error_message` are retried on the next run
+The `doc-advisor:toc-updater` agent writes the error into its pending YAML (status stays `pending`)
+before returning `❌ Error`. The orchestrator does not edit the YAML.
 
 ```yaml
-# Example of error pending YAML (written by doc-advisor:toc-updater via write_pending.py --error)
 _meta:
   status: pending
   source_file: docs/architecture.md
   error_message: "Source file not found"
 ```
 
-**Important**: If many errors occur, report the pattern to the user. Persistent failures may
-require source file fixes.
+The next run surfaces these as `action: confirm` / `reason: fill_error`. If many entries fail,
+report the pattern — persistent failures usually mean the source documents need fixing, and
+retrying will not help.
 
-### On Merge Error
+### On unexpected error
 
-- `merge_toc.py` already restored `toc.yaml` and preserved `.toc_work/`
-- Report the error content
-- Recover by re-running (the preserved `.toc_work/` enables continuation)
-
-### On Unexpected Error
-
-**Do NOT attempt automatic recovery or workarounds.**
-
-When encountering unexpected errors (e.g., sandbox restrictions, permission errors, environment issues):
-
-1. Report the error details clearly
-2. Ask the user how to proceed
-3. Wait for user instructions before taking any action
+**Do NOT attempt automatic recovery or workarounds.** Report the error details clearly, ask the
+user how to proceed, and wait for instructions.
 
 ---
 
 ## Quality Checklist
 
-After generation/update, verify from the merge output and final ToC:
+After `action: done`, verify from the returned JSON and the final ToC:
 
-- [ ] All desired-state paths for the key are listed, including added/updated files and excluding deleted files.
-- [ ] Each entry has required fields: `title`, `purpose`, `content_details`, `applicable_tasks`, `keywords`.
-- [ ] `purpose` states what the document defines.
-- [ ] `keywords` contain task-matchable terms.
-- [ ] YAML syntax is valid.
-- [ ] `metadata.generated_at` is ISO 8601 format.
-- [ ] `metadata.file_count` matches the actual entry count.
-- [ ] `metadata.key` matches the original key.
+- [ ] All desired-state paths for the key are listed, including added/updated files and excluding deleted files
+- [ ] Each entry has required fields: `title`, `purpose`, `content_details`, `applicable_tasks`, `keywords`
+- [ ] `purpose` states what the document defines
+- [ ] `keywords` contain task-matchable terms
+- [ ] `metadata.file_count` matches the actual entry count
+- [ ] `metadata.key` matches the original key
+- [ ] `store_dir/.toc_work/` is gone (its presence after `done` would indicate an incomplete merge)
 
 ---
 
 ## Completion Report
 
+Take the values from the `done` payload verbatim; do not recount them.
+
 ```
 ✅ index-docs complete (key: {key | all})
 
 [Summary]
-- Mode: {key | all} / {full prepare | continuation}
 - added / updated / deleted / unchanged: {counts}
+- transcribed from frontmatter / AI-extracted: {transcribed} / {ai_extracted}
 - toc_path: {toc_path}
-- Errors: {E} (if any)
-
-[Errors] (only if E > 0)
-- {source_file}: {error_message}
-→ To retry: fix the source files and re-run; the entry is retried automatically.
+- deleted paths: {deleted_paths} (if any)
+- rejected paths / dirs: {rejected_paths} / {rejected_dirs} (if any)
+- Warnings: {warnings} (if any)
 ```
 
-> On success, `merge_toc.py` has already deleted `store_dir/.toc_work/`; no manual cleanup step is reported.
+`warnings` must not be swallowed. They can report: a frontmatter that carries the `doc-advisor`
+marker but is not trustworthy (a spec violation, or metadata left behind by a body edit — that
+document was AI-extracted this run); an external symlink that **was** indexed (with its resolved
+target and file count — a notice, not a fault) or one that was not (rejected under `--all`);
+documents dropped by merging over known fill errors; or a transcription phase that could not run.

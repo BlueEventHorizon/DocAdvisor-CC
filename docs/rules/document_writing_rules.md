@@ -1,3 +1,38 @@
+---
+type: doc-advisor
+title: Document Writing Rules
+purpose: "Meta-rule that keeps all documents consistent. Governs heading tags, terminology unification, document structure, emphasis notation, document reference notation, and each directory's document nature."
+content_details:
+  - Meaning of the [MANDATORY] / [CRITICAL] / [IMPORTANT] tags and the exactly-one-space placement at the end of a heading line
+  - "Heading level usage (# is the file title, #### is the deepest, ##### is never used)"
+  - Terminology unification for the required-reference-documents heading label and the English emphasis phrases NEVER skip. / MUST / NEVER / DO NOT / ALWAYS
+  - Long-vowel rule per JIS Z 8301, dropping the trailing long vowel in katakana loanwords such as directory, category, factory, entry
+  - Required section structure per document type (workflow documents, rule documents) and the required frontmatter keys
+  - Documents under specs are referenced by ID prefix (REQ / DES / ADR); rules, workflows, and formats are referenced by full project-root-relative path
+  - Conditions that allow a path to be abbreviated, and the cases that forbid it (tables, code blocks, headings, other paragraphs, intermediate path elision)
+  - Body text states the current state only; migration and deprecation narrative belongs in CHANGELOG, with exceptions for legacy names that are the functional subject
+  - Documents under docs/rules use Foo / Bar / Hoge / Fuga placeholders and generic wording instead of project-specific names
+  - Grep commands that detect notation drift and the correction checklist
+applicable_tasks:
+  - Authoring a new rule document or specification
+  - Revising an existing document and unifying its notation
+  - Fixing heading tags and document reference notation
+  - Checking convention compliance during a document review
+  - Deciding which directory a piece of information belongs to
+keywords:
+  - MANDATORY
+  - NEVER skip.
+  - required reference documents
+  - long-vowel rule
+  - JIS Z 8301
+  - heading level
+  - full-path reference
+  - current state only
+  - placeholder
+  - terminology unification
+body_hash: sha256:6735cc00839e6cae62a573c6b5ac120307ab6ceb981665e33421ef39f1756524
+---
+
 # 文書記述ルール
 
 **作成日**: 2026-01-01

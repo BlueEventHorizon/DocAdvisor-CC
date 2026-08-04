@@ -1,0 +1,308 @@
+# frontmatter 実装計画書
+
+# === トレーサビリティ ===
+requirements_traceability:
+  - requirement_id: REQ-006
+    title: フロントマターメタデータ 要件定義書
+    design_id: DES-008
+    status: completed
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+      - TASK-006
+      - TASK-007
+      - TASK-008
+      - TASK-009
+      - TASK-010
+      - TASK-011
+      - TASK-012
+
+design_traceability:
+  - design_id: DES-008
+    title: "DES-008: doc-advisor フロントマター設計書"
+    requirement_ids:
+      - REQ-006
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+      - TASK-006
+      - TASK-007
+      - TASK-008
+      - TASK-009
+      - TASK-010
+      - TASK-011
+      - TASK-012
+
+# === タスク一覧 ===
+tasks:
+  - task_id: TASK-001
+    title: 確定した判断事項を設計書・要件定義書へ反映する
+    priority: 95
+    status: completed
+    design_id: DES-008
+    depends_on: []
+    group_id: null
+    build_check: per_task
+    description:
+      - DES-008 §6.1 に fm_to_pending の work-dir 一括処理を追記する（判断事項 D1）
+      - DES-008 §6.4 のスキーマ規約一致テストを一方向の包含関係へ書き換える（判断事項 D3）
+      - DES-008 §7.1 の無改造範囲を JSON 出力の追加を除く形へ限定する（判断事項 D6）
+      - DES-008 §10 の未決 1・2 を決定事項として書き換える
+      - REQ-006 の未確定事項表から TBD-001・TBD-002 を除去する
+      - 改定履歴を古い順で追記する
+    acceptance_criteria: DES-008 §6.1・§6.4・§7.1・§10 と REQ-006 未確定事項表が更新され、DES-008 §7.1 と §8.2 の間に矛盾する記述が残っていない
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md
+
+  - task_id: TASK-002
+    title: fm_core の読み取り系（境界切り出し・正規化・本文ハッシュ・スキーマ検証）を実装する
+    priority: 90
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-001
+    group_id: null
+    build_check: per_task
+    description:
+      - plugins/doc-advisor/scripts/frontmatter/ を新設し fm_core.py を置く
+      - フロントマター境界の切り出しを DES-008 §4.2 の定義で実装する
+      - 本文正規化と本文ハッシュ算出を DES-008 §4.2 の規定で実装する
+      - 信頼判定のスキーマ検証を DES-008 §5.1 の表に従って実装する（type はスカラ・配列の双方を受理）
+      - toc_store.py / toc_utils.py を import しない（DES-008 §6.1 の独立性）
+      - tests/scripts/frontmatter/test_fm_core.py に DES-008 §6.4 の本文ハッシュ・信頼判定の各分岐を書く
+      - CLAUDE.md の Repository Layout に新設ディレクトリを追記する
+    acceptance_criteria: 本文ハッシュが改行コード差と末尾空行差で不変・本文変更で変化・フロントマター変更で不変であり、信頼判定が DES-008 §6.4 の全分岐で期待どおり真偽を返し、テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/rules/implementation_guidelines.md
+
+  - task_id: TASK-003
+    title: fm_core の書き込み系（行保存マージ・type 和集合・YAML エスケープ）を実装する
+    priority: 88
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-002
+    group_id: null
+    build_check: per_task
+    description:
+      - doc-advisor が単独所有する 6 キーのみを差し替える行保存型マージを実装する
+      - type を置換せず和集合で更新する経路を実装する（DES-008 §4.1 / §4.5）
+      - YAML 値のエスケープを toc_utils.yaml_escape と同一出力になる独立実装として置く
+      - 未知キーを原文行のままバイト保持することをテストで固定する
+      - 配布物 SKILL.md と formats 配下の既存フロントマターを入力にした往復テストを書く
+      - toc_utils.yaml_escape と同じ入力で同じ出力になることを固定するテストを書く
+    acceptance_criteria: 既存キーを持つ文書へ書き込んでも既存キーの行がバイト一致で保持され、temporary-feature-requirement のみを持つ文書への書き込みで type が既存値を保ったまま doc-advisor を含む配列になり、エスケープ一致テストが通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - plugins/doc-advisor/formats/toc_format.md
+
+  - task_id: TASK-004
+    title: fm_read を実装し複数ファイル判定と JSON 出力契約を用意する
+    priority: 85
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-002
+    group_id: null
+    build_check: per_task
+    description:
+      - fm_read.py に --paths-json で受け取った複数ファイルの信頼判定と JSON 出力を実装する
+      - JSON 出力を DES-005 §8.1 の共通契約（status / error_code / warnings）に合わせる
+      - script は対象を自ら探索しない。ディレクトリ走査も配布物ディレクトリの除外判定も持たない（判断事項 D4）
+      - 個別ファイルの読み取り失敗で全体を落とさず status: partial へ写像する
+      - 信頼判定が偽でかつ type に doc-advisor を含む場合のみ warning を出す（DES-008 §5.3）
+      - tests/scripts/frontmatter/test_fm_read.py に判定分岐と JSON 契約の確認を書く
+    acceptance_criteria: --paths-json で渡した複数文書の判定結果が results に並び、script がパスを自ら探索せず、フロントマターを持たない文書が warning なしで対象外と判定され、一部の読み取り失敗が status partial として扱われ、テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/specs/base/design/DES-005_toc_generation_flow.md
+      - docs/rules/cli_output_formatting.md
+
+  - task_id: TASK-005
+    title: fm_write を実装し整形後に本文ハッシュを打刻する
+    priority: 78
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-003
+    group_id: null
+    build_check: per_task
+    description:
+      - fm_write.py にメタデータ受け取りとマージ書き込みを実装する
+      - 整形コマンドを CLI 引数で受け取り、未指定なら実行しない（DES-008 §6.3）
+      - 整形コマンドの実行はシェルを介さず、置換対象を対象ファイルのみに限定する
+      - 書き込み・整形・打刻の順序を DES-008 §4.2 の規定どおりにする
+      - tests/scripts/frontmatter/test_fm_write.py に冪等性と順序の確認を書く
+    acceptance_criteria: 整形コマンド指定時と未指定時のいずれでも実行直後の fm_read が信頼できると判定し、同一文書へ 2 回連続実行しても 2 回目で内容が変化せず、テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/rules/implementation_guidelines.md
+
+  - task_id: TASK-006
+    title: write-frontmatter SKILL を新設する
+    priority: 75
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-004
+      - TASK-005
+    group_id: null
+    build_check: per_task
+    description:
+      - plugins/doc-advisor/skills/write-frontmatter/SKILL.md を継承型として作成する（判断事項 D2）
+      - 対象パスを --paths-json で script へ渡す。SKILL が手で列挙せず、供給元は上位層の設定または索引の書き戻し候補とする
+      - 書き込み前に対象を提示してユーザー確認を取る手順を定める
+      - 原本を書き換える副作用の発生条件を明記する
+      - 処理ロジックを SKILL.md 内にインラインで書かない
+      - 本リポジトリの docs 配下の数件へ実適用して挙動を確認する
+    acceptance_criteria: 実適用後に dprint check が通り、適用対象外である配布物ディレクトリ配下のファイルが 1 件も変更されておらず、適用した文書を fm_read が信頼できると判定する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/rules/skill_authoring_notes.md
+      - docs/rules/skill_launch_paths_definitions.md
+      - docs/rules/implementation_guidelines.md
+
+  - task_id: TASK-007
+    title: fm_to_pending を実装し信頼できるフロントマターを pending へ転記する
+    priority: 70
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-004
+    group_id: null
+    build_check: per_task
+    description:
+      - fm_to_pending.py に work-dir 一括処理を実装する（判断事項 D1）
+      - 出力する pending の書式を write_pending.py の出力と一致させる
+      - 信頼できない文書は pending を完了化せず残す
+      - store_dir の解決や key の解釈を行わない（DES-008 §6.1 の独立性）
+      - tests/scripts/frontmatter/test_fm_to_pending.py に転記とスキップの確認を書く
+    acceptance_criteria: 信頼できるフロントマターを持つ文書の pending が完了状態で書き出され、スキーマ違反を含む文書の pending が未完了のまま残り、転記由来のエントリを validate_toc が受理する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - plugins/doc-advisor/formats/toc_format.md
+
+  - task_id: TASK-008
+    title: index-docs の索引フローへ転記フェーズを組み込む
+    priority: 68
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-007
+    group_id: null
+    build_check: per_task
+    description:
+      - index_toc_orchestrator.md の prepare と充填の間に転記フェーズを追加する（DES-008 §7.1）
+      - index-docs SKILL.md に転記フェーズと warning の扱いを反映する
+      - prepare_toc.py / merge_toc.py / toc_store.py のコードは変更しない
+      - 転記で完了した pending が充填対象から外れることを手順として明記する
+    acceptance_criteria: 転記フェーズ追加後も prepare_toc.py・merge_toc.py・toc_store.py に差分が無く、既存テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/specs/base/design/DES-005_toc_generation_flow.md
+      - docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md
+
+  - task_id: TASK-009
+    title: 言語ルール改訂と既存設計書への追記を行う
+    priority: 65
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-008
+    group_id: null
+    build_check: per_task
+    description:
+      - toc_format.md の言語規定を英語統一として明確化し、言語を規定する唯一の箇所へ集約する（DES-008 §4.4）
+      - DES-005 のシーケンスへ転記経路を追記する
+      - DES-005 のモジュール一覧へ frontmatter 配下の位置づけを追記する
+      - 改訂により嘘になる記述が他に残っていないか確認する
+    acceptance_criteria: toc_format.md の Language Rule 節が全フィールドを英語で書くことを要求する唯一の箇所になっており、他文書（toc-updater / write-frontmatter）は同節を参照するだけで規定を複製しておらず、DES-005 のシーケンスとモジュール一覧の双方に転記経路が記載されている
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - plugins/doc-advisor/formats/toc_format.md
+      - docs/rules/document_writing_rules.md
+
+  - task_id: TASK-010
+    title: 打刻によるファイルハッシュ変化が一巡で収束することを固定する
+    priority: 62
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-008
+    group_id: null
+    build_check: per_task
+    description:
+      - 打刻でファイル全体ハッシュが変わり updated となった文書が、転記を経て次回 unchanged に収束することを統合テストで固定する（戦略書 R9）
+      - 混在ケース・転記由来エントリの validate_toc 通過・スキーマ違反時の警告と非転記は既存テストでカバー済みのため新規に追加しない
+      - 検索品質のゴールデンセット測定は行わない（言語ルールを英語統一へ戻し R6 が不発生になったため測定の根拠が消えた）
+    acceptance_criteria: 打刻 → prepare で updated → 転記 → merge → 再 prepare で unchanged となる一巡が統合テストで固定され、既存テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+
+  - task_id: TASK-011
+    title: pending へ抽出来歴を記録する
+    priority: 45
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-007
+    group_id: null
+    build_check: per_task
+    description:
+      - pending のメタ情報へ抽出来歴の項目を追加する（DES-008 §8.2）
+      - fm_to_pending が転記由来の値を書く
+      - write_pending.py が AI 抽出由来の値を書くよう改修する
+      - toc_format.md のメタ情報フィールド表へ追記する
+      - 既存の write_pending のテストを追随させる
+    acceptance_criteria: 転記経路と AI 抽出経路の pending がそれぞれ異なる来歴値を持ち、toc.yaml には来歴が書き出されず、既存テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - plugins/doc-advisor/formats/toc_format.md
+
+  - task_id: TASK-012
+    title: AI 抽出結果の書き戻し候補を提示する経路を追加する
+    priority: 42
+    status: completed
+    design_id: DES-008
+    depends_on:
+      - TASK-006
+      - TASK-008
+      - TASK-011
+    group_id: null
+    build_check: per_task
+    description:
+      - merge_toc.py の JSON 出力へ AI 抽出だった対象の一覧を集約する
+      - 集約はロジックを変えず出力の追加にとどめる（判断事項 D6）
+      - index-docs SKILL.md に索引完了後の確認手順を追加する
+      - 確認で承認された対象を write-frontmatter へ引き渡す手順を定める
+      - 索引の実行のみでは原本が変更されないことをテストで固定する
+      - merge_toc の既存テストを追随させる
+    acceptance_criteria: 索引を実行しただけでは対象文書に差分が生じず、merge の JSON 出力に AI 抽出だった対象の一覧が含まれ、既存テストが全通過する
+    required_reading:
+      - docs/specs/frontmatter/plan/frontmatter_strategy.md
+      - docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md
+      - docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md
+
+# === 改定履歴 ===
+revision_history:
+  - date: "2026-08-01"
+    content: 初版作成
