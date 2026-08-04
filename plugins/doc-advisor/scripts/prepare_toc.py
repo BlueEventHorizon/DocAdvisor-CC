@@ -436,6 +436,14 @@ def load_input_paths(args):
         raise ValueError(f"Invalid JSON for paths: {e}") from e
 
     if not isinstance(data, list):
+        # 誤用ガード: 「paths 配列を含むファイル」という説明は object 形
+        # （{"paths": [...]}）と読めるため、実際にそう書かれる。argparse の
+        # 素の型エラーではなく、何をどう直すかを含めたエラーにする。
+        if isinstance(data, dict) and isinstance(data.get("paths"), list):
+            raise ValueError(
+                'paths must be a JSON array, not an object. '
+                'Pass the array itself (["docs/a.md", ...]), not {"paths": [...]}'
+            )
         raise ValueError("paths must be a JSON array")
     if not all(isinstance(p, str) for p in data):
         raise ValueError("paths array must contain only strings")

@@ -84,7 +84,7 @@ claude --plugin-dir ./DocAdvisor/plugins/doc-advisor
 # 上位層（forge 等）が key と paths を決定して渡す
 /doc-advisor:index-docs --key my-rules --paths-json '["docs/rules/a.md", "docs/rules/b.md"]'
 
-# paths を JSON ファイルから読み込む
+# paths を JSON ファイルから読み込む（中身は配列そのもの: ["docs/rules/a.md", ...]）
 /doc-advisor:index-docs --key my-rules --paths-file paths.json
 
 # 単体モード: project root 以下の全 Markdown を予約 key "all" に索引化

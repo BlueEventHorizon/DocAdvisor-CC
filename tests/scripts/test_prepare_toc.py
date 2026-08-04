@@ -706,6 +706,35 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
 class TestKeyAndJsonContract(PrepareTestBase):
     """key 解決規則と JSON enum 契約。"""
 
+    def test_paths_file_object_form_gets_a_guiding_error(self):
+        """--paths-file に object 形を渡したら、直し方を含むエラーになること。
+
+        「paths 配列を含む JSON ファイル」という説明は `{"paths": [...]}` と
+        読めるため実際にそう書かれる。型エラーだけでは何を直すか分からない。
+        """
+        target = self.project_root / "targets.json"
+        target.write_text(json.dumps({"paths": ["docs/a.md"]}), encoding="utf-8")
+        self._write_md("docs/a.md")
+
+        proc = self._run('--key', 'rules', '--paths-file', str(target))
+
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "error")
+        self.assertEqual(obj["error_code"], "INVALID_PATH")
+        self.assertIn('["docs/a.md", ...]', obj["message"])
+
+    def test_paths_file_array_form_is_accepted(self):
+        """--paths-file の正しい形（配列そのもの）は受理されること。"""
+        target = self.project_root / "targets.json"
+        target.write_text(json.dumps(["docs/a.md"]), encoding="utf-8")
+        self._write_md("docs/a.md")
+
+        proc = self._run('--key', 'rules', '--paths-file', str(target))
+
+        obj = self._parse_stdout(proc)
+        self.assertEqual(obj["status"], "ok")
+        self.assertEqual(obj["counts"]["added"], 1)
+
     def test_explicit_all_rejected(self):
         """--key all は KEY_RESERVED で reject される。"""
         proc = self._run('--key', 'all', '--paths-json', '[]')

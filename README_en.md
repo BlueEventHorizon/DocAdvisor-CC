@@ -85,7 +85,7 @@ Pass a `key` and paths; the paths are treated as the complete desired state for 
 /doc-advisor:index-docs --key my-rules --paths-json '["docs/rules/a.md", "docs/rules/b.md"]'
 
 # Read paths from a JSON file
-/doc-advisor:index-docs --key my-rules --paths-file paths.json
+/doc-advisor:index-docs --key my-rules --paths-file paths.json   # the file holds the array itself: ["docs/rules/a.md", ...]
 
 # Single mode: index every Markdown file under the project root into the reserved key "all"
 /doc-advisor:index-docs --all
