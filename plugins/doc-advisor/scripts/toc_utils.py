@@ -110,25 +110,6 @@ class PathRejection(ValueError):
         self.error_code = error_code
 
 
-class ExternalSymlinkPending(Exception):
-    """root 外を指す symlink 経由の path が未承認のため確認待ちであることを表す。
-
-    `PathRejection`（= 確定的な reject）とは区別する **エラーではない信号** であり、
-    呼び出し側（prepare_toc）が external_pending バケットに集約し、上位層（index-docs
-    SKILL）がユーザー承認を取って `--allow-external-json` で再実行するために使う
-    （REQ-001 §6.1 / NFR-N06 の default-deny + 明示承認モデル）。
-
-    承認の単位は「root 境界を越える symlink の project-root-relative prefix」（= `symlink`）
-    であり、その配下のファイル個数に依存しない（500 ファイルでも承認は symlink 1 個）。
-    """
-
-    def __init__(self, path, symlink, resolved):
-        super().__init__(f"External symlink needs approval: {path}")
-        self.path = path
-        self.symlink = symlink
-        self.resolved = resolved
-
-
 def resolve_within_root(path, project_root):
     """symlink 実体を解決し、project root 配下にあることを保証する（DES-005 §5.2 / NFR-N06）。
 
@@ -203,7 +184,7 @@ def find_escaping_symlink(rel_path, project_root):
 MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 
 
-def validate_path(path, project_root, allow_external=None):
+def validate_path(path, project_root):
     """単一 path を REQ-001 §6.1 / DES-005 §5.1 の検証フローに従って検証する。
 
     検証順（フロー図 §5.1）:
@@ -212,8 +193,7 @@ def validate_path(path, project_root, allow_external=None):
     3. 論理パス検証（traversal） → reject（PATH_TRAVERSAL）。既存 `validate_path_within_base` を流用
     4. symlink 実体解決（strict） → 不在は reject（NOT_FOUND）
     5. root 配下判定 → root 外実体は次の分岐:
-       - 越境 symlink が `allow_external` で承認済み → 受理して続行
-       - 未承認 → `ExternalSymlinkPending`（確認待ち信号。reject ではない）
+       - 越境 symlink 経由 → **受理する**。越境した symlink prefix を戻り値で通知する
        - symlink を介さない真の root 外 → reject（OUTSIDE_ROOT）
     6. Markdown 判定 → 非 Markdown は reject（NOT_MARKDOWN）
     7. すべて通れば project-root-relative の正規化済み path を返す（accept）
@@ -223,22 +203,25 @@ def validate_path(path, project_root, allow_external=None):
     error_code は toc_store.py の ErrorCode 定数と整合する文字列で
     PathRejection に保持される。
 
+    **越境 symlink を拒否しない [MANDATORY]**: 明示 paths は呼び出し元（上位層）が
+    索引対象として決めたものであり、それが symlink であることは渡す側が知っている
+    （NFR-N06）。doc-advisor が別の理由でここを塞ぐと、判断が複数箇所に分かれ、
+    上位層は自分の指定が通らない理由を知り得ない。注意喚起は warning で行い、
+    索引するか否かの決定は呼び出し元に残す。
+
     Args:
         path: 検証対象の入力 path（str）。project-root-relative であることを期待する。
         project_root: project root（str or Path）
-        allow_external: 承認済み越境 symlink prefix の集合（str の iterable）。
-            既定 None は「承認なし」（= 越境 symlink はすべて確認待ち）。NFR-N06 の
-            default-deny を保つため、明示承認された prefix のみ root 外参照を許可する。
 
     Returns:
-        str: project-root-relative の正規化済み path（accept 時）
+        tuple[str, str | None]: (project-root-relative の正規化済み path,
+            root 境界を越えた symlink の rel prefix。越境していなければ None)
 
     Raises:
         PathRejection: 検証失敗時。error_code に reject 理由を保持する。
-        ExternalSymlinkPending: 未承認の越境 symlink 経由 path（確認待ち）。
     """
     root = Path(project_root)
-    allowed = set(allow_external) if allow_external else set()
+    external_symlink = None
 
     # 1. 絶対パス reject
     raw = normalize_path(path)
@@ -263,26 +246,20 @@ def validate_path(path, project_root, allow_external=None):
     except PathRejection as e:
         if e.error_code != "OUTSIDE_ROOT":
             raise
-        # root 外実体: 越境している symlink を特定して承認状態で分岐する（NFR-N06）。
+        # root 外実体: 越境している symlink を特定する（NFR-N06）。
         sym = find_escaping_symlink(rel_normalized, root)
         if sym is None:
-            # symlink を介さない真の root 外（理論上 traversal で先に弾かれる）。従来どおり reject。
+            # symlink を介さない真の root 外（理論上 traversal で先に弾かれる）。reject。
             raise
-        if sym not in allowed:
-            resolved = None
-            try:
-                resolved = str((root / sym).resolve())
-            except (OSError, RuntimeError):
-                pass
-            raise ExternalSymlinkPending(rel_normalized, sym, resolved) from e
-        # 承認済み → 受理して Markdown 判定へ続行
+        # 越境 symlink 経由 → 受理し、prefix を呼び出し元へ通知して Markdown 判定へ続行
+        external_symlink = sym
 
     # 6. Markdown 判定（論理パスの拡張子で判定。symlink 先の実体拡張子に依存しない）
     if Path(rel_normalized).suffix.lower() not in MARKDOWN_SUFFIXES:
         raise PathRejection(f"Not a Markdown file: {path}", "NOT_MARKDOWN")
 
     # 7. accept: project-root-relative の正規化済み path
-    return rel_normalized
+    return rel_normalized, external_symlink
 
 
 def detect_case_collisions(normalized_paths):

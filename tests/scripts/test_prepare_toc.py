@@ -521,8 +521,13 @@ class TestPathValidation(PrepareTestBase):
 # 越境 symlink の default-deny + 明示承認（NFR-N06）
 # ===========================================================================
 
-class TestExternalSymlinkConsent(PrepareTestBase):
-    """root 外を指す symlink の確認フロー（default-deny → 明示承認）。"""
+class TestExternalSymlinkPassThrough(PrepareTestBase):
+    """root 外を指す symlink の扱い（NFR-N06）。
+
+    明示 paths は**索引する**（呼び出し元が渡した対象であり、それが symlink である
+    ことは渡す側が知っている）。確認を要求するのは project root 全体を走査する
+    単体モードのみである。
+    """
 
     def _link_external_file(self, link_rel):
         """project root 外の .md を指す symlink を link_rel に作る。outside_dir を返す。"""
@@ -556,58 +561,51 @@ class TestExternalSymlinkConsent(PrepareTestBase):
 
     # --- in-process: validate_paths ---
 
-    def test_unapproved_external_goes_to_pending(self):
+    def test_external_is_indexed_not_pending(self):
+        """越境 symlink は索引対象に入り、warning 用に集計される。"""
         if not hasattr(Path, "is_relative_to"):
             self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             norm, rejected, ext = validate_paths(["linked.md"], self.project_root)
-            self.assertEqual(norm, [])
-            self.assertEqual(rejected, [])  # reject ではなく pending
+            self.assertEqual(norm, ["linked.md"])  # 索引する
+            self.assertEqual(rejected, [])
             self.assertEqual([e["symlink"] for e in ext], ["linked.md"])
+            self.assertEqual(ext[0]["affected_count"], 1)
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 
-    def test_approved_external_accepted(self):
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
-        outside = self._link_external_file("linked.md")
-        try:
-            norm, rejected, ext = validate_paths(
-                ["linked.md"], self.project_root, allow_external={"linked.md"}
-            )
-            self.assertEqual(norm, ["linked.md"])
-            self.assertEqual(ext, [])
-        finally:
-            shutil.rmtree(outside, ignore_errors=True)
-
-    def test_dir_symlink_aggregates_to_single_approval(self):
-        """ディレクトリ symlink 配下の複数ファイルは symlink 1 個に集約される（承認単位）。"""
+    def test_dir_symlink_aggregates_to_one_entry(self):
+        """ディレクトリ symlink 配下の複数ファイルは symlink 1 個に集約して報告される。"""
         if not hasattr(Path, "is_relative_to"):
             self.skipTest("Python 3.9+ required")
         outside = self._link_external_dir("ext", ["x.md", "y.md", "z.md"])
         try:
-            norm, rejected, pend = validate_paths(
+            norm, _rejected, ext = validate_paths(
                 ["ext/x.md", "ext/y.md", "ext/z.md"], self.project_root
             )
-            self.assertEqual(norm, [])
-            self.assertEqual(len(pend), 1)
-            self.assertEqual(pend[0]["symlink"], "ext")
-            self.assertEqual(pend[0]["affected_count"], 3)
-            # 承認すると配下すべてが通る
-            norm2, _, pend2 = validate_paths(
-                ["ext/x.md", "ext/y.md", "ext/z.md"],
-                self.project_root, allow_external={"ext"},
-            )
-            self.assertEqual(norm2, ["ext/x.md", "ext/y.md", "ext/z.md"])
-            self.assertEqual(pend2, [])
+            self.assertEqual(norm, ["ext/x.md", "ext/y.md", "ext/z.md"])
+            self.assertEqual(len(ext), 1)
+            self.assertEqual(ext[0]["symlink"], "ext")
+            self.assertEqual(ext[0]["affected_count"], 3)
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 
-    # --- CLI: needs_confirmation / allow / deny ---
+    def test_genuine_outside_root_still_rejected(self):
+        """symlink を介さない真の root 外は従来どおり reject される（traversal 相当）。"""
+        norm, rejected, ext = validate_paths(["../escape.md"], self.project_root)
+        self.assertEqual(norm, [])
+        self.assertEqual([r["reason"] for r in rejected], ["PATH_TRAVERSAL"])
+        self.assertEqual(ext, [])
 
-    def test_cli_discovery_emits_needs_confirmation(self):
-        """明示 paths の discovery モードで越境を検出 → needs_confirmation（書き込みなし）。"""
+    # --- CLI: 明示 paths は確認を挟まず索引する ---
+
+    def test_cli_explicit_paths_index_external_without_confirmation(self):
+        """明示 paths の越境 symlink は needs_confirmation にならず索引される。
+
+        forge のような上位層は index-docs を 1 回だけ呼び、確認に答える経路を
+        持たない。ここで止めると索引が動かないまま理由も伝わらない。
+        """
         if not hasattr(Path, "is_relative_to"):
             self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
@@ -615,26 +613,65 @@ class TestExternalSymlinkConsent(PrepareTestBase):
             proc = self._run('--key', 'rules', '--paths-json', '["linked.md"]')
             self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
             obj = self._parse_stdout(proc)
+            self.assertEqual(obj["status"], "ok")
+            self.assertEqual(obj["counts"]["added"], 1)
+            self.assertNotIn("external_pending", obj)
+            self.assertTrue(
+                any("external symlink indexed" in w for w in obj["warnings"]),
+                f"warnings: {obj.get('warnings')}",
+            )
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    def test_cli_explicit_paths_warning_names_the_resolved_target(self):
+        """warning は解決先の実体パスと件数を含む（注意喚起として意味を持たせる）。"""
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_dir("ext", ["x.md", "y.md"])
+        try:
+            proc = self._run(
+                '--key', 'rules', '--paths-json', '["ext/x.md", "ext/y.md"]'
+            )
+            obj = self._parse_stdout(proc)
+            self.assertEqual(obj["status"], "ok")
+            hit = [w for w in obj["warnings"] if "external symlink indexed" in w]
+            self.assertEqual(len(hit), 1, f"warnings: {obj.get('warnings')}")
+            self.assertIn(str(Path(outside).resolve()), hit[0])
+            self.assertIn("2 file(s)", hit[0])
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
+
+    # --- CLI: 単体モードの走査は確認を要求する ---
+
+    def test_cli_single_mode_requires_confirmation(self):
+        """--all の走査で越境 symlink を見つけたら needs_confirmation（書き込みなし）。
+
+        走査で見つかった symlink は誰も索引対象として渡していないため、
+        project root の外へ勝手に広げない。
+        """
+        if not hasattr(Path, "is_relative_to"):
+            self.skipTest("Python 3.9+ required")
+        outside = self._link_external_file("linked.md")
+        try:
+            proc = self._run('--all')
+            self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
+            obj = self._parse_stdout(proc)
             self.assertEqual(obj["status"], "needs_confirmation")
             self.assertIsNone(obj["error_code"])
             self.assertEqual(
                 [e["symlink"] for e in obj["external_pending"]], ["linked.md"]
             )
-            # 書き込みされていない（store_dir に toc work なし）
-            self.assertFalse((self._store_dir("rules") / WORK_DIRNAME).exists())
+            self.assertFalse((self._store_dir("all") / WORK_DIRNAME).exists())
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 
-    def test_cli_allow_external_accepts(self):
-        """--allow-external-json で承認すると通常処理（status ok / added）。"""
+    def test_cli_single_mode_allow_indexes_it(self):
+        """--all + 承認で索引される。"""
         if not hasattr(Path, "is_relative_to"):
             self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
-            proc = self._run(
-                '--key', 'rules', '--paths-json', '["linked.md"]',
-                '--allow-external-json', '["linked.md"]',
-            )
+            proc = self._run('--all', '--allow-external-json', '["linked.md"]')
             self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
             obj = self._parse_stdout(proc)
             self.assertEqual(obj["status"], "ok")
@@ -642,18 +679,14 @@ class TestExternalSymlinkConsent(PrepareTestBase):
         finally:
             shutil.rmtree(outside, ignore_errors=True)
 
-    def test_cli_deny_all_drops_with_warning(self):
-        """--allow-external-json '[]' は decided（全拒否）。drop して warning に列挙、status ok。"""
+    def test_cli_single_mode_deny_drops_with_warning(self):
+        """--all + 全拒否（'[]'）は落として warning に列挙し、残りで続行する。"""
         if not hasattr(Path, "is_relative_to"):
             self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             self._write_md("docs/a.md")
-            proc = self._run(
-                '--key', 'rules',
-                '--paths-json', '["docs/a.md", "linked.md"]',
-                '--allow-external-json', '[]',
-            )
+            proc = self._run('--all', '--allow-external-json', '[]')
             self.assertEqual(proc.returncode, 0, f"stderr: {proc.stderr}")
             obj = self._parse_stdout(proc)
             self.assertEqual(obj["status"], "ok")

@@ -700,6 +700,92 @@ class TestUpperLayerContract(WrapperTestBase):
                 self.assertEqual(payload['error_code'], 'INVALID_PATH')
 
 
+class TestExternalSymlinkPassThrough(WrapperTestBase):
+    """越境 symlink をラッパー経由で扱うこと（NFR-N06）
+
+    実運用で外部の仕様書を symlink で置いて索引している構成がある。上位層は
+    index-docs を **1 回だけ** 呼び確認に答える経路を持たないため、明示指定された
+    対象は確認を挟まず索引する。**索引するか否かの決定は呼び出し元に残す**のが
+    doc-advisor の立場であり、渡す側はそれが symlink であることを知っている。
+
+    走査（`--all`）だけは誰も対象を渡していないため確認する。
+    """
+
+    def _link_external_dir(self, link_rel, names):
+        outside = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, str(outside), ignore_errors=True)
+        for name in names:
+            (outside / name).write_text('# Ext\n\nThis is body content.\n',
+                                        encoding='utf-8')
+        link = self.project_root / link_rel
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        return outside
+
+    def test_dirs_containing_external_symlink_reaches_done(self):
+        """--dirs 配下の越境 symlink が confirm を挟まず done まで到達すること。"""
+        self._link_external_dir('docs/shared', ['a.md', 'b.md'])
+
+        payload, _calls, _agents = self._drive_to_done(
+            'specs', '--key', 'specs', '--dirs', 'docs/',
+        )
+
+        self.assertEqual(payload['counts']['added'], 2)
+
+    def test_the_warning_names_the_target_on_the_first_call(self):
+        """注意喚起は prepare が走る最初の応答に出ること（解決先と件数を含む）。
+
+        ラッパーは状態を持たないため、prepare の warning は初回の応答にだけ載る
+        （2 回目以降は prepare を再実行しない）。呼び出し側は action を問わず
+        warnings を提示する契約であり、ここで消えると注意喚起の唯一の経路が失われる。
+        """
+        outside = self._link_external_dir('docs/shared', ['a.md', 'b.md'])
+
+        first = self._index('--key', 'specs', '--dirs', 'docs/')
+
+        self.assertEqual(first['action'], 'dispatch')
+        hit = [w for w in first['warnings'] if 'external symlink indexed' in w]
+        self.assertEqual(len(hit), 1, f"warnings: {first['warnings']}")
+        self.assertIn('docs/shared', hit[0])
+        self.assertIn(str(outside), hit[0])
+        self.assertIn('2 file(s)', hit[0])
+
+    def test_paths_pointing_through_external_symlink_are_indexed(self):
+        """--paths で越境 symlink 経由のファイルを直接渡しても索引されること。"""
+        self._link_external_dir('shared', ['spec.md'])
+
+        payload, _calls, _agents = self._drive_to_done(
+            'specs', '--key', 'specs', '--paths', 'shared/spec.md',
+        )
+
+        self.assertEqual(payload['counts']['added'], 1)
+
+    def test_single_mode_asks_before_leaving_the_root(self):
+        """--all の走査で見つかった越境 symlink は confirm になること。"""
+        self._link_external_dir('docs/shared', ['a.md'])
+
+        payload = self._index('--all')
+
+        self.assertEqual(payload['action'], 'confirm')
+        self.assertEqual(payload['reason'], 'external_symlink')
+        self.assertEqual(
+            [e['symlink'] for e in payload['external_pending']], ['docs/shared'],
+        )
+
+    def test_single_mode_indexes_after_approval(self):
+        """--all + --allow-external で承認された symlink が索引されること。"""
+        self._link_external_dir('docs/shared', ['a.md'])
+
+        payload, _calls, _agents = self._drive_to_done(
+            'all', '--all', '--allow-external', 'docs/shared',
+        )
+
+        self.assertEqual(payload['counts']['added'], 1)
+
+
 class TestArgumentContract(WrapperTestBase):
     """引数の矛盾・不正が error として返ること"""
 

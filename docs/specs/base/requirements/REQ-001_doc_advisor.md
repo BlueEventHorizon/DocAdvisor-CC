@@ -128,16 +128,34 @@ doc-advisor は、**上位層が決定した `key + project-root-relative paths`
 
 ### 6.1 path validation policy【確定】
 
-| 規則        | 確定内容                                                                                                                                                                                                                                   |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 入力形式    | project-root-relative のみ受理。絶対パスは reject                                                                                                                                                                                          |
-| traversal   | `..` による root 外参照は reject（論理パス検証。既存 `validate_path_within_base()` を流用、CWE-22）                                                                                                                                        |
-| **symlink** | **default-deny + 明示承認。** 実体を解決し、解決後パスが project root 配下なら受理。root 外を指す symlink は既定では索引せず、上位層の明示承認（`--allow-external-json`）があった prefix のみ受理する（実体解決・承認の実装は DES-005 §5） |
-| 正規化      | NFC 正規化（既存 `normalize_path()`）。`./a.md` と `a.md` を同一視。重複は除去                                                                                                                                                             |
-| 大小衝突    | case-insensitive 衝突を検出し warning として JSON に含める                                                                                                                                                                                 |
-| 不正対象    | 不在ファイル / ディレクトリ / 非 Markdown は `rejected_paths` に理由付きで列挙する                                                                                                                                                         |
+| 規則        | 確定内容                                                                                                                                                                                                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 入力形式    | project-root-relative のみ受理。絶対パスは reject                                                                                                                                                                                                                                 |
+| traversal   | `..` による root 外参照は reject（論理パス検証。既存 `validate_path_within_base()` を流用、CWE-22）                                                                                                                                                                               |
+| **symlink** | **渡されたものは索引する。** 実体を解決し、解決後パスが project root 配下なら受理。root 外を指す symlink も、明示指定（`--paths` / `--dirs`）された対象であれば受理し、解決先と件数を warning に出す。走査（単体モード）で見つかったものだけ確認する（§6.1a / 実装は DES-005 §5） |
+| 正規化      | NFC 正規化（既存 `normalize_path()`）。`./a.md` と `a.md` を同一視。重複は除去                                                                                                                                                                                                    |
+| 大小衝突    | case-insensitive 衝突を検出し warning として JSON に含める                                                                                                                                                                                                                        |
+| 不正対象    | 不在ファイル / ディレクトリ / 非 Markdown は `rejected_paths` に理由付きで列挙する                                                                                                                                                                                                |
 
-> **symlink を default-deny + 明示承認にする根拠**: root 外ファイルの不意なインデックス化（漏洩）を防ぐことが第一目的。一方で「project root の外に実体を置き symlink で取り込む」運用（例: 別リポジトリの共有 doc セット、テスト用 doc セット）は正当に存在し、その実体が root 外にある以上 symlink 以外に索引する経路がない（絶対パスは ABSOLUTE_PATH、root 外への相対は PATH_TRAVERSAL で reject されるため）。したがって **一律 reject ではなく、越境を検出したら上位層に提示して許可・不許可を確認し、承認された symlink のみ受理する**。承認の単位は「root 境界を越える symlink の prefix」ひとつであり、その配下のファイル数に依存しない（500 ファイルでも承認は symlink 1 個）。サポート下限を Python 3.9 に確定する（`Path.is_relative_to`、README に明記）。実体解決・確認フロー（discovery / decided）の実装詳細は DES-005 §5 に委ねる。
+> **前提**: 「project root の外に実体を置き symlink で取り込む」運用（例: 別リポジトリの共有仕様書、共通ルール集）は**実運用で使われている**。その実体が root 外にある以上、symlink 以外に索引する経路がない（絶対パスは `ABSOLUTE_PATH`、root 外への相対は `PATH_TRAVERSAL` で reject されるため）。サポート下限は Python 3.9（`Path.is_relative_to`、README に明記）。実体解決の実装詳細は DES-005 §5 に委ねる。
+
+### 6.1a 越境 symlink の決定権は呼び出し元にある【確定】
+
+**明示指定された対象は、越境 symlink であっても索引する。** doc-advisor は索引の実行主体であり、何を索引するかを決める主体ではない。
+
+| 経路                               | 扱い                                        | 根拠                                                                                      |
+| ---------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--paths` / `--dirs`（明示指定）   | **索引する**。解決先と件数を warning に出す | 呼び出し元が索引対象として渡したものであり、それが symlink であることは渡す側が知っている |
+| `--all`（project root 全体の走査） | ユーザーに確認する（`needs_confirmation`）  | 誰も対象として渡していない。project root の外へ勝手に広げない                             |
+
+**明示指定で確認を挟んではならない理由**は 2 つある。
+
+1. **判断が複数箇所に分かれる。** 上位層が「この構成を索引する」と決めて渡しているのに、doc-advisor が別の理由でそれを止めると、通行手形を積み重ねないと通れない設計になる
+2. **上位層は確認に答えられない。** forge の `update-db-rules` / `update-db-specs` は index-docs を **1 回だけ**呼び、再実行も引数の組み替えもしない。ここで止めると**索引が動かないまま、上位層には理由が分からない**
+
+安全性は「禁止」ではなく**透明性**で担保する。何を索引したか（越境 symlink の名前・解決先の実体パス・件数）を warning として必ず提示し、判断材料を呼び出し元とユーザーに渡す。**黙って索引することと、勝手に禁止することの両方を避ける。**
+
+> **過去の設計からの変更**: 当初は default-deny（越境を検出したら確認待ちにし、承認された prefix のみ受理）だった。しかし①実運用で symlink 経由の外部仕様書が索引されており、②その経路の唯一の呼び出し元である forge は確認に答えられないため、**既定で禁止する設計は成立していなかった**。走査（`--all`）だけは「誰も渡していない」ため確認を残す。
 
 ### 6.2 SKILL 構成【確定】
 
@@ -185,15 +203,15 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 
 ## 非機能要件
 
-| ID      | 要件                                                                                                                                                                                                                                                            |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NFR-N01 | Python は標準ライブラリのみ使用（NFR-003 を継続）。サポート下限は Python 3.9（`Path.is_relative_to` 使用のため）                                                                                                                                                |
-| NFR-N02 | 既存資産（`validate_path_within_base` / `normalize_path` / `calculate_file_hash` / `rglob_follow_symlinks` / `should_exclude` / `load_existing_toc` / `write_yaml_output` / `yaml_escape`）を可能な限り再利用する                                               |
-| NFR-N03 | `scripts/` 配下 Python はテスト必須（implementation_guidelines）。追加・改修コードは同一 PR でテストを伴う                                                                                                                                                      |
-| NFR-N04 | 仕様文書（要件・設計）の更新はコードと同一 PR で行う（implementation_guidelines）                                                                                                                                                                               |
-| NFR-N05 | （性能）最大ファイル数超過時は warning を JSON に含めるが処理は継続する。超過判定の閾値（最大ファイル数）は 100 件とする（2026-05-30 当事者確定）。空 repo / 対象 0 件時は error ではなく空 ToC を冪等出力する                                                  |
-| NFR-N06 | （セキュリティ）path traversal / root 外 symlink によるインデックス漏洩を防止する。検証方針は §6.1 path validation policy に従う（traversal は論理パス検証で reject、root 外 symlink は default-deny で確認待ちにし、上位層が明示承認した prefix のみ受理する） |
-| NFR-N07 | （運用性）ToC 書き出し時のバックアップ・復元フローは key 単位で行う（DES-005 §6.5）                                                                                                                                                                             |
+| ID      | 要件                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-N01 | Python は標準ライブラリのみ使用（NFR-003 を継続）。サポート下限は Python 3.9（`Path.is_relative_to` 使用のため）                                                                                                                                                                                                                                                                                     |
+| NFR-N02 | 既存資産（`validate_path_within_base` / `normalize_path` / `calculate_file_hash` / `rglob_follow_symlinks` / `should_exclude` / `load_existing_toc` / `write_yaml_output` / `yaml_escape`）を可能な限り再利用する                                                                                                                                                                                    |
+| NFR-N03 | `scripts/` 配下 Python はテスト必須（implementation_guidelines）。追加・改修コードは同一 PR でテストを伴う                                                                                                                                                                                                                                                                                           |
+| NFR-N04 | 仕様文書（要件・設計）の更新はコードと同一 PR で行う（implementation_guidelines）                                                                                                                                                                                                                                                                                                                    |
+| NFR-N05 | （性能）最大ファイル数超過時は warning を JSON に含めるが処理は継続する。超過判定の閾値（最大ファイル数）は 100 件とする（2026-05-30 当事者確定）。空 repo / 対象 0 件時は error ではなく空 ToC を冪等出力する                                                                                                                                                                                       |
+| NFR-N06 | （セキュリティ）path traversal によるインデックス漏洩を防止する。検証方針は §6.1 path validation policy に従う（traversal は論理パス検証で reject）。**root 外を指す symlink は、明示指定された対象であれば索引し、warning で注意喚起する**（索引するか否かの決定は呼び出し元に属する。§6.1a）。project root 全体を走査する単体モードでのみ、誰も渡していない越境 symlink についてユーザーに確認する |
+| NFR-N07 | （運用性）ToC 書き出し時のバックアップ・復元フローは key 単位で行う（DES-005 §6.5）                                                                                                                                                                                                                                                                                                                  |
 
 ## 非目的 / スコープ外
 
@@ -220,7 +238,8 @@ sync は **prepare（決定的・差分検出）と merge（決定的・統合�
 - [ ] `prepare_toc.py --key <key> --paths-json` / `--paths-file` + `merge_toc.py` で ToC を desired-state 更新できる
 - [ ] paths は project-root-relative として解決される
 - [ ] 絶対パス・traversal・不在・非 Markdown は §6.1 に従い JSON で reject / 列挙される
-- [ ] root 外を指す symlink は default-deny で `needs_confirmation`（`external_pending` に越境 symlink を集約）として提示され、`--allow-external-json` で承認された prefix のみ受理される（NFR-N06）
+- [ ] **明示指定（`--paths` / `--dirs`）された対象は、root 外を指す symlink 経由であっても索引され**、解決先の実体パスと件数を含む warning が出る（NFR-N06 / §6.1a）
+- [ ] 単体モード（`--all`）の走査で見つかった越境 symlink は `needs_confirmation`（`external_pending` に symlink 単位で集約）として提示され、承認された prefix のみ受理される（NFR-N06）
 - [ ] key は opaque に扱われ、original key が metadata に保持される
 - [ ] 空 key / 過長 key / Unicode key / 予約語 `all` が §FR-N01-5 に従い処理される
 
