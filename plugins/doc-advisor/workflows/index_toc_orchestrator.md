@@ -84,6 +84,12 @@ those documents from this run's ToC, and for an **updated** document it also wri
 current-content checksum — so the next run sees "unchanged" and the revision is never indexed
 again (silent staleness).
 
+`--on-fill-error retry` clears the error state first, then puts the entry through the normal claim
+path — so a second run while the retry is still in flight returns `wait` rather than dispatching the
+same entry twice. Retrying a **permanent** failure (a problem in the source document) will fail
+again every time; the script says so in `warnings`. Fix the document, or accept the drop with
+`merge`.
+
 ---
 
 ## Store Directory Layout
@@ -172,11 +178,12 @@ These apply to the `doc-advisor:toc-updater` agent, not to the orchestrator.
 The normal pipeline never calls the core scripts directly. Use them only for the cases below, and
 confirm with the user first.
 
-| Situation                                                                               | Command                                                                                                    |
-| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Discard `.toc_work/` and start over (corrupted pending, a permanently failing document) | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`) |
-| Inspect deletions before committing to them                                             | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json '{paths}' --dry-run`      |
-| Promote pending checksums without a merge (maintenance)                                 | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --promote-pending`                       |
+| Situation                                                                                                               | Command                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Discard `.toc_work/` and start over (corrupted pending, a permanently failing document)                                 | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --clean-work-dir` (single mode: `--all`) |
+| Return a failed entry to the normal pending pool by hand (diagnosis only; `--on-fill-error retry` does this internally) | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --reset-error <entry...>`                |
+| Inspect deletions before committing to them                                                                             | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prepare_toc.py --key "{key}" --paths-json '{paths}' --dry-run`      |
+| Promote pending checksums without a merge (maintenance)                                                                 | `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/toc_store.py --key "{key}" --promote-pending`                       |
 
 `--clean-work-dir` may discard already-filled work; that is why it needs confirmation.
 

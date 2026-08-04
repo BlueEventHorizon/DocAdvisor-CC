@@ -358,14 +358,116 @@ class TestFrontmatterWithdrawalRehearsal(WrapperTestBase):
         self.assertEqual(payload['action'], 'dispatch')
         self.assertEqual(payload['transcribed'], 0, '転記は 0 件になる')
         self.assertTrue(
-            any('transcription skipped' in w or 'transcription failed' in w
-                for w in payload['warnings']),
-            f"転記を飛ばしたことが warnings で透明化されていない: {payload['warnings']}",
+            any('withdrawn' in w for w in payload['warnings']),
+            f"撤回したことが warnings で透明化されていない: {payload['warnings']}",
         )
         dispatched = [
             entry for agent in payload['agents'] for entry in agent['entry_files']
         ]
         self.assertEqual(len(dispatched), 1, '転記できる文書も AI 抽出へ回る')
+
+    def _broken_scripts_copy(self, name, mutate):
+        """scripts のコピーを作り、frontmatter/ を壊してからパスを返す。
+
+        リポジトリの scripts/frontmatter/ には触らない。
+        """
+        scripts_copy = Path(self.tmpdir) / name
+        shutil.copytree(
+            SCRIPTS_DIR, scripts_copy,
+            ignore=shutil.ignore_patterns('__pycache__'),
+        )
+        mutate(scripts_copy / 'frontmatter')
+        return scripts_copy
+
+    def _assert_breakage_is_reported_as_json_error(self, scripts_copy):
+        """破損が単一 JSON の action: error として返ることを確認する。
+
+        traceback で終了すると「stdout に単一 JSON」という CLI 契約
+        （DES-005 §8.1）を破り、呼び出し側が action で分岐できない。
+        silent success とは別種の欠陥として、これも許容しない。
+        """
+        proc = self._run_raw(
+            scripts_copy / 'index_docs.py', '--key', 'rules', '--dirs', 'docs/',
+            scripts_dir=scripts_copy,
+        )
+
+        self.assertEqual(
+            proc.returncode, 1,
+            f"破損が error になっていない: stdout={proc.stdout} stderr={proc.stderr}",
+        )
+        out = proc.stdout.strip()
+        self.assertTrue(out, f"stdout が空（traceback で終了した）: {proc.stderr[-400:]}")
+        self.assertEqual(
+            len(out.split("\n")), 1,
+            f"stdout は単一 JSON でなければならない: {out!r}",
+        )
+        self.assertNotIn(
+            'Traceback', proc.stderr,
+            'traceback で終了しており CLI 契約を満たしていない',
+        )
+        payload = json.loads(out)
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['status'], 'error')
+        self.assertEqual(payload['error_code'], 'READ_ERROR')
+        self.assertIn('破損', payload['message'])
+
+    def test_missing_transcription_module_is_an_error_not_a_silent_skip(self):
+        """**撤回と破損を区別すること。**
+
+        ディレクトリごと消えているのは撤回であり許容する。ディレクトリはあるのに
+        読み込めないのは破損である。
+
+        破損を転記 0 件として続行しても toc.yaml の内容は正しい（未信頼の文書は
+        AI 抽出へ回り、それは正常なフォールバック経路である）。失われるのは
+        **転記による高速化だけ**である。したがって固定したいのは「誤った ToC が
+        出ないこと」ではなく「**配布物が壊れたまま性能劣化が黙って続かないこと**」
+        である。warnings は自動実行で見落とされるため成功経路に載せない。
+        """
+        self._write_md('docs/trusted.md', trusted_document())
+
+        # ディレクトリは残し、転記モジュールだけを取り除く（部分配置の再現）
+        scripts_copy = self._broken_scripts_copy(
+            'scripts_missing_module',
+            lambda fm_dir: (fm_dir / 'fm_to_pending.py').unlink(),
+        )
+
+        self._assert_breakage_is_reported_as_json_error(scripts_copy)
+
+    def test_syntax_error_in_the_transcription_module_is_a_json_error(self):
+        """構文破損も JSON の error として返ること。
+
+        構文エラーは `SyntaxError` であり `ImportError` ではない。`ImportError`
+        だけを捕まえていると例外が `main()` の外へ伝播し、traceback で終了して
+        stdout に JSON が出ない。silent success は避けられても CLI 契約を破る。
+        """
+        self._write_md('docs/trusted.md', trusted_document())
+
+        def break_syntax(fm_dir):
+            (fm_dir / 'fm_to_pending.py').write_text(
+                'def broken(:\n    pass\n', encoding='utf-8'
+            )
+
+        scripts_copy = self._broken_scripts_copy(
+            'scripts_syntax_error', break_syntax
+        )
+
+        self._assert_breakage_is_reported_as_json_error(scripts_copy)
+
+    def test_broken_dependency_of_the_transcription_module_is_a_json_error(self):
+        """転記モジュールの依存（fm_core）が壊れている場合も JSON の error。"""
+        self._write_md('docs/trusted.md', trusted_document())
+
+        def break_dependency(fm_dir):
+            (fm_dir / 'fm_core.py').write_text(
+                'raise RuntimeError("simulated broken dependency")\n',
+                encoding='utf-8',
+            )
+
+        scripts_copy = self._broken_scripts_copy(
+            'scripts_broken_dependency', break_dependency
+        )
+
+        self._assert_breakage_is_reported_as_json_error(scripts_copy)
 
 
 class TestIdempotentPaths(WrapperTestBase):
@@ -479,6 +581,45 @@ class TestFillErrorIsNotSilentlyMerged(WrapperTestBase):
             any('keep failing on every retry' in w for w in payload['warnings']),
             '恒常的失敗の警告が出ていない',
         )
+
+    def test_retry_goes_through_claim_so_a_second_run_does_not_double_dispatch(self):
+        """retry が claim/lease に乗ること（二重投入の防止）。
+
+        error_pending をそのまま dispatch すると claim_entries が error_message を
+        持つ entry を reject するため claim が効かず、同じコマンドを再実行すると
+        同一 entry が再投入される。複数 Agent が同じ pending を同時に更新すれば
+        結果が競合・上書きされる。そこで retry は error 状態を解除してから通常の
+        claim 経路へ合流させる。
+        """
+        key = 'rules'
+        entry = self._make_error_pending(key)
+
+        first = self._index('--key', key, '--dirs', 'docs/',
+                            '--on-fill-error', 'retry')
+        self.assertEqual(first['action'], 'dispatch')
+        self.assertEqual(first['in_flight_agents'], 0)
+
+        # 充填せずに再実行する。claim が効いていれば in-flight として扱われ wait。
+        second = self._index('--key', key, '--dirs', 'docs/',
+                             '--on-fill-error', 'retry')
+
+        self.assertEqual(
+            second['action'], 'wait',
+            '2 回目が dispatch なら claim が効いておらず二重投入する',
+        )
+        self.assertEqual(second['in_flight_agents'], 1)
+
+    def test_retry_clears_the_error_so_the_entry_is_a_normal_pending(self):
+        """retry 後の entry が error_pending でなく通常の pending になること。"""
+        key = 'rules'
+        entry = self._make_error_pending(key)
+
+        self._index('--key', key, '--dirs', 'docs/', '--on-fill-error', 'retry')
+
+        entry_text = (self.project_root / entry).read_text(encoding='utf-8')
+        self.assertNotIn('error_message', entry_text,
+                         'error_message が残っていると再び error_pending に落ちる')
+        self.assertIn('claimed_at', entry_text, 'claim のスタンプが付いている')
 
 
 class TestArgumentContract(WrapperTestBase):

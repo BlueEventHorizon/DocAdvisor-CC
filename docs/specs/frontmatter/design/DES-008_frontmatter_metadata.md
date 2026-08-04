@@ -11,7 +11,7 @@ content_details:
   - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
   - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
   - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
-  - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
+  - Withdrawal by deleting one directory depends on the indexing side treating its absence as normal
   - fm_run.py wrapper - plan resolves targets, apply writes and verifies trust so the caller compares nothing
 applicable_tasks:
   - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
@@ -32,7 +32,7 @@ keywords:
   - OKF
   - extracted_by
   - "--format-command"
-body_hash: sha256:eca619f6b56180874cd7fb7c7774bfc4290779d1a9edc9cd359672c3db5881ee
+body_hash: sha256:69d6336546a9c696811811bb49b5b64bf2b1265c9e4ab81100eaa9436f780424
 ---
 
 # DES-008: doc-advisor フロントマター設計書
@@ -341,6 +341,10 @@ tests/scripts/frontmatter/test_fm_*.py
 
 この分離により、フロントマター方式を将来撤回する場合に 1 ディレクトリの削除で戻せる。
 
+**ただしこの性質はディレクトリ構造だけでは成立しない**。索引側の呼び出し元が「ディレクトリの不在」を正常な状態として扱う必要があり、その実装は `index_docs.py` にある（DES-005 §4.1.1）。実装当初は不在で呼び出し元がクラッシュしており、「1 ディレクトリの削除で戻せる」という本節の主張は成立していなかった。現在は `frontmatter/` を含まない `scripts/` のコピーで索引が完了することをテストで固定している。
+
+あわせて **不在（撤回）と読み込み失敗（破損）は区別される**。破損時も AI 抽出へフォールバックするため `toc.yaml` の内容は正しく、失われるのは転記による高速化だけだが、配布物が壊れたまま性能劣化が続くのを避けるため索引側は error にする（同 §4.1.1）。
+
 ### 6.2 各 script の責務
 
 | script             | 責務                                                                                                               |
@@ -570,6 +574,7 @@ forge / anvil の文書作成・編集スキルに「作成時にフロントマ
 | 2026-08-02 | 1.2        | 実装着手前の判断事項を反映。`fm_to_pending.py` に `--work-dir` の一括処理を追加（§6.1 / §6.2）、スキーマ規約のテストを一方向の包含関係へ変更（§6.4）、§7.1 の無改造範囲を JSON 出力への項目追加を除く形へ限定して §8.2 との矛盾を解消、書き込み SKILL の形態と適用対象を決定（§10）                                                                                                                                                                                                                                                                                                                                                                 |
 | 2026-08-02 | 1.3        | `fm_read.py` の走査モードを廃止し、対象を `--paths-json` で受け取る形へ変更（§6.1 / §6.2）。§10.2 の配布物除外を script の機能仕様から運用方針へ位置づけ直した。配布先に存在しないパスの判定を配布物へ焼き込むことになり、対象を上位層が決める `index-docs --paths-json` の思想とも矛盾するため                                                                                                                                                                                                                                                                                                                                                     |
 | 2026-08-02 | 1.4        | `fm_to_pending.py` の処理単位を `--work-dir` のみへ限定し、1 ファイル単位（`--out`）を廃した（§6.1 / §6.2）。呼び出し元は転記フェーズの一括処理だけであり、使われない経路を実装しないため。あわせて pending の列挙規則を `merge_toc.py` と揃えること、および書式を `write_pending.py` の出力とバイト一致させることを §6.1 に明記                                                                                                                                                                                                                                                                                                                    |
+| 2026-08-04 | 1.8        | §6.1 の「1 ディレクトリの削除で戻せる」という主張に、**それがディレクトリ構造だけでは成立せず索引側の実装に依存する**ことを明記した。実装当初は `frontmatter/` の不在で呼び出し元（`index_docs.py`）がクラッシュしており、本節の主張は成立していなかった（現在はテストで固定）。あわせて不在（撤回）と読み込み失敗（破損）が区別されること、破損時も `toc.yaml` の内容は正しく失われるのは高速化だけであることを追記した                                                                                                                                                                                                                            |
 | 2026-08-04 | 1.7        | 書き込み SKILL が呼ぶラッパー `fm_run.py` を追加した（§6.1 の配置図・§6.2 の責務表・§6.5 新節・§6.4 のテスト規定）。`fm_read` / `fm_write` の間の受け渡しが AI に残っており、`paths` の組み替え・`trust` を見た対象の絞り込み・`--entries-json` の argv 組み立て・書き込み後の件数比較を AI が手でやっていた。`plan` / `apply` の 2 サブコマンドに畳み、AI に残す責務を「メタデータの内容を作ること」と「承認を取ること」だけにした。`apply` が書き込み後の信頼判定まで行うため §6.2 の責務境界を変更した（分離自体は正しかったが、その帰結として SKILL に決定論的な比較が残っていた）。`fm_read` / `fm_write` の CLI は残すが SKILL からは呼ばない |
 | 2026-08-04 | 1.6        | `fm_write.py` に値域検証を課した（§6.2 の新節「値域の検証を書き込み側にも課す」・§6.3 の処理順序へ手順 0 を追加・§6.4 のテスト規定）。当初は「上限の検証は読み取り側の責務」として書き込み側では検証しない設計だったが、**書ける値の集合が信頼される値の集合に収まらず**、script が書いた直後の文書が信頼できない状態が実際に発生した（`purpose` 206 文字）。値域規則の実装を読み取り側と共有し、一方向の包含をテストで固定する。必須フィールドの充足（欠落）は部分更新を許すため書き込み側では検査せず、責務の非対称を §6.2 の表で明示した                                                                                                         |
 | 2026-08-03 | 1.5        | §4.4 の言語ルールを英語統一へ戻した。1.0 で「本文の言語に合わせる」へ解除したが、その 4 根拠のうち 2 つ（検索が壊れない・`keywords` は識別子）は「日本語でも問題ない」という中立の主張で英語を撤廃する理由になっておらず、残る 2 つ（腐敗しにくい・翻訳の劣化とコスト）も弱いと判断した。腐敗検出は `body_hash` が担っており言語に依存しない。加えて desired-state 差分で `unchanged` が再抽出されないため、言語を本文追従にすると `toc.yaml` 内で言語混在が恒久的に残ることが実データで判明した                                                                                                                                                    |

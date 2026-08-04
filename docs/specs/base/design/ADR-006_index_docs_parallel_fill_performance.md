@@ -334,3 +334,25 @@ Agent 群」を返す**形にした。AI は返された配列で Agent を起�
 
 本追補は §「決定」の内容（claim/lease + sliding-window を配布既定とする）を変更しない。変えたのは
 **その制御を誰が計算するか**である。
+
+#### 充填エラーの再試行も claim/lease に乗せる
+
+`error_message` を持つ entry は `work_status` が `error_pending` に分類し、`claim_entries` は
+`reason: error_pending` で claim を拒否する。この仕様は正しい（失敗した entry を通常の充填サイクルへ
+黙って戻さない）。しかしその帰結として、**再試行のために error_pending をそのまま Agent へ投入すると
+claim/lease の保護が働かない**。`error_message` は再試行 Agent の成功まで残るため、その完了前に同じ
+コマンドが再実行されると同一 entry が再投入され、複数 Agent が同じ pending を同時に更新して結果が
+競合・上書きされる。
+
+そこで再試行は次の順序で行う。
+
+1. `toc_store.reset_error_entries()` で `error_message` を削除し、通常の pending へ戻す
+2. 通常の `next_dispatch`（claim あり）に合流させる
+
+`claim_entries` が `error_pending` を拒否する仕様は変更しない。その**前段**に error 状態の解除を置く。
+これにより再試行後の 2 回目の実行は in-flight として `action: wait` になり、二重投入が起きない。
+
+`reset_error_entries` は work dir 配下に限定し、`error_message` を持たない entry（通常の pending /
+completed）は `reason: not_errored` で拒否する。`claimed_at` は消さない（解除するのは error 状態だけ
+である）。`--reset-error` として CLI にも出すが、これはテストと障害切り分け用であり通常経路では
+ラッパーが内部で呼ぶ。

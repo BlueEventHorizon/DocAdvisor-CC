@@ -99,6 +99,7 @@ from toc_store import (
     KeyError_,
     claim_entries,
     emit_json,
+    reset_error_entries,
     resolve_store_dir,
     toc_path_rel,
     validate_user_key,
@@ -192,6 +193,12 @@ def call_core(module, argv):
 # その呼び出し 1 行に閉じている。フロントマター方式を撤回する場合は
 # 本関数と run() 内の呼び出しを削除するだけで全体が通る（転記 0 件と等価に
 # なり、すべての pending が AI 抽出へ回る）。
+#
+# **「撤回」と「破損」を区別する [MANDATORY]**: ディレクトリごと消えているのは
+# 撤回であり許容する。ディレクトリがあるのに読み込めないのは破損であり error に
+# する。区別の基準は「異常か否か」であり「索引できるか否か」ではない
+# （破損時も AI 抽出で索引は完了し、失われるのは高速化だけである。詳細は
+# _transcribe の except 節のコメントと DES-005 §4.1.1）。
 # ---------------------------------------------------------------------------
 
 def _transcribe(work_dir):
@@ -207,22 +214,52 @@ def _transcribe(work_dir):
         work_dir: `.toc_work/` の Path
 
     Returns:
-        dict: {"transcribed": int, "warnings": [str]}。転記できない状態
-            （script の失敗・引数不正・frontmatter/ 自体の不在）でも索引全体は
-            続行できるため、例外にせず 0 件として扱い warnings で透明化する
+        dict: {"transcribed": int, "warnings": [str]}。方式を撤回した状態と、
+            転記の部分的な失敗は 0 件として扱い warnings で透明化する
+
+    Raises:
+        WrapperError: frontmatter/ が存在するのに読み込めない（破損）
     """
-    try:
-        import fm_to_pending
-    except ImportError as e:
-        # frontmatter/ が存在しない = フロントマター方式を撤回した状態。
-        # 転記 0 件と等価であり、すべての pending が AI 抽出へ回るだけなので
-        # 索引そのものは成立する（DES-008 §6.1 の撤回可能性）。
-        # 通常運用で起きた場合（frontmatter/ の破損等）に黙って進まないよう
-        # warnings で透明化する。
+    if not os.path.isdir(_FRONTMATTER_DIR):
+        # ディレクトリが無い = フロントマター方式を撤回した状態。転記 0 件と
+        # 等価であり、すべての pending が AI 抽出へ回るだけなので索引は成立する
+        # （DES-008 §6.1 の撤回可能性）。**方式の不在だけをここで許容する。**
         return {
             "transcribed": 0,
-            "warnings": [f"transcription skipped (frontmatter unavailable): {e}"],
+            "warnings": ["transcription skipped (frontmatter method withdrawn)"],
         }
+
+    try:
+        import fm_to_pending
+    except Exception as e:
+        # ディレクトリはあるのに読み込めない = 破損（部分配置・壊れた import・
+        # 依存の欠落・構文エラー）。
+        #
+        # 転記 0 件として続行しても toc.yaml の内容は正しい（未信頼の文書は
+        # AI 抽出へ回り、それは転記のフォールバック先として正常な経路である /
+        # DES-008 §7.1）。失われるのは**転記による高速化だけ**である。
+        # したがってここで防ぐのは「誤った ToC」ではなく「配布物が壊れたまま
+        # 性能劣化が黙って続くこと」である。転記は大量文書の索引コストを
+        # 削減するために導入した機構であり、それが恒久的に機能していないのに
+        # done が返り続ければ利用者は気づけない。warning は自動実行で
+        # 見落とされるため、成功経路に載せてはならない。
+        #
+        # 撤回（上の isdir 判定）を続行させ破損を error にする基準は
+        # 「異常か否か」であり「索引できるか否か」ではない。撤回は意図された
+        # 状態であり、破損は放置してよい状態ではない。
+        #
+        # **ImportError だけでなく Exception 全体を捕まえる [MANDATORY]**:
+        # 構文エラーは SyntaxError であり ImportError ではない。捕まえ損ねると
+        # 例外が main() の外へ伝播して traceback で終了し、「stdout に単一 JSON」
+        # という CLI 契約（DES-005 §8.1）を破る。呼び出し側は action で分岐する
+        # ため、機械的に扱えない終了は silent success と別種の欠陥である。
+        # KeyboardInterrupt / SystemExit は BaseException 派生であり、
+        # ここでは意図的に捕まえない（利用者による中断を握りつぶさない）。
+        raise WrapperError(
+            f"{_FRONTMATTER_DIR} は存在するが転記モジュールを読み込めません"
+            f"（撤回ではなく破損の可能性）: {e.__class__.__name__}: {e}",
+            ErrorCode.READ_ERROR,
+        )
 
     try:
         _exit_code, payload = call_core(
@@ -698,39 +735,55 @@ def run(args):
         # errored doc は今回の ToC から脱落し、updated は現内容の checksum が
         # 書かれて次回も再索引されず stale 固定になる。
         if args.on_fill_error == "retry":
-            # 失敗した entry へ toc-updater を再投入する。write_pending は充填成功時に
-            # `_meta` を再構築するため error_message は消え、entry は completed になる。
+            # **error 状態を解除してから通常の claim 経路に乗せる。**
             #
-            # claim はしない。claim_entries は error_message を持つ entry を
-            # reject する（reason: error_pending）ためである。error_pending は
-            # pending にも in_flight にも数えられないので、claim による二重投入の
-            # 防止が働かない代わりに、二重投入そのものが起きにくい位置にある。
+            # error_pending をそのまま dispatch すると claim/lease の保護が働かない。
+            # claim_entries は error_message を持つ entry を reject する（正しい仕様）
+            # ため、claim せずに投入することになり、同じコマンドの再実行で同一 entry が
+            # 二重投入される。複数の Agent が同じ pending を同時に更新すれば結果が
+            # 競合・上書きされる。
             #
-            # 失敗が恒常的（元文書の問題）な場合、再試行は何度やっても成功しない。
-            # 同じコマンドを再実行すると再び投入されるため、警告で明示する。
-            retry_entries = [
-                item["entry_file"] for item in status["error_pending"]
-            ][:args.window]
+            # そこで error_message を消して通常の pending に戻し、以降は
+            # next_dispatch（claim あり）に任せる。2 回目の実行では claim 済みの
+            # in-flight として扱われ wait になる。
+            errored = [item["entry_file"] for item in status["error_pending"]]
+            reset_result = reset_error_entries(store_dir, project_root, errored)
+            if reset_result["rejected"]:
+                warnings.extend(
+                    f"reset-error rejected: {item['entry_file']} ({item['reason']})"
+                    for item in reset_result["rejected"]
+                )
+            if not reset_result["reset"]:
+                raise WrapperError(
+                    "再試行の対象を pending へ戻せなかった。work dir の状態を"
+                    "確認するか、toc_store.py --clean-work-dir で破棄して"
+                    "やり直す必要がある",
+                    ErrorCode.NO_TARGETS,
+                )
             warnings.append(
-                f"retrying {len(retry_entries)} failed entr(ies); "
+                f"retrying {len(reset_result['reset'])} failed entr(ies); "
                 "a permanent failure (a problem in the source document) will "
                 "keep failing on every retry"
             )
+            # 解除後の状態で再判定し、通常の連続ディスパッチへ合流する
+            status = work_status(store_dir, project_root, max_batch=args.max_batch)
+            dispatch = next_dispatch(
+                store_dir, project_root, key,
+                window=args.window, max_batch=args.max_batch, status=status,
+            )
+            if dispatch["rejected"]:
+                warnings.extend(
+                    f"claim rejected: {item['entry_file']} ({item['reason']})"
+                    for item in dispatch["rejected"]
+                )
             return (
                 {
-                    "action": ACTION_DISPATCH,
-                    "agents": [
-                        {
-                            "subagent_type": TOC_UPDATER,
-                            "prompt": _agent_prompt(key, [entry]),
-                            "entry_files": [entry],
-                        }
-                        for entry in retry_entries
-                    ],
-                    "in_flight_agents": len(status["in_flight_groups"]),
-                    "window": args.window,
-                    "available": args.window,
-                    "pending": 0,
+                    "action": ACTION_DISPATCH if dispatch["agents"] else ACTION_WAIT,
+                    "agents": dispatch["agents"],
+                    "in_flight_agents": dispatch["in_flight_agents"],
+                    "window": dispatch["window"],
+                    "available": dispatch["available"],
+                    "pending": len(status["pending"]),
                     "completed": status["completed"],
                     "transcribed": transcribed,
                     "retry": True,
