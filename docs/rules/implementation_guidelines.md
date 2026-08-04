@@ -1,15 +1,15 @@
 ---
 type: doc-advisor
 title: Implementation Guidelines
-purpose: "Defines the rules for implementing plugin scripts and SKILL.md: language selection, mandatory test scope and placement, the inline-script ban, design doc sync, and the ban on editing version files."
+purpose: "Defines the rules for implementing plugin scripts and SKILL.md: language selection, mandatory tests, the inline-script ban, design doc sync, distributed interface changes, and version file edits."
 content_details:
   - Criteria for choosing Python or Bash by workload (Python for data transformation and YAML/JSON handling, Bash for invoking external commands)
   - Python scripts use the standard library only; external dependencies are forbidden
   - Tests are mandatory for .py files under scripts/; SKILL.md is exempt because AI behavior is hard to test automatically; .claude/ is out of scope
   - Test placement under tests/scripts, tests/skills, tests/integration and the test_{module}.py naming convention
-  - Why inline scripts are banned in SKILL.md (the AI rewrites or omits the code and fails) and the correct pattern of calling a standalone script
-  - Script placement (skills/{skill}/ for skill-specific, scripts/ for plugin-wide) referenced via CLAUDE_PLUGIN_ROOT or CLAUDE_SKILL_DIR
+  - Why inline scripts are banned in SKILL.md (the AI rewrites or omits the code and fails), the correct pattern of calling a standalone script, and where scripts live (skills/{skill}/ versus scripts/) referenced via CLAUDE_PLUGIN_ROOT or CLAUDE_SKILL_DIR
   - Design documents are updated in the same PR as the code, and ADRs live under docs/specs/base/design/
+  - Distributed interfaces are contracts with upper layers - grep callers in the other repository before removing an argument, read git diff after a full Write overwrite, and name each dropped argument in the plan
   - Unused code is deleted outright, including its tests, rather than left as deprecation markers or commented-out blocks
   - Never apply a rigid token parser to input the AI is meant to interpret; fill gaps with AskUserQuestion instead
   - Ordinary feature/fix/refactor PRs must not edit plugin.json version, README version lines, CHANGELOG entries, or git tags
@@ -17,6 +17,7 @@ applicable_tasks:
   - Choosing the implementation language for a new script
   - Adding tests and deciding where to place them
   - Writing a script invocation from SKILL.md
+  - Changing or removing a SKILL argument or a distributed script CLI
   - Updating design documents and ADRs alongside code
   - Judging whether a version or CHANGELOG edit is allowed in the current PR
   - Removing code that is no longer used
@@ -27,11 +28,11 @@ keywords:
   - test_{module}.py
   - CLAUDE_PLUGIN_ROOT
   - design doc maintenance
+  - backward compatibility
   - CHANGELOG
   - plugin.json
   - ADR
-  - no external dependencies
-body_hash: sha256:968583e1c640d25b73ab06a95c4eaf4c0d1e0fb79d595b4528920a41f3d6678c
+body_hash: sha256:88250c28b0aca2764a12470de89cc98b03d991d9d45970a853e6ff50f3029e32
 ---
 
 # 実装ガイドライン
@@ -135,6 +136,30 @@ SKILL.md からの参照には `${CLAUDE_SKILL_DIR}` または `${CLAUDE_PLUGIN_
 - ADR の配置先: `docs/specs/base/design/ADR-{NNN}_{topic}.md`
 - 設計書の更新は **コードと同一 PR** で行うのが原則
 - 大きな構造変更は専用の `DES-{NNN}` 設計書を立て、`README.md` / `CLAUDE.md` の説明とも整合させる
+
+---
+
+## 配布インターフェースを壊す前に呼び出し元を確認する [MANDATORY]
+
+配布物（SKILL の引数・配布 script の CLI）は**上位層との契約**である。変更・削除の前に呼び出し元を横断 grep して確認する。
+
+```bash
+# 呼び出し元は別リポジトリ（bw-cc-plugins の forge / anvil）にあるため、
+# このリポジトリ内の grep では見つからない
+grep -rn "doc-advisor:index-docs" <bw-cc-plugins のチェックアウト>/plugins/
+```
+
+- 引数の**追加**は既存の呼び出し元を壊さない。**削除・改名、および受け付ける形を減らすこと**が壊す
+- 上位層は各 SKILL を **1 回だけ**呼び、引数を組み替えず、失敗しても再試行しない。壊れると**上位層には理由が分からないまま機能が止まる**
+- 引数仕様の正本は設計書に置く（配布物だけを正本にすると、書き換えで契約が消えても突き合わせる相手がいない）。契約の所在は DES-005 / DES-008 の該当節
+
+### 全面上書きしたら差分を読む
+
+配布物を `Write` で全面上書きすると**何が消えたかが画面に出ない**。上書き後に `git diff` を読み、引数表・オプション名の行が消えていないかを確認する。`Edit` なら差分が目に入るが、`Write` は見えない。
+
+### 後方互換を壊す変更は計画に個別項目として書く
+
+「オプションを整理する」「引数を最小にする」等の包括表現の下に後方互換の破壊を含めてはならない。**どの引数を削るかを名指しで書き、承認を得る。** 計画に書かれていない破壊は承認されていない。
 
 ---
 
