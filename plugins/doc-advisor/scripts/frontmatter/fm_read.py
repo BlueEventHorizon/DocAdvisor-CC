@@ -101,6 +101,7 @@ def emit_json(
     rejected_paths=None,
     counts=None,
     warnings=None,
+    extra=None,
     stream=None,
 ):
     """stdout に単一 JSON を出力する（DES-005 §8.1）。
@@ -116,6 +117,8 @@ def emit_json(
         rejected_paths: [{path, reason}] の list（読み取れなかったファイル）
         counts: 件数の dict
         warnings: warning 文字列の list
+        extra: 追加フィールドの dict（payload にマージ）。fm_run の plan 出力
+            （targets / skipped 等）に使う。toc_store.emit_json と同じ拡張点
         stream: 出力先（省略時 sys.stdout。テスト用）
     """
     payload = {
@@ -132,6 +135,8 @@ def emit_json(
         payload["rejected_paths"] = rejected_paths
     if warnings is not None:
         payload["warnings"] = warnings
+    if extra is not None:
+        payload.update(extra)
 
     out = stream if stream is not None else sys.stdout
     out.write(json.dumps(payload, ensure_ascii=False))
@@ -142,8 +147,11 @@ def emit_json(
 # 判定結果 → JSON の写像
 # ---------------------------------------------------------------------------
 
-def _violations_json(violations):
+def violations_json(violations):
     """fm_core の violations を JSON 化可能な list へ変換する。
+
+    fm_write も同じ形式で violations を出力するため公開名で共有する（別々に
+    実装すると同一の違反が経路によって異なる形で出力される）。
 
     Args:
         violations: (code, field, detail) のタプルの列
@@ -194,7 +202,7 @@ def evaluate_path(path):
         "has_frontmatter": result.has_frontmatter,
         "has_marker": result.has_marker,
         "warn": result.warn,
-        "violations": _violations_json(result.violations),
+        "violations": violations_json(result.violations),
         "expected_body_hash": result.expected_body_hash,
         "actual_body_hash": result.actual_body_hash,
     }

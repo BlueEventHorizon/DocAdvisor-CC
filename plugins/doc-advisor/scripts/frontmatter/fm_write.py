@@ -20,7 +20,8 @@ body_hash を打刻し、per-file の結果を JSON へ写像する」ことだ�
 ディレクトリの除外判定も持たない。何を対象にするかは呼び出し側
 （write-frontmatter SKILL 等）が決めて渡す。
 
-処理順序（DES-008 §4.2）[MANDATORY]:
+処理順序（DES-008 §4.2 / §6.3）[MANDATORY]:
+    0. metadata の値域を検証する — 違反があれば**何も書かずに**当該 entry を失敗させる
     1. 対象を読む
     2. merge_frontmatter(text, metadata) — **body_hash を含めない**
     3. 原子的に書き込む
@@ -28,6 +29,10 @@ body_hash を打刻し、per-file の結果を JSON へ写像する」ことだ�
     5. 再読込して本文から body_hash を算出する
     6. merge_frontmatter(text2, {'body_hash': h}) — **body_hash 単独**
     7. 原子的に書き込む
+
+手順 0 を最初に置くのは、上限違反を書き込むと「書けたのに fm_read が信頼しない」
+文書が生まれるためである。手順 3 以降の失敗はロールバックで回復できるが、
+値域違反は書き込み自体が成功してしまうためロールバックの対象にならない。
 
 打刻を整形の後に置くのは、整形が本文のバイト列を変えるためである。逆順にすると
 打刻直後に全ハッシュが無効化され、全件が AI 再抽出へ落ちる（§4.2 / §6.3）。
@@ -58,9 +63,14 @@ metadata の値域:
   （type / title / purpose / content_details / applicable_tasks / keywords）
 - body_hash は本 script が整形後に算出して打刻するため、呼び出し側からは渡せない
 - 値は文字列、または文字列の配列
-- DES-008 §5.1 の上限（purpose 200 文字・配列 1〜10 件）は検証しない。部分更新
-  （一部のキーのみ差し替え）を許すため必須フィールドの充足も要求しない。
-  書き込んだ結果が信頼できるかの判定は fm_read が担う（責務の分離）
+- DES-008 §5.1 の**値域**（purpose 200 文字・配列 1〜10 件・非空・型）は書き込みの
+  **前**に検証し、違反があればその entry を書き込まない（手順 0）。判定は
+  fm_core.validate_field_values が行い、読み取り側（fm_read の信頼判定）と同一の
+  値域規則を共有する。書ける値の集合が信頼される値の集合に収まることを、
+  実装の共有によって保証する
+- **必須フィールドの充足は要求しない**。部分更新（一部のキーのみ差し替え、他は
+  既存の値を保持）を許すためである。したがって「全フィールドが揃っているか」の
+  判定は依然として fm_read の責務であり、そこは分離したままにする
 
 整形コマンド（DES-008 §6.3 / 戦略書 R5）:
 - shlex.split でトークン化し subprocess.run(shell=False) で実行する
@@ -105,6 +115,7 @@ from fm_core import (
     merge_frontmatter,
     read_text,
     split_document,
+    validate_field_values,
 )
 from fm_read import (
     STATUS_ERROR,
@@ -115,6 +126,7 @@ from fm_read import (
     _JsonArgumentParser,
     emit_json,
     log,
+    violations_json,
 )
 
 # 整形コマンド内で対象ファイルパスへ置換される唯一のプレースホルダ（DES-008 §6.3）
@@ -283,7 +295,7 @@ def validate_metadata_argument(metadata):
 # ---------------------------------------------------------------------------
 
 def _result(path, *, ok, error_code=None, detail=None, changed=False,
-            formatted=False, body_hash=None):
+            formatted=False, body_hash=None, violations=None):
     """results の要素 1 つ分の dict を組み立てる。
 
     Args:
@@ -295,6 +307,8 @@ def _result(path, *, ok, error_code=None, detail=None, changed=False,
         changed: ファイル内容を変更したか（冪等性の観測用）
         formatted: 整形コマンドを実行し成功したか
         body_hash: 打刻した body_hash（失敗時は None）
+        violations: 値域違反（fm_core の (code, field, detail) タプルの列）。
+            書き込み前の検証で弾いた場合のみ入る。他の失敗・成功時は空配列
 
     Returns:
         dict
@@ -307,6 +321,7 @@ def _result(path, *, ok, error_code=None, detail=None, changed=False,
         "changed": changed,
         "formatted": formatted,
         "body_hash": body_hash,
+        "violations": violations_json(violations or []),
     }
 
 
@@ -373,8 +388,9 @@ def _failed_after_write(path, original_text, detail, error_code=None,
 def write_entry(path, metadata=None, format_command=None):
     """1 件の文書へメタデータを書き込み、整形後に body_hash を打刻する。
 
-    処理順序は DES-008 §4.2 の規定どおり（本モジュールの docstring 参照）。
-    内容が変わらない場合は書き込みを省略する（不要な mtime の更新を避ける）。
+    処理順序は DES-008 §4.2 / §6.3 の規定どおり（本モジュールの docstring 参照）。
+    metadata の値域が規約に適合しない場合は手順 0 で失敗させ、**ファイルを一切
+    変更しない**。内容が変わらない場合は書き込みを省略する（不要な mtime の更新を避ける）。
     2 回目以降の適用で内容が変化しないこと（冪等）は、この省略に依らず
     merge_frontmatter と body_hash 算出が冪等であることによって成立する。
 
@@ -395,6 +411,20 @@ def write_entry(path, metadata=None, format_command=None):
     except ValueError as e:
         return _result(path, ok=False, error_code=ErrorCode.UNSUPPORTED_ARG,
                        detail=str(e))
+
+    # 0. 値域を検証する（DES-008 §6.3 手順 0）。
+    # 上限違反を書き込んでしまうと、書けたのに fm_read が信頼しない文書が生まれる。
+    # DES-008 §5.2 は「script が書いた成果物が不完全であることは契約の外側で何かが
+    # 起きた証拠」としているため、契約の内側で不完全なものを書けてはならない。
+    # 判定は fm_core の値域規則をそのまま使う（読み取り側と同一の実装を共有する）。
+    value_violations = validate_field_values(metadata)
+    if value_violations:
+        codes = ", ".join(code for code, _field, _detail in value_violations)
+        return _result(
+            path, ok=False, error_code=ErrorCode.UNSUPPORTED_ARG,
+            detail=f"metadata の値域が規約に適合しません（{codes}）。書き込みは行っていません",
+            violations=value_violations,
+        )
 
     # 1. 読む
     try:

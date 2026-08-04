@@ -1,3 +1,38 @@
+---
+type: doc-advisor
+title: ADR-006 index-docs Parallel Fill Performance
+purpose: Records the decision to speed up the toc-updater fill phase via a wider window, a compressed format doc, and limited batching, gated on measured extraction quality.
+content_details:
+  - Measurements - ~18s and ~24K tokens per document, effective parallelism verified at 10, per-document time independent of the window
+  - The bottleneck is launch-count overhead and tail latency, not insufficient parallelism
+  - context rot is the central concern - mixing documents in one context causes cross-document keyword misattribution
+  - Plan A - raise the distributed default window from 5 to 10 (verified safe; 429 on a low tier degrades to 5 then 3)
+  - Plan C - compress formats/toc_format.md so per-document context shrinks (speed and quality move together)
+  - Plan B - limited batching of k=2..3 same-directory neighbours, gated on a quality measurement
+  - Grouping is decided deterministically by script; AI grouping by hand is forbidden
+  - "Addendum (Issue #29) - continuous dispatch with claim/lease replaced foreground barrier waves; 12.6% makespan gain measured"
+  - Addendum 2 - the free-slot arithmetic moved into index_docs.py because window minus in_flight_groups must not be recomputed by AI
+  - Rejected - official multi-agent orchestration (not reachable from the SKILL runtime), and auto-selecting barrier vs continuous
+applicable_tasks:
+  - Changing the parallel window or the batch size of toc-updater fill
+  - Diagnosing slow or rate-limited indexing on a large corpus
+  - Deciding whether dispatch control belongs to a script or to the AI
+  - Reviewing extraction quality after a batching change
+  - Understanding why claim and lease exist in toc_store.py
+keywords:
+  - ADR-006
+  - context rot
+  - continuous dispatch
+  - sliding-window
+  - claim
+  - lease
+  - in_flight_groups
+  - max_batch
+  - tail latency
+  - makespan
+body_hash: sha256:b23115aa7ed595560eb1be5189dde94bc1608ca4a44988d53d936e4d6838f3f2
+---
+
 # ADR-006: index-docs 並列充填の高速化（並列度引き上げ・規約圧縮・限定バッチング）
 
 ## ステータス
@@ -274,3 +309,50 @@ SKILL 非起動）も相まって、本 ADR は **subagents（Agent ツール）
   （遅くなるだけ）。これは「正しさ」ではなく「速度」のリスク。
 - **残課題**: ①大規模（400 件級）での連続 vs バリア実測、②`run_in_background` の配布エンドユーザ
   全環境（headless/CI/cron/旧版）での信頼性確認とフォールバック運用の明文化。
+
+### 追補 2: 連続ディスパッチの決定論部分を script へ移した（2026-08-04）
+
+上記「正しさとリスクの切り分け」は、sliding-window の制御が markdown 指示による AI の遵守に依存し、
+**崩れうるのは速度利得のみ**と整理していた。この整理は claim/lease による正しさの担保について正しい
+が、**速度利得が崩れる確率を過小に見ていた**。
+
+空きスロットの計算は `window − len(in_flight_groups)`（走行中 **Agent** 数）でなければならない。
+`len(in_flight)`（entry 数）で引くと過大に減算されて負になり、補充されないまま wave 実行へ逆戻り
+する。この区別は SKILL.md の注意書き（`[IMPORTANT]` 付き）で AI に伝えていたが、**注意書きで
+伝える設計そのものが誤りだった**。決定論的な算術を AI に毎ラウンド正しく再計算させる根拠はない。
+
+そこで空きスロット計算・グループ選択・claim・`claimed`/`rejected` の振り分けを
+`index_docs.py`（DES-005 §4.1.1 のラッパー）へ移し、ラッパーが **claim 済みの「今起動すべき
+Agent 群」を返す**形にした。AI は返された配列で Agent を起動するだけになり、算術を行わない。
+
+- **AI に残る責務**: Agent の起動と、判断（越境 symlink の承認・充填エラーへの対応）のみ
+- **ウィンドウ幅（10）とバッチサイズ（3）は CLI に出さない**。呼び出し側が run ごとに判断する値
+  ではないため、ラッパー内の定数とする。低 tier で 429 が出る場合の切り分けはコア CLI
+  （`toc_store.py --work-status --max-batch N`）で行う
+- **回帰をテストで固定**: `in_flight_groups` が `window` 以上のとき `available` が負にならず
+  `action: wait` になることを統合テストで固定した（entry 数で引く実装に戻れば失敗する）
+
+本追補は §「決定」の内容（claim/lease + sliding-window を配布既定とする）を変更しない。変えたのは
+**その制御を誰が計算するか**である。
+
+#### 充填エラーの再試行も claim/lease に乗せる
+
+`error_message` を持つ entry は `work_status` が `error_pending` に分類し、`claim_entries` は
+`reason: error_pending` で claim を拒否する。この仕様は正しい（失敗した entry を通常の充填サイクルへ
+黙って戻さない）。しかしその帰結として、**再試行のために error_pending をそのまま Agent へ投入すると
+claim/lease の保護が働かない**。`error_message` は再試行 Agent の成功まで残るため、その完了前に同じ
+コマンドが再実行されると同一 entry が再投入され、複数 Agent が同じ pending を同時に更新して結果が
+競合・上書きされる。
+
+そこで再試行は次の順序で行う。
+
+1. `toc_store.reset_error_entries()` で `error_message` を削除し、通常の pending へ戻す
+2. 通常の `next_dispatch`（claim あり）に合流させる
+
+`claim_entries` が `error_pending` を拒否する仕様は変更しない。その**前段**に error 状態の解除を置く。
+これにより再試行後の 2 回目の実行は in-flight として `action: wait` になり、二重投入が起きない。
+
+`reset_error_entries` は work dir 配下に限定し、`error_message` を持たない entry（通常の pending /
+completed）は `reason: not_errored` で拒否する。`claimed_at` は消さない（解除するのは error 状態だけ
+である）。`--reset-error` として CLI にも出すが、これはテストと障害切り分け用であり通常経路では
+ラッパーが内部で呼ぶ。

@@ -6,17 +6,18 @@ content_details:
   - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
   - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
   - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
-  - body_hash covers the body only (self-reference avoidance), sha256:<64hex> with an algorithm prefix, stamped after the formatter
+  - body_hash covers the body only (self-reference avoidance), stamped after the formatter
   - Language Rule - every field value in English regardless of the body language
   - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
   - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
-  - all-or-nothing fallback, with a warning only when the doc-advisor marker is present
-  - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
-  - fm_write.py 7-step order (merge without body_hash, write, format, re-read, stamp) with rollback from step 3 onward
+  - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
+  - Withdrawal by deleting one directory depends on the indexing side treating its absence as normal
+  - fm_run.py wrapper - plan resolves targets, apply writes and verifies trust so the caller compares nothing
 applicable_tasks:
-  - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py
+  - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
   - Changing the trust predicate or the frontmatter schema
   - Deciding where body_hash is stamped relative to formatting
+  - Deciding whether a validation belongs to the write side or the read side
   - "Reviewing whether the type union update preserves other tools' markers"
   - Adding frontmatter to existing documents via write-frontmatter
   - Designing the write-back of AI extraction results
@@ -24,14 +25,14 @@ keywords:
   - DES-008
   - body_hash
   - fm_core.py
-  - fm_write.py
+  - fm_run.py
   - fm_to_pending.py
   - type union update
   - trust predicate
   - OKF
   - extracted_by
   - "--format-command"
-body_hash: sha256:7e719d196d17e048572238680b4d2e132678b9a8162400ab4c5d1cd8e4665adb
+body_hash: sha256:69d6336546a9c696811811bb49b5b64bf2b1265c9e4ab81100eaa9436f780424
 ---
 
 # DES-008: doc-advisor フロントマター設計書
@@ -308,10 +309,11 @@ DES-005 §8.1 の JSON 契約に既に `warnings` フィールドがあるため
 
 ```text
 plugins/doc-advisor/scripts/frontmatter/
-├── fm_core.py       # パース・生成・本文抽出・正規化・body_hash 計算
+├── fm_core.py       # パース・生成・本文抽出・正規化・body_hash 計算・値域検証
 ├── fm_read.py       # 読み取り + 信頼判定 → JSON
 ├── fm_write.py      # 書き込み / 更新 + 整形呼び出し + body_hash 打刻
-└── fm_to_pending.py # 信頼できるフロントマター → pending YAML
+├── fm_to_pending.py # 信頼できるフロントマター → pending YAML
+└── fm_run.py        # **書き込み SKILL が呼ぶラッパー**（plan / apply。§6.5）
 
 tests/scripts/frontmatter/test_fm_*.py
 ```
@@ -339,18 +341,42 @@ tests/scripts/frontmatter/test_fm_*.py
 
 この分離により、フロントマター方式を将来撤回する場合に 1 ディレクトリの削除で戻せる。
 
+**ただしこの性質はディレクトリ構造だけでは成立しない**。索引側の呼び出し元が「ディレクトリの不在」を正常な状態として扱う必要があり、その実装は `index_docs.py` にある（DES-005 §4.1.1）。実装当初は不在で呼び出し元がクラッシュしており、「1 ディレクトリの削除で戻せる」という本節の主張は成立していなかった。現在は `frontmatter/` を含まない `scripts/` のコピーで索引が完了することをテストで固定している。
+
+あわせて **不在（撤回）と読み込み失敗（破損）は区別される**。破損時も AI 抽出へフォールバックするため `toc.yaml` の内容は正しく、失われるのは転記による高速化だけだが、配布物が壊れたまま性能劣化が続くのを避けるため索引側は error にする（同 §4.1.1）。
+
 ### 6.2 各 script の責務
 
 | script             | 責務                                                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | `fm_core.py`       | フロントマターのパース / 生成、本文抽出、正規化、`body_hash` 計算。他 3 script が共有する純粋ロジック              |
 | `fm_read.py`       | `--paths-json` で渡されたパスのフロントマターを読み、§5.1 の述語で信頼判定した結果を JSON 出力                     |
-| `fm_write.py`      | メタデータを受け取りフロントマターへマージ書き込み。整形器を呼んだ後に `body_hash` を計算・打刻                    |
+| `fm_write.py`      | メタデータの**値域を検証**してからフロントマターへマージ書き込み。整形器を呼んだ後に `body_hash` を計算・打刻      |
 | `fm_to_pending.py` | `--work-dir` 直下の pending を一括処理し、信頼できるフロントマターを pending YAML（`status: completed`）へ転記する |
+| `fm_run.py`        | **書き込み SKILL が呼ぶラッパー**。`plan` で対象を確定し、`apply` で書き込み・整形・打刻・信頼判定を行う（§6.5）   |
 
 `fm_to_pending.py` は pending の `_meta` に来歴を記録する（§8.2）。
 
 `fm_read.py` の出力は per-file の判定を `results` 配列へ**入力順**で並べ、`status` は `ok` / `partial` / `error` の 3 値を取る。個別ファイルの読み取り失敗は 1 件で全体を落とさず `partial` へ写像し、他のファイルの判定はそのまま返す（`error` は引数自体が不正な場合に限る）。各フィールドの詳細は script の docstring とテストに委ねる。
+
+#### 値域の検証を書き込み側にも課す
+
+**`fm_write.py` は書き込みの前に metadata の値域（§5.1 の表のうち文字数上限・件数上限・非空・型）を検証し、違反があればその entry を書き込まない。** 判定は `fm_core` が持つ値域規則の**実装そのもの**を読み取り側と共有する（別々に持たせない）。
+
+当初は「上限の検証は読み取り側（`fm_read`）の責務」として書き込み側では検証しない設計にしていたが、これは誤りだった。**書ける値の集合が信頼される値の集合に収まらない**ため、script が書いた直後の文書が信頼できないという状態が実際に発生した（`purpose` 206 文字）。§5.2 は「script が書いたはずの成果物が不完全であることは契約の**外側**で何かが起きた証拠であり、残りのフィールドも同程度に疑わしい」として all-or-nothing を正当化しているが、契約の内側で不完全なものを書けてしまえばこの前提が崩れる。
+
+ただし **必須フィールドの充足（欠落の検査）は書き込み側では行わない**。`fm_write` は部分指定（一部のフィールドだけを差し替え、他は既存の値を保持する書き込み）を許すため、欠落を違反とすると部分更新が成立しない。したがって責務は次のように分かれる。
+
+| 検査                               | 書き込み側（`fm_write`）            | 読み取り側（`fm_read`） |
+| ---------------------------------- | ----------------------------------- | ----------------------- |
+| 値域（文字数・件数・非空・型）     | **行う**（違反は書き込まない）      | 行う                    |
+| 欠落（5 フィールドが揃っているか） | 行わない（部分更新を許すため）      | 行う                    |
+| `type` の識別マーカー              | 行わない（script が和集合更新する） | 行う                    |
+| `body_hash` と本文の一致           | 行わない（打刻するのは自分自身）    | 行う                    |
+
+この非対称は「書ける集合 ⊆ 信頼される集合」を**値域について**成立させるためのものであり、一方向の包含としてテストで固定する（§6.4）。
+
+ただし **ラッパー（`fm_run.py apply`）は書き込みの後に読み取り側の判定を実行する**（§6.5）。上表は個々の script の責務であり、呼び出し側から見た振る舞いは「書いて、書けたものが信頼されるかを確認して返す」である。この一段があるため、SKILL が `fm_read` を別途呼んで件数を比較する必要がない。
 
 ### 6.3 整形コマンド
 
@@ -373,6 +399,7 @@ fm_write.py --entries-json '[{"path": "docs/a.md", "metadata": {...}}]' [--forma
 
 1 件あたりの処理順序は次のとおりとする。手順 2 に `body_hash` を含めず、手順 6 で `body_hash` 単独をマージするのは、§4.5 のマージ規則（与えられたキーだけを差し替える）のもとで他のキーに触れずに打刻するためである。
 
+0. metadata の値域を検証する。違反があれば**何も書かずに**当該 entry を失敗させ、違反の内容（コード・フィールド・実測値）を報告する
 1. 対象を読む
 2. メタデータをマージする（`body_hash` を含めない）
 3. 原子的に書き込む
@@ -398,6 +425,33 @@ fm_write.py --entries-json '[{"path": "docs/a.md", "metadata": {...}}]' [--forma
 - `body_hash`: 正規化（CRLF / 末尾空行）で値が変わらないこと、本文変更で値が変わること、フロントマター変更で値が変わらないこと
 - 信頼判定: §5.1 述語の各分岐（`type` 欠落 / `doc-advisor` を含まない `type` / フィールド欠落 / 空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / ハッシュの形式不正 / 未知の接頭辞）。`type` はスカラ・配列の双方で判定できること
 - `fm_write.py`: 未知キー（`name` / `description` 等）が保持されること、および **`type` が和集合更新されること**（`temporary-feature-requirement` のみを持つ文書へ書き込むと `[temporary-feature-requirement, doc-advisor]` になり、既存値が消えない）
+- **値域検証の一方向包含（§6.2）**: 書き込み側が受理した metadata を書き込んだ結果に、読み取り側の**値域**判定が違反を返さないこと。あわせて値域違反の各種（文字数超過・件数超過・空・型不一致・配列内の空要素）で **対象ファイルのバイト列が 1 バイトも変わらない**ことを固定する。`changed` の値は script の自己申告であり、書かれていないことの証明にならないため、実ファイルを読み比べる。上限ちょうど（`purpose` 200 文字・配列 10 件）が違反にならない境界も固定する
+- **部分指定が欠落を理由に弾かれないこと**: 一部のフィールドのみを渡した書き込みが成功し、渡さなかったフィールドの既存値が保持されること（§6.2 の非対称が実際に成立していることの確認）
+- **ラッパー（`fm_run.py`）**: `plan` が信頼できる文書を `targets` から外すこと・`doc-advisor` の標識を持つのに信頼できない文書を `warnings` に載せること・原本を 1 バイトも変更しないこと。`apply` が書き込み後の `trust` を返すこと・`trusted` が `written` に届かないとき `status: partial` になること・`--entries-file` の不正（不在・壊れた JSON・未知キー）が `error` になること
+
+### 6.5 書き込み SKILL が呼ぶラッパー `fm_run.py`
+
+`fm_read` / `fm_write` は個々の処理を決定論的に実装しているが、**その間の受け渡しが AI に残っていた**。書き込み SKILL の実運用では AI が次を手でやっていた。
+
+- `expand_dirs` の出力 `paths` を `fm_read` の `--paths-json` へ組み替える
+- `fm_read` の `results[].trust` を見て「書き込む対象」を自分で絞る
+- `--entries-json` の JSON 構造を argv 上に組み立てる（長大になる）
+- 書き込み後に `fm_read` を再度呼び、`counts.trusted` と書き込み件数を自分で比較する
+
+そこで **AI が呼ぶ入口を 2 つのサブコマンドに畳む**。AI に残す責務は「メタデータの内容を作ること」と「書き込みの承認を取ること」だけである。
+
+| サブコマンド | 責務                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------- |
+| `plan`       | 対象の展開（`expand_dirs` へ委譲）→ 信頼判定 → **書き込むべき対象だけを `targets` に返す**（読み取りのみ）  |
+| `apply`      | `--entries-file` で受けた entry を書き込み、整形・打刻の後に **信頼判定まで行って `counts.trusted` を返す** |
+
+`apply` が信頼判定まで行うことは、§6.2 が定めていた責務境界（`fm_write` は書く / `fm_read` は判定する）を変更する。分離それ自体は正しかったが、その帰結として SKILL が両方を呼んで件数を AI に比較させていた。**書いた側が「書けたものが信頼されるか」を確認して返す**方が、呼び出し側に決定論的な作業を残さない。`trusted` が `written` に届かなければ `status: partial` とし、どの文書がなぜ信頼されないかを `results[].violations` で示す。
+
+`--entries-file` でファイル渡しにするのは、argv 上に長大な JSON を組み立てさせないためである（引用符のエスケープを手で組む必要がなくなり、argv 長の上限にも触れない）。
+
+**`fm_read.py` / `fm_write.py` の CLI は残す**（テストと障害切り分けに必要）。ただし SKILL からは呼ばない。二重の入口を持つと「書き込み後の信頼判定」が抜けたり対象の絞り込みが食い違う。この規約は SKILL.md の禁止事項に明記する。
+
+`expand_dirs.py` の import は §6.1 の独立性に反しない。key 解決も store_dir 解決も行わない汎用のパス展開であり、フロントマター方式を撤回しても `expand_dirs.py` は残る。走査規則を frontmatter 系統に持たせると `prepare_toc.py` の列挙と 2 箇所に分かれるため、既存の実装を使う方が正しい。
 
 ---
 
@@ -512,12 +566,15 @@ forge / anvil の文書作成・編集スキルに「作成時にフロントマ
 
 ## 改定履歴
 
-| 日付       | バージョン | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ---------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-07-31 | 0.1        | 初版作成。OKF 準拠の可否を検討するたたき台として、フィールド比較表と未決定事項を提示                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 2026-08-01 | 1.0        | OKF 準拠を不採用と決定し（§3）、独自スキーマを確定。`type` を識別マーカーとして再定義、`body_hash` の仕様確定、all-or-nothing の信頼判定（§5）、`scripts/frontmatter/` への分離（§6）、英語限定ルールの解除（§4.4）、既存文書の書き込み SKILL と書き戻し方針（§8）を追記                                                                                                                                                                                                                         |
-| 2026-08-01 | 1.1        | `type` を複数値許容に変更（§4.1）。forge が追加開発の一時文書に `type: temporary-feature-*` を既に付与しており、単一値では上書きで標識が失われるため。判定を membership に、書き込みを和集合更新に改め（§4.5 / §5.1 / §5.3 / §6.4）                                                                                                                                                                                                                                                              |
-| 2026-08-02 | 1.2        | 実装着手前の判断事項を反映。`fm_to_pending.py` に `--work-dir` の一括処理を追加（§6.1 / §6.2）、スキーマ規約のテストを一方向の包含関係へ変更（§6.4）、§7.1 の無改造範囲を JSON 出力への項目追加を除く形へ限定して §8.2 との矛盾を解消、書き込み SKILL の形態と適用対象を決定（§10）                                                                                                                                                                                                              |
-| 2026-08-02 | 1.3        | `fm_read.py` の走査モードを廃止し、対象を `--paths-json` で受け取る形へ変更（§6.1 / §6.2）。§10.2 の配布物除外を script の機能仕様から運用方針へ位置づけ直した。配布先に存在しないパスの判定を配布物へ焼き込むことになり、対象を上位層が決める `index-docs --paths-json` の思想とも矛盾するため                                                                                                                                                                                                  |
-| 2026-08-02 | 1.4        | `fm_to_pending.py` の処理単位を `--work-dir` のみへ限定し、1 ファイル単位（`--out`）を廃した（§6.1 / §6.2）。呼び出し元は転記フェーズの一括処理だけであり、使われない経路を実装しないため。あわせて pending の列挙規則を `merge_toc.py` と揃えること、および書式を `write_pending.py` の出力とバイト一致させることを §6.1 に明記                                                                                                                                                                 |
-| 2026-08-03 | 1.5        | §4.4 の言語ルールを英語統一へ戻した。1.0 で「本文の言語に合わせる」へ解除したが、その 4 根拠のうち 2 つ（検索が壊れない・`keywords` は識別子）は「日本語でも問題ない」という中立の主張で英語を撤廃する理由になっておらず、残る 2 つ（腐敗しにくい・翻訳の劣化とコスト）も弱いと判断した。腐敗検出は `body_hash` が担っており言語に依存しない。加えて desired-state 差分で `unchanged` が再抽出されないため、言語を本文追従にすると `toc.yaml` 内で言語混在が恒久的に残ることが実データで判明した |
+| 日付       | バージョン | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-31 | 0.1        | 初版作成。OKF 準拠の可否を検討するたたき台として、フィールド比較表と未決定事項を提示                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 2026-08-01 | 1.0        | OKF 準拠を不採用と決定し（§3）、独自スキーマを確定。`type` を識別マーカーとして再定義、`body_hash` の仕様確定、all-or-nothing の信頼判定（§5）、`scripts/frontmatter/` への分離（§6）、英語限定ルールの解除（§4.4）、既存文書の書き込み SKILL と書き戻し方針（§8）を追記                                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-08-01 | 1.1        | `type` を複数値許容に変更（§4.1）。forge が追加開発の一時文書に `type: temporary-feature-*` を既に付与しており、単一値では上書きで標識が失われるため。判定を membership に、書き込みを和集合更新に改め（§4.5 / §5.1 / §5.3 / §6.4）                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 2026-08-02 | 1.2        | 実装着手前の判断事項を反映。`fm_to_pending.py` に `--work-dir` の一括処理を追加（§6.1 / §6.2）、スキーマ規約のテストを一方向の包含関係へ変更（§6.4）、§7.1 の無改造範囲を JSON 出力への項目追加を除く形へ限定して §8.2 との矛盾を解消、書き込み SKILL の形態と適用対象を決定（§10）                                                                                                                                                                                                                                                                                                                                                                 |
+| 2026-08-02 | 1.3        | `fm_read.py` の走査モードを廃止し、対象を `--paths-json` で受け取る形へ変更（§6.1 / §6.2）。§10.2 の配布物除外を script の機能仕様から運用方針へ位置づけ直した。配布先に存在しないパスの判定を配布物へ焼き込むことになり、対象を上位層が決める `index-docs --paths-json` の思想とも矛盾するため                                                                                                                                                                                                                                                                                                                                                     |
+| 2026-08-02 | 1.4        | `fm_to_pending.py` の処理単位を `--work-dir` のみへ限定し、1 ファイル単位（`--out`）を廃した（§6.1 / §6.2）。呼び出し元は転記フェーズの一括処理だけであり、使われない経路を実装しないため。あわせて pending の列挙規則を `merge_toc.py` と揃えること、および書式を `write_pending.py` の出力とバイト一致させることを §6.1 に明記                                                                                                                                                                                                                                                                                                                    |
+| 2026-08-04 | 1.8        | §6.1 の「1 ディレクトリの削除で戻せる」という主張に、**それがディレクトリ構造だけでは成立せず索引側の実装に依存する**ことを明記した。実装当初は `frontmatter/` の不在で呼び出し元（`index_docs.py`）がクラッシュしており、本節の主張は成立していなかった（現在はテストで固定）。あわせて不在（撤回）と読み込み失敗（破損）が区別されること、破損時も `toc.yaml` の内容は正しく失われるのは高速化だけであることを追記した                                                                                                                                                                                                                            |
+| 2026-08-04 | 1.7        | 書き込み SKILL が呼ぶラッパー `fm_run.py` を追加した（§6.1 の配置図・§6.2 の責務表・§6.5 新節・§6.4 のテスト規定）。`fm_read` / `fm_write` の間の受け渡しが AI に残っており、`paths` の組み替え・`trust` を見た対象の絞り込み・`--entries-json` の argv 組み立て・書き込み後の件数比較を AI が手でやっていた。`plan` / `apply` の 2 サブコマンドに畳み、AI に残す責務を「メタデータの内容を作ること」と「承認を取ること」だけにした。`apply` が書き込み後の信頼判定まで行うため §6.2 の責務境界を変更した（分離自体は正しかったが、その帰結として SKILL に決定論的な比較が残っていた）。`fm_read` / `fm_write` の CLI は残すが SKILL からは呼ばない |
+| 2026-08-04 | 1.6        | `fm_write.py` に値域検証を課した（§6.2 の新節「値域の検証を書き込み側にも課す」・§6.3 の処理順序へ手順 0 を追加・§6.4 のテスト規定）。当初は「上限の検証は読み取り側の責務」として書き込み側では検証しない設計だったが、**書ける値の集合が信頼される値の集合に収まらず**、script が書いた直後の文書が信頼できない状態が実際に発生した（`purpose` 206 文字）。値域規則の実装を読み取り側と共有し、一方向の包含をテストで固定する。必須フィールドの充足（欠落）は部分更新を許すため書き込み側では検査せず、責務の非対称を §6.2 の表で明示した                                                                                                         |
+| 2026-08-03 | 1.5        | §4.4 の言語ルールを英語統一へ戻した。1.0 で「本文の言語に合わせる」へ解除したが、その 4 根拠のうち 2 つ（検索が壊れない・`keywords` は識別子）は「日本語でも問題ない」という中立の主張で英語を撤廃する理由になっておらず、残る 2 つ（腐敗しにくい・翻訳の劣化とコスト）も弱いと判断した。腐敗検出は `body_hash` が担っており言語に依存しない。加えて desired-state 差分で `unchanged` が再抽出されないため、言語を本文追従にすると `toc.yaml` 内で言語混在が恒久的に残ることが実データで判明した                                                                                                                                                    |

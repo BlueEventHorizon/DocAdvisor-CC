@@ -1,11 +1,11 @@
 # ToC checksums for key: rules
 # Auto-generated - do not edit
-generated_at: 2026-08-03T11:37:50Z
+generated_at: 2026-08-03T16:11:07Z
 file_count: 6
 checksums:
-  docs/rules/cli_output_formatting.md: b1adf4bf581e902064feac1b46eedc509b9a8994cc4eafdaf38c4136c399241f
+  docs/rules/cli_output_formatting.md: 31fc81fef2cfd9a50e84df51bedb34667bef1e9d3c617d506339446178323508
   docs/rules/document_writing_rules.md: 93f36fffe5019dd85ad6ac6cbd1a505f64cfd81bea10ff3f4e009141f5b731a7
   docs/rules/implementation_guidelines.md: 6ac000b9a9d26353afaf085cea04ae9be134a506a80d7745e34b1d846adcc9dd
   docs/rules/skill_authoring_notes.md: 6304d54115f2f40614b896227f6b6324db80c86d567c6cc41546184126a0af47
   docs/rules/skill_launch_paths_definitions.md: dd46177c35be1f6fe3d159e50ecfb0a80718a4669074f2bd483f44d9177d20b9
-  docs/rules/version_migration_design.md: 1186d9ccc0bdae6be40ccbae47d43406a3087d54a5ab97d8d9deca3c707e6458
+  docs/rules/version_migration_design.md: bc08d035eb80551ad007ca9c2a7efee3d5d2fd8c7373636ed7ee73ec50a75f6d

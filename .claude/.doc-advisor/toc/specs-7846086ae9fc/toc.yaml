@@ -5,7 +5,7 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-08-03T12:22:04Z
+  generated_at: 2026-08-03T16:34:11Z
   file_count: 18
 
 docs:
@@ -40,35 +40,36 @@ docs:
       - Agent
       - $ARGUMENTS
   docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md:
-    title: "ADR-006: index-docs Parallel Fill Performance Optimization (Increased Parallelism, Format Compression, Limited Batching)"
-    purpose: Defines optimization strategy for index-docs Phase 2 to accelerate ToC filling from 1-2 hours to ~10 minutes via parallelism increase, format compression, and limited batching with quality verification
+    title: ADR-006 index-docs Parallel Fill Performance
+    purpose: Records the decision to speed up the toc-updater fill phase via a wider window, a compressed format doc, and limited batching, gated on measured extraction quality.
     content_details:
-      - "Three-tier optimization strategy: parallelism increase (5→10), toc_format.md compression, limited batching (k=2-3)"
-      - Context rot risk analysis and context-independent extraction requirement for multiple documents per agent
-      - Sliding-window continuous dispatch (claim/lease based) instead of barrier-based wave loops to reduce tail latency
-      - Quality measurement gate for batch mode using golden set testing (rules+specs, 43 queries, FN/FP=0)
-      - "Measured performance improvement: 38% time reduction, 53% token reduction per document with batching"
-      - Agent tool subagents adopted as only reliable orchestration basis for marketplace plugin distribution
-      - Rejection of official multi-agent options (Dynamic Workflows, Agent Teams) as unsuitable for isolated document processing
-      - Parallelism constraint (10 max, proven safe; 20/30 unverified), 429 rate limiting handling for low tiers
-      - Lease TTL (900s default) for stale claim cleanup and preventing double dispatch race conditions
+      - Measurements - ~18s and ~24K tokens per document, effective parallelism verified at 10, per-document time independent of the window
+      - The bottleneck is launch-count overhead and tail latency, not insufficient parallelism
+      - context rot is the central concern - mixing documents in one context causes cross-document keyword misattribution
+      - Plan A - raise the distributed default window from 5 to 10 (verified safe; 429 on a low tier degrades to 5 then 3)
+      - Plan C - compress formats/toc_format.md so per-document context shrinks (speed and quality move together)
+      - Plan B - limited batching of k=2..3 same-directory neighbours, gated on a quality measurement
+      - Grouping is decided deterministically by script; AI grouping by hand is forbidden
+      - "Addendum (Issue #29) - continuous dispatch with claim/lease replaced foreground barrier waves; 12.6% makespan gain measured"
+      - Addendum 2 - the free-slot arithmetic moved into index_docs.py because window minus in_flight_groups must not be recomputed by AI
+      - Rejected - official multi-agent orchestration (not reachable from the SKILL runtime), and auto-selecting barrier vs continuous
     applicable_tasks:
-      - index-docs SKILL performance optimization and parallelism tuning
-      - Quality assurance testing for batch processing with multi-document context isolation
-      - Orchestration architecture design for marketplace plugin constraints
-      - Rate limit handling for different user tiers
-      - Agent tool discovery and subagent isolation design
+      - Changing the parallel window or the batch size of toc-updater fill
+      - Diagnosing slow or rate-limited indexing on a large corpus
+      - Deciding whether dispatch control belongs to a script or to the AI
+      - Reviewing extraction quality after a batching change
+      - Understanding why claim and lease exist in toc_store.py
     keywords:
-      - parallel fill
-      - batching
+      - ADR-006
       - context rot
-      - claim/lease
+      - continuous dispatch
       - sliding-window
-      - golden set
-      - orchestration
-      - toc_format compression
-      - subagents
+      - claim
+      - lease
+      - in_flight_groups
+      - max_batch
       - tail latency
+      - makespan
   docs/specs/base/design/DES-003_document_identifier.md:
     title: "DES-003: Document Identifier Design"
     purpose: Defines document identification using project-root-relative file paths as sole identifier, eliminating ID prefix requirements and enabling key+path two-layer identification for ToC management
@@ -130,32 +131,32 @@ docs:
     title: DES-005 key + path ToC Provider Design
     purpose: Defines the design for the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, and merge.
     content_details:
-      - "store_dir(key) resolution - NFC-normalized slug of [a-z0-9_-], 40-char truncation, empty slug falls back to \\\"k\\"
-      - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work/ per key, .toc_work intentionally not gitignored
-      - "Key validation - KEY_EMPTY for an empty key, KEY_RESERVED for an explicitly passed \\\"all\\"
+      - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and an action payload
+      - action values - dispatch / wait / confirm / done / error, with agents[].prompt ready to pass through
+      - Core CLIs stay but SKILLs must not call them (a second entry point makes state diverge)
+      - store_dir(key) resolution - NFC-normalized slug, 40-char truncation, empty slug falls back to k
+      - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work per key, .toc_work intentionally not gitignored
       - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / OUTSIDE_ROOT / NOT_MARKDOWN rejections
-      - resolve_within_root() and find_escaping_symlink() - default-deny for root-escaping symlinks, approved via --allow-external-json
       - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
-      - The transcription phase (fm_to_pending.py) sits between prepare and AI fill; all-transcribed skips every Agent
+      - The transcription phase sits between prepare and AI fill, closed into one wrapper block for withdrawal
       - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
-      - JSON contract - status and error_code are required, and the error_code enum applies to rejected_paths[].reason
-      - ai_extracted_paths is report-only, emitted on status ok, always empty for --delete-only
+      - JSON contract - status and error_code required, and the enum applies to rejected_paths[].reason
     applicable_tasks:
-      - Implementing or modifying prepare_toc.py / merge_toc.py
-      - Adding a script to the ToC pipeline
+      - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
+      - Adding a script to the ToC pipeline or changing what the wrapper plumbs
       - Changing the JSON output contract or the error_code enum
       - Designing path validation for symlinks that escape the project root
-      - Reviewing where the transcription phase is placed
+      - Deciding what the AI does versus what a script does in the pipeline
       - Debugging continuation and .toc_work resume behavior
     keywords:
       - DES-005
+      - index_docs.py
       - resolve_store_dir
       - prepare_toc.py
       - merge_toc.py
       - fm_to_pending.py
       - desired-state sync
       - find_escaping_symlink
-      - .toc_checksums.yaml
       - ai_extracted_paths
       - continuation
   docs/specs/base/design/DES-009_check_toc_freshness_design.md:
@@ -442,17 +443,18 @@ docs:
       - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
       - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
       - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
-      - body_hash covers the body only (self-reference avoidance), sha256:<64hex> with an algorithm prefix, stamped after the formatter
+      - body_hash covers the body only (self-reference avoidance), stamped after the formatter
       - Language Rule - every field value in English regardless of the body language
       - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
       - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
-      - all-or-nothing fallback, with a warning only when the doc-advisor marker is present
+      - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
       - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
-      - fm_write.py 7-step order (merge without body_hash, write, format, re-read, stamp) with rollback from step 3 onward
+      - fm_run.py wrapper - plan resolves targets, apply writes and verifies trust so the caller compares nothing
     applicable_tasks:
-      - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py
+      - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
       - Changing the trust predicate or the frontmatter schema
       - Deciding where body_hash is stamped relative to formatting
+      - Deciding whether a validation belongs to the write side or the read side
       - "Reviewing whether the type union update preserves other tools' markers"
       - Adding frontmatter to existing documents via write-frontmatter
       - Designing the write-back of AI extraction results
@@ -460,7 +462,7 @@ docs:
       - DES-008
       - body_hash
       - fm_core.py
-      - fm_write.py
+      - fm_run.py
       - fm_to_pending.py
       - type union update
       - trust predicate

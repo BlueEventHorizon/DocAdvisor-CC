@@ -42,7 +42,9 @@ MARKER = "doc-advisor"
 # doc-advisor が定義する 7 キー。type 以外の 6 キーは doc-advisor が単独所有する
 TYPE_FIELD = "type"
 BODY_HASH_FIELD = "body_hash"
-STRING_FIELDS = ("title", "purpose")
+# purpose のみ文字数上限を持つため、上限判定で参照できるよう単独の定数にする
+PURPOSE_FIELD = "purpose"
+STRING_FIELDS = ("title", PURPOSE_FIELD)
 LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
 DOC_ADVISOR_FIELDS = (TYPE_FIELD,) + STRING_FIELDS + LIST_FIELDS + (BODY_HASH_FIELD,)
 
@@ -374,8 +376,103 @@ def has_marker(metadata):
     return MARKER in values
 
 
+def _string_value_violations(field, value):
+    """文字列フィールドの値域を検証する（存在は前提。欠落は呼び出し側が扱う）。
+
+    値域規則の唯一の実装であり、validate_metadata（読み取り側の信頼判定）と
+    validate_field_values（書き込み側の事前検証）が共有する。両者が別々に規則を
+    持つと「書ける値の集合 ⊄ 信頼される値の集合」が再発するため、分けない。
+
+    Args:
+        field: フィールド名（STRING_FIELDS のいずれか）
+        value: 値
+
+    Returns:
+        list: (violation_code, field, detail) のタプルの列。空なら適合
+    """
+    if not isinstance(value, str):
+        return [(
+            Violation.FIELD_TYPE_MISMATCH, field, f"{field} は文字列である必要があります"
+        )]
+    if not value.strip():
+        return [(Violation.FIELD_EMPTY, field, f"{field} が空です")]
+    if field == PURPOSE_FIELD and len(value) > PURPOSE_MAX_LENGTH:
+        return [(
+            Violation.FIELD_TOO_LONG,
+            field,
+            f"{field} が {PURPOSE_MAX_LENGTH} 文字を超えています（{len(value)} 文字）",
+        )]
+    return []
+
+
+def _list_value_violations(field, value):
+    """配列フィールドの値域を検証する（存在は前提。欠落は呼び出し側が扱う）。
+
+    値域規則の共有については _string_value_violations の docstring を参照。
+
+    Args:
+        field: フィールド名（LIST_FIELDS のいずれか）
+        value: 値
+
+    Returns:
+        list: (violation_code, field, detail) のタプルの列。空なら適合
+    """
+    if not isinstance(value, list):
+        return [(
+            Violation.FIELD_TYPE_MISMATCH, field, f"{field} は配列である必要があります"
+        )]
+    if len(value) < LIST_MIN_ITEMS:
+        return [(Violation.FIELD_EMPTY, field, f"{field} が空配列です")]
+    if len(value) > LIST_MAX_ITEMS:
+        return [(
+            Violation.FIELD_TOO_MANY_ITEMS,
+            field,
+            f"{field} が {LIST_MAX_ITEMS} 件を超えています（{len(value)} 件）",
+        )]
+    if any((not isinstance(item, str)) or (not item.strip()) for item in value):
+        return [(
+            Violation.FIELD_EMPTY, field, f"{field} に空の要素が含まれています"
+        )]
+    return []
+
+
+def validate_field_values(metadata):
+    """渡されたフィールドの値域のみを検証する（書き込み前の事前検証。DES-008 §6.3）。
+
+    validate_metadata と異なり **欠落（FIELD_MISSING）を検査しない**。fm_write は
+    部分指定（一部のフィールドだけを差し替え、他は既存の値を保持する書き込み）を
+    許すため、欠落を違反とすると部分更新ができなくなる。
+
+    type / body_hash は対象外である。type は script が和集合更新し、body_hash は
+    script が整形後に算出するため、いずれも metadata では渡せない
+    （fm_write.validate_metadata_argument が拒否する）。未知キーも同様に無視する。
+
+    検証順序は STRING_FIELDS → LIST_FIELDS の定義順であり、metadata の
+    キー挿入順に依存しない（violations の順序を決定的にするため）。
+
+    Args:
+        metadata: 書き込むメタデータの dict（None 可）
+
+    Returns:
+        list: (violation_code, field, detail) のタプルの列。空なら適合
+    """
+    metadata = metadata or {}
+    violations = []
+    for field in STRING_FIELDS:
+        if field in metadata:
+            violations.extend(_string_value_violations(field, metadata[field]))
+    for field in LIST_FIELDS:
+        if field in metadata:
+            violations.extend(_list_value_violations(field, metadata[field]))
+    return violations
+
+
 def validate_metadata(metadata):
     """5 フィールドと type を DES-008 §5.1 の表に従って検証する。
+
+    値域の判定は _string_value_violations / _list_value_violations に委ね、
+    本関数は欠落と type の判定を加える。書き込み側の事前検証
+    （validate_field_values）と同一の値域規則を共有する。
 
     body_hash の検証は本文が必要なため check_body_hash が担う。
 
@@ -410,47 +507,14 @@ def validate_metadata(metadata):
         if field not in metadata:
             violations.append((Violation.FIELD_MISSING, field, f"{field} がありません"))
             continue
-        value = metadata[field]
-        if value is None or isinstance(value, list):
-            violations.append((
-                Violation.FIELD_TYPE_MISMATCH, field, f"{field} は文字列である必要があります"
-            ))
-            continue
-        if not value.strip():
-            violations.append((Violation.FIELD_EMPTY, field, f"{field} が空です"))
-            continue
-        if field == "purpose" and len(value) > PURPOSE_MAX_LENGTH:
-            violations.append((
-                Violation.FIELD_TOO_LONG,
-                field,
-                f"purpose が {PURPOSE_MAX_LENGTH} 文字を超えています（{len(value)} 文字）",
-            ))
+        violations.extend(_string_value_violations(field, metadata[field]))
 
     # content_details / applicable_tasks / keywords: 1〜10 件、各要素は非空文字列
     for field in LIST_FIELDS:
         if field not in metadata:
             violations.append((Violation.FIELD_MISSING, field, f"{field} がありません"))
             continue
-        value = metadata[field]
-        if not isinstance(value, list):
-            violations.append((
-                Violation.FIELD_TYPE_MISMATCH, field, f"{field} は配列である必要があります"
-            ))
-            continue
-        if len(value) < LIST_MIN_ITEMS:
-            violations.append((Violation.FIELD_EMPTY, field, f"{field} が空配列です"))
-            continue
-        if len(value) > LIST_MAX_ITEMS:
-            violations.append((
-                Violation.FIELD_TOO_MANY_ITEMS,
-                field,
-                f"{field} が {LIST_MAX_ITEMS} 件を超えています（{len(value)} 件）",
-            ))
-            continue
-        if any((not isinstance(item, str)) or (not item.strip()) for item in value):
-            violations.append((
-                Violation.FIELD_EMPTY, field, f"{field} に空の要素が含まれています"
-            ))
+        violations.extend(_list_value_violations(field, metadata[field]))
 
     return violations
 

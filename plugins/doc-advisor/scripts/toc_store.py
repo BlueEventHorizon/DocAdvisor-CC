@@ -10,12 +10,20 @@ DES-005 §3.1 / §3.2 / §4.1 / §8 を実装する。
 - 予約 key `all` の判定・空 key / 任意 all の reject 用ヘルパ
 - JSON 出力契約（emit_json）と error_code enum 定数の集約
 - key 単位の promote-pending / clean-work-dir（旧 create_checksums.py から統合）
+- work dir の状態判定（work_status）と claim/lease・error 状態の解除
 
 CLI:
+    python3 toc_store.py --key <key> --work-status
+    python3 toc_store.py --key <key> --claim <entry...>
+    python3 toc_store.py --key <key> --reset-error <entry...>
     python3 toc_store.py --key <key> --promote-pending
     python3 toc_store.py --all --promote-pending
     python3 toc_store.py --key <key> --clean-work-dir
     python3 toc_store.py --all --clean-work-dir
+
+**通常の索引経路からは呼ばない**。これらは `index_docs.py`（ラッパー）が内部で
+配管しており、SKILL / agent から直接呼ぶと二重の入口になって状態が食い違う
+（DES-005 §4.1.1）。本 CLI はテストと障害切り分けのために残されている。
 
 標準ライブラリのみ使用（NFR-N01）。
 """
@@ -704,6 +712,107 @@ def work_status(store_dir, project_root, max_batch=DEFAULT_MAX_BATCH,
     return result
 
 
+def _strip_error_message(filepath):
+    """entry YAML の `_meta` から error_message 行を削除する（本体は触らない）。
+
+    `_stamp_claimed_at` と同じ行レベル操作で、pending テンプレートを壊さずに
+    原子的に書き戻す。`status` は変更しない（error 化しても pending のままである）。
+
+    Returns:
+        bool: 削除した行があれば True（無ければ False）
+    """
+    path = Path(filepath)
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.read().split("\n")
+
+    out = []
+    in_meta = False
+    removed = False
+    for line in lines:
+        stripped = line.strip()
+        if not in_meta and stripped == "_meta:":
+            in_meta = True
+            out.append(line)
+            continue
+        if in_meta:
+            is_meta_field = (
+                line.startswith("  ") and ":" in stripped and not stripped.startswith("#")
+            )
+            if is_meta_field:
+                key = stripped.partition(":")[0].strip()
+                if key == "error_message":
+                    removed = True
+                    continue  # この行を落とす
+                out.append(line)
+                continue
+            # _meta ブロック終端（インデントが切れた）
+            in_meta = False
+        out.append(line)
+
+    if not removed:
+        return False
+
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(out))
+    tmp.replace(path)
+    return True
+
+
+def reset_error_entries(store_dir, project_root, entry_files):
+    """error_pending の entry を通常の pending へ戻す（充填の再試行のため）。
+
+    `error_message` を持つ entry は `work_status` が `error_pending` に分類し、
+    `claim_entries` も `reason: error_pending` で claim を拒否する。この状態のまま
+    Agent を投入すると **claim/lease の保護が働かない**ため、同じコマンドの再実行で
+    同一 entry が二重投入され、複数 Agent が同じ pending を同時に更新しうる。
+
+    そこで再試行は「error 状態を解除して通常の pending に戻し、そのうえで通常の
+    claim を通す」という順序で行う。claim_entries が error_pending を拒否する仕様は
+    正しいため変更せず、その前段としてこの関数を置く。
+
+    Args:
+        store_dir: store_dir の Path
+        project_root: project root（entry_file 解決・相対化用）
+        entry_files: 対象 entry_file のリスト（project-root 相対 or 絶対）。
+            この key の `store_dir/.toc_work/` 配下に限る
+
+    Returns:
+        dict: {"reset": [rel...], "rejected": [{"entry_file": rel, "reason": str}...]}
+            reason: outside_work_dir / not_found / read_error / not_errored
+    """
+    project_root = Path(project_root)
+    work_dir = (Path(store_dir) / WORK_DIRNAME).resolve()
+    result = {"reset": [], "rejected": []}
+    for ef in entry_files:
+        path = Path(ef)
+        if not path.is_absolute():
+            path = project_root / ef
+        rel = _entry_file_rel(path, project_root)
+        try:
+            path.resolve().relative_to(work_dir)
+        except (ValueError, OSError, RuntimeError):
+            result["rejected"].append({"entry_file": rel, "reason": "outside_work_dir"})
+            continue
+        if not path.exists():
+            result["rejected"].append({"entry_file": rel, "reason": "not_found"})
+            continue
+        try:
+            meta, _entry = load_entry_file(path)
+        except IOError:
+            result["rejected"].append({"entry_file": rel, "reason": "read_error"})
+            continue
+        if not meta.get("error_message"):
+            # 対象は error_pending のみ。通常の pending / completed は触らない。
+            result["rejected"].append({"entry_file": rel, "reason": "not_errored"})
+            continue
+        if _strip_error_message(path):
+            result["reset"].append(rel)
+        else:
+            result["rejected"].append({"entry_file": rel, "reason": "read_error"})
+    return result
+
+
 def claim_entries(store_dir, project_root, entry_files,
                   now=None, lease_ttl=DEFAULT_LEASE_TTL_SEC):
     """指定 entry_files を claim（claimed_at スタンプ）する（連続ディスパッチの投入直前に呼ぶ）。
@@ -815,6 +924,15 @@ def parse_args(argv=None):
         ),
     )
     parser.add_argument(
+        "--reset-error", dest="reset_error", nargs="+", metavar="ENTRY_FILE",
+        help=(
+            "Clear error_message from one or more error_pending entry_files so they "
+            "return to the normal pending pool and can be claimed again. Emits "
+            "reset/rejected JSON. Use before re-dispatching a failed entry; "
+            "dispatching an error_pending entry directly bypasses claim/lease."
+        ),
+    )
+    parser.add_argument(
         "--lease-ttl", type=int, default=DEFAULT_LEASE_TTL_SEC,
         help=(
             "Lease TTL in seconds for claim/in-flight detection in --work-status / --claim "
@@ -845,13 +963,13 @@ def main(argv=None):
     args = parse_args(argv)
 
     if (not args.promote_pending and not args.clean_work_dir
-            and not args.work_status and not args.claim):
+            and not args.work_status and not args.claim and not args.reset_error):
         emit_json(
             STATUS_ERROR,
             error_code=ErrorCode.NO_TARGETS,
             message=(
-                "No action specified "
-                "(use --work-status / --claim / --promote-pending / --clean-work-dir)"
+                "No action specified (use --work-status / --claim / --reset-error / "
+                "--promote-pending / --clean-work-dir)"
             ),
         )
         return 1
@@ -876,6 +994,18 @@ def main(argv=None):
             key=key,
             toc_path=toc_path_rel(store_dir, project_root),
             extra=status,
+        )
+        return 0
+
+    # --reset-error は error_pending を通常の pending へ戻す（再試行の前段）。
+    if args.reset_error:
+        reset_result = reset_error_entries(store_dir, project_root, args.reset_error)
+        emit_json(
+            STATUS_OK,
+            error_code=None,
+            key=key,
+            toc_path=toc_path_rel(store_dir, project_root),
+            extra=reset_result,
         )
         return 0
 
