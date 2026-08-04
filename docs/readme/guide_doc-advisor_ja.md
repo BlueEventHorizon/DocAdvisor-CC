@@ -18,7 +18,7 @@ doc-advisor は文書集合を `key`（任意の文字列）単位で管理す�
 | ---------------------- | ---------------------------------------------------------------------------------------------- |
 | `--key <key>`          | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                       |
 | `--paths-json '[...]'` | 当該 key の **完全な desired state** となる project-root-relative path の JSON 配列            |
-| `--paths-file <path>`  | paths 配列を含む JSON ファイル（`--paths-json` の代替）                                        |
+| `--paths-file <path>`  | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`--paths-json` の代替）         |
 | `--all`                | 単体モード。`--key` 省略と同義で予約 key `all` に解決し、project root 以下の全 Markdown を対象 |
 
 `key` と paths から、その key の ToC を desired-state で生成・更新する。前回 ToC に存在し今回 paths に含まれない path は削除される（部分配列を渡すと残りが消える）。内部は `prepare_toc.py`（差分検出）→ `doc-advisor:toc-updater` カスタム Agent による並列メタデータ充填 → `merge_toc.py`（統合）の協調フローで動作する。

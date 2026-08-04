@@ -33,7 +33,7 @@ keywords:
   - external symlink
   - ai_extracted_paths
   - "--dirs-json"
-body_hash: sha256:14373a45b11578733dcffbb8a90b4b6dcaae200894bd418ecb2327e5f3582225
+body_hash: sha256:58ecc6704c436f9ae96822c4b9d589d61d2020e5138df71a6f7fc3593713164e
 ---
 
 # DES-005 key + path ToC Provider 設計書
@@ -353,9 +353,9 @@ flowchart TD
     G -->|Yes| H[accept normalized_path]
 ```
 
-**明示 paths で越境 symlink を止めない [MANDATORY]**: `validate_path` は越境 symlink を受理し、越境した prefix を戻り値の第 2 要素で通知する。`prepare_toc.py` はそれを warning（解決先の実体パスと件数を含む）に変換して索引を続行する。REQ-001 §6.1a のとおり、何を索引するかの決定は呼び出し元に属し、doc-advisor は透明性で安全性を担保する。
+**単体モード以外では越境 symlink を止めない [MANDATORY]**: `validate_path` は越境 symlink を受理し、越境した prefix を戻り値の第 2 要素で通知する。`prepare_toc.py` はそれを warning（解決先の実体パスと件数を含む）に変換して索引を続行する。REQ-001 §6.1a のとおり、何を索引するかの決定は呼び出し元に属し、doc-advisor は透明性で安全性を担保する。
 
-確認を要求するのは **単体モードの走査のみ**（§5.3）。この経路では誰も対象を渡していないため、`status: needs_confirmation` で止めて承認を求める（§8.2）。承認は `--allow-external-json` で戻す。これは SKILL が `AskUserQuestion` で取った決定を戻す内部的な通路であり、上位層との契約ではない（§10.1 の公開引数表には載せない）。
+確認を要求するのは **単体モードの走査のみ**（`--all` / `--key` 省略。§5.3）。対象指定の形による違いはない——`--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file` はいずれも同じ経路を通り、すべて索引する。この経路では誰も対象を渡していないため、`status: needs_confirmation` で止めて承認を求める（§8.2）。承認は `--allow-external-json` で戻す。これは SKILL が `AskUserQuestion` で取った決定を戻す内部的な通路であり、上位層との契約ではない（§10.1 の公開引数表には載せない）。
 
 ### 5.2 新規ロジック `resolve_within_root()` / `find_escaping_symlink()`
 
@@ -628,19 +628,19 @@ ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-
 
 `index-docs`:
 
-| 引数                     | 主な呼び出し元         | 備考                                                                  |
-| ------------------------ | ---------------------- | --------------------------------------------------------------------- |
-| `--key <key>`            | 上位層 / 利用者        | `all` は予約語のため任意指定不可                                      |
-| `--dirs <dir>...`        | 人間・AI が手で打つ    | グロブメタ文字可                                                      |
-| `--dirs-json '[...]'`    | **上位層（forge）**    | 設定から解決した配列をそのまま渡す形。`--dirs` と併用可               |
-| `--paths <path>...`      | 人間・AI が手で打つ    | 当該 key の完全な desired state                                       |
-| `--paths-json '[...]'`   | 上位層 / README 記載   | 同上                                                                  |
-| `--paths-file <path>`    | 上位層                 | 長大な配列を argv に載せないための形                                  |
-| `--exclude <path>...`    | 人間・AI が手で打つ    | `--dirs` 展開時の追加除外                                             |
-| `--exclude-json '[...]'` | **上位層（forge）**    | `--exclude` と併用可                                                  |
-| `--all`                  | 利用者                 | 予約 key `all`。対象指定と併用不可                                    |
-| ~~`--allow-external`~~   | —                      | **公開しない**。`--all` の confirm の答えを戻す隠しオプション（§5.3） |
-| `--on-fill-error <mode>` | 利用者（`confirm` 後） | 例外経路のみ（`reason: fill_error`）。`retry` / `merge` / `abort`     |
+| 引数                     | 主な呼び出し元                                                       | 備考                                                                  |
+| ------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `--key <key>`            | 上位層 / 利用者                                                      | `all` は予約語のため任意指定不可                                      |
+| `--dirs <dir>...`        | 人間・AI が手で打つ                                                  | グロブメタ文字可                                                      |
+| `--dirs-json '[...]'`    | **上位層（forge）**                                                  | 設定から解決した配列をそのまま渡す形。`--dirs` と併用可               |
+| `--paths <path>...`      | 人間・AI が手で打つ                                                  | 当該 key の完全な desired state                                       |
+| `--paths-json '[...]'`   | 上位層 / README 記載                                                 | 同上                                                                  |
+| `--paths-file <path>`    | 上位層（中身は **paths 配列そのもの**。`{"paths": [...]}` ではない） | 長大な配列を argv に載せないための形                                  |
+| `--exclude <path>...`    | 人間・AI が手で打つ                                                  | `--dirs` 展開時の追加除外                                             |
+| `--exclude-json '[...]'` | **上位層（forge）**                                                  | `--exclude` と併用可                                                  |
+| `--all`                  | 利用者                                                               | 予約 key `all`。対象指定と併用不可                                    |
+| ~~`--allow-external`~~   | —                                                                    | **公開しない**。`--all` の confirm の答えを戻す隠しオプション（§5.3） |
+| `--on-fill-error <mode>` | 利用者（`confirm` 後）                                               | 例外経路のみ（`reason: fill_error`）。`retry` / `merge` / `abort`     |
 
 `query-docs`: `--key <key>`（省略時は予約 key `all`）＋ 自然文のタスク記述。
 `check-toc`: `--key <key>` / `--all` / `--max-age <秒>`（必須。DES-009）。
@@ -769,7 +769,7 @@ REQ-001 NFR-N03（`scripts/` テスト必須）に従い、同一 PR でテス�
 | 2026-07-30 | 0.3        | check-toc（DES-009）の追加に伴い、`check_toc.py` を §2.1 レイヤ図・§4.1 モジュール一覧・CLI オプション表へ、`check-toc` を §10 / §11.1 へ追記。§8 の `error_code` 値域に `INVALID_MAX_AGE` / `TOC_READ_ERROR` を追加し、鮮度確認の JSON 契約（`status` 2 値・ToC 不在の扱い）を明記。§13 に鮮度判定のテスト方針を追記                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 2026-08-03 | 0.4        | フロントマターメタデータ（DES-008）の追加に伴い、転記フェーズを反映。§1 概要と §2.2 依存方向規範を「script 層の転記 → 残りを AI 層が充填」の 2 段へ改め、`fm_core.py` を独立系統の共通ロジックとして明記。§2.1 レイヤ図へ `frontmatter/` 系統を追加し、§4.1 に `frontmatter/` 配下 4 件のモジュール表と CLI オプション表を追記。§6.1 のシーケンスへ `fm_to_pending.py` の転記経路を追記し、§6.6 の再開判定を転記を含む順序へ更新。§9.3 の単体モードシーケンスにも同じ転記経路を追記し、§10 の `index-docs` 責務と `write-frontmatter` SKILL の行を追加。あわせて `formats/toc_format.md` の Language Rule を本文追従へ改訂（DES-008 §4.4）                                                                                                                                                                                                                                                                                                                                                        |
 | 2026-08-03 | 0.5        | AI 抽出結果の書き戻し候補（DES-008 §8.2）の受け渡し経路を反映。§8.1 のスキーマ例と §8.2 の enum 定義表へ `merge_toc.py` 固有フィールド `ai_extracted_paths` を追記し、報告専用であること・`status: ok` 時のみ出力すること・`--delete-only` では常に空配列であることを明記。§10 の `index-docs` は merge 完了後に候補を提示し、承認された対象のみを `write-frontmatter` へ `--paths-json` で引き渡す                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| 2026-08-04 | 1.2        | **越境 symlink の default-deny を撤去した**（§5.1 / §5.2 / §5.3 / §8.2 / §10.1 / §13。要件は REQ-001 §6.1a 新設・NFR-N06 改訂）。既定で禁止する設計は成立していなかった: ①外部の仕様書を symlink で取り込む構成が実運用で索引されており、②その唯一の呼び出し元である forge は index-docs を 1 回だけ呼ぶため確認に答えられない。**索引が動かないまま上位層には理由が分からない**状態になる。明示指定（`--paths` / `--dirs`）された対象は越境 symlink であっても索引し、解決先と件数を warning で提示する（安全性は禁止ではなく透明性で担保する）。確認を残すのは `--all` の走査のみで、そこは誰も対象を渡していないため。`validate_path` は例外ではなく `(path, 越境 prefix)` を返す形にし（accept 後の再走査を避けるため）、`ExternalSymlinkPending` は削除した。`--allow-external` は confirm の答えを戻す隠しオプションとし、公開引数表からは外した                                                                                                                                            |
+| 2026-08-04 | 1.2        | **越境 symlink の default-deny を撤去した**（§5.1 / §5.2 / §5.3 / §8.2 / §10.1 / §13。要件は REQ-001 §6.1a 新設・NFR-N06 改訂）。既定で禁止する設計は成立していなかった: ①外部の仕様書を symlink で取り込む構成が実運用で索引されており、②その唯一の呼び出し元である forge は index-docs を 1 回だけ呼ぶため確認に答えられない。**索引が動かないまま上位層には理由が分からない**状態になる。`--all` 以外のすべての対象指定（`--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file`）は越境 symlink であっても索引し、解決先と件数を warning で提示する（安全性は禁止ではなく透明性で担保する）。確認を残すのは `--all` の走査のみで、そこは誰も対象を渡していないため。`validate_path` は例外ではなく `(path, 越境 prefix)` を返す形にし（accept 後の再走査を避けるため）、`ExternalSymlinkPending` は削除した。`--allow-external` は confirm の答えを戻す隠しオプションとし、公開引数表からは外した                                                                              |
 | 2026-08-04 | 1.1        | **SKILL の引数契約の正本を本設計書へ移した**（§10.1 新設 / DES-008 §8.1）。1.0 の事故の根本原因は「既存の呼び出し元を確認しなかった」だけではなく、**引数仕様の唯一の正本が SKILL.md（＝全面書き換えの対象そのもの）だったこと**である。設計書に無いため、書き換えで契約が消えても突き合わせる相手が無かった。§4.1 のモジュール一覧と CLI オプション表に欠落していた `expand_dirs.py` を追加し（旧版には行が無く、`--dirs-json` の出所が設計書上どこにも無かった）、`prepare_toc.py` の `--allow-external-json` も補った。あわせて契約の変更規約（追加は自由 / 削除・改名は横断 grep と承認が必要 / 受け付ける形を減らすのは削除と同じ扱い）と既知の呼び出し元を規定。§13 に SKILL 引数契約のテストを追加し、**壊れていた時点のツリーで実際に落ちることを確認**した。§10 の `write-frontmatter` への引き渡しが `--paths-json` と書かれたまま古くなっていた（実際は `--paths`）ため修正                                                                                                            |
 | 2026-08-04 | 1.0        | **上位層との契約を壊していた不具合を修復した**（§4.1.1 に「呼び出し元は 2 種類ある」を新設・§4.1 の CLI 表・§13 のテスト）。0.7 のラッパー化で対象指定を `--dirs` / `--exclude` のみとし、`--dirs-json` / `--exclude-json` を落としたため、これらを渡して **index-docs を 1 回だけ呼ぶ** forge の `update-db-rules` / `update-db-specs` が `unrecognized arguments` で失敗していた。上位層は再実行も引数の組み替えもしないため、索引が動かないまま理由も分からない状態になる。「入口の数を絞る」ことと「受け付ける引数の形を絞る」ことは別であり、後者は呼び出し元を壊すという教訓を規定として残した                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-08-04 | 0.9        | Codex レビュー round 3（🟡 major 1 件）を反映。転記モジュールの読み込み失敗の捕捉を `ImportError` から `Exception` 全体へ広げた（§4.1.1 / §13）。構文エラーは `SyntaxError` であり `ImportError` ではないため、捕まえ損ねると traceback で終了し §8.1 の「stdout に単一 JSON」契約を破る。0.8 の時点では「破損が露見する方向なので放置」と判断していたが、silent success を避けることと CLI 契約を満たすことは別の要求であり、後者を落としていた。回帰テストを 3 通り（欠落 / 構文エラー / 依存の破損）へ拡張し、stdout が単一 JSON で stderr に traceback が出ないことを固定した                                                                                                                                                                                                                                                                                                                                                                                                                 |

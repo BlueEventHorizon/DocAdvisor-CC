@@ -711,6 +711,17 @@ class TestExternalSymlinkPassThrough(WrapperTestBase):
     走査（`--all`）だけは誰も対象を渡していないため確認する。
     """
 
+    def _fresh_project_root(self):
+        """独立した project root へ差し替える（1 テスト内で複数の形を試すため）。
+
+        setUp を呼び直すと前回の一時ディレクトリが tearDown の対象から外れて
+        残るため、addCleanup で個別に片付ける。
+        """
+        self.tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmpdir, ignore_errors=True)
+        self.project_root = Path(self.tmpdir)
+        (self.project_root / '.git').mkdir()
+
     def _link_external_dir(self, link_rel, names):
         outside = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, str(outside), ignore_errors=True)
@@ -753,15 +764,31 @@ class TestExternalSymlinkPassThrough(WrapperTestBase):
         self.assertIn(str(outside), hit[0])
         self.assertIn('2 file(s)', hit[0])
 
-    def test_paths_pointing_through_external_symlink_are_indexed(self):
-        """--paths で越境 symlink 経由のファイルを直接渡しても索引されること。"""
-        self._link_external_dir('shared', ['spec.md'])
+    def test_every_target_form_indexes_it(self):
+        """判定基準は「単体モードか否か」であり、対象指定の形によらないこと。
 
-        payload, _calls, _agents = self._drive_to_done(
-            'specs', '--key', 'specs', '--paths', 'shared/spec.md',
-        )
+        `--dirs` だけを確認しても足りない。上位層は `--dirs-json` を渡し、
+        長大な配列では `--paths-file` を渡す。どの形でも同じ経路を通る。
+        """
+        forms = [
+            ('--dirs', ['--dirs', 'docs/']),
+            ('--dirs-json', ['--dirs-json', json.dumps(['docs/'])]),
+            ('--paths', ['--paths', 'docs/external/a.md']),
+            ('--paths-json', ['--paths-json', json.dumps(['docs/external/a.md'])]),
+            ('--paths-file', ['--paths-file', 'targets.json']),
+        ]
+        for label, args in forms:
+            with self.subTest(form=label):
+                self._fresh_project_root()
+                self._link_external_dir('docs/external', ['a.md'])
+                (self.project_root / 'targets.json').write_text(
+                    json.dumps(['docs/external/a.md']), encoding='utf-8')
 
-        self.assertEqual(payload['counts']['added'], 1)
+                payload, _calls, _agents = self._drive_to_done(
+                    'specs', '--key', 'specs', *args,
+                )
+
+                self.assertEqual(payload['counts']['added'], 1)
 
     def test_single_mode_asks_before_leaving_the_root(self):
         """--all の走査で見つかった越境 symlink は confirm になること。"""

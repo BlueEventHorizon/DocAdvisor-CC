@@ -53,7 +53,7 @@ AI が担うのは次の 2 つだけである。
 | `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                      |
 | `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                             |
 | `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                        |
-| `--paths-file <path>`    | paths 配列を含む JSON ファイル                                                                          |
+| `--paths-file <path>`    | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`{"paths": [...]}` ではない）            |
 | `--exclude <path>...`    | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                               |
 | `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                |
 | `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない |
@@ -121,7 +121,7 @@ Agent(subagent_type: "{agents[i].subagent_type}", run_in_background: true,
 
 `--all` の走査が **project root の外を指す symlink** を見つけた。誰も索引対象として渡していないため、project root の外へ勝手に広げずユーザーに確認する（NFR-N06）。書き込みは行われていない。
 
-> **渡された対象は確認しない [MANDATORY]**: `--dirs` / `--paths` で指定された対象は、越境 symlink であっても**そのまま索引する**。それが symlink であることは渡す側が知っており、doc-advisor が別の理由で塞ぐと、上位層は自分の指定が通らない理由を知り得ない。注意喚起は `warnings` で行う。**この経路で `confirm` は返らない。**
+> **渡された対象は確認しない [MANDATORY]**: `--all` 以外のすべての対象指定（`--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file`）は、越境 symlink であっても**そのまま索引する**。それが symlink であることは渡す側が知っており、doc-advisor が別の理由で塞ぐと、上位層は自分の指定が通らない理由を知り得ない。注意喚起は `warnings` で行う。**この経路で `confirm` は返らない。**
 
 `external_pending` の各エントリについて、**解決先の実体パス（`resolved`）と件数（`affected_count`）を提示**し、`AskUserQuestion` で許可・不許可を確認する。承認した symlink を並べて再実行する。
 

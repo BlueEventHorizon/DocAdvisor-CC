@@ -18,7 +18,7 @@ doc-advisor is a generic ToC Provider that manages document sets per `key` (an a
 | ---------------------- | --------------------------------------------------------------------------------------------------------- |
 | `--key <key>`          | Opaque key of the target ToC (decided by the upper layer). `all` is reserved and cannot be set freely     |
 | `--paths-json '[...]'` | JSON array of project-root-relative paths that form the **complete desired state** for the key            |
-| `--paths-file <path>`  | JSON file containing the paths array (alternative to `--paths-json`)                                      |
+| `--paths-file <path>`  | JSON file holding **the paths array itself** (`["docs/a.md"]`, not `{"paths": [...]}`)                    |
 | `--all`                | Single mode. Same as omitting `--key`; resolves to reserved key `all` and targets all Markdown under root |
 
 Generates / updates the ToC for the key as a desired state. Any path present in the previous ToC but absent from the new paths is deleted (passing a partial array drops the rest). Internally it runs the cooperative pipeline `prepare_toc.py` (diff detection) → `doc-advisor:toc-updater` custom Agent (parallel metadata fill) → `merge_toc.py` (merge).
