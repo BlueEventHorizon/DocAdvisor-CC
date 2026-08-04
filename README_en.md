@@ -1,6 +1,6 @@
 # doc-advisor
 
-**Version: 0.4.6**
+**Version: 0.4.7**
 
 An AI-searchable document index plugin for Claude Code. Indexes project Markdown documents per `key` with a ToC (keyword / metadata) search so AI can automatically find the context it needs.
 
@@ -25,11 +25,12 @@ doc-advisor exists precisely to build that "task → documents to read" mapping 
 
 doc-advisor is a generic ToC Provider that manages document sets per `key` (an arbitrary string). It does not interpret the meaning of a `key` (rules / specs classification); it operates deterministically on the given `key` and project-root-relative `paths`.
 
-| Skill          | Description                                                      | Trigger               |
-| -------------- | ---------------------------------------------------------------- | --------------------- |
-| **index-docs** | Generate / update a ToC (keyword / metadata) from key + paths    | `"index docs"`        |
-| **query-docs** | Search a per-key ToC by keyword / natural language, return paths | `"find related docs"` |
-| **check-toc**  | Report whether a per-key ToC is `fresh` or `stale` (read-only)   | `"is the ToC fresh"`  |
+| Skill                 | Description                                                        | Trigger               |
+| --------------------- | ------------------------------------------------------------------ | --------------------- |
+| **index-docs**        | Generate / update a ToC (keyword / metadata) from key + paths      | `"index docs"`        |
+| **query-docs**        | Search a per-key ToC by keyword / natural language, return paths   | `"find related docs"` |
+| **check-toc**         | Report whether a per-key ToC is `fresh` or `stale` (read-only)     | `"is the ToC fresh"`  |
+| **write-frontmatter** | Write the search metadata into a document's frontmatter (edits it) | `"write frontmatter"` |
 
 ## Workflow
 
@@ -129,6 +130,23 @@ The answer is the two-valued `freshness`. A missing ToC is also reported as `sta
 ```
 
 `--max-age` is required. Choosing the threshold — and deciding what to do when the ToC is stale — belongs to the caller.
+
+### 4. Embedding metadata (write-frontmatter)
+
+By default indexing reads each document's body to extract metadata (a cold read). **When a document carries that metadata in its own frontmatter, `index-docs` just transcribes it and skips launching an agent** — which is what makes a large first-time index affordable.
+
+```text
+# Name the targets; this rewrites the original Markdown
+/doc-advisor:write-frontmatter --dirs docs/rules/
+
+# Pass your formatter if you have one (body_hash is stamped after formatting)
+/doc-advisor:write-frontmatter --paths docs/a.md --format-command "dprint fmt {file}"
+```
+
+- **This skill edits your files.** It shows the targets and the metadata and asks for approval before writing
+- Existing frontmatter keys are preserved, and `type` gains `doc-advisor` as a union so other tools' markers survive
+- Editing the body makes `body_hash` stop matching, so that metadata is no longer trusted — indexing falls back to AI extraction rather than indexing stale metadata
+- After a ToC finishes, `index-docs` offers the AI-extracted documents as write-back candidates and hands only the approved ones to this skill
 
 ## Requirements
 
