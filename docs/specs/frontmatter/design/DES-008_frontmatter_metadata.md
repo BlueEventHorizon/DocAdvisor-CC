@@ -1,7 +1,7 @@
 ---
 type: doc-advisor
 title: DES-008 doc-advisor Frontmatter Design
-purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, and script layout.
+purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, script layout, and the write SKILL argument contract.
 content_details:
   - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
   - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
@@ -12,13 +12,14 @@ content_details:
   - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
   - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
   - Withdrawal by deleting one directory depends on the indexing side treating its absence as normal
-  - fm_run.py wrapper - plan resolves targets, apply writes and verifies trust so the caller compares nothing
+  - write-frontmatter argument contract - --paths / --dirs / --exclude / --format-command, with fm_run.py plan resolving targets and apply verifying trust
 applicable_tasks:
   - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
   - Changing the trust predicate or the frontmatter schema
   - Deciding where body_hash is stamped relative to formatting
   - Deciding whether a validation belongs to the write side or the read side
   - "Reviewing whether the type union update preserves other tools' markers"
+  - Changing the write-frontmatter SKILL arguments
   - Adding frontmatter to existing documents via write-frontmatter
   - Designing the write-back of AI extraction results
 keywords:
@@ -32,7 +33,7 @@ keywords:
   - OKF
   - extracted_by
   - "--format-command"
-body_hash: sha256:69d6336546a9c696811811bb49b5b64bf2b1265c9e4ab81100eaa9436f780424
+body_hash: sha256:cafb8f2fd2560d0fa3f0750b5aae139f8ddef726c3194badd82c16fe08791496
 ---
 
 # DES-008: doc-advisor フロントマター設計書
@@ -427,6 +428,7 @@ fm_write.py --entries-json '[{"path": "docs/a.md", "metadata": {...}}]' [--forma
 - `fm_write.py`: 未知キー（`name` / `description` 等）が保持されること、および **`type` が和集合更新されること**（`temporary-feature-requirement` のみを持つ文書へ書き込むと `[temporary-feature-requirement, doc-advisor]` になり、既存値が消えない）
 - **値域検証の一方向包含（§6.2）**: 書き込み側が受理した metadata を書き込んだ結果に、読み取り側の**値域**判定が違反を返さないこと。あわせて値域違反の各種（文字数超過・件数超過・空・型不一致・配列内の空要素）で **対象ファイルのバイト列が 1 バイトも変わらない**ことを固定する。`changed` の値は script の自己申告であり、書かれていないことの証明にならないため、実ファイルを読み比べる。上限ちょうど（`purpose` 200 文字・配列 10 件）が違反にならない境界も固定する
 - **部分指定が欠落を理由に弾かれないこと**: 一部のフィールドのみを渡した書き込みが成功し、渡さなかったフィールドの既存値が保持されること（§6.2 の非対称が実際に成立していることの確認）
+- **引数契約（§8.1）**: `fm_run.py` が契約の各引数を受け付けること、および `write-frontmatter/SKILL.md` が契約の各引数を**記載していること**。SKILL.md は全面書き換えの対象になる配布物であり、記載が消えると AI がその形で呼べなくなる（DES-005 §10.1 の事故と同種）
 - **ラッパー（`fm_run.py`）**: `plan` が信頼できる文書を `targets` から外すこと・`doc-advisor` の標識を持つのに信頼できない文書を `warnings` に載せること・原本を 1 バイトも変更しないこと。`apply` が書き込み後の `trust` を返すこと・`trusted` が `written` に届かないとき `status: partial` になること・`--entries-file` の不正（不在・壊れた JSON・未知キー）が `error` になること
 
 ### 6.5 書き込み SKILL が呼ぶラッパー `fm_run.py`
@@ -517,6 +519,21 @@ sequenceDiagram
 
 1 度コールドリードを払えば結果は文書内に残り、git を通じて全クローンに伝播するため、以降は誰がどこで索引しても転記のみで済む（§7.2 のクローン境界の議論による）。
 
+#### `write-frontmatter` の引数契約 [MANDATORY]
+
+**SKILL の引数は公開インターフェースであり、その正本は本設計書に置く。** 理由と変更規約は DES-005 §10.1 に規定する（SKILL.md を唯一の正本にすると、全面書き換えで契約が消えても突き合わせる相手がいない）。
+
+| 引数                           | 主な呼び出し元        | 備考                                                      |
+| ------------------------------ | --------------------- | --------------------------------------------------------- |
+| `--paths <path>...`            | `index-docs` / 利用者 | 対象ファイル。書き戻し（§8.2）はこの形で引き渡す          |
+| `--dirs <dir>...`              | 利用者                | 対象ディレクトリ。グロブメタ文字可。`--paths` と併用可    |
+| `--exclude <path>...`          | 利用者                | `--dirs` 展開時の追加除外（システム固定除外は常時適用）   |
+| `--format-command '<command>'` | 利用者                | `{file}` が対象パスへ置換される。**未指定なら整形しない** |
+
+**現時点で上位層（forge / anvil）からの呼び出し元は存在しない。** 唯一の呼び出し元は `index-docs` の書き戻し経路であり `--paths` のみを使う。上位層への契約反映は §10.3 のとおり未決であり、**契約が生じた時点で本表と DES-005 §10.1 の「既知の呼び出し元」を同時に更新する**。
+
+JSON 形（`--paths-json` 等）は持たない。上位層の呼び出し元が無く、機械的に配列を渡す必要が生じていないためである。必要になった時点で追加する（追加は既存の呼び出し元を壊さない）。
+
 ### 8.2 AI 抽出結果の書き戻し
 
 `index-docs` が AI 抽出にフォールバックした場合、その結果を原本のフロントマターへ書き戻せばコーパスが自己修復する。ただし**索引処理と同時には行わない**。索引という読み取り操作の副作用で原本に git diff が生じるのは驚きがあるためである。
@@ -574,6 +591,7 @@ forge / anvil の文書作成・編集スキルに「作成時にフロントマ
 | 2026-08-02 | 1.2        | 実装着手前の判断事項を反映。`fm_to_pending.py` に `--work-dir` の一括処理を追加（§6.1 / §6.2）、スキーマ規約のテストを一方向の包含関係へ変更（§6.4）、§7.1 の無改造範囲を JSON 出力への項目追加を除く形へ限定して §8.2 との矛盾を解消、書き込み SKILL の形態と適用対象を決定（§10）                                                                                                                                                                                                                                                                                                                                                                 |
 | 2026-08-02 | 1.3        | `fm_read.py` の走査モードを廃止し、対象を `--paths-json` で受け取る形へ変更（§6.1 / §6.2）。§10.2 の配布物除外を script の機能仕様から運用方針へ位置づけ直した。配布先に存在しないパスの判定を配布物へ焼き込むことになり、対象を上位層が決める `index-docs --paths-json` の思想とも矛盾するため                                                                                                                                                                                                                                                                                                                                                     |
 | 2026-08-02 | 1.4        | `fm_to_pending.py` の処理単位を `--work-dir` のみへ限定し、1 ファイル単位（`--out`）を廃した（§6.1 / §6.2）。呼び出し元は転記フェーズの一括処理だけであり、使われない経路を実装しないため。あわせて pending の列挙規則を `merge_toc.py` と揃えること、および書式を `write_pending.py` の出力とバイト一致させることを §6.1 に明記                                                                                                                                                                                                                                                                                                                    |
+| 2026-08-04 | 1.9        | **`write-frontmatter` の引数契約を §8.1 に規定した**（DES-005 §10.1 と対）。従来は引数仕様が SKILL.md にしか存在せず、SKILL.md は方式変更のたびに全面書き換えの対象になるため、契約が消えても突き合わせる相手が無かった（`index-docs` で実際に消えて上位層が失敗した）。あわせて現時点で上位層からの呼び出し元が存在せず唯一の呼び出し元が `index-docs` の書き戻し（`--paths` のみ）であることを明記し、契約が生じた時点で本表と DES-005 §10.1 を同時に更新する義務を課した。JSON 形を持たない判断（必要が生じていない。追加は既存の呼び出し元を壊さないため後からでよい）も記録。§6.4 に引数契約のテストを追加                                     |
 | 2026-08-04 | 1.8        | §6.1 の「1 ディレクトリの削除で戻せる」という主張に、**それがディレクトリ構造だけでは成立せず索引側の実装に依存する**ことを明記した。実装当初は `frontmatter/` の不在で呼び出し元（`index_docs.py`）がクラッシュしており、本節の主張は成立していなかった（現在はテストで固定）。あわせて不在（撤回）と読み込み失敗（破損）が区別されること、破損時も `toc.yaml` の内容は正しく失われるのは高速化だけであることを追記した                                                                                                                                                                                                                            |
 | 2026-08-04 | 1.7        | 書き込み SKILL が呼ぶラッパー `fm_run.py` を追加した（§6.1 の配置図・§6.2 の責務表・§6.5 新節・§6.4 のテスト規定）。`fm_read` / `fm_write` の間の受け渡しが AI に残っており、`paths` の組み替え・`trust` を見た対象の絞り込み・`--entries-json` の argv 組み立て・書き込み後の件数比較を AI が手でやっていた。`plan` / `apply` の 2 サブコマンドに畳み、AI に残す責務を「メタデータの内容を作ること」と「承認を取ること」だけにした。`apply` が書き込み後の信頼判定まで行うため §6.2 の責務境界を変更した（分離自体は正しかったが、その帰結として SKILL に決定論的な比較が残っていた）。`fm_read` / `fm_write` の CLI は残すが SKILL からは呼ばない |
 | 2026-08-04 | 1.6        | `fm_write.py` に値域検証を課した（§6.2 の新節「値域の検証を書き込み側にも課す」・§6.3 の処理順序へ手順 0 を追加・§6.4 のテスト規定）。当初は「上限の検証は読み取り側の責務」として書き込み側では検証しない設計だったが、**書ける値の集合が信頼される値の集合に収まらず**、script が書いた直後の文書が信頼できない状態が実際に発生した（`purpose` 206 文字）。値域規則の実装を読み取り側と共有し、一方向の包含をテストで固定する。必須フィールドの充足（欠落）は部分更新を許すため書き込み側では検査せず、責務の非対称を §6.2 の表で明示した                                                                                                         |
