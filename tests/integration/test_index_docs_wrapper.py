@@ -700,6 +700,119 @@ class TestUpperLayerContract(WrapperTestBase):
                 self.assertEqual(payload['error_code'], 'INVALID_PATH')
 
 
+class TestExternalSymlinkPassThrough(WrapperTestBase):
+    """越境 symlink をラッパー経由で扱うこと（NFR-N06）
+
+    実運用で外部の仕様書を symlink で置いて索引している構成がある。上位層は
+    index-docs を **1 回だけ** 呼び確認に答える経路を持たないため、明示指定された
+    対象は確認を挟まず索引する。**索引するか否かの決定は呼び出し元に残す**のが
+    doc-advisor の立場であり、渡す側はそれが symlink であることを知っている。
+
+    走査（`--all`）だけは誰も対象を渡していないため確認する。
+    """
+
+    def _fresh_project_root(self):
+        """独立した project root へ差し替える（1 テスト内で複数の形を試すため）。
+
+        setUp を呼び直すと前回の一時ディレクトリが tearDown の対象から外れて
+        残るため、addCleanup で個別に片付ける。
+        """
+        self.tmpdir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmpdir, ignore_errors=True)
+        self.project_root = Path(self.tmpdir)
+        (self.project_root / '.git').mkdir()
+
+    def _link_external_dir(self, link_rel, names):
+        outside = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, str(outside), ignore_errors=True)
+        for name in names:
+            (outside / name).write_text('# Ext\n\nThis is body content.\n',
+                                        encoding='utf-8')
+        link = self.project_root / link_rel
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            link.symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest('symlink not supported on this platform')
+        return outside
+
+    def test_dirs_containing_external_symlink_reaches_done(self):
+        """--dirs 配下の越境 symlink が confirm を挟まず done まで到達すること。"""
+        self._link_external_dir('docs/shared', ['a.md', 'b.md'])
+
+        payload, _calls, _agents = self._drive_to_done(
+            'specs', '--key', 'specs', '--dirs', 'docs/',
+        )
+
+        self.assertEqual(payload['counts']['added'], 2)
+
+    def test_the_warning_names_the_target_on_the_first_call(self):
+        """注意喚起は prepare が走る最初の応答に出ること（解決先と件数を含む）。
+
+        ラッパーは状態を持たないため、prepare の warning は初回の応答にだけ載る
+        （2 回目以降は prepare を再実行しない）。呼び出し側は action を問わず
+        warnings を提示する契約であり、ここで消えると注意喚起の唯一の経路が失われる。
+        """
+        outside = self._link_external_dir('docs/shared', ['a.md', 'b.md'])
+
+        first = self._index('--key', 'specs', '--dirs', 'docs/')
+
+        self.assertEqual(first['action'], 'dispatch')
+        hit = [w for w in first['warnings'] if 'external symlink indexed' in w]
+        self.assertEqual(len(hit), 1, f"warnings: {first['warnings']}")
+        self.assertIn('docs/shared', hit[0])
+        self.assertIn(str(outside), hit[0])
+        self.assertIn('2 file(s)', hit[0])
+
+    def test_every_target_form_indexes_it(self):
+        """判定基準は「単体モードか否か」であり、対象指定の形によらないこと。
+
+        `--dirs` だけを確認しても足りない。上位層は `--dirs-json` を渡し、
+        長大な配列では `--paths-file` を渡す。どの形でも同じ経路を通る。
+        """
+        forms = [
+            ('--dirs', ['--dirs', 'docs/']),
+            ('--dirs-json', ['--dirs-json', json.dumps(['docs/'])]),
+            ('--paths', ['--paths', 'docs/external/a.md']),
+            ('--paths-json', ['--paths-json', json.dumps(['docs/external/a.md'])]),
+            ('--paths-file', ['--paths-file', 'targets.json']),
+        ]
+        for label, args in forms:
+            with self.subTest(form=label):
+                self._fresh_project_root()
+                self._link_external_dir('docs/external', ['a.md'])
+                (self.project_root / 'targets.json').write_text(
+                    json.dumps(['docs/external/a.md']), encoding='utf-8')
+
+                payload, _calls, _agents = self._drive_to_done(
+                    'specs', '--key', 'specs', *args,
+                )
+
+                self.assertEqual(payload['counts']['added'], 1)
+
+    def test_single_mode_asks_before_leaving_the_root(self):
+        """--all の走査で見つかった越境 symlink は confirm になること。"""
+        self._link_external_dir('docs/shared', ['a.md'])
+
+        payload = self._index('--all')
+
+        self.assertEqual(payload['action'], 'confirm')
+        self.assertEqual(payload['reason'], 'external_symlink')
+        self.assertEqual(
+            [e['symlink'] for e in payload['external_pending']], ['docs/shared'],
+        )
+
+    def test_single_mode_indexes_after_approval(self):
+        """--all + --allow-external で承認された symlink が索引されること。"""
+        self._link_external_dir('docs/shared', ['a.md'])
+
+        payload, _calls, _agents = self._drive_to_done(
+            'all', '--all', '--allow-external', 'docs/shared',
+        )
+
+        self.assertEqual(payload['counts']['added'], 1)
+
+
 class TestArgumentContract(WrapperTestBase):
     """引数の矛盾・不正が error として返ること"""
 

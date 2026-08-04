@@ -53,7 +53,7 @@ AI が担うのは次の 2 つだけである。
 | `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                      |
 | `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                             |
 | `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                        |
-| `--paths-file <path>`    | paths 配列を含む JSON ファイル                                                                          |
+| `--paths-file <path>`    | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`{"paths": [...]}` ではない）            |
 | `--exclude <path>...`    | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                               |
 | `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                |
 | `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない |
@@ -108,7 +108,7 @@ Agent(subagent_type: "{agents[i].subagent_type}", run_in_background: true,
 
 - 複数要素があれば**同一メッセージ内で並列起動する**（1 要素 = 1 Agent）
 - claim は script が済ませているため、起動前に何もしない
-- `warnings` が空でなければユーザーに提示する
+- `warnings` が空でなければユーザーに提示する。**初回の応答にしか出ない warning がある**（差分検出は初回しか走らないため。越境 symlink を索引したこと・reject された path 等）。ここで提示しないと二度と現れない
 - 起動後、完了通知を受けたら同じコマンドを再実行する。**進捗は簡潔に**（例: `completed 12/29, 5 in-flight`）
 
 #### `action: wait`
@@ -117,18 +117,20 @@ Agent(subagent_type: "{agents[i].subagent_type}", run_in_background: true,
 
 > **待機ループの終了条件 [MANDATORY]**: 完了通知は起動した Agent の数だけ届く。**通知を待たずに再実行を繰り返してはならない**（同じ `wait` が返るだけで進まない）。何らかの理由で通知が届かない場合、claim のリースが TTL（既定 900 秒）を超えると script が当該 entry を `dispatch` へ戻すため、再実行すれば回復する。それでも `wait` が続く場合は異常であり、ユーザーへ報告して判断を仰ぐ。
 
-#### `action: confirm` / `reason: external_symlink`
+#### `action: confirm` / `reason: external_symlink`（`--all` のときだけ起きる）
 
-明示 paths が **project root の外を指す symlink** を含む。不意のインデックス漏洩を防ぐため既定では索引しない（default-deny / NFR-N06）。書き込みは行われていない。
+`--all` の走査が **project root の外を指す symlink** を見つけた。誰も索引対象として渡していないため、project root の外へ勝手に広げずユーザーに確認する（NFR-N06）。書き込みは行われていない。
+
+> **渡された対象は確認しない [MANDATORY]**: `--all` 以外のすべての対象指定（`--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file`）は、越境 symlink であっても**そのまま索引する**。それが symlink であることは渡す側が知っており、doc-advisor が別の理由で塞ぐと、上位層は自分の指定が通らない理由を知り得ない。注意喚起は `warnings` で行う。**この経路で `confirm` は返らない。**
 
 `external_pending` の各エントリについて、**解決先の実体パス（`resolved`）と件数（`affected_count`）を提示**し、`AskUserQuestion` で許可・不許可を確認する。承認した symlink を並べて再実行する。
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --key "{key}" --dirs {dirs} \
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
   --allow-external "{approved_symlink_1}" "{approved_symlink_2}"
 ```
 
-すべて拒否する場合は `--allow-external` を値なしで指定する（越境分は drop され、残りで処理される）。
+すべて拒否する場合は `--allow-external` を値なしで指定する（越境分は落とされ、残りで処理される）。`--allow-external` は**この確認の答えを戻すためだけの引数**であり、呼び出し元が自分から渡すものではない（Usage の引数表に無いのはそのため）。
 
 #### `action: confirm` / `reason: fill_error`
 
@@ -167,7 +169,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --key "{key}" --dirs {dirs} 
 `warnings` は握りつぶさず一覧する。内容には次が含まれうる。
 
 - フロントマターに `doc-advisor` の標識があるのに信頼できない文書（規約違反または本文からの取り残され。当該文書は AI 抽出で索引されている）
-- 越境 symlink を索引しなかったこと
+- 越境 symlink を索引しなかったこと（`--all` でユーザーが承認しなかった分）
 - 充填エラーを承知で統合したことによる脱落
 - 転記フェーズを実行できなかったこと
 

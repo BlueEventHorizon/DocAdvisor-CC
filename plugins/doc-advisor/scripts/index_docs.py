@@ -47,6 +47,11 @@ ADR-006（連続ディスパッチ）、DES-008 §7.1（転記フェーズ）を
 | `external_symlink`  | `external_pending` | `--allow-external <symlink> ...`      |
 | `fill_error`        | `error_pending`    | `--on-fill-error retry|merge|abort`   |
 
+`external_symlink` は **`--all`（project root 全体の走査）でのみ起きる**。`--dirs` /
+`--paths` で渡された対象は、越境 symlink であってもそのまま索引する（渡す側がそれが
+symlink であることを知っている / NFR-N06）。`--allow-external` は確認の答えを戻す
+内部的な通路であり、上位層との契約ではない（公開引数表には載せない）。
+
 ## コア script の呼び方
 
 コア script は **CLI 契約（stdout に単一 JSON / DES-005 §8.1）をそのまま使って呼ぶ**。
@@ -638,7 +643,8 @@ def run(args):
             )
 
         if prepare_status == "needs_confirmation":
-            # 越境 symlink の承認待ち。書き込みは行われていない（NFR-N06）。
+            # 走査で見つかった越境 symlink の承認待ち（--all のみ。NFR-N06）。
+            # 書き込みは行われていない。明示指定された対象はここへ来ない。
             return (
                 {
                     "action": ACTION_CONFIRM,
@@ -960,12 +966,11 @@ def parse_args(argv=None):
         "--exclude-json", dest="exclude_json",
         help="exclude の JSON 配列（上位層からの機械的な受け渡し用。--exclude と併用可）",
     )
+    # 確認の答えを戻す内部的な通路。上位層との契約ではないため公開引数表には出さない
+    # （--all の走査で越境 symlink が見つかったときだけ SKILL が使う）。
     parser.add_argument(
         "--allow-external", dest="allow_external", nargs="*", metavar="SYMLINK",
-        help=(
-            "承認する越境 symlink（action: confirm / reason: external_symlink "
-            "を受けたときのみ使う。空で指定するとすべて拒否する）"
-        ),
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--on-fill-error", dest="on_fill_error", choices=ON_FILL_ERROR_CHOICES,

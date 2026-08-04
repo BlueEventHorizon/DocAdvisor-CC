@@ -76,8 +76,15 @@ the user rather than looping.
 | `external_symlink` | `external_pending` | `--allow-external <symlink>...` (empty = reject all) |
 | `fill_error`       | `error_pending`    | `--on-fill-error retry\|merge\|abort`                |
 
-For `external_symlink`, show the **resolved real path** and the affected file count for each entry
-before asking. The default is deny (NFR-N06): nothing has been written yet.
+`external_symlink` **only happens under `--all`** (a whole-root scan). Nothing was passed in as a
+target there, so the scan does not leave the project root on its own. Show the **resolved real
+path** and the affected file count for each entry before asking; nothing has been written yet.
+
+**Targets given explicitly (`--dirs` / `--paths`) are indexed even when they cross the root through
+a symlink** (NFR-N06 / REQ-001 §6.1a). The caller decided to index them and knows they are
+symlinks; blocking them here would split that decision across layers, and an upper layer that
+calls index-docs once cannot answer a question. The notice arrives as a `warning` instead — and
+only on the **first** response, since the diff runs once. Surface it there or it is gone.
 
 For `fill_error`, state the consequence plainly before asking. Merging with failed entries drops
 those documents from this run's ToC, and for an **updated** document it also writes a
@@ -260,5 +267,6 @@ Take the values from the `done` payload verbatim; do not recount them.
 
 `warnings` must not be swallowed. They can report: a frontmatter that carries the `doc-advisor`
 marker but is not trustworthy (a spec violation, or metadata left behind by a body edit — that
-document was AI-extracted this run); an external symlink that was not indexed; documents dropped
-by merging over known fill errors; or a transcription phase that could not run.
+document was AI-extracted this run); an external symlink that **was** indexed (with its resolved
+target and file count — a notice, not a fault) or one that was not (rejected under `--all`);
+documents dropped by merging over known fill errors; or a transcription phase that could not run.
