@@ -387,8 +387,80 @@ def _prepare_argv(args, key):
     return argv
 
 
+# 対象指定の引数（CLI フラグ名 → args の属性名）。`--all` との排他判定と
+# 「対象が明示されたか」の判定を 1 箇所から引くための表。
+TARGET_ARGS = (
+    ("--dirs", "dirs"),
+    ("--dirs-json", "dirs_json"),
+    ("--paths", "paths"),
+    ("--paths-json", "paths_json"),
+    ("--paths-file", "paths_file"),
+)
+
+
+def _explicit_target_flags(args):
+    """明示された対象指定のフラグ名を返す（`--all` との排他判定と報告に使う）。"""
+    return [flag for flag, attr in TARGET_ARGS if getattr(args, attr, None)]
+
+
+def _has_explicit_target(args):
+    """対象が明示されているか（偽なら単体モードとして prepare が走査する）。"""
+    return bool(_explicit_target_flags(args))
+
+
+def _merge_list_arg(repeated, json_form, json_flag):
+    """繰り返し指定（nargs）と JSON 配列指定を 1 つの list へ揃える。
+
+    同じ対象を 2 通りで受け取るのは、**呼び出し元が 2 種類ある**ためである。
+
+    - 人間・AI が手で打つ経路 — `--dirs docs/rules/ docs/specs/` の方が短く、
+      引用符のエスケープも要らない
+    - 上位層（forge 等）が機械的に渡す経路 — 自身の設定から解決した配列を
+      そのまま `--dirs-json '[...]'` で渡す。文字列を組み立て直させない
+      （どの設定から解決するかは上位層の関心であり、本 script は知らない）
+
+    両方を受け取り、指定されていれば連結する（併用可）。上位層の既存の呼び出しを
+    壊さないための互換であり、増やしてよいオプションの例外ではない。
+
+    Args:
+        repeated: nargs で受けた list（None 可）
+        json_form: JSON 配列の文字列（None 可）
+        json_flag: エラーメッセージに出すフラグ名
+
+    Returns:
+        list: 連結した結果（どちらも無ければ空 list）
+
+    Raises:
+        WrapperError: json_form が JSON 配列として解析できない
+    """
+    merged = list(repeated or [])
+    if not json_form:
+        return merged
+    try:
+        parsed = json.loads(json_form)
+    except ValueError as e:
+        raise WrapperError(
+            f"{json_flag} を JSON として解析できません: {e}",
+            ErrorCode.INVALID_PATH,
+        )
+    if not isinstance(parsed, list):
+        raise WrapperError(
+            f"{json_flag} は JSON 配列である必要があります",
+            ErrorCode.INVALID_PATH,
+        )
+    for item in parsed:
+        if not isinstance(item, str) or not item.strip():
+            raise WrapperError(
+                f"{json_flag} の要素は非空の文字列である必要があります",
+                ErrorCode.INVALID_PATH,
+            )
+    merged.extend(parsed)
+    return merged
+
+
 def _expand_targets(args):
-    """`--dirs` / `--paths` / `--paths-file` を prepare 用の paths へ揃える。
+    """対象指定（`--dirs` / `--paths` / それらの JSON 形 / `--paths-file`）を
+    prepare 用の paths へ揃える。
 
     ディレクトリ展開は expand_dirs の責務であり、ラッパーは列挙を自分で書かない。
 
@@ -397,39 +469,28 @@ def _expand_targets(args):
             paths が None のときは単体モード（prepare が自分で走査する）
 
     Raises:
-        WrapperError: expand_dirs が error を返した
+        WrapperError: expand_dirs が error を返した / JSON 形の引数が不正
     """
-    if not args.dirs and not args.paths and not args.paths_json and not args.paths_file:
+    if not _has_explicit_target(args):
         return None, [], []
 
     if args.paths_file:
         # paths-file はそのまま prepare へ渡す（展開の対象ではない）
         return None, [], []
 
+    all_dirs = _merge_list_arg(args.dirs, args.dirs_json, "--dirs-json")
+    explicit_paths = _merge_list_arg(args.paths, args.paths_json, "--paths-json")
+    all_exclude = _merge_list_arg(args.exclude, args.exclude_json, "--exclude-json")
+
     argv = []
-    if args.dirs:
-        argv.extend(["--dirs-json", json.dumps(args.dirs)])
-    explicit_paths = list(args.paths or [])
-    if args.paths_json:
-        try:
-            parsed = json.loads(args.paths_json)
-        except ValueError as e:
-            raise WrapperError(
-                f"--paths-json を JSON として解析できません: {e}",
-                ErrorCode.INVALID_PATH,
-            )
-        if not isinstance(parsed, list):
-            raise WrapperError(
-                "--paths-json は JSON 配列である必要があります",
-                ErrorCode.INVALID_PATH,
-            )
-        explicit_paths.extend(parsed)
+    if all_dirs:
+        argv.extend(["--dirs-json", json.dumps(all_dirs)])
     if explicit_paths:
         argv.extend(["--paths-json", json.dumps(explicit_paths)])
-    if args.exclude:
-        argv.extend(["--exclude-json", json.dumps(args.exclude)])
+    if all_exclude:
+        argv.extend(["--exclude-json", json.dumps(all_exclude)])
 
-    if not args.dirs:
+    if not all_dirs:
         # 展開するディレクトリが無い＝明示 paths のみ。expand_dirs を通す必要がない
         return explicit_paths, [], []
 
@@ -530,12 +591,7 @@ def run(args):
     # 0. 矛盾する対象指定を弾く。--all は project root 以下を自分で走査するため、
     #    ディレクトリ・パスの指定と併用しても片方が黙って無視される。
     #    どちらを優先すべきか推定せずエラーにする。
-    explicit_targets = [
-        name for name, value in (
-            ("--dirs", args.dirs), ("--paths", args.paths),
-            ("--paths-json", args.paths_json), ("--paths-file", args.paths_file),
-        ) if value
-    ]
+    explicit_targets = _explicit_target_flags(args)
     if args.all and explicit_targets:
         raise WrapperError(
             "--all は project root 以下の全 Markdown を対象にするため "
@@ -881,6 +937,10 @@ def parse_args(argv=None):
         help="索引するディレクトリ（複数指定可。グロブメタ文字可）",
     )
     parser.add_argument(
+        "--dirs-json", dest="dirs_json",
+        help="dirs の JSON 配列（上位層からの機械的な受け渡し用。--dirs と併用可）",
+    )
+    parser.add_argument(
         "--paths", nargs="+", metavar="PATH",
         help="索引する Markdown ファイル（複数指定可。--dirs と併用可）",
     )
@@ -895,6 +955,10 @@ def parse_args(argv=None):
     parser.add_argument(
         "--exclude", nargs="+", metavar="PATH",
         help="--dirs 展開時に除外するパス・ディレクトリ",
+    )
+    parser.add_argument(
+        "--exclude-json", dest="exclude_json",
+        help="exclude の JSON 配列（上位層からの機械的な受け渡し用。--exclude と併用可）",
     )
     parser.add_argument(
         "--allow-external", dest="allow_external", nargs="*", metavar="SYMLINK",

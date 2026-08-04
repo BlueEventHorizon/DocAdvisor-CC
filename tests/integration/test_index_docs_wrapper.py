@@ -622,6 +622,84 @@ class TestFillErrorIsNotSilentlyMerged(WrapperTestBase):
         self.assertIn('claimed_at', entry_text, 'claim のスタンプが付いている')
 
 
+class TestUpperLayerContract(WrapperTestBase):
+    """上位層（forge 等）が渡す JSON 形の引数を受けること
+
+    forge の update-db-specs / update-db-rules は `.doc_structure.yaml` から解決した
+    配列を `--dirs-json` / `--exclude-json` で渡し、index-docs を **1 回だけ** 呼ぶ
+    （再実行や引数の組み替えをしない）。したがってこの形を受けられなくなると
+    **上位層からの索引が動かなくなり、上位層には理由が分からない**。
+
+    人間・AI が手で打つ `--dirs` / `--exclude` と、機械的に渡す JSON 形の両方を
+    受けるのは、呼び出し元が 2 種類あるためである（オプションを増やしてよい
+    という例外ではない）。
+    """
+
+    def test_dirs_json_is_accepted_as_forge_passes_it(self):
+        for i in range(1, 4):
+            self._write_md(f'docs/d{i}.md')
+
+        payload = self._index('--key', 'rules', '--dirs-json', json.dumps(['docs/']))
+
+        self.assertEqual(payload['action'], 'dispatch')
+        dispatched = [
+            e for agent in payload['agents'] for e in agent['entry_files']
+        ]
+        self.assertEqual(len(dispatched), 3)
+
+    def test_exclude_json_is_accepted_and_applied(self):
+        self._write_md('docs/keep.md')
+        self._write_md('docs/drop.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--dirs-json', json.dumps(['docs/']),
+            '--exclude-json', json.dumps(['docs/drop.md']),
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        dispatched = [
+            e for agent in payload['agents'] for e in agent['entry_files']
+        ]
+        self.assertEqual(len(dispatched), 1, 'exclude-json が効いていない')
+
+    def test_repeated_and_json_forms_are_merged(self):
+        self._write_md('a/one.md')
+        self._write_md('b/two.md')
+
+        payload = self._index(
+            '--key', 'rules', '--dirs', 'a/', '--dirs-json', json.dumps(['b/']),
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        dispatched = [
+            e for agent in payload['agents'] for e in agent['entry_files']
+        ]
+        self.assertEqual(len(dispatched), 2, '併用時に連結されていない')
+
+    def test_paths_file_is_accepted(self):
+        self._write_md('docs/a.md')
+        paths_file = self.project_root / 'paths.json'
+        paths_file.write_text(json.dumps(['docs/a.md']), encoding='utf-8')
+
+        payload = self._index('--key', 'rules', '--paths-file', 'paths.json')
+
+        self.assertEqual(payload['action'], 'dispatch')
+
+    def test_malformed_dirs_json_is_rejected(self):
+        payload = self._index('--key', 'rules', '--dirs-json', '{not json')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'INVALID_PATH')
+
+    def test_dirs_json_must_be_an_array_of_non_empty_strings(self):
+        for bad in ('{"a": 1}', json.dumps(['ok', '']), json.dumps([1, 2])):
+            with self.subTest(bad=bad):
+                payload = self._index('--key', 'rules', '--dirs-json', bad)
+                self.assertEqual(payload['action'], 'error')
+                self.assertEqual(payload['error_code'], 'INVALID_PATH')
+
+
 class TestArgumentContract(WrapperTestBase):
     """引数の矛盾・不正が error として返ること"""
 
@@ -632,6 +710,21 @@ class TestArgumentContract(WrapperTestBase):
 
         self.assertEqual(payload['action'], 'error')
         self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+
+    def test_all_cannot_be_combined_with_json_form_targets(self):
+        """JSON 形の対象指定も `--all` との併用を拒否し、フラグ名を報告すること。"""
+        self._write_md('docs/a.md')
+
+        for flag, value in (('--dirs-json', json.dumps(['docs/'])),
+                            ('--paths-json', json.dumps(['docs/a.md']))):
+            with self.subTest(flag=flag):
+                payload = self._index('--all', flag, value)
+                self.assertEqual(payload['action'], 'error')
+                self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+                self.assertIn(
+                    flag, payload['message'],
+                    'どの引数が併用されたかを報告していない',
+                )
 
     def test_reserved_key_is_rejected(self):
         payload = self._index('--key', 'all', '--dirs', 'docs/')
