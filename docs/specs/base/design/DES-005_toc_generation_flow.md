@@ -32,7 +32,7 @@ keywords:
   - reset_error_entries
   - ai_extracted_paths
   - "--dirs-json"
-body_hash: sha256:11f83be8a37cbd4efd9286587d3b407a1f29d861bbc6d8ae5cfeee891708fc6e
+body_hash: sha256:b07bc93d88f77b9efea73e723151a248638f21d9cb0e057cbd72ca77030f108a
 ---
 
 # DES-005 key + path ToC Provider 設計書
@@ -647,7 +647,15 @@ ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-
 | 引数を**削除・改名**する | **後方互換を壊す変更**。呼び出し元を横断 grep で確認し、計画に個別項目として挙げて承認を得てから行う                               |
 | 受け付ける**形**を減らす | 削除と同じ扱い。入口の数を絞ることと、受け付ける引数の形を絞ることは別である（前者は AI の負担を減らすが、後者は呼び出し元を壊す） |
 
-**既知の呼び出し元**（横断 grep の起点。網羅ではない）: bw-cc-plugins の `plugins/forge/skills/{update-db-rules,update-db-specs,query-db-rules,query-db-specs}/SKILL.md`。いずれも各 SKILL を **1 回だけ**呼び、引数を組み替えず、失敗時に再試行しない。
+**既知の呼び出し元**（横断 grep の起点。網羅ではない）:
+
+| 呼び出し元                                                                                | 渡す形                           |
+| ----------------------------------------------------------------------------------------- | -------------------------------- |
+| bw-cc-plugins `plugins/forge/skills/{update-db-rules,update-db-specs}/SKILL.md`           | `--dirs-json` / `--exclude-json` |
+| bw-cc-plugins `plugins/forge/skills/{query-db-rules,query-db-specs}/SKILL.md`（stale 時） | `--dirs-json` / `--exclude-json` |
+| bw-cc-plugins `.claude/skills/update-forge-toc/SKILL.md`（配布物ではないローカル skill）  | `--key forge-rules --paths-json` |
+
+いずれも各 SKILL を **1 回だけ**呼び、引数を組み替えず、失敗時に再試行しない。**配布プラグインだけを見ると呼び出し元を見落とす**（ローカル skill も上位層である）。
 
 上位層が `--dirs-json` を渡してきた場合、`--dirs` へ書き換えたり要素を並べ替えたりしない（渡された形をそのまま script へ渡す）。
 
