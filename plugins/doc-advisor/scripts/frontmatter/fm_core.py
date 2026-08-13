@@ -41,7 +41,7 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 # 再輸出。同ディレクトリの script は本モジュール経由で使う（import 元を 1 つに保つ）。
-from toc_utils import yaml_escape  # noqa: E402
+from toc_utils import normalize_field_value, yaml_escape  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 定数（DES-008 §4.1 / §4.2 / §5.1、上限の正本は formats/toc_format.md）
@@ -93,6 +93,7 @@ class Violation:
     FIELD_TYPE_MISMATCH = "FIELD_TYPE_MISMATCH"
     FIELD_TOO_LONG = "FIELD_TOO_LONG"
     FIELD_TOO_MANY_ITEMS = "FIELD_TOO_MANY_ITEMS"
+    FIELD_UNSUPPORTED_CHARACTER = "FIELD_UNSUPPORTED_CHARACTER"
 
     # body_hash
     BODY_HASH_MISSING = "BODY_HASH_MISSING"
@@ -111,6 +112,7 @@ VIOLATIONS = frozenset({
     Violation.FIELD_TYPE_MISMATCH,
     Violation.FIELD_TOO_LONG,
     Violation.FIELD_TOO_MANY_ITEMS,
+    Violation.FIELD_UNSUPPORTED_CHARACTER,
     Violation.BODY_HASH_MISSING,
     Violation.BODY_HASH_MALFORMED,
     Violation.BODY_HASH_UNKNOWN_ALGORITHM,
@@ -390,6 +392,84 @@ def has_marker(metadata):
     return MARKER in values
 
 
+def normalize_metadata_values(metadata):
+    """metadata の 5 フィールドを、意味を変えずに値域内へ収める。
+
+    変換規則そのものは中心側（`normalize_field_value`）に 1 つ置き、本関数は
+    「どのキーが 5 フィールドか」という派生側の知識だけを足す。規則を 2 実装に
+    分けると、片方だけが改訂される。
+
+    書き込みの入口で 1 度だけ呼ぶ。各書き込み点に散らすと、適用した箇所と忘れた
+    箇所の差が生まれ、それはこの値域規則が塞ごうとしている事故そのものである。
+
+    Args:
+        metadata: 書き込むメタデータの dict（None 可）
+
+    Returns:
+        tuple: (正規化後の dict, 変換したフィールド名の list)
+            入力が None の場合は (None, []) を返す
+    """
+    if not metadata:
+        return metadata, []
+
+    normalized = dict(metadata)
+    changed = []
+    for field in STRING_FIELDS:
+        if field not in normalized:
+            continue
+        value, did = normalize_field_value(normalized[field])
+        if did:
+            normalized[field] = value
+            changed.append(field)
+    for field in LIST_FIELDS:
+        if field not in normalized or not isinstance(normalized[field], list):
+            continue
+        items = []
+        field_changed = False
+        for item in normalized[field]:
+            value, did = normalize_field_value(item)
+            items.append(value)
+            field_changed = field_changed or did
+        if field_changed:
+            normalized[field] = items
+            changed.append(field)
+    return normalized, changed
+
+
+def unsupported_character_reason(value):
+    """値が「単一行の平文」の値域から外れていないかを判定する。
+
+    5 フィールドは単一行の平文であり、YAML 上で意味を持つ文字を含まない。この規則を
+    値域として**機械的に強制する**（Issue #41）。以前はこれが DES-008 の「前提」として
+    書かれているだけで、どの検査点も文字を見ていなかった。前提が守られる保証が無い
+    まま `yaml_escape` の側だけがエスケープで防御していたため、次の非対称が残った——
+    書く側はエスケープし、`toc.yaml` の読み側（`toc_utils.load_existing_toc`）は
+    引用符を外すだけで復元しない。結果として `"` を含む値は原本フロントマターへ
+    余分なバックスラッシュ付きで書かれ、索引サイクルごとに 1 層積まれていった。
+
+    **エスケープで往復を成立させるのではなく、エスケープを要する値を入れないことで
+    往復の必要そのものを無くす**（DES-008 §8.2「既知の制約」/ Issue #41）。したがって
+    ここで弾くのは、`yaml_escape` がバックスラッシュ・エスケープを施す文字と、
+    `strip` による引用符除去が値を削ってしまう位置の引用符だけである。`:` `#` 先頭の
+    `-` 末尾の空白などは引用符で囲まれるだけで正しく往復するため、禁止しない。
+
+    Returns:
+        str: 違反の理由（末尾に付ける文）。適合なら None
+    """
+    if not isinstance(value, str):
+        return None
+    if '"' in value:
+        return "に二重引用符を含めることはできません"
+    if "\\" in value:
+        return "にバックスラッシュを含めることはできません"
+    if any(ch in value for ch in "\n\r\t"):
+        return "に改行・タブを含めることはできません（単一行の平文であること）"
+    stripped = value.strip()
+    if stripped.startswith("'") or stripped.endswith("'"):
+        return "の先頭・末尾に単一引用符を置くことはできません"
+    return None
+
+
 def _string_value_violations(field, value):
     """文字列フィールドの値域を検証する（存在は前提。欠落は呼び出し側が扱う）。
 
@@ -416,6 +496,9 @@ def _string_value_violations(field, value):
             field,
             f"{field} が {PURPOSE_MAX_LENGTH} 文字を超えています（{len(value)} 文字）",
         )]
+    reason = unsupported_character_reason(value)
+    if reason:
+        return [(Violation.FIELD_UNSUPPORTED_CHARACTER, field, f"{field} {reason}")]
     return []
 
 
@@ -447,6 +530,14 @@ def _list_value_violations(field, value):
         return [(
             Violation.FIELD_EMPTY, field, f"{field} に空の要素が含まれています"
         )]
+    for item in value:
+        reason = unsupported_character_reason(item)
+        if reason:
+            return [(
+                Violation.FIELD_UNSUPPORTED_CHARACTER,
+                field,
+                f"{field} の要素 {item!r} {reason}",
+            )]
     return []
 
 

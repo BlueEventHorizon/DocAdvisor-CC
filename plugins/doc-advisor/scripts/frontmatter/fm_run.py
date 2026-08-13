@@ -322,9 +322,15 @@ def toc_entries(targets):
 def resolve_targets(args):
     """plan / apply が共通で使う「対象の確定」を行う。
 
-    `--from-toc` 指定時に `--paths` / `--dirs` が省略された場合は、その ToC に載って
+    `--from-toc` 指定時に `--paths` / `--dirs` が**省略された**場合は、その ToC に載って
     いる文書すべてを対象にする。対象の列挙は決定論的な定型処理であり、ToC を AI に
     手読みさせない（CLAUDE.md）。
+
+    ToC 全件へのフォールバックは「対象が指定されていない」ときに限る。`--dirs` を
+    指定したが展開結果が 0 件（Markdown を含まないディレクトリ / `--exclude` で全滅）
+    だった場合に全件へ落とすと、`--from-toc` は原本へ書き込む経路であるため、
+    **利用者が指定した範囲外の原本を書き換える**。指定が空振りしたことは 0 件のまま
+    返して呼び出し側に伝える。
 
     Args:
         args: 解析済み引数
@@ -339,6 +345,9 @@ def resolve_targets(args):
         dirs=args.dirs, paths=args.paths, exclude=args.exclude,
     )
     if paths or not args.from_toc:
+        return paths, rejected_dirs, warnings
+    if args.paths or args.dirs:
+        # 対象を明示したが 1 件も該当しなかった。全件フォールバックへ落とさない。
         return paths, rejected_dirs, warnings
 
     try:
@@ -570,6 +579,7 @@ def main(argv=None):
             return 1
 
     plan_extra = None
+    plan_status = None
     plan_warnings = []
     try:
         if args.from_toc:
@@ -577,7 +587,7 @@ def main(argv=None):
             # 持ち回らせない（entries の受け渡しが AI に残ると転記を script 化した
             # 意味が無くなる。DES-005 §4.1.1 の「AI が呼ぶ入口」の考え方）。
             paths, rejected_dirs, plan_warnings = resolve_targets(args)
-            _status, targets, skipped, rejected_paths, run_warnings = run_plan(paths)
+            plan_status, targets, skipped, rejected_paths, run_warnings = run_plan(paths)
             plan_warnings = plan_warnings + run_warnings
             toc_path, toc_warnings = annotate_from_toc(args.from_toc, targets)
             plan_warnings.extend(toc_warnings)
@@ -599,11 +609,25 @@ def main(argv=None):
         return 1
 
     status, results, counts = run_apply(entries, args.format_command)
+    if plan_status == STATUS_PARTIAL and status == STATUS_OK:
+        # 対象の確定側で読めなかったもの（rejected_paths）がある。書き込んだ分が
+        # すべて成功していても `ok` として返すと、呼び出し側は「指定した文書はすべて
+        # 書かれた」と読む（write-frontmatter SKILL の契約）。plan が partial を
+        # 返す同じ状況で apply が ok を返す非対称を作らない。
+        status = STATUS_PARTIAL
     if plan_extra is not None:
         # 転記した件数だけでは「書き戻しが完全か」が分からない。AI 起草が必要な
         # 残りと対象外の件数を同じ counts に載せる（呼び出し側に数え直させない）。
         counts["needs_ai"] = len(plan_extra["needs_ai"])
         counts["skipped"] = len(plan_extra["skipped"])
+    # 表記を変換して書いた entry は必ず報告する。書いた値と原本に入る値が違うことを
+    # 黙って済ませない（変換は拒否より安いが、不可視にしてよい理由にはならない）。
+    normalization_warnings = [
+        f"normalized to fit the value domain: {item['path']} "
+        f"({', '.join(item['normalized_fields'])})"
+        for item in results
+        if item.get("normalized_fields")
+    ]
     for item in results:
         if not item["ok"]:
             log(f"failed: {item['path']} - {item['detail']}")
@@ -614,7 +638,7 @@ def main(argv=None):
         error_code=None,
         counts=counts,
         results=results,
-        warnings=plan_warnings if args.from_toc else None,
+        warnings=(plan_warnings + normalization_warnings) or None,
         extra=plan_extra,
     )
     return 0

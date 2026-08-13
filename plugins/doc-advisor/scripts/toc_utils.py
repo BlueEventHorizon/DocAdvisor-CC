@@ -388,6 +388,93 @@ def load_entry_file(filepath):
         raise IOError(f"Entry file read error: {filepath} - {e}") from e
 
 
+def normalize_field_value(value):
+    """メタデータ値を、意味を変えずに値域内へ収める。
+
+    値域から外れる文字のうち、**意味を保つ代替が存在するもの**は書き込みの入口で
+    変換する。拒否すると文字 1 つのために文書のメタデータ全体が AI 再抽出へ回るが、
+    再抽出の原因は意味に関わらない表記であり、その費用を払う理由がない。
+
+    変換するもの:
+
+    - 二重引用符 → バッククォート（英語の記述文で意味は変わらない）
+    - 改行 / CR / タブ → 空白（連続する空白は畳む。フィールドは単一行と定義済み）
+    - **先頭・末尾の**単一引用符 → バッククォート。読み側が両端の引用符を削るため
+      この位置だけが問題になる。`don't` のような中間の `'` は温存する（変換範囲を
+      最小に保つ。両端だけを替えると表記が非対称に見えることがあるが、意味を保つ
+      ことを優先する）
+
+    **バックスラッシュは変換しない。** 落とせば `\\n handling` が `n handling` に、
+    `/` へ替えればエスケープ表記の意味が変わる。パス表記なのかエスケープ表記なのかは
+    値から決まらないため、意味を保つ代替が存在しない。値域検証側で拒否する。
+
+    変換したことは呼び出し側が報告する（書いた値と原本に入る値が違うことを黙って
+    済ませない）。そのため変更の有無を返す。
+
+    Args:
+        value: メタデータの値（str 以外はそのまま返す）
+
+    Returns:
+        tuple: (正規化後の値, 変換したか)
+    """
+    if not isinstance(value, str):
+        return value, False
+
+    normalized = value
+    for ch in "\n\r\t":
+        normalized = normalized.replace(ch, " ")
+    if normalized != value:
+        normalized = " ".join(normalized.split())
+    normalized = normalized.replace('"', "`")
+
+    stripped = normalized.strip()
+    if stripped.startswith("'"):
+        head = normalized.index("'")
+        normalized = normalized[:head] + "`" + normalized[head + 1:]
+    stripped = normalized.strip()
+    if stripped.endswith("'"):
+        tail = normalized.rindex("'")
+        normalized = normalized[:tail] + "`" + normalized[tail + 1:]
+
+    return normalized, normalized != value
+
+
+def sanitize_uncontrolled_text(s):
+    """統制できない外部由来テキストを、YAML 値として往復できる形へ正規化する。
+
+    doc-advisor が書く YAML の値のうち、内容を統制できるもの（メタデータ 5
+    フィールド）は値域規則で「単一行の平文」を機械的に強制する。しかし捕捉した
+    例外メッセージのように**内容を選べない値**もあり、そこへ同じ制約を課せない。
+
+    そこで入口で正規化する。`yaml_escape` のバックスラッシュ・エスケープに頼らないのは、
+    `toc.yaml` / pending の読み側（`parse_simple_yaml` / `load_existing_toc`）が引用符を
+    外すだけでエスケープを復元しないためである。実際に
+    `FileNotFoundError: [Errno 2] No such file or directory: 'docs/x.md'` は読み戻しで
+    末尾のアポストロフィを失っていた（Issue #41）。
+
+    診断メッセージは非可逆な正規化を許容できる。それが「データ」ではなく「診断」で
+    あることの意味であり、だからこの関数は値を捨てる方向へ寄せてよい。
+
+    Args:
+        s: 正規化対象（str 以外は str() を通す）
+
+    Returns:
+        str: 単一行で、引用符・バックスラッシュを含まないテキスト
+    """
+    if s is None:
+        return ""
+    s = str(s)
+    # 改行・タブは単一行化のため空白へ倒し、連続空白を畳む
+    for ch in "\n\r\t":
+        s = s.replace(ch, " ")
+    s = " ".join(s.split())
+    # 引用符はバッククォートへ倒す（読みやすさを保ったまま往復可能にする）
+    s = s.replace('"', "`").replace("'", "`")
+    # バックスラッシュは復元できないため落とす
+    s = s.replace("\\", "")
+    return s
+
+
 def yaml_escape(s):
     """
     Escape string for YAML output

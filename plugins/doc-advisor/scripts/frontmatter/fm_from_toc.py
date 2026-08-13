@@ -46,17 +46,11 @@ ToC のメタデータは**索引時点の本文**から作られている。索
 標準ライブラリのみ使用（REQ-001 NFR-N01）。
 """
 
-import os
-import sys
 from pathlib import Path
 
+# fm_core が sys.path へ scripts/ を通すため、以降の toc_store / toc_utils の
+# import が成立する（本モジュールを import する経路はすべて fm_core を先に通る）。
 from fm_core import LIST_FIELDS, STRING_FIELDS, Violation, validate_field_values
-
-# fm_core が sys.path へ scripts/ を通すが、本モジュールが単体で import される
-# 経路（テスト）でも成立させるため明示する。
-_SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
 
 from toc_store import (  # noqa: E402
     CHECKSUMS_FILENAME,

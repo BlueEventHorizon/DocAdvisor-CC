@@ -1056,5 +1056,155 @@ class TestMergeFrontmatterRoundTripOnRealFiles(unittest.TestCase):
                 self.assertEqual(before, self._read(relative_path))
 
 
+class TestUnsupportedCharacterValueDomain(unittest.TestCase):
+    """5 フィールドの値域が「単一行の平文」を機械的に強制すること（Issue #41）。
+
+    以前はこの制約が DES-008 の「前提」として書かれているだけで、どの検査点も文字を
+    見ていなかった。前提が守られる保証が無いまま writer 側だけがエスケープで防御し、
+    reader（toc_utils の引用符除去）が復元しないため、値が索引サイクルごとに壊れた。
+    往復できない値を**入れない**ことで、往復の必要そのものを無くす。
+    """
+
+    # yaml_escape が引用符で囲むだけで済み、strip による読み戻しで復元できる値。
+    # 禁止対象を広げすぎないことの回帰テストでもある。
+    ROUND_TRIPPABLE = (
+        "Define the ToC generation flow",
+        "query-docs: search entry point",
+        "a #tag here",
+        "- leading hyphen",
+        "trailing space ",
+        "it's fine in the middle",
+        "true",
+        "123",
+    )
+
+    # 読み戻しで値が変わってしまう（= 値域外）値。
+    NOT_ROUND_TRIPPABLE = (
+        'has "double quotes"',
+        # バックスラッシュ単独では引用符が付かず往復するが、引用符が付く条件
+        # （ここでは `: `）と共起した瞬間に壊れる
+        "back\\slash and: colon",
+        "line1\nline2",
+        "tab\there",
+        "'leading single quote",
+        "trailing single quote'",
+    )
+
+    # 現状の yaml_escape では偶然往復するが、それは「他に引用符を要する文字が無い」
+    # という条件に依存している。条件が変わると壊れる値を許容すると、値域が
+    # 「共起次第」になり検査の意味が失われるため、無条件で禁止する。
+    BANNED_THOUGH_CURRENTLY_HARMLESS = (
+        "back\\slash alone",
+    )
+
+    def _round_trips(self, value):
+        """writer -> toc.yaml -> reader の往復で値が保たれるか（実際の関数で確認）。"""
+        emitted = toc_utils.yaml_escape(value)
+        return emitted.strip().strip("\"'") == value
+
+    def test_round_trippable_values_are_accepted(self):
+        for value in self.ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertIsNone(fm_core.unsupported_character_reason(value))
+
+    def test_not_round_trippable_values_are_rejected(self):
+        for value in self.NOT_ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertIsNotNone(fm_core.unsupported_character_reason(value))
+
+    def test_conditionally_safe_values_are_rejected_unconditionally(self):
+        """共起次第で壊れる文字は、単独で無害な場合も禁止する。"""
+        for value in self.BANNED_THOUGH_CURRENTLY_HARMLESS:
+            with self.subTest(value=value):
+                self.assertIsNotNone(fm_core.unsupported_character_reason(value))
+                # 現状は往復する（= 禁止理由は「今壊れるから」ではない）
+                self.assertTrue(self._round_trips(value))
+
+    def test_accepted_values_actually_round_trip(self):
+        """受理する値が本当に往復することを、実装ではなく挙動で固定する。"""
+        for value in self.ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertTrue(self._round_trips(value))
+
+    def test_rejected_values_would_actually_break(self):
+        """禁止する値が本当に壊れることを確認する（過剰な禁止を防ぐ）。"""
+        for value in self.NOT_ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertFalse(self._round_trips(value))
+
+    def test_string_field_violation_is_reported(self):
+        violations = fm_core.validate_field_values({"title": 'Say "hi" now'})
+        self.assertEqual(
+            [(code, field) for code, field, _ in violations],
+            [(Violation.FIELD_UNSUPPORTED_CHARACTER, "title")],
+        )
+
+    def test_list_field_element_violation_is_reported(self):
+        violations = fm_core.validate_field_values(
+            {"keywords": ["ok", 'bad "quote"', "ok2"]}
+        )
+        self.assertEqual(
+            [(code, field) for code, field, _ in violations],
+            [(Violation.FIELD_UNSUPPORTED_CHARACTER, "keywords")],
+        )
+
+    def test_violation_code_is_in_declared_set(self):
+        """有効値集合に載せ忘れると、呼び出し側の検証が新コードを弾く。"""
+        self.assertIn(Violation.FIELD_UNSUPPORTED_CHARACTER, VIOLATIONS)
+
+
+class TestNormalizeMetadataValues(unittest.TestCase):
+    """書き込みの入口で 5 フィールドを値域内へ収めること（Issue #41）。
+
+    値域規則は残す（読み取り側の判定と、変換できない `\\` の拒否に使う）。書き込み側は
+    拒否の前に変換を挟み、意味に関わらない表記のために文書全体を再抽出させない。
+    """
+
+    def test_string_and_list_fields_are_normalized(self):
+        metadata, changed = fm_core.normalize_metadata_values({
+            "title": 'Say "hi" now',
+            "purpose": "no change here",
+            "keywords": ["ok", 'bad "quote"'],
+        })
+        self.assertEqual(metadata["title"], "Say `hi` now")
+        self.assertEqual(metadata["purpose"], "no change here")
+        self.assertEqual(metadata["keywords"], ["ok", "bad `quote`"])
+        self.assertEqual(changed, ["title", "keywords"])
+
+    def test_unchanged_metadata_reports_no_fields(self):
+        metadata, changed = fm_core.normalize_metadata_values({"title": "plain"})
+        self.assertEqual(metadata, {"title": "plain"})
+        self.assertEqual(changed, [])
+
+    def test_input_dict_is_not_mutated(self):
+        original = {"title": 'has "quotes"'}
+        fm_core.normalize_metadata_values(original)
+        self.assertEqual(original, {"title": 'has "quotes"'})
+
+    def test_none_is_passed_through(self):
+        self.assertEqual(fm_core.normalize_metadata_values(None), (None, []))
+
+    def test_only_backslash_survives_normalization_as_a_violation(self):
+        """変換で解消できるものは解消され、残るのは `\\` だけであること。"""
+        convertible = {
+            "title": 'has "quotes"',
+            "purpose": "multi\nline",
+            "content_details": ["'edge quote'"],
+            "applicable_tasks": ["trailing'"],
+            "keywords": ["tab\there"],
+        }
+        normalized, _ = fm_core.normalize_metadata_values(convertible)
+        self.assertEqual(fm_core.validate_field_values(normalized), [])
+
+        not_convertible = {"title": "back\\slash"}
+        normalized, changed = fm_core.normalize_metadata_values(not_convertible)
+        self.assertEqual(changed, [])
+        self.assertEqual(
+            [(code, field) for code, field, _ in
+             fm_core.validate_field_values(normalized)],
+            [(Violation.FIELD_UNSUPPORTED_CHARACTER, "title")],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

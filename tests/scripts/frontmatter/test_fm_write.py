@@ -620,6 +620,63 @@ class TestValueValidationBeforeWrite(FmWriteTestBase):
                 )
 
 
+class TestValueNormalizationBeforeWrite(FmWriteTestBase):
+    """値域内へ収まる表記へ変換してから書くこと（Issue #41）。
+
+    意味を保つ代替がある文字（二重引用符・改行・両端の単一引用符）は拒否せず変換する。
+    拒否すると文字 1 つのために文書のメタデータ全体が AI 再抽出へ回るが、原因は意味に
+    関わらない表記であり、その費用を払う理由がない。変換したことは結果で報告する。
+    """
+
+    def test_quotes_are_converted_and_written(self):
+        path = self._write('docs/a.md', plain_document())
+
+        result = write_entry(path, dict(WRITE_METADATA, title='Say "hi" now'))
+
+        self.assertTrue(result['ok'], result.get('detail'))
+        self.assertIn('title: Say `hi` now', self._read(path))
+        self.assertNotIn('\\"', self._read(path))
+
+    def test_normalized_fields_are_reported(self):
+        """黙って書き換えない（書いた値と原本に入る値が違うことを可視化する）。"""
+        path = self._write('docs/a.md', plain_document())
+
+        result = write_entry(
+            path, dict(WRITE_METADATA, title='Say "hi"', keywords=["a'", 'b'])
+        )
+
+        self.assertEqual(sorted(result['normalized_fields']), ['keywords', 'title'])
+
+    def test_no_normalization_reports_empty(self):
+        path = self._write('docs/a.md', plain_document())
+
+        result = write_entry(path, dict(WRITE_METADATA))
+
+        self.assertEqual(result['normalized_fields'], [])
+
+    def test_written_value_is_trusted_after_normalization(self):
+        """変換後の値が読み取り側の値域判定を通ること（書ける集合 ⊆ 信頼される集合）。"""
+        path = self._write('docs/a.md', plain_document())
+
+        write_entry(path, dict(WRITE_METADATA, title='Say "hi" now'))
+
+        self.assertTrue(evaluate(self._read(path)).trust)
+
+    def test_backslash_is_still_rejected_without_writing(self):
+        """変換できない文字は拒否のまま（意味を保つ代替が存在しない）。"""
+        text = plain_document()
+        path = self._write('docs/a.md', text)
+
+        result = write_entry(path, dict(WRITE_METADATA, title='back\\slash'))
+
+        self.assertFalse(result['ok'])
+        self.assertEqual(
+            [item['code'] for item in result['violations']],
+            ['FIELD_UNSUPPORTED_CHARACTER'],
+        )
+        self.assertEqual(self._read(path), text, '1 バイトも書き換えられない')
+
+
 class TestFormatCommandSafety(FmWriteTestBase):
     """整形コマンドはシェルを介さず、対象ファイルのみを置換する（戦略書 R5）"""
 
