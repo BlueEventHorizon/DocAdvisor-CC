@@ -177,6 +177,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
 
 `action: done` で `ai_extracted_paths` が空でない場合のみ実行する。これらの文書は信頼できるフロントマターを持たなかったため AI 抽出で索引された。抽出結果を原本のフロントマターへ書き戻すと、以降その文書は転記だけで索引でき、結果は git を通じて全クローンへ伝播する（コーパスの自己修復）。
 
+**書き戻しの内容は今生成した ToC そのものであり、AI が作り直すものではない [MANDATORY]**。`toc.yaml` のエントリはフロントマターと同じ 5 フィールドを持つため、`write-frontmatter` に `--from-toc {key}` を渡せば script が転記する。**候補文書を自分で `Read` してメタデータを起草してはならない。**
+
 **ToC の生成完了「後」に行う [MANDATORY]**。索引という読み取り操作の副作用で原本に git diff が生じるのは驚きがあるためである（REQ-006 の制約）。ここまでの時点で原本は 1 バイトも変わっていない。
 
 1. `ai_extracted_paths` の一覧（件数とパス）を提示し、**書き戻すと原本の Markdown に diff が生じる**ことを明示して `AskUserQuestion` で確認する
@@ -191,12 +193,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
 
    ```
    Skill(skill: doc-advisor:write-frontmatter,
-         args: "--paths {approved_path_1} {approved_path_2}")
+         args: "--paths {approved_path_1} {approved_path_2} --from-toc {key}")
    ```
 
-   - 引数は **`--paths` のみ**。`write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
+   - 引数は **`--paths` と `--from-toc` のみ**。`--from-toc` に渡すのは今回索引した key（単体モードでは `all`）であり、これにより `write-frontmatter` は ToC の値を転記する
+   - `write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
    - **承認されなかった対象を渡してはならない**
-   - **ToC の JSON や `.toc_work/` を `write-frontmatter` に読ませてはならない**。候補パスは本 SKILL が引数として渡す
+   - **ToC の JSON や `.toc_work/` の中身を渡してはならない**。渡すのは key と候補パスだけであり、ToC の読み取りは script が行う
 
 > **集約結果をファイルに残さない [MANDATORY]**: `ai_extracted_paths` は実行中の確認を簡便にするための一時情報である（DES-008 §8.2）。候補一覧を別ファイル・作業ファイル・ToC へ書き出してはならない。「信頼できるフロントマターを持たない文書の集合」は `fm_read.py` でいつでも再計算できる。
 

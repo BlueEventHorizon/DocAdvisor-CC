@@ -48,6 +48,7 @@ from toc_store import (
     KeyError_,
     STATUS_OK,
     STATUS_ERROR,
+    TOC_FILENAME,
     resolve_store_dir,
     resolve_key_from_args,
     emit_json,
@@ -57,9 +58,6 @@ from toc_store import (
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
-
-# toc.yaml ファイル名
-TOC_FILENAME = "toc.yaml"
 
 # ToC エントリのフィールド描画順（DES-005 §7.1: doc_type を除去。get_toc と同一）。
 SCALAR_FIELDS = ("title", "purpose")

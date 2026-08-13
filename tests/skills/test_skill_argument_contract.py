@@ -54,6 +54,9 @@ WRITE_FRONTMATTER_CONTRACT = [
     '--dirs',
     '--exclude',
     '--format-command',
+    # index-docs の書き戻し（§8.2）が使う。これが消えると書き戻しが AI の再起草へ
+    # 逆戻りし、ToC と原本フロントマターが食い違う
+    '--from-toc',
 ]
 
 # DES-009 / DES-005 §10.1
@@ -135,7 +138,11 @@ class TestWriteFrontmatterArgumentContract(unittest.TestCase):
             ['plan', '--paths', 'docs/a.md'],
             ['plan', '--dirs', 'docs/'],
             ['plan', '--dirs', 'docs/', '--exclude', 'docs/draft/'],
+            ['plan', '--from-toc', 'rules'],
+            ['plan', '--from-toc', 'rules', '--paths', 'docs/a.md'],
             ['apply', '--entries-json', '[]', '--format-command', 'x {file}'],
+            ['apply', '--from-toc', 'rules', '--paths', 'docs/a.md'],
+            ['apply', '--from-toc', 'rules', '--format-command', 'x {file}'],
         ):
             try:
                 module.parse_args(argv)
