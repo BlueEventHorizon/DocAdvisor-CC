@@ -8,7 +8,7 @@
 
 ## 前提
 
-- 外部依存なし。Python 3.9 以上の標準ライブラリのみで動作する
+- 外部依存なし。Python 3.11 以上の標準ライブラリのみで動作する（下限は upstream のセキュリティ保守期限で決めている。macOS 標準の `/usr/bin/python3` は 3.9 でサポート対象外）
 - フォーマッタは [dprint](https://dprint.dev/)（設定は `dprint.jsonc`）
 - このリポジトリは **marketplace → plugin → skill の 3 層構成**。リポジトリルートに `.claude-plugin/marketplace.json`（マーケットプレイス、`source: "./plugins/doc-advisor"`）、プラグイン実体は `plugins/doc-advisor/`（`.claude-plugin/plugin.json`）に置く
 

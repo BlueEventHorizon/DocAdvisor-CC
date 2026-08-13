@@ -15,19 +15,33 @@ DES-008 §4.1（確定スキーマ）/ §4.2（境界・正規化・body_hash）
 - 信頼判定（DES-008 §5.1 の述語。type はスカラ・配列の双方を受理）
 - 行保存型マージ（doc-advisor が単独所有する 6 キーのブロックのみを差し替え、
   それ以外の行は原文のままバイト保持する。type のみ和集合で更新する）
-- YAML 値のエスケープ（toc_utils.yaml_escape と同一出力になる独立実装）
 
 独立性（DES-008 §6.1）:
-- toc_store.py / toc_utils.py を import しない。key 解決も store_dir 解決も行わない
+- toc_store.py を import しない。key 解決も store_dir 解決も行わない
 - 判定に必要な違反コードは本モジュールに独立定義する
-- YAML エスケープも import せず独立実装する（一致はテストで固定する。§6.4）
+- YAML 値のエスケープは toc_utils.yaml_escape を import して共有する。表記規則を
+  2 実装で持つと、同じ値がフロントマターと toc.yaml で異なる表記になりうるため、
+  実装は 1 つに集約する（依存の向きは派生 → 中心であり、フロントマター方式を
+  撤回して frontmatter/ を削除しても toc_utils.py は残る）
 
 標準ライブラリのみ使用（REQ-001 NFR-N01）。
 """
 
 import hashlib
+import os
 import re
+import sys
 from collections import namedtuple
+
+# toc_utils は scripts/ 直下（frontmatter/ の外）にある。frontmatter/ 配下の script を
+# 直接起動した場合 sys.path には frontmatter/ しか入らないため、本モジュール（frontmatter/
+# 内の全 script が import する葉）で 1 度だけ親を通す。
+_SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+# 再輸出。同ディレクトリの script は本モジュール経由で使う（import 元を 1 つに保つ）。
+from toc_utils import yaml_escape  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 定数（DES-008 §4.1 / §4.2 / §5.1、上限の正本は formats/toc_format.md）
@@ -184,7 +198,7 @@ def split_document(text):
 def unquote_yaml_value(value):
     """引用符付きスカラを素の文字列へ戻す（yaml_escape の逆変換）。
 
-    本モジュールの yaml_escape が出力する二重引用符形式（バックスラッシュ・
+    yaml_escape が出力する二重引用符形式（バックスラッシュ・
     引用符・改行・タブをエスケープ）を復元する。単一引用符は YAML の規約に従い
     '' のみを ' へ戻す。引用符で囲まれていない値はそのまま返す。
 
@@ -649,79 +663,6 @@ def evaluate(text):
         expected_body_hash=expected,
         actual_body_hash=actual,
     )
-
-
-# ---------------------------------------------------------------------------
-# YAML 値のエスケープ（DES-008 §6.4 の一致テストが固定する独立実装）
-# ---------------------------------------------------------------------------
-
-# 先頭 1 文字に来るとプレーンスカラとして解釈できなくなる指示文字。
-# toc_utils.yaml_escape の first_char_indicators と同一集合（空白文字も含む）。
-_FIRST_CHAR_INDICATORS = frozenset('-?:,[]{}#&*!|>\'"% @`~')
-
-# プレーンに書くと bool / null として解釈される語（小文字化して比較する）
-_YAML_KEYWORDS = frozenset({
-    "true", "false", "yes", "no", "on", "off", "null", "none", "~",
-})
-
-
-def yaml_escape(value):
-    """YAML の値として安全な表記へ変換する。
-
-    toc_utils.yaml_escape と **同一の出力** になるよう、判定の段と順序まで含めて
-    独立に再現する（DES-008 §6.1 により import できないため。両者が一致することは
-    §6.4 の一致テストで固定する）。判定は次の順に評価し、最後にまとめてクォートの
-    要否を決める。
-
-    1. 空値（''・None・0・[] 等）はそのまま '""'
-    2. 先頭 1 文字が YAML の指示文字
-    3. ': ' / ' #' / '"' / "'" を位置を問わず含む
-    4. ':' または空白で終わる
-    5. 改行・復帰・タブを含む
-    6. 数値として解釈できる
-    7. bool / null を表す語である
-
-    Args:
-        value: 出力したい値（文字列以外は str() で文字列化する）
-
-    Returns:
-        str: そのまま YAML に埋め込める表記（必要なら二重引用符で囲まれる）
-    """
-    if not value:
-        return '""'
-
-    s = str(value)
-
-    needs_quotes = s[0] in _FIRST_CHAR_INDICATORS
-
-    # ': ' と ' #' は YAML 仕様上の制約、引用符は往復時のずれを避けるため
-    if not needs_quotes:
-        needs_quotes = ": " in s or " #" in s or '"' in s or "'" in s
-
-    if not needs_quotes:
-        needs_quotes = s.endswith(":") or s.endswith(" ")
-
-    if not needs_quotes:
-        needs_quotes = any(c in s for c in "\n\r\t")
-
-    if not needs_quotes:
-        try:
-            float(s)
-            needs_quotes = True
-        except ValueError:
-            pass
-
-    # キーワード判定だけは他段の結果に関わらず評価する（toc_utils と同じ構造）
-    if s.lower() in _YAML_KEYWORDS:
-        needs_quotes = True
-
-    if needs_quotes:
-        # バックスラッシュ → 二重引用符 → 制御文字 の順に置換する（順序が重要）
-        escaped = s.replace("\\", "\\\\").replace('"', '\\"')
-        escaped = escaped.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-        return f'"{escaped}"'
-
-    return s
 
 
 # ---------------------------------------------------------------------------

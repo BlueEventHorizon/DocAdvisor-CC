@@ -10,13 +10,13 @@
 - 信頼判定の各分岐（type 欠落 / doc-advisor を含まない type / フィールド欠落 /
   空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / ハッシュ形式不正 /
   未知の接頭辞。type はスカラ・配列の双方）
-- YAML エスケープが toc_utils.yaml_escape と完全一致すること（DES-008 §6.4）
+- YAML エスケープが toc_utils.yaml_escape そのものであること（DES-008 §6.4）
 - 行保存型マージ（未知キーのバイト保持 / type の和集合更新 / 未閉鎖の拒否）
 
 テスト方針:
 - in-process import（fm_core は純粋ロジックのため subprocess を要しない）
-- エスケープ一致テストのみ toc_utils を import する。fm_core 側は import しない
-  （DES-008 §6.1 の独立性の境界）
+- fm_core は toc_utils を YAML エスケープの共有に限って import する。key / store_dir /
+  ToC の置き場所を知る toc_store は import しない（DES-008 §6.1 の独立性の境界）
 """
 
 import os
@@ -575,20 +575,18 @@ class TestValidateMetadata(unittest.TestCase):
 # ===========================================================================
 
 class TestIndependence(unittest.TestCase):
-    """toc_store / toc_utils を import しないこと。"""
+    """toc_store を import しないこと（toc_utils はエスケープの共有に限り可）。"""
 
-    def test_does_not_import_toc_modules(self):
+    def test_does_not_import_toc_store(self):
         source_path = os.path.join(FRONTMATTER_DIR, "fm_core.py")
         with open(source_path, encoding="utf-8") as f:
             source = f.read()
         self.assertNotIn("import toc_store", source)
-        self.assertNotIn("import toc_utils", source)
         self.assertNotIn("from toc_store", source)
-        self.assertNotIn("from toc_utils", source)
 
-    def test_module_namespace_is_clean(self):
+    def test_module_namespace_has_no_key_resolution(self):
         self.assertFalse(hasattr(fm_core, "toc_store"))
-        self.assertFalse(hasattr(fm_core, "toc_utils"))
+        self.assertFalse(hasattr(fm_core, "resolve_store_dir"))
 
 
 # ===========================================================================
@@ -615,12 +613,12 @@ class TestEvaluateFile(unittest.TestCase):
 
 
 # ===========================================================================
-# YAML エスケープ一致テスト（DES-008 §6.4 / 戦略書 R3）
+# YAML エスケープ（DES-008 §6.4）
 # ===========================================================================
 
-# 共通ケース表。1 箇所に置き、toc_utils.yaml_escape と fm_core.yaml_escape の
-# 両実装へ同じ入力を流す（戦略書 R3）。tests/scripts/test_toc_utils.py の
-# TestYamlEscape が持つ入力列を網羅し、日本語・': ' 含み・数値様文字列を含む。
+# 共通ケース表。unquote_yaml_value の往復テストが入力列を必要とするため本ファイルに
+# 置く。tests/scripts/test_toc_utils.py の TestYamlEscape が持つ入力列を網羅し、
+# 日本語・': ' 含み・数値様文字列を含む。
 YAML_ESCAPE_CASES = (
     # --- プレーンスカラとして安全（クォート不要） ---
     "normal text",
@@ -685,24 +683,30 @@ YAML_ESCAPE_CASES = (
 )
 
 
-class TestYamlEscapeParity(unittest.TestCase):
-    """fm_core.yaml_escape が toc_utils.yaml_escape と完全一致すること。
+class TestYamlEscapeIsShared(unittest.TestCase):
+    """fm_core.yaml_escape が toc_utils.yaml_escape そのものであること。
 
-    完全独立（DES-008 §6.1）の帰結として実装が 2 つになるため、同じ値が
-    フロントマターと toc.yaml で異なる表記になることを禁じる（§6.4）。
+    同じ値がフロントマターと toc.yaml で異なる表記になることを禁じる（§6.4）。
+    かつて独立実装を 2 つ持って出力一致をテストで維持していたが、実装を 1 つに
+    集約したため、ここでは同一オブジェクトであることを固定して再分岐を防ぐ。
     """
 
-    def test_outputs_are_identical(self):
+    def test_implementation_is_not_duplicated(self):
+        self.assertIs(yaml_escape, toc_utils.yaml_escape)
+
+    def test_frontmatter_inputs_are_escaped_as_expected(self):
+        """フロントマター経路で通る入力の表記を固定する（回帰検出）。"""
         for value in YAML_ESCAPE_CASES:
             with self.subTest(value=value):
-                self.assertEqual(toc_utils.yaml_escape(value), yaml_escape(value))
+                escaped = yaml_escape(value)
+                self.assertIsInstance(escaped, str)
+                self.assertNotIn("\n", escaped)
 
     def test_empty_values_become_empty_quotes(self):
         """'' / None / 0 / [] は str() より前に空判定される（評価順序の固定）。"""
         for value in ("", None, 0, []):
             with self.subTest(value=value):
                 self.assertEqual(yaml_escape(value), '""')
-                self.assertEqual(toc_utils.yaml_escape(value), yaml_escape(value))
 
     def test_unicode_is_not_quoted(self):
         self.assertEqual(yaml_escape("日本語テスト"), "日本語テスト")

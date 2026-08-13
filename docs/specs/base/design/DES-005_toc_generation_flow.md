@@ -359,7 +359,7 @@ flowchart TD
 
 ### 5.2 新規ロジック `resolve_within_root()` / `find_escaping_symlink()`
 
-- `resolve_within_root()`: `Path.resolve(strict=True)` で symlink を辿って実体を解決（不在は `FileNotFoundError` → NOT_FOUND として扱い、REQ-001 FR-N03-4 の不在 reject と兼ねる）。`Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で root 配下を判定し、root 外実体は `PathRejection(OUTSIDE_ROOT)` を送出する低レベル primitive。
+- `resolve_within_root()`: `Path.resolve(strict=True)` で symlink を辿って実体を解決（不在は `FileNotFoundError` → NOT_FOUND として扱い、REQ-001 FR-N03-4 の不在 reject と兼ねる）。`Path.is_relative_to(project_root)`（Python 3.9 で追加。サポート下限は REQ-001 NFR-N01 で 3.11 に確定）で root 配下を判定し、root 外実体は `PathRejection(OUTSIDE_ROOT)` を送出する低レベル primitive。
 - `find_escaping_symlink(rel_path, root)`: root から path コンポーネントを順に辿り、最初に「symlink かつ実体が root 配下でない」prefix（= 承認の単位）を返す。越境 symlink が無ければ None。
 - `validate_path(path, root)`: `resolve_within_root()` の OUTSIDE_ROOT を捕捉し、`find_escaping_symlink` で越境点を特定する。越境 symlink 経由なら**受理**し `(normalized_path, symlink_prefix)` を返す。symlink を介さない真の越境なら OUTSIDE_ROOT を再送出する（traversal 相当であり、誰も symlink を張っていない root 外参照である）。越境していなければ第 2 要素は `None`。
 - 大文字小文字衝突は正規化後パスの集合で検出し warning（処理は継続）

@@ -120,8 +120,9 @@ def resolve_within_root(path, project_root):
     1. `Path.resolve(strict=True)` で symlink を辿り実体を解決する。
        実体が存在しない場合は `FileNotFoundError` を送出する
        （呼び出し側で NOT_FOUND 扱いにする。REQ-001 FR-N03-4 の不在 reject と兼ねる）。
-    2. `Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で
-       解決後の実体が project root 配下かを判定する。root 外を指す symlink は reject する。
+    2. `Path.is_relative_to(project_root)`（Python 3.9 で追加。サポート下限は
+       REQ-001 NFR-N01 で 3.11）で解決後の実体が project root 配下かを判定する。
+       root 外を指す symlink は reject する。
 
     Args:
         path: 検証対象パス（str or Path）。絶対 / 相対いずれも resolve される。
