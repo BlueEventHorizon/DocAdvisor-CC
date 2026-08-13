@@ -201,7 +201,9 @@ docs:
 
 ### Character Domain (all five fields) [MANDATORY]
 
-**Every field value is single-line plain text and carries no character that has meaning in the YAML subset this project writes.** This is not a style preference; it is a value domain enforced mechanically at the point a value is written.
+**Every field value is single-line plain text and carries no character that has meaning in the YAML subset this project writes.** This is not a style preference; it is a value domain, and the conversions below are applied mechanically wherever a value enters — both when writing a document's frontmatter and when an AI-written value enters the ToC pipeline.
+
+**The rejection of `\` is checked when writing frontmatter and when transcribing out of the ToC, not when writing `toc.yaml`.** A value containing `\` can therefore reach `toc.yaml`, and such an entry stays permanently `incomplete_entry` for transcription. No check was added at that point because the case has not been observed (a scan of 1392 existing ToC values found none): adding a second place that implements the same rule causes a known harm, while this case so far causes none. Add the check when it is observed.
 
 Characters outside the domain are handled in one of two ways, decided by whether a **meaning-preserving substitute exists**. Rejecting a value for a purely notational reason would send the document's whole metadata back through AI re-extraction, and the cause would be a symbol that does not change what the value says.
 

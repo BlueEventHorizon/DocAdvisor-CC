@@ -109,9 +109,13 @@ class FmRunTestBase(unittest.TestCase):
             return f.read()
 
     def _run_cli(self, *args):
+        # CLI は入口で cwd を project root へ揃える（DES-005 §4.2.1）。
+        # CLAUDE_PROJECT_DIR が環境に残っていると tmpdir ではなくそちらへ移動する
+        # ため、明示的に外して cwd=tmpdir を project root として扱わせる。
+        env = {k: v for k, v in os.environ.items() if k != 'CLAUDE_PROJECT_DIR'}
         proc = subprocess.run(
             [sys.executable, FM_RUN_SCRIPT] + list(args),
-            capture_output=True, text=True, cwd=self.tmpdir,
+            capture_output=True, text=True, cwd=self.tmpdir, env=env,
         )
         out = proc.stdout.strip()
         self.assertTrue(out, f"stdout empty; stderr: {proc.stderr}")
@@ -408,6 +412,35 @@ class TestFromToc(FmRunTestBase):
         }
         write_checksums_yaml(checksums, store_dir / CHECKSUMS_FILENAME)
 
+    def test_apply_counts_share_one_basis(self):
+        """`total` が「対象として確定した件数」であり、内訳と基準が揃うこと。
+
+        転記経路で `total` を entry 数（転記できた分）だけにすると、同じ counts に載る
+        needs_ai / skipped / unreadable と基準が食い違い、SKILL の報告が「対象」から
+        needs_ai の分を落とす。
+        """
+        self._write('docs/a.md', BODY)                    # 転記対象
+        self._write('docs/b.md', trusted_document())      # 既に信頼 → skipped
+        self._write('docs/c.md', BODY)                    # ToC に無い → needs_ai
+        self._prepare_toc(
+            {'docs/a.md': dict(self.TOC_ENTRY), 'docs/b.md': dict(self.TOC_ENTRY)},
+            checksum_paths=['docs/a.md', 'docs/b.md'],
+        )
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY,
+            '--paths', 'docs/a.md', 'docs/b.md', 'docs/c.md',
+        )
+
+        counts = payload['counts']
+        self.assertEqual(counts['total'], 3, '対象として確定した件数')
+        self.assertEqual(
+            counts['written'] + counts['failed']
+            + counts['needs_ai'] + counts['skipped'] + counts['unreadable'],
+            counts['total'],
+            '内訳の合計が total に一致する（基準が 1 つ）',
+        )
+
     def test_plan_carries_the_toc_metadata(self):
         self._write('docs/a.md', BODY)
         self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
@@ -578,6 +611,115 @@ class TestFromToc(FmRunTestBase):
         self._run_cli('plan', '--from-toc', self.KEY, '--paths', 'docs/a.md')
 
         self.assertEqual(self._read(path), BODY)
+
+
+class TestApplyCountsShapeIsStable(FmRunTestBase):
+    """apply の counts が `--from-toc` の有無で形を変えないこと。
+
+    `_target_counts` の docstring が「フィールドの有無で呼び出し側に分岐させると、
+    そこが新たな判断点になる」と述べており、plan はその通り常に同じ形を出す。apply
+    だけが `--from-toc` のときにフィールドを足す形になっていた。
+    """
+
+    ALWAYS = ('total', 'written', 'failed', 'changed', 'formatted', 'trusted',
+              'needs_ai', 'skipped', 'unreadable')
+
+    def test_entries_json_path_has_every_field(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli('apply', '--entries-json', entries)
+
+        for field in self.ALWAYS:
+            with self.subTest(field=field):
+                self.assertIn(field, payload['counts'])
+        self.assertEqual(payload['counts']['needs_ai'], 0)
+        self.assertEqual(payload['counts']['skipped'], 0)
+        self.assertEqual(payload['counts']['unreadable'], 0)
+
+
+class TestExcludeAppliesToTheResolvedSet(FmRunTestBase):
+    """`--exclude` が対象の出どころによらず効くこと。
+
+    以前はディレクトリ展開の内側でしか適用しておらず、`--dirs` を伴わない指定
+    （明示 paths のみ / ToC 全件）では黙って無視されていた。とくに
+    `--from-toc --exclude`（`--dirs` なし）は対象 0 件から全件フォールバックへ落ち、
+    「除外して」と指定した原本まで書き換えた（指定と正反対の結果）。
+    """
+
+    def test_exclude_filters_explicit_paths(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/b.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'plan', '--paths', 'docs/a.md', 'docs/b.md', '--exclude', 'docs/b.md'
+        )
+
+        self.assertEqual([t['path'] for t in payload['targets']], ['docs/a.md'])
+
+    def test_exclude_filters_expanded_dirs(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/skip/b.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'plan', '--dirs', 'docs/', '--exclude', 'docs/skip'
+        )
+
+        self.assertEqual([t['path'] for t in payload['targets']], ['docs/a.md'])
+
+    def test_excluded_count_is_reported(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/b.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'plan', '--paths', 'docs/a.md', 'docs/b.md', '--exclude', 'docs/b.md'
+        )
+
+        self.assertTrue(
+            any('--exclude' in w for w in payload['warnings']),
+            '黙って落とさず件数を報告する',
+        )
+
+
+class TestApplyRejectsTargetArgsWithEntries(FmRunTestBase):
+    """`--entries-*` と対象指定の併用を黙って無視しないこと。
+
+    無視すると「対象を絞ったつもりの指定が効かないまま原本へ書き込む」ことになる。
+    """
+
+    def test_paths_with_entries_json_is_an_error(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli(
+            'apply', '--entries-json', entries, '--paths', 'b.md'
+        )
+
+        self.assertEqual(payload['status'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths', payload['message'])
+
+    def test_dirs_and_exclude_are_reported_together(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli(
+            'apply', '--entries-json', entries, '--dirs', 'docs/', '--exclude', 'x/'
+        )
+
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--dirs', payload['message'])
+        self.assertIn('--exclude', payload['message'])
+
+    def test_target_args_are_still_accepted_with_from_toc(self):
+        """`--from-toc` との併用は従来どおり有効（過剰な拒否を防ぐ）。"""
+        self._write('a.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', 'nosuchkey', '--paths', 'a.md'
+        )
+
+        self.assertNotEqual(payload.get('error_code'), 'UNSUPPORTED_ARG')
 
 
 if __name__ == '__main__':

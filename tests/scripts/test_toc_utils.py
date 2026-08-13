@@ -749,6 +749,118 @@ class TestErrorCodeIntegration(unittest.TestCase):
                           f'{code} must be a defined error_code')
 
 
+class TestFilterExcluded(unittest.TestCase):
+    """除外を「確定した対象集合」へ適用すること。
+
+    除外は「選び方」ではなく「選んだ結果から何を落とすか」である。ディレクトリ展開の
+    内側だけで適用すると、`--dirs` を伴わない指定で黙って無視される。
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp()
+        self.root = Path(self._tmp)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_no_patterns_keeps_everything(self):
+        kept, excluded = toc_utils.filter_excluded(['docs/a.md'], self.root, [])
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, [])
+
+    def test_file_pattern_excludes_that_file_only(self):
+        kept, excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/b.md'], self.root, ['docs/b.md']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, ['docs/b.md'])
+
+    def test_subtree_pattern_excludes_the_subtree(self):
+        kept, excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/draft/b.md'], self.root, ['docs/draft']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, ['docs/draft/b.md'])
+
+    def test_bare_directory_name_matches_at_any_depth(self):
+        kept, _excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/x/draft/b.md'], self.root, ['draft']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+
+    def test_trailing_slash_is_normalized(self):
+        kept, excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/draft/b.md'], self.root, ['docs/draft/']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, ['docs/draft/b.md'])
+
+    def test_semantics_match_should_exclude(self):
+        """判定は should_exclude を共有する（規則を 2 実装に分けない）。"""
+        paths = ['docs/a.md', 'docs/plan/b.md', 'docs/planning.md']
+        kept, _excluded = toc_utils.filter_excluded(paths, self.root, ['plan'])
+        self.assertEqual(
+            kept, ['docs/a.md', 'docs/planning.md'],
+            "裸名はディレクトリ名の完全一致であり planning.md を落とさない",
+        )
+
+
+class TestEnsureProjectRootCwd(unittest.TestCase):
+    """cwd を project root へ揃えることで、パスの基準が 1 つになること（Issue #41）。
+
+    project-root-relative なパスを「結合して開く」作法と「そのまま開く」作法が同じ
+    実行の中で交差しており、cwd と project root が違えば別のファイルを指した。一致を
+    検査して弾くのでは 2 つの作法が残るため、基準を揃えて食い違いが起こり得ない
+    状態にする。
+    """
+
+    def setUp(self):
+        self._cwd = os.getcwd()
+        self._env = os.environ.get('CLAUDE_PROJECT_DIR')
+        self._tmp = tempfile.mkdtemp()
+        self.root = Path(self._tmp) / 'root'
+        (self.root / 'sub').mkdir(parents=True)
+
+    def tearDown(self):
+        os.chdir(self._cwd)
+        if self._env is None:
+            os.environ.pop('CLAUDE_PROJECT_DIR', None)
+        else:
+            os.environ['CLAUDE_PROJECT_DIR'] = self._env
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_cwd_moves_to_project_root(self):
+        os.environ['CLAUDE_PROJECT_DIR'] = str(self.root)
+        os.chdir(self.root / 'sub')
+
+        returned = toc_utils.ensure_project_root_cwd()
+
+        self.assertEqual(Path(os.getcwd()).resolve(), self.root.resolve())
+        self.assertEqual(returned, self.root.resolve())
+
+    def test_both_conventions_resolve_to_the_same_file(self):
+        """結合する作法とそのまま開く作法が同一ファイルを指すこと（本来の目的）。"""
+        os.environ['CLAUDE_PROJECT_DIR'] = str(self.root)
+        (self.root / 'a.md').write_text('root side', encoding='utf-8')
+        (self.root / 'sub' / 'a.md').write_text('sub side', encoding='utf-8')
+        os.chdir(self.root / 'sub')
+
+        project_root = toc_utils.ensure_project_root_cwd()
+
+        joined = (project_root / 'a.md').read_text(encoding='utf-8')
+        as_is = Path('a.md').read_text(encoding='utf-8')
+        self.assertEqual(joined, as_is)
+        self.assertEqual(joined, 'root side')
+
+    def test_already_at_project_root_is_a_no_op(self):
+        os.environ['CLAUDE_PROJECT_DIR'] = str(self.root)
+        os.chdir(self.root)
+
+        toc_utils.ensure_project_root_cwd()
+
+        self.assertEqual(Path(os.getcwd()).resolve(), self.root.resolve())
+
+
 class TestNormalizeFieldValue(unittest.TestCase):
     """メタデータ値を、意味を変えずに値域内へ収めること（Issue #41）。
 

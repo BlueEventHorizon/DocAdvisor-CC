@@ -185,24 +185,24 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 
 ### 4.1 モジュール一覧
 
-| モジュール                                                   | 責務                                                                                   | 依存                                                                                        |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `index_docs.py`                                              | **索引パイプラインのラッパー**。AI が呼ぶ唯一の入口。段階判定 → 配管 → `action` 出力   | `expand_dirs`, `prepare_toc`, `merge_toc`, `toc_store`, `frontmatter/fm_to_pending`（§4.5） |
-| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                   | `toc_utils`                                                                                 |
-| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                   | 標準ライブラリ                                                                              |
-| `expand_dirs.py`                                             | dirs / グロブを rglob 展開して paths 配列へ変換（固定除外・追加除外を適用）、JSON 出力 | `toc_utils`                                                                                 |
-| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力             | `toc_store`, `toc_utils`                                                                    |
-| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力   | `toc_store`, `toc_utils`                                                                    |
-| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力       | `toc_store`, `toc_utils`                                                                    |
-| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                   | `toc_store`, `toc_utils`                                                                    |
-| `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009）   | `toc_store`, `toc_utils`                                                                    |
-| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）       | `toc_utils`                                                                                 |
-| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                               | `toc_store`, `toc_utils`                                                                    |
-| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証        | `toc_utils`（表記規則 `yaml_escape` の共有のみ）。`toc_store` は import しない              |
-| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                  | `fm_core`（`toc_store` を import しない）                                                   |
-| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                              | `fm_core`（同上）                                                                           |
-| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力        | `fm_core`（同上）                                                                           |
-| `frontmatter/fm_from_toc.py`                                 | `toc.yaml` のメタデータを原本フロントマターへ写す転記 + 陳腐化ガード（DES-008 §8.2）   | `fm_core`, `toc_store`, `toc_utils`（ToC の在り処を知る唯一のモジュール）                   |
+| モジュール                                                   | 責務                                                                                                                        | 依存                                                                                                           |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `index_docs.py`                                              | **索引パイプラインのラッパー**。AI が呼ぶ唯一の入口。段階判定 → 配管 → `action` 出力                                        | `expand_dirs`, `prepare_toc`, `merge_toc`, `toc_store`, `frontmatter/fm_to_pending`（§4.5）                    |
+| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                                                        | `toc_utils`                                                                                                    |
+| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                                                        | 標準ライブラリ                                                                                                 |
+| `expand_dirs.py`                                             | dirs / グロブを rglob 展開して paths 配列へ変換（**システム固定除外のみ**適用。ユーザー除外は扱わない / §4.2.2）、JSON 出力 | `toc_utils`                                                                                                    |
+| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力                                                  | `toc_store`, `toc_utils`                                                                                       |
+| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力                                        | `toc_store`, `toc_utils`                                                                                       |
+| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力                                            | `toc_store`, `toc_utils`                                                                                       |
+| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                                                        | `toc_store`, `toc_utils`                                                                                       |
+| `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009）                                        | `toc_store`, `toc_utils`                                                                                       |
+| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）                                            | `toc_utils`                                                                                                    |
+| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                                                                    | `toc_store`, `toc_utils`                                                                                       |
+| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証                                             | `toc_utils`（`yaml_escape` / `normalize_field_value` の共有。DES-008 §6.1 の表）。`toc_store` は import しない |
+| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                                                       | `fm_core`（`toc_store` を import しない）                                                                      |
+| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                                                                   | `fm_core`（同上）                                                                                              |
+| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力                                             | `fm_core`（同上）                                                                                              |
+| `frontmatter/fm_from_toc.py`                                 | `toc.yaml` のメタデータを原本フロントマターへ写す転記 + 陳腐化ガード（DES-008 §8.2）                                        | `fm_core`, `toc_store`, `toc_utils`（ToC の在り処を知る唯一のモジュール）                                      |
 
 `create_checksums.py` の `--promote-pending` / `--clean-work-dir` 機能は `toc_store.py` に統合し、key 単位で扱う。
 
@@ -214,7 +214,7 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `index_docs.py`                | `--key` / `--all` / `--dirs` / `--paths` / `--exclude`（上位層が機械的に渡す JSON 形 `--dirs-json` / `--paths-json` / `--exclude-json` / `--paths-file` も受ける。`--on-fill-error` は confirm の答えを戻す経路。`--allow-external` は同じく confirm の答えを戻す**隠しオプション**で、`--all` の走査でのみ意味を持つ） |
 | `toc_store.py`                 | `--work-status` / `--claim` / `--reset-error` / `--promote-pending` / `--clean-work-dir`（**保守・障害切り分け用**。通常経路はラッパーが内部で呼ぶ）                                                                                                                                                                    |
-| `expand_dirs.py`               | `--dirs-json`（必須）/ `--exclude-json` / `--paths-json` / `--project-root`（すべて JSON 配列。ラッパーが内部で呼ぶ）                                                                                                                                                                                                   |
+| `expand_dirs.py`               | `--dirs-json`（必須）/ `--paths-json` / `--project-root`（すべて JSON 配列。ラッパーが内部で呼ぶ）。**ユーザー除外の引数を持たない**（適用点は対象集合の確定後 / §4.2.2）                                                                                                                                               |
 | `prepare_toc.py`               | `--key` / `--paths-json` / `--paths-file` / `--all` / `--dry-run` / `--allow-external-json`                                                                                                                                                                                                                             |
 | `merge_toc.py`                 | `--key` / `--all` / `--delete-only`                                                                                                                                                                                                                                                                                     |
 | `get_toc.py`                   | `--key` / `--all` / `--paths`（`--all` / `--key all` は REQ-001 FR-N04-4）                                                                                                                                                                                                                                              |
@@ -308,6 +308,37 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 | `init_common_config()` の `root_dirs` / `doc_types_map` 探索・`ConfigNotReadyError`                                                                                                                                               | doc_structure 探索廃止。key + paths を直接受け取る                  |
 | `find_config_file()`（`.doc_structure.yaml` 探索）                                                                                                                                                                                | 通常経路で `.doc_structure.yaml` を読まない（REQ-001 受け入れ基準） |
 | 流用: `normalize_path` / `calculate_file_hash` / `rglob_follow_symlinks` / `should_exclude` / `load_existing_toc` / `write_yaml_output` / `yaml_escape` / `validate_path_within_base` / `write_checksums_yaml` / `load_checksums` | REQ-001 NFR-N02 既存資産再利用                                      |
+
+### 4.2.1 パスの基準は入口で 1 つに固定する [MANDATORY]
+
+project-root-relative なパスからファイルを開く作法が 2 つある。**project root と結合してから開くもの**（`prepare_toc` / `merge_toc` の hash 計算、`frontmatter/fm_from_toc.py` の陳腐化ガード）と、**相対パスをそのまま渡して cwd に解決させるもの**（`fm_core.read_text` 経由の読み書き、`frontmatter/fm_to_pending.py`）である。
+
+どちらも単独では正しいが、**1 回の実行で両方を通ると別のファイルを指しうる**。実際に `fm_run` では「`$CLAUDE_PROJECT_DIR/docs/a.md` の hash を照合して『変更なし、転記して安全』と判断し、`$PWD/docs/a.md` へ書き込んで `body_hash` を打刻する」経路が成立していた。照合した対象と書き込む対象が別物になり、陳腐化ガードが機能しない。`index_docs` も同じ組み合わせを 1 実行で通す。
+
+**したがって 2 つの作法が交差する入口 ——`index_docs.py` と `frontmatter/fm_run.py` の `main()` は、先頭で `toc_utils.ensure_project_root_cwd()` を呼び、cwd を project root へ揃える。** 一致を検査して弾く形は採らない ——それは症状を止めるだけで 2 つの作法が残り、次の交差点で再発する。基準を 1 つにすれば食い違いが起こり得ない。
+
+**対象はこの 2 本に限る。** コア script（`prepare_toc` / `merge_toc` / `write_pending` / `fm_read` / `fm_write` / `fm_to_pending`）は通常経路ではこのラッパー 2 本の内側から呼ばれ、cwd を継承するため揃っている。単独起動はテストと障害切り分けの経路であり、そこでは呼び出し側が cwd を決める。全 CLI へ同じ呼び出しを配ると、**同じ規則の適用点が 8 箇所に増える**——本節が塞ごうとしている「同じことを複数箇所でやる」に自ら反する。**交差が新しい入口で生じたときに、その入口へ足す。**
+
+**cwd を変える前に、argv で受け取ったファイルの位置を絶対パスへ解決する**（`--entries-file` / `--paths-file`）。これらは呼び出し元の cwd 基準で渡され得る。`--paths` / `--dirs` は契約上 project-root-relative なので影響しない。
+
+### 4.2.2 除外は「確定した対象集合」へ適用する [MANDATORY]
+
+`--exclude` は**選び方ではなく、選んだ結果から何を落とすか**である。したがって適用点は**対象集合の確定後**であり、ディレクトリ展開の内側ではない。
+
+以前はユーザー除外を `expand_dirs` の rglob 中でのみ適用していた。その結果、対象の出どころが `--dirs` 以外のとき（明示 paths のみ / `--from-toc` の ToC 全件）は**黙って無視された**。とくに `apply --from-toc --exclude`（`--dirs` なし）は対象 0 件から全件フォールバックへ落ち、「除外して」と指定した原本まで書き換えた ——**指定と正反対の結果**である。同じ黙殺が `index_docs`（明示 paths のみの経路）にもあった。
+
+| 対象の出どころ           | 除外の適用                                             |
+| ------------------------ | ------------------------------------------------------ |
+| `--dirs` の展開結果      | 確定後に `toc_utils.filter_excluded` で適用            |
+| 明示 `--paths`           | 同上                                                   |
+| `--from-toc` の ToC 全件 | 同上                                                   |
+| `--all` の全走査         | システム固定除外のみ（ユーザー除外を受け取らない経路） |
+
+- **`expand_dirs` はユーザー除外の引数を持たない**（`--exclude-json` を削除した）。渡さないだけでは同じ規則の適用点が 2 つ残るため、機構ごと消して適用点を 1 つにする。`expand_dirs` は**システム固定除外**の適用を続ける ——走査中に落とすことがその責務であり、利用者の指定とは別の規則である
+- 判定そのものは `should_exclude` を共有する。システム固定除外とユーザー除外で意味論が食い違わないようにするため、規則の実装は 1 つだけ置く
+- **落とした件数を `warnings` に載せる。** 黙って対象から消すと、指定が効いたのか対象が無かったのかを呼び出し側が区別できない
+
+`--exclude` はディレクトリ専用ではない。`should_exclude` の意味論により、ファイル指定（`docs/drop.md`）・サブツリー指定（`docs/draft`）・任意階層のディレクトリ名（`draft`）のいずれも書ける。
 
 ### 4.3 主要関数のクラス図（共通モジュール）
 
@@ -643,7 +674,7 @@ ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-
 | `--paths <path>...`      | 人間・AI が手で打つ                                                  | 当該 key の完全な desired state                                       |
 | `--paths-json '[...]'`   | 上位層 / README 記載                                                 | 同上                                                                  |
 | `--paths-file <path>`    | 上位層（中身は **paths 配列そのもの**。`{"paths": [...]}` ではない） | 長大な配列を argv に載せないための形                                  |
-| `--exclude <path>...`    | 人間・AI が手で打つ                                                  | `--dirs` 展開時の追加除外                                             |
+| `--exclude <path>...`    | 人間・AI が手で打つ                                                  | 確定した対象集合からの除外（出どころを問わない。§4.2.2）              |
 | `--exclude-json '[...]'` | **上位層（forge）**                                                  | `--exclude` と併用可                                                  |
 | `--all`                  | 利用者                                                               | 予約 key `all`。対象指定と併用不可                                    |
 | ~~`--allow-external`~~   | —                                                                    | **公開しない**。`--all` の confirm の答えを戻す隠しオプション（§5.3） |

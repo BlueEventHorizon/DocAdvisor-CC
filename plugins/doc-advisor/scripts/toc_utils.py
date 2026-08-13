@@ -63,6 +63,36 @@ def get_project_root():
     return Path.cwd().resolve()
 
 
+def ensure_project_root_cwd():
+    """cwd を project root へ揃える。CLI の `main()` の先頭で 1 度だけ呼ぶ。
+
+    project-root-relative なパスからファイルを開く作法が、このコードベースには 2 つ
+    ある。project root と結合してから開くもの（`prepare_toc` / `merge_toc` の hash
+    計算など）と、相対パスをそのまま渡して cwd に解決させるものである。
+
+    どちらも単独では正しいが、**1 回の実行で両方を通ると別のファイルを指しうる**。
+    実際に「`$CLAUDE_PROJECT_DIR/docs/a.md` の hash を照合して変更なしと判断し、
+    `$PWD/docs/a.md` へ書き込む」経路が成立していた。照合した対象と書き込む対象が
+    別物になり、陳腐化の検出が機能しない。索引の経路も同じ組み合わせを 1 実行で通す。
+
+    **基準を 1 つに固定して、食い違いが起こり得ない状態にする。** 一致を検査して
+    弾くのでは症状を止めるだけであり、2 つの作法は残る。cwd を project root へ
+    揃えれば、両者は常に同じファイルを指す。
+
+    呼び出す前に、**argv で受け取ったファイルの位置**（`--entries-file` /
+    `--paths-file` 等）は絶対パスへ解決しておくこと。これらは呼び出し元の cwd 基準で
+    渡され得る。`--paths` / `--dirs` は契約上 project-root-relative なので影響しない。
+
+    Returns:
+        Path: 揃えた project root（`get_project_root()` の結果）
+    """
+    project_root = get_project_root()
+    resolved = Path(project_root).resolve()
+    if Path.cwd().resolve() != resolved:
+        os.chdir(resolved)
+    return resolved
+
+
 def validate_path_within_base(path, base_dir):
     """
     Validate that a path resolves within the base directory.
@@ -748,6 +778,41 @@ def cleanup_work_dir(work_dir):
             log("   Please delete manually")
             return False
     return True
+
+
+def filter_excluded(paths, project_root, exclude_patterns):
+    """**確定した対象集合**へ利用者指定の除外を適用する。
+
+    除外は「選び方」ではなく「選んだ結果から何を落とすか」である。以前は
+    ディレクトリ展開の内側でしか適用しておらず、`--dirs` を伴わない指定
+    （明示 paths のみ / ToC 全件）では**黙って無視されていた**。とくに
+    `--from-toc --exclude`（`--dirs` なし）は対象 0 件から全件フォールバックへ落ち、
+    「除外して」と指定した原本まで書き換えていた（指定と正反対の結果）。
+
+    したがって適用点を対象集合の確定後へ移す。対象の出どころ（`--dirs` 展開 /
+    明示 paths / ToC 全件）によらず同じ 1 箇所で効く。判定そのものは
+    `should_exclude` を共有し、システム固定除外との一貫性を保つ。
+
+    Args:
+        paths: project-root-relative なパスの列
+        project_root: project root
+        exclude_patterns: 利用者指定の除外パターン（空なら何もしない）
+
+    Returns:
+        tuple: (残った paths の list, 除外した paths の list)
+    """
+    if not exclude_patterns:
+        return list(paths), []
+
+    root = Path(project_root)
+    kept = []
+    excluded = []
+    for rel in paths:
+        if should_exclude(root / rel, root, exclude_patterns):
+            excluded.append(rel)
+        else:
+            kept.append(rel)
+    return kept, excluded
 
 
 def should_exclude(filepath, root_dir, exclude_patterns):

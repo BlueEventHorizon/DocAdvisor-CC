@@ -46,17 +46,17 @@ AI が担うのは次の 2 つだけである。
 /doc-advisor:index-docs --key <key> --paths-json '["docs/a.md"]'
 ```
 
-| Argument                 | Description                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                                |
-| `--dirs <dir>...`        | 索引するディレクトリ（複数指定可）。グロブメタ文字（`*` `?` `[`）を含めるとパターン展開                 |
-| `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                      |
-| `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                             |
-| `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                        |
-| `--paths-file <path>`    | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`{"paths": [...]}` ではない）            |
-| `--exclude <path>...`    | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                               |
-| `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                |
-| `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない |
+| Argument                 | Description                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                                            |
+| `--dirs <dir>...`        | 索引するディレクトリ（複数指定可）。グロブメタ文字（`*` `?` `[`）を含めるとパターン展開                             |
+| `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                                  |
+| `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                                         |
+| `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                                    |
+| `--paths-file <path>`    | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`{"paths": [...]}` ではない）                        |
+| `--exclude <path>...`    | 確定した対象集合から除外するパス・ディレクトリ（`--dirs` / `--paths` のどちらでも効く。システム固定除外は常時適用） |
+| `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                            |
+| `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない             |
 
 > **JSON 形をそのまま渡す [MANDATORY]**: 上位層（forge の `update-db-rules` / `update-db-specs` 等）は `.doc_structure.yaml` から解決した配列を `--dirs-json` / `--exclude-json` で渡し、**本 SKILL を 1 回だけ呼ぶ**（再実行や引数の組み替えをしない）。受け取った JSON 形は**そのまま script へ渡す**こと。`--dirs` へ書き換えたり要素を並べ替えたりしない。script が両形を受け付けて連結する。
 

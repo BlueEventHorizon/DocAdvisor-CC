@@ -77,6 +77,7 @@ import io
 import json
 import os
 import sys
+from pathlib import Path
 
 # expand_dirs は scripts/ 直下にある（frontmatter/ の外）。--dirs のときだけ使う。
 _FRONTMATTER_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -105,6 +106,14 @@ from fm_read import (
     violations_json,
 )
 from fm_write import parse_entries_json, process_entries, validate_format_command
+
+# 中心側に 1 つだけ置くべき規則を共有する（DES-008 §6.1 の表）。パスの基準を
+# 決める規則を派生側で 2 実装目として持たない。
+from toc_utils import (  # noqa: E402
+    ensure_project_root_cwd,
+    filter_excluded,
+    get_project_root,
+)
 
 # plan が targets / skipped に載せる理由
 REASON_NO_FRONTMATTER = "no frontmatter"
@@ -135,17 +144,19 @@ class RunError(Exception):
 # 対象の展開（--dirs 指定時のみ expand_dirs へ委ねる）
 # ---------------------------------------------------------------------------
 
-def expand_targets(dirs=None, paths=None, exclude=None):
+def expand_targets(dirs=None, paths=None):
     """`--dirs` / `--paths` を対象パスの list に揃える。
 
     ディレクトリの列挙は決定論的な定型処理であり、既存の `expand_dirs.py` に委ねる。
     frontmatter 系統に走査規則を持たせると `prepare_toc.py` の列挙と 2 箇所に分かれ、
     片方だけが改訂される（DES-008 §6.1）。
 
+    **利用者指定の除外は扱わない。** 除外は対象集合の確定後に適用する
+    （`resolve_targets` が `filter_excluded` で行う / DES-005 §4.2.2）。
+
     Args:
         dirs: 展開するディレクトリの list（省略可）
         paths: 明示パスの list（省略可）
-        exclude: 除外パスの list（省略可）
 
     Returns:
         tuple: (paths, rejected_dirs, warnings)
@@ -162,8 +173,6 @@ def expand_targets(dirs=None, paths=None, exclude=None):
     argv = ["--dirs-json", json.dumps(dirs)]
     if explicit:
         argv.extend(["--paths-json", json.dumps(explicit)])
-    if exclude:
-        argv.extend(["--exclude-json", json.dumps(exclude)])
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -327,10 +336,14 @@ def resolve_targets(args):
     手読みさせない（CLAUDE.md）。
 
     ToC 全件へのフォールバックは「対象が指定されていない」ときに限る。`--dirs` を
-    指定したが展開結果が 0 件（Markdown を含まないディレクトリ / `--exclude` で全滅）
-    だった場合に全件へ落とすと、`--from-toc` は原本へ書き込む経路であるため、
-    **利用者が指定した範囲外の原本を書き換える**。指定が空振りしたことは 0 件のまま
-    返して呼び出し側に伝える。
+    指定したが展開結果が 0 件（Markdown を含まないディレクトリ）だった場合に全件へ
+    落とすと、`--from-toc` は原本へ書き込む経路であるため、**利用者が指定した範囲外の
+    原本を書き換える**。指定が空振りしたことは 0 件のまま返して呼び出し側に伝える。
+
+    **`--exclude` は対象の出どころによらず、確定した集合へ最後に適用する。**
+    ディレクトリ展開の内側だけで適用すると、`--dirs` を伴わない指定（明示 paths のみ /
+    ToC 全件）で黙って無視される。`--exclude` は「選び方」ではなく「選んだ結果から
+    何を落とすか」であり、適用点は対象の確定後が正しい（`filter_excluded`）。
 
     Args:
         args: 解析済み引数
@@ -341,20 +354,23 @@ def resolve_targets(args):
     Raises:
         RunError: expand_dirs が error を返した / ToC を読めない
     """
+    # 除外は下流（expand_dirs）へ渡さない。適用点を 1 つにするためである。
     paths, rejected_dirs, warnings = expand_targets(
-        dirs=args.dirs, paths=args.paths, exclude=args.exclude,
+        dirs=args.dirs, paths=args.paths,
     )
-    if paths or not args.from_toc:
-        return paths, rejected_dirs, warnings
-    if args.paths or args.dirs:
-        # 対象を明示したが 1 件も該当しなかった。全件フォールバックへ落とさない。
-        return paths, rejected_dirs, warnings
+    if not paths and args.from_toc and not (args.paths or args.dirs):
+        try:
+            source = load_toc(args.from_toc)
+        except FromTocError as e:
+            raise RunError(str(e), ErrorCode.TOC_NOT_FOUND)
+        paths = source.paths
 
-    try:
-        source = load_toc(args.from_toc)
-    except FromTocError as e:
-        raise RunError(str(e), ErrorCode.TOC_NOT_FOUND)
-    return source.paths, rejected_dirs, warnings
+    paths, excluded = filter_excluded(paths, get_project_root(), args.exclude)
+    if excluded:
+        warnings = warnings + [
+            f"excluded by --exclude: {len(excluded)} path(s)"
+        ]
+    return paths, rejected_dirs, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -526,6 +542,38 @@ def main(argv=None):
         emit_json(STATUS_ERROR, error_code=ErrorCode.UNSUPPORTED_ARG, message=str(e))
         return 1
 
+    # apply の対象指定は --from-toc 専用である。--entries-file / --entries-json は
+    # 対象とメタデータを対で受け取るため、対象指定を併記しても行き先が無い。黙って
+    # 無視すると「対象を絞ったつもりの指定が効かないまま原本へ書き込む」ことになる。
+    # 既に --from-toc と --entries-* は排他なので、その排他へ対象指定を含める。
+    if args.command == "apply" and not args.from_toc:
+        given = [
+            name for name, value in (
+                ("--dirs", args.dirs), ("--paths", args.paths),
+                ("--exclude", args.exclude),
+            ) if value
+        ]
+        if given:
+            emit_json(
+                STATUS_ERROR,
+                error_code=ErrorCode.UNSUPPORTED_ARG,
+                message=(
+                    f"{' / '.join(given)} は --from-toc と併せて使う引数です。"
+                    "--entries-file / --entries-json では対象を絞れません"
+                ),
+            )
+            return 1
+
+    # パスの基準を 1 つに固定する。project-root-relative なパスを「結合して開く」
+    # 作法（陳腐化ガードの hash 照合）と「そのまま開く」作法（本文の読み書き）が
+    # 同じ実行の中で交差しており、cwd と project root が違えば別のファイルを指した。
+    # 検査して弾くのではなく基準を揃えることで、食い違いが起こり得なくなる。
+    # **cwd を変える前に** argv で受けたファイルの位置を絶対パスへ解決する
+    # （呼び出し元の cwd 基準で渡され得る。--paths / --dirs は project-root-relative）。
+    if getattr(args, "entries_file", None):
+        args.entries_file = str(Path(args.entries_file).resolve())
+    ensure_project_root_cwd()
+
     if args.from_toc is not None and not args.from_toc.strip():
         emit_json(
             STATUS_ERROR,
@@ -581,12 +629,15 @@ def main(argv=None):
     plan_extra = None
     plan_status = None
     plan_warnings = []
+    rejected_paths = []
+    resolved_total = None
     try:
         if args.from_toc:
             # 転記経路は plan と同じ手順で対象を確定し直す。plan の出力を呼び出し側に
             # 持ち回らせない（entries の受け渡しが AI に残ると転記を script 化した
             # 意味が無くなる。DES-005 §4.1.1 の「AI が呼ぶ入口」の考え方）。
             paths, rejected_dirs, plan_warnings = resolve_targets(args)
+            resolved_total = len(paths)
             plan_status, targets, skipped, rejected_paths, run_warnings = run_plan(paths)
             plan_warnings = plan_warnings + run_warnings
             toc_path, toc_warnings = annotate_from_toc(args.from_toc, targets)
@@ -599,9 +650,10 @@ def main(argv=None):
                 ],
                 "skipped": skipped,
                 "rejected_dirs": rejected_dirs,
+                # 非空のときだけ出す形にしない。フィールドの有無で呼び出し側に
+                # 分岐させると、そこが新たな判断点になる（_target_counts と同じ方針）。
+                "rejected_paths": rejected_paths,
             }
-            if rejected_paths:
-                plan_extra["rejected_paths"] = rejected_paths
         else:
             entries = _load_entries(args)
     except RunError as e:
@@ -615,11 +667,20 @@ def main(argv=None):
         # 書かれた」と読む（write-frontmatter SKILL の契約）。plan が partial を
         # 返す同じ状況で apply が ok を返す非対称を作らない。
         status = STATUS_PARTIAL
-    if plan_extra is not None:
-        # 転記した件数だけでは「書き戻しが完全か」が分からない。AI 起草が必要な
-        # 残りと対象外の件数を同じ counts に載せる（呼び出し側に数え直させない）。
-        counts["needs_ai"] = len(plan_extra["needs_ai"])
-        counts["skipped"] = len(plan_extra["skipped"])
+    # 転記した件数だけでは「書き戻しが完全か」が分からない。AI 起草が必要な残り・
+    # 対象外・読めなかった件数を同じ counts に載せる（呼び出し側に数え直させない）。
+    # **`--from-toc` の有無で形を変えない**。フィールドの有無で呼び出し側に分岐させると
+    # そこが新たな判断点になる（`_target_counts` の方針を apply 側にも適用する）。
+    counts["needs_ai"] = len(plan_extra["needs_ai"]) if plan_extra else 0
+    counts["skipped"] = len(plan_extra["skipped"]) if plan_extra else 0
+    counts["unreadable"] = len(rejected_paths)
+    if resolved_total is not None:
+        # `total` は「対象として確定した件数」であり、書き込みを試みた entry 数では
+        # ない。転記経路では entry 数（= 転記できた分）だけを数えると、同じ counts に
+        # 載る needs_ai / skipped / unreadable と基準が食い違い、SKILL の報告が
+        # 「対象」から needs_ai の分を落とす。total = 転記 + needs_ai + skipped +
+        # unreadable が成り立つ形に揃える（written / failed は書き込み側の数のまま）。
+        counts["total"] = resolved_total
     # 表記を変換して書いた entry は必ず報告する。書いた値と原本に入る値が違うことを
     # 黙って済ませない（変換は拒否より安いが、不可視にしてよい理由にはならない）。
     normalization_warnings = [
