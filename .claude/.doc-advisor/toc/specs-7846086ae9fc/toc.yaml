@@ -5,8 +5,8 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-08-03T16:34:11Z
-  file_count: 18
+  generated_at: 2026-08-13T09:21:13Z
+  file_count: 17
 
 docs:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md:
@@ -41,23 +41,23 @@ docs:
       - $ARGUMENTS
   docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md:
     title: ADR-006 index-docs Parallel Fill Performance
-    purpose: Records the decision to speed up the toc-updater fill phase via a wider window, a compressed format doc, and limited batching, gated on measured extraction quality.
+    purpose: Records the decision to speed up the toc-updater fill phase via a wider window, a compressed format doc, and limited batching, gated on measured extraction quality
     content_details:
-      - Measurements - ~18s and ~24K tokens per document, effective parallelism verified at 10, per-document time independent of the window
-      - The bottleneck is launch-count overhead and tail latency, not insufficient parallelism
-      - context rot is the central concern - mixing documents in one context causes cross-document keyword misattribution
-      - Plan A - raise the distributed default window from 5 to 10 (verified safe; 429 on a low tier degrades to 5 then 3)
-      - Plan C - compress formats/toc_format.md so per-document context shrinks (speed and quality move together)
-      - Plan B - limited batching of k=2..3 same-directory neighbours, gated on a quality measurement
-      - Grouping is decided deterministically by script; AI grouping by hand is forbidden
-      - "Addendum (Issue #29) - continuous dispatch with claim/lease replaced foreground barrier waves; 12.6% makespan gain measured"
-      - Addendum 2 - the free-slot arithmetic moved into index_docs.py because window minus in_flight_groups must not be recomputed by AI
-      - Rejected - official multi-agent orchestration (not reachable from the SKILL runtime), and auto-selecting barrier vs continuous
+      - "Measurements: ~18s and ~24K tokens per document, effective parallelism verified at 10"
+      - Bottleneck is launch-count overhead and tail latency, not insufficient parallelism
+      - "Context rot as central concern: mixing documents in one context causes cross-document keyword misattribution"
+      - "Plan A: raise distributed default window from 5 to 10 (verified safe with 429 degradation to 5/3 for low tier)"
+      - "Plan C: compress formats/toc_format.md so per-document context shrinks (speed and quality move together)"
+      - "Plan B: limited batching of k=2-3 same-directory neighbours, gated on quality measurement"
+      - Grouping decided deterministically by script; AI grouping by hand forbidden
+      - "Continuous dispatch with claim/lease replaced foreground barrier waves: 12.6% makespan gain measured (Issue #29)"
+      - Free-slot arithmetic moved into index_docs.py because window minus in_flight_groups must not be recomputed by AI
+      - "Rejected: official multi-agent orchestration (not reachable from SKILL runtime) and auto-selecting barrier vs continuous"
     applicable_tasks:
-      - Changing the parallel window or the batch size of toc-updater fill
-      - Diagnosing slow or rate-limited indexing on a large corpus
-      - Deciding whether dispatch control belongs to a script or to the AI
-      - Reviewing extraction quality after a batching change
+      - Changing the parallel window or batch size of toc-updater fill
+      - Diagnosing slow or rate-limited indexing on large corpus
+      - Deciding whether dispatch control belongs to script or AI
+      - Reviewing extraction quality after batching change
       - Understanding why claim and lease exist in toc_store.py
     keywords:
       - ADR-006
@@ -129,36 +129,38 @@ docs:
       - single mode
   docs/specs/base/design/DES-005_toc_generation_flow.md:
     title: DES-005 key + path ToC Provider Design
-    purpose: Defines the design for the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, and merge.
+    purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and the SKILL argument contract
     content_details:
-      - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and an action payload
-      - action values - dispatch / wait / confirm / done / error, with agents[].prompt ready to pass through
-      - Core CLIs stay but SKILLs must not call them (a second entry point makes state diverge)
-      - store_dir(key) resolution - NFC-normalized slug, 40-char truncation, empty slug falls back to k
-      - Store layout - toc.yaml / .toc_checksums.yaml / .toc_work per key, .toc_work intentionally not gitignored
-      - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / OUTSIDE_ROOT / NOT_MARKDOWN rejections
-      - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
-      - The transcription phase sits between prepare and AI fill, closed into one wrapper block for withdrawal
-      - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
-      - JSON contract - status and error_code required, and the enum applies to rejected_paths[].reason
+      - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and action payload
+      - "action values: dispatch, wait, confirm, done, error with agents[].prompt ready to pass through"
+      - Core CLIs stay but SKILLs must not call them; a second entry point makes state diverge
+      - "SKILL argument contract: the spec is source of truth; upper layers pass --dirs-json and --paths-json"
+      - "Withdrawal vs breakage distinction: missing frontmatter dir allowed, unreadable dir is error; retried fill clears error state first"
+      - "store_dir(key) resolution: NFC-normalized slug, 40-char truncation, empty slug falls back to k"
+      - "Path validation flow: ABSOLUTE_PATH, PATH_TRAVERSAL, NOT_FOUND, NOT_MARKDOWN rejections; symlinks to external paths indexed when explicitly passed, confirmed only under --all"
+      - "desired-state diff against .toc_checksums.yaml: partial paths array deletes remainder"
+      - "merge_toc.py flow: backup, os.replace, validate, checksums update or restore on failure"
+      - "JSON contract: status and error_code required even on error, traceback breaks the contract"
     applicable_tasks:
-      - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
-      - Adding a script to the ToC pipeline or changing what the wrapper plumbs
-      - Changing the JSON output contract or the error_code enum
-      - Designing path validation for symlinks that escape the project root
-      - Deciding what the AI does versus what a script does in the pipeline
-      - Debugging continuation and .toc_work resume behavior
+      - Implementing or modifying index_docs.py, prepare_toc.py, or merge_toc.py
+      - Adding a script to ToC pipeline or changing what the wrapper plumbs
+      - Changing or removing SKILL arguments that upper layers call
+      - Changing JSON output contract or error_code enum
+      - Designing path validation for symlinks escaping project root
+      - Deciding what AI does versus what script does in pipeline
+      - Debugging continuation, retry of failed fills, and .toc_work resume behavior
+      - Deciding whether doc-advisor may refuse something the caller passed in
     keywords:
       - DES-005
       - index_docs.py
       - resolve_store_dir
       - prepare_toc.py
       - merge_toc.py
-      - fm_to_pending.py
+      - expand_dirs.py
       - desired-state sync
-      - find_escaping_symlink
+      - external symlink
       - ai_extracted_paths
-      - continuation
+      - "--dirs-json"
   docs/specs/base/design/DES-009_check_toc_freshness_design.md:
     title: DES-009 check-toc (ToC Freshness Check) Design
     purpose: Defines the design for check-toc SKILL that validates ToC freshness by comparing generation timestamp against a configurable age threshold, with deterministic judgment logic in a dedicated script and read-only metadata inspection.
@@ -219,57 +221,61 @@ docs:
       - search quality
   docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md:
     title: NFR-003 Standard Library Preferred Specification
-    purpose: Defines policy for Python library selection, preferring standard library but permitting external dependencies when performance requirements cannot be met.
+    purpose: Defines requirements for prioritizing Python standard library in search index implementation, with documented tolerance for external dependencies when necessary
     content_details:
-      - Library selection policy - standard library preferred unless performance requires external dependencies
-      - "Scope: search index construction, search execution, and result ranking"
-      - Error handling for missing external libraries with installation guidance
-      - Related requirement REQ-001 NFR-N01 on standard library-only usage
-      - "Historical context: Embedding removed in Issue #13, current key+path interface uses standard library only"
-      - "PyYAML adoption decision deferred to Issue #14"
+      - Library selection policy - standard library priority with external library tolerance
+      - Applicable scope - search index construction, execution, ranking
+      - Error handling for missing library installation
+      - Related requirements REQ-001 NFR-N01 for standard library only interface
+      - Current status - Embedding removed, key+path maintains standard library only
+      - Python 3.11 minimum support based on upstream EOL
+      - PyYAML adoption deferred - external dependency zero maintained
     applicable_tasks:
-      - Dependency selection during implementation
-      - Library compatibility evaluation
-      - Performance vs. standards trade-off assessment
+      - Search index implementation design
+      - External dependency review
+      - Library selection and version verification
+      - Python runtime version requirement verification
     keywords:
       - standard library
       - external dependencies
-      - Python libraries
-      - performance requirements
-      - REQ-001
-      - "Issue #14"
-      - "Issue #15"
+      - Python 3.11
+      - search index
+      - Embedding
+      - PyYAML
+      - NFR-003
+      - semantic search
   docs/specs/base/requirements/REQ-001_doc_advisor.md:
-    title: "REQ-001: doc-advisor Requirements Definition"
-    purpose: Defines core requirements for doc-advisor ToC indexing plugin including key-based management, document synchronization, search capabilities, and system architecture
+    title: REQ-001 doc-advisor Requirements Definition
+    purpose: Defines requirements for doc-advisor as a generic ToC Provider managing documents by opaque key plus project-root-relative paths without interpreting document classification
     content_details:
-      - key-based ToC management with opaque key handling
-      - desired-state synchronization with add/update/delete/unchanged tracking
-      - path input handling and validation (symlink, traversal, normalization)
-      - "single mode with reserved key 'all"
-      - ToC retrieval without lexical ranking
-      - deletion operations for full key or specific paths
-      - Python-only implementation with standard library
-      - SKILL structure with dispatcher and worker isolation
-      - script cooperation pattern with prepare_toc → agent → merge_toc phases
-      - directory expansion at SKILL layer
+      - Key unit ToC management with opaque keys and reserved all mode
+      - Desired-state sync using SHA-256 hash change detection for add/update/delete
+      - Path input validation rejecting absolute paths, traversal, and invalid targets
+      - Single mode (all) for project-root Markdown indexing with fixed exclusions
+      - ToC retrieval and search with lexical ranking-free extraction
+      - Deletion operations at key or path level
+      - Directory input expansion with glob support and system fixed exclusions in SKILL layer
+      - Layer responsibility boundary between script and AI metadata extraction
+      - Symlink policy for passed targets with cross-boundary warning transparency
+      - Python 3.11 minimum with no doc_type field
     applicable_tasks:
-      - Architecture and design specification
-      - feature implementation planning
-      - path validation and security policy definition
-      - metadata synchronization strategy
-      - ToC system setup and integration
+      - ToC Provider implementation and design
+      - Key and path interface validation
+      - Desired-state sync and change detection
+      - Path validation and symlink security review
+      - Single mode and exclusion pattern verification
+      - Script AI layer responsibility boundary testing
+      - Requirements compliance and acceptance criteria
     keywords:
-      - doc-advisor
-      - Table of Contents
-      - metadata indexing
-      - key management
-      - desired state
+      - key + path interface
+      - desired-state sync
+      - ToC Provider
       - path validation
-      - symlink security
-      - query-docs
-      - index-docs
-      - SKILL
+      - symlink policy
+      - single mode
+      - REQ-001
+      - functional requirements FR-N01 to FR-N09
+      - metadata extraction
   docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md:
     title: "REQ-002: Upgrade Requirements (v2.0 → Current)"
     purpose: Defines requirements for upgrading doc-advisor from legacy v2.0/v3.x to the current key+path provider, including legacy file detection, user asset protection, and migration guidance
@@ -438,7 +444,7 @@ docs:
       - UnicodeDecodeError
   docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md:
     title: DES-008 doc-advisor Frontmatter Design
-    purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, and script layout.
+    purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, script layout, and the write SKILL argument contract.
     content_details:
       - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
       - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
@@ -448,14 +454,15 @@ docs:
       - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
       - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
       - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
-      - scripts/frontmatter/ independence - no toc_store / toc_utils import and no self-discovery of targets
-      - fm_run.py wrapper - plan resolves targets, apply writes and verifies trust so the caller compares nothing
+      - Withdrawal by deleting one directory depends on the indexing side treating its absence as normal
+      - write-frontmatter argument contract - --paths / --dirs / --exclude / --format-command, with fm_run.py plan resolving targets and apply verifying trust
     applicable_tasks:
       - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
       - Changing the trust predicate or the frontmatter schema
       - Deciding where body_hash is stamped relative to formatting
       - Deciding whether a validation belongs to the write side or the read side
       - "Reviewing whether the type union update preserves other tools' markers"
+      - Changing the write-frontmatter SKILL arguments
       - Adding frontmatter to existing documents via write-frontmatter
       - Designing the write-back of AI extraction results
     keywords:
@@ -469,36 +476,6 @@ docs:
       - OKF
       - extracted_by
       - "--format-command"
-  docs/specs/frontmatter/plan/frontmatter_strategy.md:
-    title: Frontmatter Implementation Strategy
-    purpose: Specifies phased implementation strategy for frontmatter support, covering assumptions, risk-driven approach, four phases, risk mitigations, and design decisions.
-    content_details:
-      - Implementation assumptions and constraints (dedicated SKILL, scope to docs/ directory, independent scripts)
-      - "Four-phase implementation approach: foundation (fm_core/fm_read), augmentation (fm_write), integration (fm_to_pending), corpus repair (extracted_by tracking)"
-      - Risk-driven bottom-up approach justified by YAML parsing uncertainty without PyYAML dependency
-      - Line-preserving merge mechanism for unknown frontmatter key preservation
-      - Body hash normalization (CRLF → LF, trailing whitespace removal) and SHA-256 stamping
-      - Schema validation rules (type presence, field count 1-10, purpose max 200 chars, hash format validation)
-      - Risk assessment table covering 9 risks with phase-specific mitigations
-      - Six design decision points (D1-D6) requiring implementation judgment
-    applicable_tasks:
-      - Planning phased frontmatter implementation with risk-driven approach
-      - Evaluating YAML parsing and merging risks under PyYAML-free constraint
-      - Implementing line-preserving merge to protect existing frontmatter keys
-      - Designing trust judgment logic for frontmatter validation
-      - Integrating frontmatter transcription into index-docs workflow
-      - Validating round-trip preservation of unknown frontmatter keys
-    keywords:
-      - fm_core
-      - fm_read
-      - fm_write
-      - fm_to_pending
-      - body_hash
-      - line-preserving merge
-      - trust judgment
-      - frontmatter
-      - validate_toc
-      - extracted_by
   docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
     title: REQ-006 Frontmatter Metadata Requirements Specification
     purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.

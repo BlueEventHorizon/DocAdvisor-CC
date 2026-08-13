@@ -1,23 +1,22 @@
 # ToC checksums for key: specs
 # Auto-generated - do not edit
-generated_at: 2026-08-03T16:34:11Z
-file_count: 18
+generated_at: 2026-08-13T09:21:13Z
+file_count: 17
 checksums:
   docs/specs/base/design/ADR-002_query_skill_subagent_isolation.md: be8bb2cb7d5ae228ebd61e8e814fc83cbb4e6447cb64e5f3abd1f93fff840f0a
-  docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md: 402b17686a6c4f8a96bc7554b02f5b924693224e4a3e3ef8918014ae03c95c19
+  docs/specs/base/design/ADR-006_index_docs_parallel_fill_performance.md: 4c2fca650a8a65ce0fd55bc438f290cbfdce727b73caa1200377093f48630955
   docs/specs/base/design/DES-003_document_identifier.md: 2b4c9b49cbb55f9e95ef58c8498d77e4e4d1dfe7a3d9b63e4084f8fb7a810a48
   docs/specs/base/design/DES-004_document_model.md: 276c0fc2dab2eeda947cad32ccfeb2c055eff6701b8b383a3a5ec351ecf8d2ba
-  docs/specs/base/design/DES-005_toc_generation_flow.md: eb235b07d2328c8d024c17bbc279bc4779b908c2ba8afa570bd72700c3b8bc52
+  docs/specs/base/design/DES-005_toc_generation_flow.md: 8f3c3de1d5bf964172f7e19130c601582890384a9a6e08330f02fb0f7fabe9db
   docs/specs/base/design/DES-009_check_toc_freshness_design.md: 6a2e043198e2edff00319fc9446600bd3d435e4914e9cda853f05cde921a21b3
   docs/specs/base/requirements/FNC-002_zero_miss_search_accuracy_spec.md: 4813a5ae7434e7b0a695097002d2d70ff740d8c928ca5218cb60d7a1f268b56c
-  docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md: dd8c529cd223934fab9bfa644598644ccb652fc872dd61d2f6ed8a8d4991a0f6
-  docs/specs/base/requirements/REQ-001_doc_advisor.md: 4d219b8228f37455f68bfdf494bfe9c6b872c95463bf2351ea8255635febe10a
+  docs/specs/base/requirements/NFR-003_standard_library_preferred_spec.md: 64632773a533f641eb457f2cbf3cf522141f9913c8b6bfda91a7fc234be92455
+  docs/specs/base/requirements/REQ-001_doc_advisor.md: b2278172c527aa29da5b98f9b5248940bf333d284d650689bbe51b8ab1e022ff
   docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md: dc131af17de400940a367c041a2707bbb951f2d9002eace19f095ca1ecd7b39c
   docs/specs/base/requirements/REQ-003_versioned_migration.md: d9829a6da88357a5e97f7ae3389980460164252b8d219f832f97fae38bebc84f
   docs/specs/base/requirements/REQ-005_check_toc_freshness_spec.md: 0e2f8334b3ce48af1d23e0c80bdaa1156a13e5a9bdc13340c78c28ce6d7a1d60
   docs/specs/common/design/COMMON-DES-001_skill_base_design.md: 2223f06e144f74b7c9fd9dff0c6bcaae50096820f562558a4a5bdaa1a6997f05
   docs/specs/common/requirements/COMMON-REQ-001_versioned_migration.md: 2321be488a1552564901e5abd1a4a4fbf5ad5a75355ec3b5c6326e2336a4e047
   docs/specs/common/requirements/COMMON-REQ-002_error_handling_policy.md: de0c4ceeb2078e6cd12955fb10d6a87242fa126e1cdfab89a985aa33095868e2
-  docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md: e2601687d3177cacc66714021f23344130b3c68c1394cb2b2ab55fb3cbedb815
-  docs/specs/frontmatter/plan/frontmatter_strategy.md: d364bf357546cf6d85825eb91f16d9cf8a8be5c146f0ddfb91c805f7890869cf
+  docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md: c1aae825f5c24a63d6528f29a6019ffe45a7bac46a07d7a70bb63e92a681da98
   docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md: ed646b7b0907f013d6dfcea8f7009cc5d926101f7e260179a6f32849606145da
