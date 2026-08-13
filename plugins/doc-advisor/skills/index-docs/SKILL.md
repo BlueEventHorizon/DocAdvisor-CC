@@ -46,17 +46,17 @@ AI が担うのは次の 2 つだけである。
 /doc-advisor:index-docs --key <key> --paths-json '["docs/a.md"]'
 ```
 
-| Argument                 | Description                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                                |
-| `--dirs <dir>...`        | 索引するディレクトリ（複数指定可）。グロブメタ文字（`*` `?` `[`）を含めるとパターン展開                 |
-| `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                      |
-| `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                             |
-| `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                        |
-| `--paths-file <path>`    | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`{"paths": [...]}` ではない）            |
-| `--exclude <path>...`    | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                               |
-| `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                |
-| `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない |
+| Argument                 | Description                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `--key <key>`            | 対象 ToC の opaque key（上位層が決定）。`all` は予約語のため任意指定不可                                            |
+| `--dirs <dir>...`        | 索引するディレクトリ（複数指定可）。グロブメタ文字（`*` `?` `[`）を含めるとパターン展開                             |
+| `--dirs-json '[...]'`    | dirs の JSON 配列（**上位層が機械的に渡す形**。`--dirs` と併用可）                                                  |
+| `--paths <path>...`      | 索引する Markdown ファイル（複数指定可。`--dirs` と併用可）                                                         |
+| `--paths-json '[...]'`   | paths の JSON 配列（**上位層が機械的に渡す形**）                                                                    |
+| `--paths-file <path>`    | **paths 配列そのもの**を収めた JSON ファイル（`["docs/a.md"]`。`{"paths": [...]}` ではない）                        |
+| `--exclude <path>...`    | 確定した対象集合から除外するパス・ディレクトリ（`--dirs` / `--paths` のどちらでも効く。システム固定除外は常時適用） |
+| `--exclude-json '[...]'` | exclude の JSON 配列（**上位層が機械的に渡す形**。`--exclude` と併用可）                                            |
+| `--all`                  | 単体モード。予約 key `all` に解決し project root 以下の全 Markdown を対象にする。対象指定と併用できない             |
 
 > **JSON 形をそのまま渡す [MANDATORY]**: 上位層（forge の `update-db-rules` / `update-db-specs` 等）は `.doc_structure.yaml` から解決した配列を `--dirs-json` / `--exclude-json` で渡し、**本 SKILL を 1 回だけ呼ぶ**（再実行や引数の組み替えをしない）。受け取った JSON 形は**そのまま script へ渡す**こと。`--dirs` へ書き換えたり要素を並べ替えたりしない。script が両形を受け付けて連結する。
 
@@ -177,6 +177,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
 
 `action: done` で `ai_extracted_paths` が空でない場合のみ実行する。これらの文書は信頼できるフロントマターを持たなかったため AI 抽出で索引された。抽出結果を原本のフロントマターへ書き戻すと、以降その文書は転記だけで索引でき、結果は git を通じて全クローンへ伝播する（コーパスの自己修復）。
 
+**書き戻しの内容は今生成した ToC そのものであり、AI が作り直すものではない [MANDATORY]**。`toc.yaml` のエントリはフロントマターと同じ 5 フィールドを持つため、`write-frontmatter` に `--from-toc {key}` を渡せば script が転記する。**候補文書を自分で `Read` してメタデータを起草してはならない。**
+
 **ToC の生成完了「後」に行う [MANDATORY]**。索引という読み取り操作の副作用で原本に git diff が生じるのは驚きがあるためである（REQ-006 の制約）。ここまでの時点で原本は 1 バイトも変わっていない。
 
 1. `ai_extracted_paths` の一覧（件数とパス）を提示し、**書き戻すと原本の Markdown に diff が生じる**ことを明示して `AskUserQuestion` で確認する
@@ -191,12 +193,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
 
    ```
    Skill(skill: doc-advisor:write-frontmatter,
-         args: "--paths {approved_path_1} {approved_path_2}")
+         args: "--paths {approved_path_1} {approved_path_2} --from-toc {key}")
    ```
 
-   - 引数は **`--paths` のみ**。`write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
+   - 引数は **`--paths` と `--from-toc` のみ**。`--from-toc` に渡すのは今回索引した key（単体モードでは `all`）であり、これにより `write-frontmatter` は ToC の値を転記する
+   - `write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
    - **承認されなかった対象を渡してはならない**
-   - **ToC の JSON や `.toc_work/` を `write-frontmatter` に読ませてはならない**。候補パスは本 SKILL が引数として渡す
+   - **ToC の JSON や `.toc_work/` の中身を渡してはならない**。渡すのは key と候補パスだけであり、ToC の読み取りは script が行う
 
 > **集約結果をファイルに残さない [MANDATORY]**: `ai_extracted_paths` は実行中の確認を簡便にするための一時情報である（DES-008 §8.2）。候補一覧を別ファイル・作業ファイル・ToC へ書き出してはならない。「信頼できるフロントマターを持たない文書の集合」は `fm_read.py` でいつでも再計算できる。
 

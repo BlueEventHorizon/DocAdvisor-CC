@@ -130,34 +130,16 @@ class TestExpandBasic(ExpandTestBase):
 # exclude テスト
 # ===========================================================================
 
-class TestExpandExclude(ExpandTestBase):
-    """除外動作のテスト。"""
+class TestExpandSystemExclude(ExpandTestBase):
+    """システム固定除外のテスト。
 
-    def test_exclude_file(self):
-        """--exclude-json で特定ファイルを除外できる。"""
-        self._write_md("docs/keep.md")
-        self._write_md("docs/drop.md")
-        result = expand(["docs/"], exclude_json=["docs/drop.md"], project_root=self.project_root)
-        self.assertIn("docs/keep.md", result["paths"])
-        self.assertNotIn("docs/drop.md", result["paths"])
-
-    def test_exclude_subdirectory(self):
-        """--exclude-json でサブディレクトリを除外できる。"""
-        self._write_md("docs/main.md")
-        self._write_md("docs/draft/wip.md")
-        result = expand(["docs/"], exclude_json=["docs/draft"], project_root=self.project_root)
-        self.assertIn("docs/main.md", result["paths"])
-        self.assertNotIn("docs/draft/wip.md", result["paths"])
-
-    def test_exclude_trailing_slash_normalized(self):
-        """--exclude-json の末尾スラッシュは正規化される。"""
-        self._write_md("docs/keep.md")
-        self._write_md("docs/draft/wip.md")
-        result = expand(["docs/"], exclude_json=["docs/draft/"], project_root=self.project_root)
-        self.assertNotIn("docs/draft/wip.md", result["paths"])
+    **利用者指定の除外は本 script の責務ではない**（DES-005 §4.2.2 で適用点を対象集合の
+    確定後へ移した）。除外の意味論は `TestShouldExclude`、確定後の適用は
+    `TestFilterExcluded`（いずれも tests/scripts/test_toc_utils.py）が担保する。
+    """
 
     def test_system_exclude_always_applied(self):
-        """SYSTEM_EXCLUDE_PATTERNS は --exclude-json 指定なしでも常時適用される。"""
+        """SYSTEM_EXCLUDE_PATTERNS は走査中に常時適用される。"""
         self._write_md("docs/a.md")
         (self.project_root / "node_modules").mkdir()
         self._write_md("node_modules/pkg.md")
@@ -165,38 +147,11 @@ class TestExpandExclude(ExpandTestBase):
         self.assertIn("docs/a.md", result["paths"])
         self.assertNotIn("node_modules/pkg.md", result["paths"])
 
-    def test_system_exclude_applied_even_with_user_exclude(self):
-        """--exclude-json を指定してもシステム固定除外は機能する。"""
-        self._write_md("docs/a.md")
-        (self.project_root / "node_modules").mkdir()
-        self._write_md("node_modules/pkg.md")
-        result = expand(["docs/", "node_modules/"], exclude_json=["docs/draft/"], project_root=self.project_root)
-        self.assertNotIn("node_modules/pkg.md", result["paths"])
-
-    def test_exclude_bare_name_matches_any_level(self):
-        """裸名は任意階層のディレクトリ名にマッチする（Issue #30: should_exclude と統一）。"""
-        self._write_md("docs/specs/forge/plan/roadmap.md")
-        self._write_md("docs/specs/base/design/d.md")
-        result = expand(["docs/"], exclude_json=["plan"], project_root=self.project_root)
-        self.assertIn("docs/specs/base/design/d.md", result["paths"])
-        self.assertNotIn("docs/specs/forge/plan/roadmap.md", result["paths"])
-
-    def test_exclude_bare_name_does_not_match_filename(self):
-        """裸名はファイル名にはマッチしない（'plan' が 'planning.md' を除外しない）。"""
-        self._write_md("docs/planning.md")
-        self._write_md("docs/deployment_plan.md")
-        result = expand(["docs/"], exclude_json=["plan"], project_root=self.project_root)
-        self.assertIn("docs/planning.md", result["paths"])
-        self.assertIn("docs/deployment_plan.md", result["paths"])
-
-    def test_exclude_path_pattern_segment_boundary(self):
-        """'/' 含みパターンはセグメント境界でマッチし、前方部分一致で誤爆しない。"""
-        self._write_md("docs/specs/keep.md")
-        self._write_md("docs/spec/drop.md")
-        # パターン 'docs/spec' は 'docs/specs/...' に誤爆せず、'docs/spec/...' のみ除外する
-        result = expand(["docs/"], exclude_json=["docs/spec"], project_root=self.project_root)
-        self.assertIn("docs/specs/keep.md", result["paths"])
-        self.assertNotIn("docs/spec/drop.md", result["paths"])
+    def test_user_exclude_is_not_accepted(self):
+        """ユーザー除外を受け取らないこと（適用点が 2 つに戻らないための回帰テスト）。"""
+        with self.assertRaises(TypeError):
+            expand(["docs/"], exclude_json=["docs/drop.md"],
+                   project_root=self.project_root)
 
 
 # ===========================================================================
@@ -414,30 +369,6 @@ class TestExpandGlob(ExpandTestBase):
         rejected = [r["dir"] for r in result["rejected_dirs"]]
         self.assertIn("/tmp/**/*.md", rejected)
 
-    def test_glob_respects_user_exclude(self):
-        """グロブ収集にも --exclude-json が適用される。"""
-        self._write_md("docs/specs/base/design/keep.md")
-        self._write_md("docs/specs/base/design/drop.md")
-        result = expand(
-            ["docs/specs/**/design/"],
-            exclude_json=["docs/specs/base/design/drop.md"],
-            project_root=self.project_root,
-        )
-        self.assertIn("docs/specs/base/design/keep.md", result["paths"])
-        self.assertNotIn("docs/specs/base/design/drop.md", result["paths"])
-
-    def test_glob_respects_bare_name_exclude(self):
-        """グロブ収集でも裸名は任意階層のディレクトリ名にマッチする。"""
-        self._write_md("docs/specs/base/design/keep.md")
-        self._write_md("docs/specs/base/design/drafts/drop.md")
-        result = expand(
-            ["docs/specs/**/design/"],
-            exclude_json=["drafts"],
-            project_root=self.project_root,
-        )
-        self.assertIn("docs/specs/base/design/keep.md", result["paths"])
-        self.assertNotIn("docs/specs/base/design/drafts/drop.md", result["paths"])
-
     def test_glob_respects_system_exclude(self):
         """グロブが node_modules 等にマッチしてもシステム固定除外が効く。"""
         self._write_md("node_modules/pkg/design/x.md")
@@ -491,15 +422,11 @@ class TestExpandCli(ExpandTestBase):
         self.assertEqual(obj["status"], "ok")
         self.assertIn("docs/a.md", obj["paths"])
 
-    def test_cli_with_exclude(self):
-        """CLI で --exclude-json が機能する。"""
+    def test_cli_rejects_exclude_json(self):
+        """CLI がユーザー除外を受け取らないこと（適用点は対象集合の確定後）。"""
         self._write_md("docs/keep.md")
-        self._write_md("docs/drop.md")
-        proc = self._run("--dirs-json", '["docs/"]', "--exclude-json", '["docs/drop.md"]')
-        self.assertEqual(proc.returncode, 0)
-        obj = self._parse_stdout(proc)
-        self.assertIn("docs/keep.md", obj["paths"])
-        self.assertNotIn("docs/drop.md", obj["paths"])
+        proc = self._run("--dirs-json", '["docs/"]', "--exclude-json", '["docs/x.md"]')
+        self.assertNotEqual(proc.returncode, 0, "未知の引数として拒否される")
 
     def test_cli_invalid_json(self):
         """--dirs-json が不正 JSON の場合 status:error を返す。"""

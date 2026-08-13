@@ -300,12 +300,19 @@ class TestJsonContract(FmReadTestBase):
         self.assertEqual(STATUSES, frozenset({'ok', 'partial', 'error'}))
 
     def test_error_code_domain_is_fixed(self):
+        # KEY_EMPTY / TOC_NOT_FOUND は fm_run の書き戻し経路（--from-toc）が使う。
+        # fm_read 自身は key を扱わないが、値の定義は同一ディレクトリで共有する。
         self.assertEqual(
             ERROR_CODES,
-            frozenset({'INVALID_PATH', 'UNSUPPORTED_ARG', 'NOT_FOUND', 'READ_ERROR'}),
+            frozenset({
+                'INVALID_PATH', 'UNSUPPORTED_ARG', 'KEY_EMPTY', 'TOC_NOT_FOUND',
+                'NOT_FOUND', 'READ_ERROR',
+            }),
         )
         self.assertEqual(ErrorCode.INVALID_PATH, 'INVALID_PATH')
         self.assertEqual(ErrorCode.UNSUPPORTED_ARG, 'UNSUPPORTED_ARG')
+        self.assertEqual(ErrorCode.KEY_EMPTY, 'KEY_EMPTY')
+        self.assertEqual(ErrorCode.TOC_NOT_FOUND, 'TOC_NOT_FOUND')
         self.assertEqual(ErrorCode.NOT_FOUND, 'NOT_FOUND')
         self.assertEqual(ErrorCode.READ_ERROR, 'READ_ERROR')
 

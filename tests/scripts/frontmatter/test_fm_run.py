@@ -37,6 +37,10 @@ for _path in (FRONTMATTER_DIR, SCRIPTS_DIR):
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
+from merge_toc import write_toc_atomic
+from toc_store import CHECKSUMS_FILENAME, TOC_FILENAME, resolve_store_dir
+from toc_utils import calculate_file_hash, write_checksums_yaml
+
 from fm_core import MARKER, compute_body_hash, evaluate
 from fm_read import STATUS_ERROR, STATUS_OK, STATUS_PARTIAL
 from fm_run import (
@@ -105,9 +109,13 @@ class FmRunTestBase(unittest.TestCase):
             return f.read()
 
     def _run_cli(self, *args):
+        # CLI は入口で cwd を project root へ揃える（DES-005 §4.2.1）。
+        # CLAUDE_PROJECT_DIR が環境に残っていると tmpdir ではなくそちらへ移動する
+        # ため、明示的に外して cwd=tmpdir を project root として扱わせる。
+        env = {k: v for k, v in os.environ.items() if k != 'CLAUDE_PROJECT_DIR'}
         proc = subprocess.run(
             [sys.executable, FM_RUN_SCRIPT] + list(args),
-            capture_output=True, text=True, cwd=self.tmpdir,
+            capture_output=True, text=True, cwd=self.tmpdir, env=env,
         )
         out = proc.stdout.strip()
         self.assertTrue(out, f"stdout empty; stderr: {proc.stderr}")
@@ -355,6 +363,363 @@ class TestCliContract(FmRunTestBase):
         self.assertEqual(payload['status'], STATUS_OK)
         self.assertEqual(payload['counts']['trusted'], 1)
         self.assertTrue(payload['results'][0]['trust'])
+
+
+class TestFromToc(FmRunTestBase):
+    """ToC からの書き戻し（DES-008 §8.2）
+
+    検証の主眼は「AI がメタデータを作らずに書き戻しが完結すること」である。
+    `--entries-file` を一切渡さずに、ToC の値がそのまま原本へ入り、`body_hash` が
+    打刻されて信頼判定が真になることを確認する。
+    """
+
+    KEY = 'rules'
+
+    TOC_ENTRY = {
+        'title': 'Indexed Document',
+        'purpose': 'Serve as the transcription source for the write-back path',
+        'content_details': ['detail A', 'detail B'],
+        'applicable_tasks': ['task A'],
+        'keywords': ['fm_run', 'writeback'],
+    }
+
+    def _run_cli(self, *args):
+        """cwd = project root、CLAUDE_PROJECT_DIR は外して実行する。
+
+        `--from-toc` は project root から store_dir を解決するため、実行環境に
+        CLAUDE_PROJECT_DIR が残っていると別のプロジェクトの ToC を読みうる。
+        """
+        env = {k: v for k, v in os.environ.items() if k != 'CLAUDE_PROJECT_DIR'}
+        proc = subprocess.run(
+            [sys.executable, FM_RUN_SCRIPT] + list(args),
+            capture_output=True, text=True, cwd=self.tmpdir, env=env,
+        )
+        out = proc.stdout.strip()
+        self.assertTrue(out, f'stdout empty; stderr: {proc.stderr}')
+        return proc, json.loads(out)
+
+    def _prepare_toc(self, entries, checksum_paths=None):
+        """toc.yaml と checksums を本番の writer で用意する。"""
+        store_dir = resolve_store_dir(self.KEY, self.tmpdir)
+        store_dir.mkdir(parents=True, exist_ok=True)
+        write_toc_atomic(
+            entries, store_dir / TOC_FILENAME,
+            key=self.KEY, toc_rel=f'{store_dir.name}/{TOC_FILENAME}',
+        )
+        paths = entries if checksum_paths is None else checksum_paths
+        checksums = {
+            rel: calculate_file_hash(os.path.join(self.tmpdir, rel)) for rel in paths
+        }
+        write_checksums_yaml(checksums, store_dir / CHECKSUMS_FILENAME)
+
+    def test_apply_counts_share_one_basis(self):
+        """`total` が「対象として確定した件数」であり、内訳と基準が揃うこと。
+
+        転記経路で `total` を entry 数（転記できた分）だけにすると、同じ counts に載る
+        needs_ai / skipped / unreadable と基準が食い違い、SKILL の報告が「対象」から
+        needs_ai の分を落とす。
+        """
+        self._write('docs/a.md', BODY)                    # 転記対象
+        self._write('docs/b.md', trusted_document())      # 既に信頼 → skipped
+        self._write('docs/c.md', BODY)                    # ToC に無い → needs_ai
+        self._prepare_toc(
+            {'docs/a.md': dict(self.TOC_ENTRY), 'docs/b.md': dict(self.TOC_ENTRY)},
+            checksum_paths=['docs/a.md', 'docs/b.md'],
+        )
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY,
+            '--paths', 'docs/a.md', 'docs/b.md', 'docs/c.md',
+        )
+
+        counts = payload['counts']
+        self.assertEqual(counts['total'], 3, '対象として確定した件数')
+        self.assertEqual(
+            counts['written'] + counts['failed']
+            + counts['needs_ai'] + counts['skipped'] + counts['unreadable'],
+            counts['total'],
+            '内訳の合計が total に一致する（基準が 1 つ）',
+        )
+
+    def test_plan_carries_the_toc_metadata(self):
+        self._write('docs/a.md', BODY)
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
+
+        _proc, payload = self._run_cli(
+            'plan', '--from-toc', self.KEY, '--paths', 'docs/a.md')
+
+        self.assertEqual(payload['counts']['from_toc'], 1)
+        self.assertEqual(payload['counts']['needs_ai'], 0)
+        target = payload['targets'][0]
+        self.assertEqual(target['source'], 'toc')
+        self.assertEqual(
+            target['metadata'], self.TOC_ENTRY,
+            'plan は ToC の値をそのまま提示する（AI に作らせない）',
+        )
+        self.assertIn('toc_path', payload)
+
+    def test_plan_without_paths_covers_every_indexed_document(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/b.md', BODY)
+        self._prepare_toc({
+            'docs/a.md': dict(self.TOC_ENTRY),
+            'docs/b.md': dict(self.TOC_ENTRY),
+        })
+
+        _proc, payload = self._run_cli('plan', '--from-toc', self.KEY)
+
+        self.assertEqual(
+            sorted(t['path'] for t in payload['targets']),
+            ['docs/a.md', 'docs/b.md'],
+            '対象の列挙は script が行う（ToC を AI に手読みさせない）',
+        )
+
+    def test_apply_writes_the_toc_values_without_any_authored_entries(self):
+        path = self._write('docs/a.md', BODY)
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
+
+        proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY, '--paths', 'docs/a.md')
+
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(payload['status'], STATUS_OK)
+        self.assertEqual(payload['counts']['trusted'], 1)
+
+        result = evaluate(self._read(path))
+        self.assertTrue(result.trust, '書き込み後の文書は信頼判定を通る')
+        for field, value in self.TOC_ENTRY.items():
+            self.assertEqual(
+                result.metadata[field], value,
+                f'{field} が ToC の値と一致しない（転記なのに内容が変わっている）',
+            )
+        self.assertEqual(
+            result.metadata['body_hash'], compute_body_hash(BODY),
+            'body_hash は転記後に script が打刻する',
+        )
+        self.assertIn(MARKER, result.metadata['type'])
+
+    def test_apply_leaves_untranscribable_documents_to_the_ai(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/orphan.md', BODY)
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)},
+                          checksum_paths=['docs/a.md'])
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY,
+            '--paths', 'docs/a.md', 'docs/orphan.md',
+        )
+
+        self.assertEqual(payload['counts']['written'], 1)
+        self.assertEqual(payload['counts']['needs_ai'], 1)
+        self.assertEqual(
+            [item['path'] for item in payload['needs_ai']], ['docs/orphan.md'])
+        self.assertEqual(payload['needs_ai'][0]['toc_reason'], 'not_in_toc')
+        self.assertEqual(
+            self._read(os.path.join(self.tmpdir, 'docs/orphan.md')), BODY,
+            '転記できない文書は 1 バイトも変更しない',
+        )
+
+    def test_apply_does_not_transcribe_a_stale_entry(self):
+        path = self._write('docs/a.md', BODY)
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
+        edited = BODY + '\n索引後に本文を書き換えた。\n'
+        self._write('docs/a.md', edited)
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY, '--paths', 'docs/a.md')
+
+        self.assertEqual(payload['counts']['written'], 0)
+        self.assertEqual(payload['needs_ai'][0]['toc_reason'], 'body_changed')
+        self.assertEqual(
+            self._read(path), edited,
+            '陳腐化した ToC の値で原本を書き換えてはならない',
+        )
+
+    def test_already_trusted_document_is_skipped(self):
+        path = self._write('docs/a.md', trusted_document())
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
+        before = self._read(path)
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY, '--paths', 'docs/a.md')
+
+        self.assertEqual(payload['counts']['written'], 0)
+        self.assertEqual(payload['counts']['skipped'], 1)
+        self.assertEqual(self._read(path), before)
+
+    def test_missing_toc_is_an_error(self):
+        self._write('docs/a.md', BODY)
+
+        proc, payload = self._run_cli(
+            'plan', '--from-toc', 'nosuchkey', '--paths', 'docs/a.md')
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(payload['status'], STATUS_ERROR)
+        self.assertEqual(payload['error_code'], 'TOC_NOT_FOUND')
+
+    def test_empty_key_is_an_error(self):
+        proc, payload = self._run_cli('plan', '--from-toc', '   ')
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(payload['error_code'], 'KEY_EMPTY')
+
+    def test_from_toc_and_entries_are_mutually_exclusive(self):
+        self._write('entries.json', json.dumps([]))
+
+        proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY, '--entries-file', 'entries.json')
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+
+    def test_warnings_flag_index_anomalies_only(self):
+        """正常な状態（未索引 / 本文の更新）は warning にしない。
+
+        件数に比例して warning が並ぶと、エントリ不足のような本当の異常が埋もれる。
+        分類は targets[].toc_reason で全件見えるため情報は失われない。
+        """
+        self._write('docs/a.md', BODY)
+        self._write('docs/orphan.md', BODY)
+        broken = dict(self.TOC_ENTRY)
+        del broken['keywords']
+        self._write('docs/broken.md', BODY)
+        self._prepare_toc(
+            {'docs/a.md': dict(self.TOC_ENTRY), 'docs/broken.md': broken},
+            checksum_paths=['docs/a.md', 'docs/broken.md'],
+        )
+
+        _proc, payload = self._run_cli(
+            'plan', '--from-toc', self.KEY,
+            '--paths', 'docs/a.md', 'docs/orphan.md', 'docs/broken.md',
+        )
+
+        self.assertEqual(payload['counts']['needs_ai'], 2)
+        self.assertEqual(
+            [w for w in payload['warnings'] if 'orphan' in w], [],
+            '未索引の文書は正常な状態であり warning にしない',
+        )
+        self.assertTrue(
+            any('broken.md' in w and 'incomplete_entry' in w
+                for w in payload['warnings']),
+            'エントリが揃っていない ToC は索引側の異常として warning にする',
+        )
+
+    def test_plan_from_toc_never_modifies_the_sources(self):
+        path = self._write('docs/a.md', BODY)
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
+
+        self._run_cli('plan', '--from-toc', self.KEY, '--paths', 'docs/a.md')
+
+        self.assertEqual(self._read(path), BODY)
+
+
+class TestApplyCountsShapeIsStable(FmRunTestBase):
+    """apply の counts が `--from-toc` の有無で形を変えないこと。
+
+    `_target_counts` の docstring が「フィールドの有無で呼び出し側に分岐させると、
+    そこが新たな判断点になる」と述べており、plan はその通り常に同じ形を出す。apply
+    だけが `--from-toc` のときにフィールドを足す形になっていた。
+    """
+
+    ALWAYS = ('total', 'written', 'failed', 'changed', 'formatted', 'trusted',
+              'needs_ai', 'skipped', 'unreadable')
+
+    def test_entries_json_path_has_every_field(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli('apply', '--entries-json', entries)
+
+        for field in self.ALWAYS:
+            with self.subTest(field=field):
+                self.assertIn(field, payload['counts'])
+        self.assertEqual(payload['counts']['needs_ai'], 0)
+        self.assertEqual(payload['counts']['skipped'], 0)
+        self.assertEqual(payload['counts']['unreadable'], 0)
+
+
+class TestExcludeAppliesToTheResolvedSet(FmRunTestBase):
+    """`--exclude` が対象の出どころによらず効くこと。
+
+    以前はディレクトリ展開の内側でしか適用しておらず、`--dirs` を伴わない指定
+    （明示 paths のみ / ToC 全件）では黙って無視されていた。とくに
+    `--from-toc --exclude`（`--dirs` なし）は対象 0 件から全件フォールバックへ落ち、
+    「除外して」と指定した原本まで書き換えた（指定と正反対の結果）。
+    """
+
+    def test_exclude_filters_explicit_paths(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/b.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'plan', '--paths', 'docs/a.md', 'docs/b.md', '--exclude', 'docs/b.md'
+        )
+
+        self.assertEqual([t['path'] for t in payload['targets']], ['docs/a.md'])
+
+    def test_exclude_filters_expanded_dirs(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/skip/b.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'plan', '--dirs', 'docs/', '--exclude', 'docs/skip'
+        )
+
+        self.assertEqual([t['path'] for t in payload['targets']], ['docs/a.md'])
+
+    def test_excluded_count_is_reported(self):
+        self._write('docs/a.md', BODY)
+        self._write('docs/b.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'plan', '--paths', 'docs/a.md', 'docs/b.md', '--exclude', 'docs/b.md'
+        )
+
+        self.assertTrue(
+            any('--exclude' in w for w in payload['warnings']),
+            '黙って落とさず件数を報告する',
+        )
+
+
+class TestApplyRejectsTargetArgsWithEntries(FmRunTestBase):
+    """`--entries-*` と対象指定の併用を黙って無視しないこと。
+
+    無視すると「対象を絞ったつもりの指定が効かないまま原本へ書き込む」ことになる。
+    """
+
+    def test_paths_with_entries_json_is_an_error(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli(
+            'apply', '--entries-json', entries, '--paths', 'b.md'
+        )
+
+        self.assertEqual(payload['status'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths', payload['message'])
+
+    def test_dirs_and_exclude_are_reported_together(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli(
+            'apply', '--entries-json', entries, '--dirs', 'docs/', '--exclude', 'x/'
+        )
+
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--dirs', payload['message'])
+        self.assertIn('--exclude', payload['message'])
+
+    def test_target_args_are_still_accepted_with_from_toc(self):
+        """`--from-toc` との併用は従来どおり有効（過剰な拒否を防ぐ）。"""
+        self._write('a.md', BODY)
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', 'nosuchkey', '--paths', 'a.md'
+        )
+
+        self.assertNotEqual(payload.get('error_code'), 'UNSUPPORTED_ARG')
 
 
 if __name__ == '__main__':

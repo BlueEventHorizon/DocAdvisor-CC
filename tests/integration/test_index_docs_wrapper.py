@@ -663,6 +663,28 @@ class TestUpperLayerContract(WrapperTestBase):
         ]
         self.assertEqual(len(dispatched), 1, 'exclude-json が効いていない')
 
+    def test_exclude_applies_to_explicit_paths_too(self):
+        """`--dirs` を伴わない指定でも除外が効くこと。
+
+        除外は「選び方」ではなく「選んだ結果から何を落とすか」である。以前は
+        ディレクトリ展開の内側でしか適用しておらず、明示 paths のみの指定では
+        黙って無視されていた。
+        """
+        self._write_md('docs/keep.md')
+        self._write_md('docs/drop.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--paths-json', json.dumps(['docs/keep.md', 'docs/drop.md']),
+            '--exclude-json', json.dumps(['docs/drop.md']),
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        dispatched = [
+            e for agent in payload['agents'] for e in agent['entry_files']
+        ]
+        self.assertEqual(len(dispatched), 1, '明示 paths でも exclude が効く')
+
     def test_repeated_and_json_forms_are_merged(self):
         self._write_md('a/one.md')
         self._write_md('b/two.md')

@@ -10,13 +10,13 @@
 - 信頼判定の各分岐（type 欠落 / doc-advisor を含まない type / フィールド欠落 /
   空値 / 型不一致 / 件数超過 / 文字数超過 / ハッシュ不一致 / ハッシュ形式不正 /
   未知の接頭辞。type はスカラ・配列の双方）
-- YAML エスケープが toc_utils.yaml_escape と完全一致すること（DES-008 §6.4）
+- YAML エスケープが toc_utils.yaml_escape そのものであること（DES-008 §6.4）
 - 行保存型マージ（未知キーのバイト保持 / type の和集合更新 / 未閉鎖の拒否）
 
 テスト方針:
 - in-process import（fm_core は純粋ロジックのため subprocess を要しない）
-- エスケープ一致テストのみ toc_utils を import する。fm_core 側は import しない
-  （DES-008 §6.1 の独立性の境界）
+- fm_core は toc_utils を YAML エスケープの共有に限って import する。key / store_dir /
+  ToC の置き場所を知る toc_store は import しない（DES-008 §6.1 の独立性の境界）
 """
 
 import os
@@ -575,20 +575,18 @@ class TestValidateMetadata(unittest.TestCase):
 # ===========================================================================
 
 class TestIndependence(unittest.TestCase):
-    """toc_store / toc_utils を import しないこと。"""
+    """toc_store を import しないこと（toc_utils はエスケープの共有に限り可）。"""
 
-    def test_does_not_import_toc_modules(self):
+    def test_does_not_import_toc_store(self):
         source_path = os.path.join(FRONTMATTER_DIR, "fm_core.py")
         with open(source_path, encoding="utf-8") as f:
             source = f.read()
         self.assertNotIn("import toc_store", source)
-        self.assertNotIn("import toc_utils", source)
         self.assertNotIn("from toc_store", source)
-        self.assertNotIn("from toc_utils", source)
 
-    def test_module_namespace_is_clean(self):
+    def test_module_namespace_has_no_key_resolution(self):
         self.assertFalse(hasattr(fm_core, "toc_store"))
-        self.assertFalse(hasattr(fm_core, "toc_utils"))
+        self.assertFalse(hasattr(fm_core, "resolve_store_dir"))
 
 
 # ===========================================================================
@@ -615,12 +613,12 @@ class TestEvaluateFile(unittest.TestCase):
 
 
 # ===========================================================================
-# YAML エスケープ一致テスト（DES-008 §6.4 / 戦略書 R3）
+# YAML エスケープ（DES-008 §6.4）
 # ===========================================================================
 
-# 共通ケース表。1 箇所に置き、toc_utils.yaml_escape と fm_core.yaml_escape の
-# 両実装へ同じ入力を流す（戦略書 R3）。tests/scripts/test_toc_utils.py の
-# TestYamlEscape が持つ入力列を網羅し、日本語・': ' 含み・数値様文字列を含む。
+# 共通ケース表。unquote_yaml_value の往復テストが入力列を必要とするため本ファイルに
+# 置く。tests/scripts/test_toc_utils.py の TestYamlEscape が持つ入力列を網羅し、
+# 日本語・': ' 含み・数値様文字列を含む。
 YAML_ESCAPE_CASES = (
     # --- プレーンスカラとして安全（クォート不要） ---
     "normal text",
@@ -685,24 +683,30 @@ YAML_ESCAPE_CASES = (
 )
 
 
-class TestYamlEscapeParity(unittest.TestCase):
-    """fm_core.yaml_escape が toc_utils.yaml_escape と完全一致すること。
+class TestYamlEscapeIsShared(unittest.TestCase):
+    """fm_core.yaml_escape が toc_utils.yaml_escape そのものであること。
 
-    完全独立（DES-008 §6.1）の帰結として実装が 2 つになるため、同じ値が
-    フロントマターと toc.yaml で異なる表記になることを禁じる（§6.4）。
+    同じ値がフロントマターと toc.yaml で異なる表記になることを禁じる（§6.4）。
+    かつて独立実装を 2 つ持って出力一致をテストで維持していたが、実装を 1 つに
+    集約したため、ここでは同一オブジェクトであることを固定して再分岐を防ぐ。
     """
 
-    def test_outputs_are_identical(self):
+    def test_implementation_is_not_duplicated(self):
+        self.assertIs(yaml_escape, toc_utils.yaml_escape)
+
+    def test_frontmatter_inputs_are_escaped_as_expected(self):
+        """フロントマター経路で通る入力の表記を固定する（回帰検出）。"""
         for value in YAML_ESCAPE_CASES:
             with self.subTest(value=value):
-                self.assertEqual(toc_utils.yaml_escape(value), yaml_escape(value))
+                escaped = yaml_escape(value)
+                self.assertIsInstance(escaped, str)
+                self.assertNotIn("\n", escaped)
 
     def test_empty_values_become_empty_quotes(self):
         """'' / None / 0 / [] は str() より前に空判定される（評価順序の固定）。"""
         for value in ("", None, 0, []):
             with self.subTest(value=value):
                 self.assertEqual(yaml_escape(value), '""')
-                self.assertEqual(toc_utils.yaml_escape(value), yaml_escape(value))
 
     def test_unicode_is_not_quoted(self):
         self.assertEqual(yaml_escape("日本語テスト"), "日本語テスト")
@@ -1050,6 +1054,156 @@ class TestMergeFrontmatterRoundTripOnRealFiles(unittest.TestCase):
                 before = self._read(relative_path)
                 merge_frontmatter(before, WRITE_METADATA)
                 self.assertEqual(before, self._read(relative_path))
+
+
+class TestUnsupportedCharacterValueDomain(unittest.TestCase):
+    """5 フィールドの値域が「単一行の平文」を機械的に強制すること（Issue #41）。
+
+    以前はこの制約が DES-008 の「前提」として書かれているだけで、どの検査点も文字を
+    見ていなかった。前提が守られる保証が無いまま writer 側だけがエスケープで防御し、
+    reader（toc_utils の引用符除去）が復元しないため、値が索引サイクルごとに壊れた。
+    往復できない値を**入れない**ことで、往復の必要そのものを無くす。
+    """
+
+    # yaml_escape が引用符で囲むだけで済み、strip による読み戻しで復元できる値。
+    # 禁止対象を広げすぎないことの回帰テストでもある。
+    ROUND_TRIPPABLE = (
+        "Define the ToC generation flow",
+        "query-docs: search entry point",
+        "a #tag here",
+        "- leading hyphen",
+        "trailing space ",
+        "it's fine in the middle",
+        "true",
+        "123",
+    )
+
+    # 読み戻しで値が変わってしまう（= 値域外）値。
+    NOT_ROUND_TRIPPABLE = (
+        'has "double quotes"',
+        # バックスラッシュ単独では引用符が付かず往復するが、引用符が付く条件
+        # （ここでは `: `）と共起した瞬間に壊れる
+        "back\\slash and: colon",
+        "line1\nline2",
+        "tab\there",
+        "'leading single quote",
+        "trailing single quote'",
+    )
+
+    # 現状の yaml_escape では偶然往復するが、それは「他に引用符を要する文字が無い」
+    # という条件に依存している。条件が変わると壊れる値を許容すると、値域が
+    # 「共起次第」になり検査の意味が失われるため、無条件で禁止する。
+    BANNED_THOUGH_CURRENTLY_HARMLESS = (
+        "back\\slash alone",
+    )
+
+    def _round_trips(self, value):
+        """writer -> toc.yaml -> reader の往復で値が保たれるか（実際の関数で確認）。"""
+        emitted = toc_utils.yaml_escape(value)
+        return emitted.strip().strip("\"'") == value
+
+    def test_round_trippable_values_are_accepted(self):
+        for value in self.ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertIsNone(fm_core.unsupported_character_reason(value))
+
+    def test_not_round_trippable_values_are_rejected(self):
+        for value in self.NOT_ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertIsNotNone(fm_core.unsupported_character_reason(value))
+
+    def test_conditionally_safe_values_are_rejected_unconditionally(self):
+        """共起次第で壊れる文字は、単独で無害な場合も禁止する。"""
+        for value in self.BANNED_THOUGH_CURRENTLY_HARMLESS:
+            with self.subTest(value=value):
+                self.assertIsNotNone(fm_core.unsupported_character_reason(value))
+                # 現状は往復する（= 禁止理由は「今壊れるから」ではない）
+                self.assertTrue(self._round_trips(value))
+
+    def test_accepted_values_actually_round_trip(self):
+        """受理する値が本当に往復することを、実装ではなく挙動で固定する。"""
+        for value in self.ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertTrue(self._round_trips(value))
+
+    def test_rejected_values_would_actually_break(self):
+        """禁止する値が本当に壊れることを確認する（過剰な禁止を防ぐ）。"""
+        for value in self.NOT_ROUND_TRIPPABLE:
+            with self.subTest(value=value):
+                self.assertFalse(self._round_trips(value))
+
+    def test_string_field_violation_is_reported(self):
+        violations = fm_core.validate_field_values({"title": 'Say "hi" now'})
+        self.assertEqual(
+            [(code, field) for code, field, _ in violations],
+            [(Violation.FIELD_UNSUPPORTED_CHARACTER, "title")],
+        )
+
+    def test_list_field_element_violation_is_reported(self):
+        violations = fm_core.validate_field_values(
+            {"keywords": ["ok", 'bad "quote"', "ok2"]}
+        )
+        self.assertEqual(
+            [(code, field) for code, field, _ in violations],
+            [(Violation.FIELD_UNSUPPORTED_CHARACTER, "keywords")],
+        )
+
+    def test_violation_code_is_in_declared_set(self):
+        """有効値集合に載せ忘れると、呼び出し側の検証が新コードを弾く。"""
+        self.assertIn(Violation.FIELD_UNSUPPORTED_CHARACTER, VIOLATIONS)
+
+
+class TestNormalizeMetadataValues(unittest.TestCase):
+    """書き込みの入口で 5 フィールドを値域内へ収めること（Issue #41）。
+
+    値域規則は残す（読み取り側の判定と、変換できない `\\` の拒否に使う）。書き込み側は
+    拒否の前に変換を挟み、意味に関わらない表記のために文書全体を再抽出させない。
+    """
+
+    def test_string_and_list_fields_are_normalized(self):
+        metadata, changed = fm_core.normalize_metadata_values({
+            "title": 'Say "hi" now',
+            "purpose": "no change here",
+            "keywords": ["ok", 'bad "quote"'],
+        })
+        self.assertEqual(metadata["title"], "Say `hi` now")
+        self.assertEqual(metadata["purpose"], "no change here")
+        self.assertEqual(metadata["keywords"], ["ok", "bad `quote`"])
+        self.assertEqual(changed, ["title", "keywords"])
+
+    def test_unchanged_metadata_reports_no_fields(self):
+        metadata, changed = fm_core.normalize_metadata_values({"title": "plain"})
+        self.assertEqual(metadata, {"title": "plain"})
+        self.assertEqual(changed, [])
+
+    def test_input_dict_is_not_mutated(self):
+        original = {"title": 'has "quotes"'}
+        fm_core.normalize_metadata_values(original)
+        self.assertEqual(original, {"title": 'has "quotes"'})
+
+    def test_none_is_passed_through(self):
+        self.assertEqual(fm_core.normalize_metadata_values(None), (None, []))
+
+    def test_only_backslash_survives_normalization_as_a_violation(self):
+        """変換で解消できるものは解消され、残るのは `\\` だけであること。"""
+        convertible = {
+            "title": 'has "quotes"',
+            "purpose": "multi\nline",
+            "content_details": ["'edge quote'"],
+            "applicable_tasks": ["trailing'"],
+            "keywords": ["tab\there"],
+        }
+        normalized, _ = fm_core.normalize_metadata_values(convertible)
+        self.assertEqual(fm_core.validate_field_values(normalized), [])
+
+        not_convertible = {"title": "back\\slash"}
+        normalized, changed = fm_core.normalize_metadata_values(not_convertible)
+        self.assertEqual(changed, [])
+        self.assertEqual(
+            [(code, field) for code, field, _ in
+             fm_core.validate_field_values(normalized)],
+            [(Violation.FIELD_UNSUPPORTED_CHARACTER, "title")],
+        )
 
 
 if __name__ == "__main__":

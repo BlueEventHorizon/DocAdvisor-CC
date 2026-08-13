@@ -749,5 +749,240 @@ class TestErrorCodeIntegration(unittest.TestCase):
                           f'{code} must be a defined error_code')
 
 
+class TestFilterExcluded(unittest.TestCase):
+    """除外を「確定した対象集合」へ適用すること。
+
+    除外は「選び方」ではなく「選んだ結果から何を落とすか」である。ディレクトリ展開の
+    内側だけで適用すると、`--dirs` を伴わない指定で黙って無視される。
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp()
+        self.root = Path(self._tmp)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_no_patterns_keeps_everything(self):
+        kept, excluded = toc_utils.filter_excluded(['docs/a.md'], self.root, [])
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, [])
+
+    def test_file_pattern_excludes_that_file_only(self):
+        kept, excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/b.md'], self.root, ['docs/b.md']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, ['docs/b.md'])
+
+    def test_subtree_pattern_excludes_the_subtree(self):
+        kept, excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/draft/b.md'], self.root, ['docs/draft']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, ['docs/draft/b.md'])
+
+    def test_bare_directory_name_matches_at_any_depth(self):
+        kept, _excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/x/draft/b.md'], self.root, ['draft']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+
+    def test_trailing_slash_is_normalized(self):
+        kept, excluded = toc_utils.filter_excluded(
+            ['docs/a.md', 'docs/draft/b.md'], self.root, ['docs/draft/']
+        )
+        self.assertEqual(kept, ['docs/a.md'])
+        self.assertEqual(excluded, ['docs/draft/b.md'])
+
+    def test_semantics_match_should_exclude(self):
+        """判定は should_exclude を共有する（規則を 2 実装に分けない）。"""
+        paths = ['docs/a.md', 'docs/plan/b.md', 'docs/planning.md']
+        kept, _excluded = toc_utils.filter_excluded(paths, self.root, ['plan'])
+        self.assertEqual(
+            kept, ['docs/a.md', 'docs/planning.md'],
+            "裸名はディレクトリ名の完全一致であり planning.md を落とさない",
+        )
+
+
+class TestEnsureProjectRootCwd(unittest.TestCase):
+    """cwd を project root へ揃えることで、パスの基準が 1 つになること（Issue #41）。
+
+    project-root-relative なパスを「結合して開く」作法と「そのまま開く」作法が同じ
+    実行の中で交差しており、cwd と project root が違えば別のファイルを指した。一致を
+    検査して弾くのでは 2 つの作法が残るため、基準を揃えて食い違いが起こり得ない
+    状態にする。
+    """
+
+    def setUp(self):
+        self._cwd = os.getcwd()
+        self._env = os.environ.get('CLAUDE_PROJECT_DIR')
+        self._tmp = tempfile.mkdtemp()
+        self.root = Path(self._tmp) / 'root'
+        (self.root / 'sub').mkdir(parents=True)
+
+    def tearDown(self):
+        os.chdir(self._cwd)
+        if self._env is None:
+            os.environ.pop('CLAUDE_PROJECT_DIR', None)
+        else:
+            os.environ['CLAUDE_PROJECT_DIR'] = self._env
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_cwd_moves_to_project_root(self):
+        os.environ['CLAUDE_PROJECT_DIR'] = str(self.root)
+        os.chdir(self.root / 'sub')
+
+        returned = toc_utils.ensure_project_root_cwd()
+
+        self.assertEqual(Path(os.getcwd()).resolve(), self.root.resolve())
+        self.assertEqual(returned, self.root.resolve())
+
+    def test_both_conventions_resolve_to_the_same_file(self):
+        """結合する作法とそのまま開く作法が同一ファイルを指すこと（本来の目的）。"""
+        os.environ['CLAUDE_PROJECT_DIR'] = str(self.root)
+        (self.root / 'a.md').write_text('root side', encoding='utf-8')
+        (self.root / 'sub' / 'a.md').write_text('sub side', encoding='utf-8')
+        os.chdir(self.root / 'sub')
+
+        project_root = toc_utils.ensure_project_root_cwd()
+
+        joined = (project_root / 'a.md').read_text(encoding='utf-8')
+        as_is = Path('a.md').read_text(encoding='utf-8')
+        self.assertEqual(joined, as_is)
+        self.assertEqual(joined, 'root side')
+
+    def test_already_at_project_root_is_a_no_op(self):
+        os.environ['CLAUDE_PROJECT_DIR'] = str(self.root)
+        os.chdir(self.root)
+
+        toc_utils.ensure_project_root_cwd()
+
+        self.assertEqual(Path(os.getcwd()).resolve(), self.root.resolve())
+
+
+class TestNormalizeFieldValue(unittest.TestCase):
+    """メタデータ値を、意味を変えずに値域内へ収めること（Issue #41）。
+
+    値域から外れる文字のうち意味を保つ代替があるものは、拒否せず書き込みの入口で
+    変換する。拒否すると文字 1 つのために文書のメタデータ全体が AI 再抽出へ回るが、
+    原因は意味に関わらない表記であり、その費用を払う理由がない。
+    """
+
+    def _round_trips(self, value):
+        emitted = toc_utils.yaml_escape(value)
+        return emitted.strip().strip('"\'') == value
+
+    def test_double_quotes_become_backticks(self):
+        got, changed = toc_utils.normalize_field_value('Say "hi" now')
+        self.assertEqual(got, 'Say `hi` now')
+        self.assertTrue(changed)
+
+    def test_newlines_and_tabs_become_single_spaces(self):
+        got, changed = toc_utils.normalize_field_value('a\nb\tc')
+        self.assertEqual(got, 'a b c')
+        self.assertTrue(changed)
+
+    def test_edge_single_quotes_become_backticks(self):
+        self.assertEqual(
+            toc_utils.normalize_field_value("'all' reserved key")[0],
+            "`all' reserved key",
+        )
+        self.assertEqual(
+            toc_utils.normalize_field_value("trailing quote'")[0],
+            'trailing quote`',
+        )
+
+    def test_interior_single_quote_is_preserved(self):
+        """変換範囲は最小に保つ（両端だけが読み側で問題になる）。"""
+        got, changed = toc_utils.normalize_field_value("doesn't break")
+        self.assertEqual(got, "doesn't break")
+        self.assertFalse(changed)
+
+    def test_backslash_is_not_converted(self):
+        """意味を保つ代替が存在しないため変換しない（値域検証側で拒否する）。"""
+        got, changed = toc_utils.normalize_field_value('a\\nb')
+        self.assertEqual(got, 'a\\nb')
+        self.assertFalse(changed)
+
+    def test_round_trippable_values_are_left_untouched(self):
+        for value in ('query-docs: entry point', 'a #tag', '- hyphen', 'ends with space '):
+            with self.subTest(value=value):
+                got, changed = toc_utils.normalize_field_value(value)
+                self.assertEqual(got, value)
+                self.assertFalse(changed)
+
+    def test_normalized_values_round_trip(self):
+        for raw in (
+            'has "quotes"',
+            "'quoted' phrase",
+            "ends with quote'",
+            'multi\nline\ttext',
+            'plain text',
+        ):
+            with self.subTest(raw=raw):
+                normalized, _ = toc_utils.normalize_field_value(raw)
+                self.assertTrue(self._round_trips(normalized))
+
+    def test_non_string_is_returned_as_is(self):
+        self.assertEqual(toc_utils.normalize_field_value(None), (None, False))
+        self.assertEqual(toc_utils.normalize_field_value(7), (7, False))
+
+
+class TestSanitizeUncontrolledText(unittest.TestCase):
+    """内容を統制できない値（捕捉した例外メッセージ等）を入口で正規化すること。
+
+    メタデータ 5 フィールドは値域規則で「単一行の平文」を強制できるが、例外メッセージ
+    は内容を選べないため同じ制約を課せない。そこで入口で正規化する（Issue #41）。
+    エスケープに頼らないのは、読み側（parse_simple_yaml / load_existing_toc）が
+    引用符を外すだけでエスケープを復元しないためである。
+    """
+
+    def _round_trips(self, value):
+        emitted = toc_utils.yaml_escape(value)
+        return emitted.strip().strip('"\'') == value
+
+    def test_real_exception_message_round_trips_after_sanitize(self):
+        """正規化前は壊れ、正規化後は往復することを実際の例外で固定する。"""
+        try:
+            open('does-not-exist-for-test.md')
+        except OSError as e:
+            raw = f'{e.__class__.__name__}: {e}'
+        self.assertFalse(self._round_trips(raw))
+        self.assertTrue(self._round_trips(toc_utils.sanitize_uncontrolled_text(raw)))
+
+    def test_quotes_become_backticks(self):
+        self.assertEqual(
+            toc_utils.sanitize_uncontrolled_text('said "hi" and \'bye\''),
+            'said `hi` and `bye`',
+        )
+
+    def test_newlines_and_tabs_collapse_to_single_space(self):
+        self.assertEqual(
+            toc_utils.sanitize_uncontrolled_text('a\nb\tc\r\nd'), 'a b c d'
+        )
+
+    def test_backslash_is_dropped(self):
+        self.assertEqual(
+            toc_utils.sanitize_uncontrolled_text('path\\to\\thing'), 'pathtothing'
+        )
+
+    def test_none_becomes_empty_string(self):
+        self.assertEqual(toc_utils.sanitize_uncontrolled_text(None), '')
+
+    def test_result_always_round_trips(self):
+        for raw in (
+            'plain text',
+            'has "quotes"',
+            "ends with quote'",
+            'back\\slash and: colon',
+            'multi\nline\ttext',
+            "'edges'",
+        ):
+            with self.subTest(raw=raw):
+                sanitized = toc_utils.sanitize_uncontrolled_text(raw)
+                self.assertTrue(self._round_trips(sanitized))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,33 @@
+name: tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      # 下限が落ちたのか最新版が落ちたのかを 1 回の実行で切り分けるため、
+      # 片方の失敗で他方を打ち切らない。
+      fail-fast: false
+      matrix:
+        # 下限（REQ-001 NFR-N01）と最新版の 2 点。下限を宣言するだけでは
+        # 検証されないため、宣言した版そのものでテストを回す。
+        python-version: ["3.11", "3.14"]
+    name: unittest (Python ${{ matrix.python-version }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 外部依存ゼロ（REQ-001 NFR-N01）のため、依存のインストール手順は持たない。
+      # ここに pip install が現れたらそれ自体が方針違反の兆候である。
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v

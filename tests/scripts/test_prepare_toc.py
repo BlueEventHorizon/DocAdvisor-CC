@@ -388,8 +388,6 @@ class TestSingleModeCollection(PrepareTestBase):
 
     def test_root_external_symlink_excluded(self):
         """root 外実体を指す symlink は除外される（§5.3）。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         # project root 外に実体を作る
         outside_dir = tempfile.mkdtemp()
         try:
@@ -413,8 +411,6 @@ class TestSingleModeCollection(PrepareTestBase):
 
     def test_root_external_symlink_included_when_approved(self):
         """承認済み（allow_external）の越境 symlink は --all でも収集対象に含まれる。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside_dir = tempfile.mkdtemp()
         try:
             outside_md = Path(outside_dir) / "external.md"
@@ -435,8 +431,6 @@ class TestSingleModeCollection(PrepareTestBase):
 
     def test_internal_symlink_included(self):
         """root 内実体を指す symlink は収集対象（重複排除は inode で行われる）。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         target = self._write_md("docs/real.md")
         link = self.project_root / "alias.md"
         try:
@@ -563,8 +557,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
 
     def test_external_is_indexed_not_pending(self):
         """越境 symlink は索引対象に入り、warning 用に集計される。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             norm, rejected, ext = validate_paths(["linked.md"], self.project_root)
@@ -577,8 +569,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
 
     def test_dir_symlink_aggregates_to_one_entry(self):
         """ディレクトリ symlink 配下の複数ファイルは symlink 1 個に集約して報告される。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_dir("ext", ["x.md", "y.md", "z.md"])
         try:
             norm, _rejected, ext = validate_paths(
@@ -606,8 +596,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
         forge のような上位層は index-docs を 1 回だけ呼び、確認に答える経路を
         持たない。ここで止めると索引が動かないまま理由も伝わらない。
         """
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             proc = self._run('--key', 'rules', '--paths-json', '["linked.md"]')
@@ -625,8 +613,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
 
     def test_cli_explicit_paths_warning_names_the_resolved_target(self):
         """warning は解決先の実体パスと件数を含む（注意喚起として意味を持たせる）。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_dir("ext", ["x.md", "y.md"])
         try:
             proc = self._run(
@@ -649,8 +635,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
         走査で見つかった symlink は誰も索引対象として渡していないため、
         project root の外へ勝手に広げない。
         """
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             proc = self._run('--all')
@@ -667,8 +651,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
 
     def test_cli_single_mode_allow_indexes_it(self):
         """--all + 承認で索引される。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             proc = self._run('--all', '--allow-external-json', '["linked.md"]')
@@ -681,8 +663,6 @@ class TestExternalSymlinkPassThrough(PrepareTestBase):
 
     def test_cli_single_mode_deny_drops_with_warning(self):
         """--all + 全拒否（'[]'）は落として warning に列挙し、残りで続行する。"""
-        if not hasattr(Path, "is_relative_to"):
-            self.skipTest("Python 3.9+ required")
         outside = self._link_external_file("linked.md")
         try:
             self._write_md("docs/a.md")

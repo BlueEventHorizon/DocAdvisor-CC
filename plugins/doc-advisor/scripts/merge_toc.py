@@ -54,6 +54,7 @@ from toc_store import (
     KeyError_,
     STATUS_OK,
     STATUS_ERROR,
+    TOC_FILENAME,
     resolve_store_dir,
     resolve_key_from_args,
     emit_json,
@@ -65,9 +66,6 @@ from validate_toc import validate_toc
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
-
-# toc.yaml ファイル名（store_dir 配下）
-TOC_FILENAME = "toc.yaml"
 
 # backup ファイル名（§6.5: toc.yaml.bak）
 BACKUP_SUFFIX = ".bak"

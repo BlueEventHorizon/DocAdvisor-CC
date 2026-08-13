@@ -39,4 +39,6 @@ Searches the ToC (keyword / metadata index) to identify documents relevant to a 
 ## Requirements
 
 - [Claude Code](https://claude.ai/code) CLI
-- Python 3.9 or later (standard library only; no extra packages required)
+- Python 3.11 or later (standard library only; no extra packages required)
+
+> macOS ships 3.9 at `/usr/bin/python3`, which is **not supported** (Python 3.9 reached EOL on 2025-10-31 and 3.10 does so on 2026-10-31). Install 3.11 or later (e.g. via Homebrew) and make sure `python3` resolves to it.
