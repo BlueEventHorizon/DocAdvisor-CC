@@ -43,6 +43,8 @@ from pathlib import Path
 
 from toc_utils import (
     yaml_escape,
+    normalize_field_value,
+    sanitize_uncontrolled_text,
     load_entry_file,
     get_project_root,
     validate_path_within_base,
@@ -127,7 +129,7 @@ def write_error_yaml(filepath, meta, error_message):
     Args:
         filepath: Output file path
         meta: _meta section dict (source_file preserved)
-        error_message: Error description
+        error_message: Error description（例外メッセージ等、内容を統制できないテキスト）
 
     Returns:
         bool: True on success
@@ -138,7 +140,10 @@ def write_error_yaml(filepath, meta, error_message):
     lines.append("_meta:")
     lines.append(f"  source_file: {yaml_escape(meta.get('source_file', ''))}")
     lines.append("  status: pending")
-    lines.append(f"  error_message: {yaml_escape(error_message)}")
+    # error_message は捕捉した例外メッセージであり内容を選べない。読み側
+    # （parse_simple_yaml）はエスケープを復元しないため、入口で正規化してから書く
+    # （Issue #41。エスケープに頼ると引用符を含む診断が読み戻しで壊れる）。
+    lines.append(f"  error_message: {yaml_escape(sanitize_uncontrolled_text(error_message))}")
     lines.append(f"  updated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
     lines.append("")
 
@@ -186,16 +191,36 @@ def write_entry_yaml(filepath, meta, entry):
     lines.append(f"  extracted_by: {meta.get('extracted_by', EXTRACTED_BY_AI)}")
     lines.append("")
 
+    # AI が書いた値がここから ToC パイプラインへ入る。値域内へ収まる表記へ変換して
+    # から書く（書き込みの入口 1 箇所。toc_format の Character Domain）。拒否ではなく
+    # 変換にするのは、意味に関わらない表記のために文書全体を再抽出させないためである。
+    # 変換したフィールドは stderr へ報告する（黙って書き換えない）。
+    normalized_fields = []
+
+    def _normalized(field, value):
+        value, did = normalize_field_value(value)
+        if did:
+            normalized_fields.append(field)
+        return value
+
     # Scalar fields
-    lines.append(f"title: {yaml_escape(entry.get('title', ''))}")
-    lines.append(f"purpose: {yaml_escape(entry.get('purpose', ''))}")
+    lines.append(f"title: {yaml_escape(_normalized('title', entry.get('title', '')))}")
+    lines.append(
+        f"purpose: {yaml_escape(_normalized('purpose', entry.get('purpose', '')))}"
+    )
 
     # Array fields
     for field in ['content_details', 'applicable_tasks', 'keywords']:
         lines.append(f"{field}:")
         items = entry.get(field, [])
         for item in items:
-            lines.append(f"  - {yaml_escape(item)}")
+            lines.append(f"  - {yaml_escape(_normalized(field, item))}")
+
+    if normalized_fields:
+        log(
+            "  normalized to fit the value domain: "
+            + ", ".join(dict.fromkeys(normalized_fields))
+        )
 
     lines.append("")  # Trailing newline
 

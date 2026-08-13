@@ -1,6 +1,6 @@
 # doc-advisor
 
-**Version: 0.4.7**
+**Version: 0.4.8**
 
 Claude Code 用の AI 検索可能なドキュメントインデックスプラグイン。プロジェクトの Markdown 文書を ToC（キーワード・メタデータ）で `key` 単位にインデックス化・検索し、AI が必要なコンテキストを自動発見できるようにする。
 
@@ -151,7 +151,9 @@ claude --plugin-dir ./DocAdvisor/plugins/doc-advisor
 ## 動作要件
 
 - [Claude Code](https://claude.ai/code) CLI
-- Python 3.9 以上（標準ライブラリのみ。追加パッケージは不要）
+- Python 3.11 以上（標準ライブラリのみ。追加パッケージは不要）
+
+> macOS 標準の `/usr/bin/python3` は 3.9 であり、**サポート対象外**（Python 3.9 は 2025-10-31、3.10 は 2026-10-31 に EOL）。Homebrew 等で 3.11 以上を導入し、`python3` がそれを指す状態で使うこと。
 
 ## 開発者向け情報
 

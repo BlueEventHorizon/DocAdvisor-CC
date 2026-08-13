@@ -403,7 +403,8 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--exclude-json",
-        help="NOT supported here (only meaningful with --dirs-json). See expand_dirs.py.",
+        help="NOT supported here. User excludes are applied to the resolved target "
+             "set by the wrapper (index_docs.py), not during expansion.",
     )
     return parser.parse_args(argv)
 
@@ -477,7 +478,8 @@ def main(argv=None):
     project_root = get_project_root()
 
     # 0. 誤用ガード: --dirs-json / --exclude-json は prepare_toc の責務外（DES-005 §5.1）。
-    #    expand_dirs.py で paths に展開してから --paths-json で渡すか、index-docs SKILL を使う。
+    #    ディレクトリ展開は expand_dirs.py、利用者除外は対象集合の確定後にラッパーが
+    #    適用する（DES-005 §4.2.2）。index-docs SKILL はその両方を配管する。
     if args.dirs_json is not None or args.exclude_json is not None:
         emit_json(
             STATUS_ERROR,
@@ -485,8 +487,8 @@ def main(argv=None):
             message=(
                 "prepare_toc.py does not expand directories. "
                 "Run expand_dirs.py first and pass its 'paths' output via --paths-json, "
-                "or use the index-docs skill which orchestrates expansion automatically "
-                "(--dirs-json/--exclude-json are handled there, not here)."
+                "or use the index-docs skill, which expands dirs and applies user "
+                "excludes to the resolved target set (neither is handled here)."
             ),
         )
         return 1

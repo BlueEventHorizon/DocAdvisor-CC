@@ -1,6 +1,6 @@
 # doc-advisor
 
-**Version: 0.4.7**
+**Version: 0.4.8**
 
 An AI-searchable document index plugin for Claude Code. Indexes project Markdown documents per `key` with a ToC (keyword / metadata) search so AI can automatically find the context it needs.
 
@@ -151,7 +151,9 @@ By default indexing reads each document's body to extract metadata (a cold read)
 ## Requirements
 
 - [Claude Code](https://claude.ai/code) CLI
-- Python 3.9 or later (standard library only; no extra packages required)
+- Python 3.11 or later (standard library only; no extra packages required)
+
+> macOS ships 3.9 at `/usr/bin/python3`, which is **not supported** (Python 3.9 reached EOL on 2025-10-31 and 3.10 does so on 2026-10-31). Install 3.11 or later (e.g. via Homebrew) and make sure `python3` resolves to it.
 
 ## For Developers
 

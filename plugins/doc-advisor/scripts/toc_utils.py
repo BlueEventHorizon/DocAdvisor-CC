@@ -63,6 +63,36 @@ def get_project_root():
     return Path.cwd().resolve()
 
 
+def ensure_project_root_cwd():
+    """cwd を project root へ揃える。CLI の `main()` の先頭で 1 度だけ呼ぶ。
+
+    project-root-relative なパスからファイルを開く作法が、このコードベースには 2 つ
+    ある。project root と結合してから開くもの（`prepare_toc` / `merge_toc` の hash
+    計算など）と、相対パスをそのまま渡して cwd に解決させるものである。
+
+    どちらも単独では正しいが、**1 回の実行で両方を通ると別のファイルを指しうる**。
+    実際に「`$CLAUDE_PROJECT_DIR/docs/a.md` の hash を照合して変更なしと判断し、
+    `$PWD/docs/a.md` へ書き込む」経路が成立していた。照合した対象と書き込む対象が
+    別物になり、陳腐化の検出が機能しない。索引の経路も同じ組み合わせを 1 実行で通す。
+
+    **基準を 1 つに固定して、食い違いが起こり得ない状態にする。** 一致を検査して
+    弾くのでは症状を止めるだけであり、2 つの作法は残る。cwd を project root へ
+    揃えれば、両者は常に同じファイルを指す。
+
+    呼び出す前に、**argv で受け取ったファイルの位置**（`--entries-file` /
+    `--paths-file` 等）は絶対パスへ解決しておくこと。これらは呼び出し元の cwd 基準で
+    渡され得る。`--paths` / `--dirs` は契約上 project-root-relative なので影響しない。
+
+    Returns:
+        Path: 揃えた project root（`get_project_root()` の結果）
+    """
+    project_root = get_project_root()
+    resolved = Path(project_root).resolve()
+    if Path.cwd().resolve() != resolved:
+        os.chdir(resolved)
+    return resolved
+
+
 def validate_path_within_base(path, base_dir):
     """
     Validate that a path resolves within the base directory.
@@ -120,8 +150,9 @@ def resolve_within_root(path, project_root):
     1. `Path.resolve(strict=True)` で symlink を辿り実体を解決する。
        実体が存在しない場合は `FileNotFoundError` を送出する
        （呼び出し側で NOT_FOUND 扱いにする。REQ-001 FR-N03-4 の不在 reject と兼ねる）。
-    2. `Path.is_relative_to(project_root)`（Python 3.9+、REQ-001 NFR-N01 で下限確定）で
-       解決後の実体が project root 配下かを判定する。root 外を指す symlink は reject する。
+    2. `Path.is_relative_to(project_root)`（Python 3.9 で追加。サポート下限は
+       REQ-001 NFR-N01 で 3.11）で解決後の実体が project root 配下かを判定する。
+       root 外を指す symlink は reject する。
 
     Args:
         path: 検証対象パス（str or Path）。絶対 / 相対いずれも resolve される。
@@ -385,6 +416,93 @@ def load_entry_file(filepath):
         return parse_simple_yaml(content)
     except (IOError, OSError, PermissionError) as e:
         raise IOError(f"Entry file read error: {filepath} - {e}") from e
+
+
+def normalize_field_value(value):
+    """メタデータ値を、意味を変えずに値域内へ収める。
+
+    値域から外れる文字のうち、**意味を保つ代替が存在するもの**は書き込みの入口で
+    変換する。拒否すると文字 1 つのために文書のメタデータ全体が AI 再抽出へ回るが、
+    再抽出の原因は意味に関わらない表記であり、その費用を払う理由がない。
+
+    変換するもの:
+
+    - 二重引用符 → バッククォート（英語の記述文で意味は変わらない）
+    - 改行 / CR / タブ → 空白（連続する空白は畳む。フィールドは単一行と定義済み）
+    - **先頭・末尾の**単一引用符 → バッククォート。読み側が両端の引用符を削るため
+      この位置だけが問題になる。`don't` のような中間の `'` は温存する（変換範囲を
+      最小に保つ。両端だけを替えると表記が非対称に見えることがあるが、意味を保つ
+      ことを優先する）
+
+    **バックスラッシュは変換しない。** 落とせば `\\n handling` が `n handling` に、
+    `/` へ替えればエスケープ表記の意味が変わる。パス表記なのかエスケープ表記なのかは
+    値から決まらないため、意味を保つ代替が存在しない。値域検証側で拒否する。
+
+    変換したことは呼び出し側が報告する（書いた値と原本に入る値が違うことを黙って
+    済ませない）。そのため変更の有無を返す。
+
+    Args:
+        value: メタデータの値（str 以外はそのまま返す）
+
+    Returns:
+        tuple: (正規化後の値, 変換したか)
+    """
+    if not isinstance(value, str):
+        return value, False
+
+    normalized = value
+    for ch in "\n\r\t":
+        normalized = normalized.replace(ch, " ")
+    if normalized != value:
+        normalized = " ".join(normalized.split())
+    normalized = normalized.replace('"', "`")
+
+    stripped = normalized.strip()
+    if stripped.startswith("'"):
+        head = normalized.index("'")
+        normalized = normalized[:head] + "`" + normalized[head + 1:]
+    stripped = normalized.strip()
+    if stripped.endswith("'"):
+        tail = normalized.rindex("'")
+        normalized = normalized[:tail] + "`" + normalized[tail + 1:]
+
+    return normalized, normalized != value
+
+
+def sanitize_uncontrolled_text(s):
+    """統制できない外部由来テキストを、YAML 値として往復できる形へ正規化する。
+
+    doc-advisor が書く YAML の値のうち、内容を統制できるもの（メタデータ 5
+    フィールド）は値域規則で「単一行の平文」を機械的に強制する。しかし捕捉した
+    例外メッセージのように**内容を選べない値**もあり、そこへ同じ制約を課せない。
+
+    そこで入口で正規化する。`yaml_escape` のバックスラッシュ・エスケープに頼らないのは、
+    `toc.yaml` / pending の読み側（`parse_simple_yaml` / `load_existing_toc`）が引用符を
+    外すだけでエスケープを復元しないためである。実際に
+    `FileNotFoundError: [Errno 2] No such file or directory: 'docs/x.md'` は読み戻しで
+    末尾のアポストロフィを失っていた（Issue #41）。
+
+    診断メッセージは非可逆な正規化を許容できる。それが「データ」ではなく「診断」で
+    あることの意味であり、だからこの関数は値を捨てる方向へ寄せてよい。
+
+    Args:
+        s: 正規化対象（str 以外は str() を通す）
+
+    Returns:
+        str: 単一行で、引用符・バックスラッシュを含まないテキスト
+    """
+    if s is None:
+        return ""
+    s = str(s)
+    # 改行・タブは単一行化のため空白へ倒し、連続空白を畳む
+    for ch in "\n\r\t":
+        s = s.replace(ch, " ")
+    s = " ".join(s.split())
+    # 引用符はバッククォートへ倒す（読みやすさを保ったまま往復可能にする）
+    s = s.replace('"', "`").replace("'", "`")
+    # バックスラッシュは復元できないため落とす
+    s = s.replace("\\", "")
+    return s
 
 
 def yaml_escape(s):
@@ -660,6 +778,53 @@ def cleanup_work_dir(work_dir):
             log("   Please delete manually")
             return False
     return True
+
+
+def filter_excluded(paths, project_root, exclude_patterns):
+    """**確定した対象集合**へ利用者指定の除外を適用する。
+
+    除外は「選び方」ではなく「選んだ結果から何を落とすか」である。以前は
+    ディレクトリ展開の内側でしか適用しておらず、`--dirs` を伴わない指定
+    （明示 paths のみ / ToC 全件）では**黙って無視されていた**。とくに
+    `--from-toc --exclude`（`--dirs` なし）は対象 0 件から全件フォールバックへ落ち、
+    「除外して」と指定した原本まで書き換えていた（指定と正反対の結果）。
+
+    したがって適用点を対象集合の確定後へ移す。対象の出どころ（`--dirs` 展開 /
+    明示 paths / ToC 全件）によらず同じ 1 箇所で効く。判定そのものは
+    `should_exclude` を共有し、システム固定除外との一貫性を保つ。
+
+    **root 配下に解決できない入力は判定せず素通しする [MANDATORY]**。`should_exclude` は
+    `relative_to(root)` が成立することを前提とするため、絶対パスで root 外を指す入力を
+    渡すと `ValueError` になる。ここで例外を投げると、除外を伴うだけで CLI が traceback
+    で落ちて JSON を返さなくなる（DES-005 §8.1 は error でも `status` / `error_code` を
+    必須としており、契約違反になる）。**不正なパスの分類は下流の責務**であり
+    （`ABSOLUTE_PATH` / `NOT_FOUND` 等）、除外の判定点で先取りしない。
+
+    Args:
+        paths: project-root-relative なパスの列
+        project_root: project root
+        exclude_patterns: 利用者指定の除外パターン（空なら何もしない）
+
+    Returns:
+        tuple: (残った paths の list, 除外した paths の list)
+    """
+    if not exclude_patterns:
+        return list(paths), []
+
+    root = Path(project_root)
+    kept = []
+    excluded = []
+    for rel in paths:
+        candidate = root / rel
+        if not candidate.is_relative_to(root):
+            # root 配下でない（絶対パスで root 外）。除外判定の対象にしない。
+            kept.append(rel)
+            continue
+        if should_exclude(candidate, root, exclude_patterns):
+            excluded.append(rel)
+        else:
+            kept.append(rel)
+    return kept, excluded
 
 
 def should_exclude(filepath, root_dir, exclude_patterns):

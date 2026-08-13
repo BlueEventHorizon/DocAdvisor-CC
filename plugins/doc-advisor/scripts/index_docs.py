@@ -83,6 +83,7 @@ import io
 import json
 import os
 import sys
+from pathlib import Path
 
 # frontmatter/ は同一ディレクトリ配下のサブディレクトリであり sys.path に無い。
 # 転記フェーズ（_transcribe）のためだけに追加する。
@@ -110,7 +111,12 @@ from toc_store import (
     validate_user_key,
     work_status,
 )
-from toc_utils import get_project_root, log
+from toc_utils import (
+    ensure_project_root_cwd,
+    filter_excluded,
+    get_project_root,
+    log,
+)
 
 # ---------------------------------------------------------------------------
 # 定数（呼び出し側に見せないチューニング値）
@@ -487,17 +493,27 @@ def _expand_targets(args):
     explicit_paths = _merge_list_arg(args.paths, args.paths_json, "--paths-json")
     all_exclude = _merge_list_arg(args.exclude, args.exclude_json, "--exclude-json")
 
+    # 除外は expand_dirs へ渡さない。**確定した対象集合へ最後に 1 回適用する**。
+    # ディレクトリ展開の内側だけで適用すると、--dirs を伴わない指定（明示 paths のみ）で
+    # 黙って無視される。--exclude は「選び方」ではなく「選んだ結果から何を落とすか」
+    # であり、適用点は対象の確定後が正しい（DES-005 §4.2.2）。
     argv = []
     if all_dirs:
         argv.extend(["--dirs-json", json.dumps(all_dirs)])
     if explicit_paths:
         argv.extend(["--paths-json", json.dumps(explicit_paths)])
-    if all_exclude:
-        argv.extend(["--exclude-json", json.dumps(all_exclude)])
 
     if not all_dirs:
-        # 展開するディレクトリが無い＝明示 paths のみ。expand_dirs を通す必要がない
-        return explicit_paths, [], []
+        # 展開するディレクトリが無い＝明示 paths のみ。expand_dirs を通す必要がない。
+        # 落とした件数は --dirs 経路と同じく warnings に載せる（DES-005 §4.2.2）。
+        # 黙って対象から消すと、除外が効いたのか対象が無かったのかを区別できない。
+        paths, excluded = filter_excluded(
+            explicit_paths, get_project_root(), all_exclude
+        )
+        warnings = []
+        if excluded:
+            warnings.append(f"excluded by --exclude: {len(excluded)} path(s)")
+        return paths, [], warnings
 
     _exit_code, payload = call_core(expand_dirs, argv)
     if payload.get("status") == STATUS_ERROR:
@@ -505,11 +521,13 @@ def _expand_targets(args):
             f"expand_dirs: {payload.get('message')}",
             payload.get("error_code") or ErrorCode.INVALID_PATH,
         )
-    return (
-        payload.get("paths") or [],
-        payload.get("rejected_dirs") or [],
-        payload.get("warnings") or [],
+    paths, excluded = filter_excluded(
+        payload.get("paths") or [], get_project_root(), all_exclude
     )
+    warnings = list(payload.get("warnings") or [])
+    if excluded:
+        warnings.append(f"excluded by --exclude: {len(excluded)} path(s)")
+    return paths, payload.get("rejected_dirs") or [], warnings
 
 
 def _run_prepare(args, key, paths):
@@ -960,7 +978,7 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--exclude", nargs="+", metavar="PATH",
-        help="--dirs 展開時に除外するパス・ディレクトリ",
+        help="確定した対象集合から除外するパス・ディレクトリ（--dirs / --paths のどちらでも効く）",
     )
     parser.add_argument(
         "--exclude-json", dest="exclude_json",
@@ -989,6 +1007,16 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+
+    # パスの基準を 1 つに固定する。本ラッパーは 1 回の実行で「結合して開く」作法
+    # （prepare_toc / merge_toc の hash 計算）と「そのまま開く」作法
+    # （fm_to_pending の read_text）の両方を通すため、cwd と project root が違うと
+    # 別のファイルを指す。**cwd を変える前に** argv で受けたファイルの位置を絶対
+    # パスへ解決する（--paths-file は呼び出し元の cwd 基準で渡され得る。
+    # --dirs / --paths は契約上 project-root-relative）。
+    if args.paths_file:
+        args.paths_file = str(Path(args.paths_file).resolve())
+    ensure_project_root_cwd()
 
     try:
         action_payload, key, toc_rel = run(args)

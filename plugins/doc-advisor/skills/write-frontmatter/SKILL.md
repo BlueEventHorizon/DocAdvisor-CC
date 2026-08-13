@@ -2,16 +2,18 @@
 name: write-frontmatter
 description: |
   指定された Markdown 文書へ doc-advisor の検索用メタデータ（フロントマター）を
-  書き込む。AI が本文を読んで title / purpose / content_details / applicable_tasks /
-  keywords を作成し、fm_run.py が書き込み・整形・body_hash の打刻・信頼判定を行う。
-  原本 Markdown を書き換えるため、対象一覧とメタデータを提示して承認を得てから
-  書き込む。フロントマターを持たない既存文書へ後から付与する用途に使う。
+  書き込む。既に ToC があるなら --from-toc <key> でその値を script が転記し、
+  無い場合のみ AI が本文を読んで title / purpose / content_details /
+  applicable_tasks / keywords を作成する。書き込み・整形・body_hash の打刻・
+  信頼判定は fm_run.py が行う。原本 Markdown を書き換えるため、対象一覧と
+  メタデータを提示して承認を得てから書き込む。
   トリガー:
   - 既存文書に検索用メタデータを付与したいとき
+  - index-docs が AI 抽出した結果を原本へ書き戻したいとき
   - "フロントマターを書き込む", "メタデータを付与", "write-frontmatter"
 user-invocable: true
 allowed-tools: Bash, Read, Write, AskUserQuestion
-argument-hint: "--paths <path>... | --dirs <dir>... [--exclude <path>...] [--format-command 'dprint fmt {file}']"
+argument-hint: "--paths <path>... | --dirs <dir>... [--exclude <path>...] [--from-toc <key>] [--format-command 'dprint fmt {file}']"
 ---
 
 # write-frontmatter
@@ -24,12 +26,14 @@ argument-hint: "--paths <path>... | --dirs <dir>... [--exclude <path>...] [--for
 
 ## このスキルがすること
 
-**`fm_run.py` を 2 回呼ぶだけである。** ディレクトリ展開・既存フロントマターの判定・書き込む対象の絞り込み・書き込み・整形・`body_hash` の打刻・書き込み後の信頼判定はすべて script が行う。
+**`fm_run.py` を 2 回呼ぶだけである。** ディレクトリ展開・既存フロントマターの判定・書き込む対象の絞り込み・**ToC からのメタデータの転記**・書き込み・整形・`body_hash` の打刻・書き込み後の信頼判定はすべて script が行う。
 
 AI が担うのは次の 2 つだけである。
 
-1. **メタデータの内容を作ること** — 本文を読んで 5 フィールドを書く
-2. **書き込みの承認を取ること** — 原本を書き換えるため
+1. **書き込みの承認を取ること** — 原本を書き換えるため（常に必要）
+2. **メタデータの内容を作ること** — **ToC から転記できなかった対象だけ**、本文を読んで 5 フィールドを書く
+
+> **`--from-toc <key>` を渡せた場合、AI はメタデータを作らない [MANDATORY]**: `toc.yaml` のエントリはフロントマターと同じ 5 フィールドを持ち、`body_hash` 以外は既に揃っている。したがって書き戻しは決定論的な転記で足り、AI が本文を読み直して書き直す必要はない。**再起草してはならない。** 再起草すると同じ本文に対する読解を 2 回払うだけでなく、値が索引時と一致する保証がないため `toc.yaml` と原本フロントマターが食い違い、次回の索引で ToC の内容が入れ替わる（本文は変わっていないのに）。
 
 ## 副作用とユーザー承認 [MANDATORY]
 
@@ -54,16 +58,19 @@ AI が担うのは次の 2 つだけである。
 /doc-advisor:write-frontmatter --dirs docs/rules/
 /doc-advisor:write-frontmatter --dirs docs/ --exclude docs/draft/
 /doc-advisor:write-frontmatter --paths docs/a.md --format-command "dprint fmt {file}"
+/doc-advisor:write-frontmatter --paths docs/a.md --from-toc rules
 ```
 
-| Argument                       | Description                                                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--paths <path>...`            | 対象ファイル（複数指定可）                                                                                                    |
-| `--dirs <dir>...`              | 対象ディレクトリ（複数指定可。`--paths` と併用可）。グロブメタ文字（`*` `?` `[`）可                                           |
-| `--exclude <path>...`          | `--dirs` 展開時に除外するパス・ディレクトリ（システム固定除外は常時適用）                                                     |
-| `--format-command '<command>'` | 整形コマンド。`{file}` が対象ファイルパスへ置換される。**未指定なら整形しない**（整形器を持たないプロジェクトでは正しい挙動） |
+| Argument                       | Description                                                                                                                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--paths <path>...`            | 対象ファイル（複数指定可）                                                                                                                                                                  |
+| `--dirs <dir>...`              | 対象ディレクトリ（複数指定可。`--paths` と併用可）。グロブメタ文字（`*` `?` `[`）可                                                                                                         |
+| `--exclude <path>...`          | 確定した対象集合から除外するパス・ディレクトリ（`--dirs` / `--paths` / ToC 全件のどれでも効く。ファイル指定・サブツリー指定・任意階層のディレクトリ名が書ける。システム固定除外は常時適用） |
+| `--from-toc <key>`             | 当該 key の ToC からメタデータを転記する（単体モードの ToC は `all`）。`--paths` / `--dirs` 省略時は ToC の全文書が対象                                                                     |
+| `--format-command '<command>'` | 整形コマンド。`{file}` が対象ファイルパスへ置換される。**未指定なら整形しない**（整形器を持たないプロジェクトでは正しい挙動）                                                               |
 
 - **走査モードは存在しない**。対象は必ず引数で受け取る。SKILL が `Glob` / `Grep` で対象を探すことは禁止（後述）
+- `--from-toc` を渡せるのは、その key の ToC が既に生成済みの場合である。`index-docs` の書き戻し経路は常にこれを渡す
 - script は project root を cwd として実行する
 
 ## Required Reference Documents [MANDATORY]
@@ -76,7 +83,7 @@ AI が担うのは次の 2 つだけである。
 
 ### Step 0: 引数解釈
 
-`$ARGUMENTS` から `--paths` / `--dirs` / `--exclude` / `--format-command` を解釈する。
+`$ARGUMENTS` から `--paths` / `--dirs` / `--exclude` / `--from-toc` / `--format-command` を解釈する。
 
 - 対象が特定できない場合は、**推測で決めずに** `AskUserQuestion` で対象の指定方法を確認する
 - `--format-command` が不明でプロジェクトに整形器が存在する形跡がある場合は、`AskUserQuestion` で整形コマンドを渡すかどうかを確認する
@@ -86,28 +93,44 @@ AI が担うのは次の 2 つだけである。
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_run.py plan \
-  [--dirs {dirs}] [--paths {paths}] [--exclude {exclude}]
+  [--dirs {dirs}] [--paths {paths}] [--exclude {exclude}] [--from-toc {key}]
 ```
 
 stdout の単一 JSON から読む:
 
-| フィールド         | 意味                                                                                                 |
-| ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `targets[]`        | **書き込むべき対象**。`path` / `reason` / `violations` を持つ。この配列以外を対象にしない            |
-| `skipped[]`        | 既に信頼できるフロントマターを持つため対象外になった文書（`reason: already trusted`）                |
-| `rejected_paths[]` | 読めなかった文書。理由とともにユーザーへ報告する                                                     |
-| `rejected_dirs[]`  | 不在・非ディレクトリだった `--dirs`、および不正なグロブ                                              |
-| `warnings`         | `doc-advisor` の標識を持つのに信頼できない文書。規約違反の可能性があるため**必ずユーザーに提示する** |
-| `counts`           | `total` / `targets` / `skipped` / `unreadable`                                                       |
+| フィールド                 | 意味                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `targets[]`                | **書き込むべき対象**。`path` / `reason` / `source` / `violations` を持つ。この配列以外を対象にしない                         |
+| `targets[].source`         | `toc` = script が ToC から転記する（**AI は内容を作らない**）／ `ai` = AI が起草する                                         |
+| `targets[].metadata`       | `source: toc` のときのみ存在する。転記される 5 フィールドの実値（承認のために提示する）                                      |
+| `targets[].toc_reason`     | `source: ai` のときのみ存在する。転記できなかった理由（下表）                                                                |
+| `targets[].toc_violations` | `toc_reason: incomplete_entry` のときのみ存在する。ToC のエントリが 5 フィールドを満たさない理由（欠落フィールド・値域違反） |
+| `skipped[]`                | 既に信頼できるフロントマターを持つため対象外になった文書（`reason: already trusted`）                                        |
+| `rejected_paths[]`         | 読めなかった文書。理由とともにユーザーへ報告する                                                                             |
+| `rejected_dirs[]`          | 不在・非ディレクトリだった `--dirs`、および不正なグロブ                                                                      |
+| `warnings`                 | `doc-advisor` の標識を持つのに信頼できない文書。規約違反の可能性があるため**必ずユーザーに提示する**                         |
+| `counts`                   | `total` / `targets` / `from_toc` / `needs_ai` / `skipped` / `unreadable`                                                     |
 
-- **絞り込みを自分でしない**。`targets` がそのまま Step 2 の対象である
+`toc_reason` の値域:
+
+| 値                 | 意味                                                                   |
+| ------------------ | ---------------------------------------------------------------------- |
+| `not_in_toc`       | その文書は当該 key の ToC に載っていない                               |
+| `body_changed`     | 索引後に本文が変わっており、ToC の値は現在の本文を説明していない       |
+| `unverifiable`     | checksums に記録が無く、索引時点の本文と一致するかを照合できない       |
+| `incomplete_entry` | ToC のエントリが 5 フィールドを満たしていない（`toc_violations` 参照） |
+
+- **絞り込みを自分でしない**。`targets` がそのまま次の対象である
 - `targets` が空なら「全件が既に信頼できるフロントマターを持つ」ことを報告して終了する（`skipped` の件数を示す）
+- `counts.needs_ai` が 0 なら **Step 2 を飛ばして Step 3 へ進む**（転記だけで完結する）
 - `skipped` の文書を対象に戻したい場合（上書きしたい場合）のみ、`AskUserQuestion` で意思を確認してから `--paths` に明示して再実行する
 - `status == error` → エラー内容を報告し `AskUserQuestion` で対応を確認する
 
-### Step 2: メタデータの作成
+### Step 2: メタデータの作成（`source: ai` の対象のみ）
 
-`targets` の各文書を 1 件ずつ `Read` し、`formats/toc_format.md` の Field Guidelines に従って 5 フィールドを作成する。
+**`source: toc` の対象については何もしない。** それらのメタデータは script が転記する。
+
+`source: ai` の各文書を 1 件ずつ `Read` し、`formats/toc_format.md` の Field Guidelines に従って 5 フィールドを作成する。
 
 | フィールド         | 制約                                                                           |
 | ------------------ | ------------------------------------------------------------------------------ |
@@ -143,37 +166,56 @@ stdout の単一 JSON から読む:
 
 ### Step 3: 対象とメタデータの提示・承認 [MANDATORY]
 
-**原本を書き換える前に必ず承認を得る。** 対象一覧（Step 1 の `targets`）と、Step 2 で作成した各文書のメタデータ全文、および `--format-command` の値を提示し、`AskUserQuestion` で確認する。
+**原本を書き換える前に必ず承認を得る。** 対象一覧（Step 1 の `targets`）と各文書のメタデータ全文、および `--format-command` の値を提示し、`AskUserQuestion` で確認する。メタデータは出どころを添えて示す（`source: toc` は Step 1 の `targets[].metadata`、`source: ai` は Step 2 で作成したもの）。
 
-| 選択                 | 動作                                                                 |
-| -------------------- | -------------------------------------------------------------------- |
-| **書き込む**         | Step 4 へ進む                                                        |
-| **対象を絞って書く** | 除外する対象を `AskUserQuestion` で確認し、JSON から外して Step 4 へ |
-| **中止**             | 書き込まず終了する（原本は変更されない）                             |
+| 選択                 | 動作                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| **書き込む**         | Step 4 へ進む                                                                                 |
+| **対象を絞って書く** | 除外する対象を `AskUserQuestion` で確認し、`--paths`（転記分）と JSON（起草分）から外して進む |
+| **中止**             | 書き込まず終了する（原本は変更されない）                                                      |
 
 承認が得られない場合は Step 4 を実行しない。
 
 ### Step 4: 書き込みと検証
 
+転記分（`source: toc`）と起草分（`source: ai`）は**別のコマンドで書く**。両方あるときは両方実行する。
+
 ```bash
+# 転記分（--from-toc を渡せた場合）。entries を作る必要はない
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_run.py apply \
+  --from-toc {key} --paths {approved_paths} \
+  [--format-command '{format_command}']
+
+# 起草分（Step 2 で entries を作った場合のみ）
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_run.py apply \
   --entries-file {entries_file} \
   [--format-command '{format_command}']
 ```
 
-このコマンドが書き込み・整形・打刻・**書き込み後の信頼判定**までを行う。別途 `fm_read` を呼んで件数を比較する必要はない。
+いずれも書き込み・整形・打刻・**書き込み後の信頼判定**までを行う。別途 `fm_read` を呼んで件数を比較する必要はない。
+
+**転記側の apply には、承認された対象を `--paths` で必ず明示する [MANDATORY]**。`--from-toc` の apply は plan と同じ手順で対象を確定し直すため、`--paths` を省くと **ToC の全文書**を対象にする。Step 3 で対象を絞った場合・ユーザーが一部を除外した場合、省略すると承認されなかった対象まで原本が書き換わる。
+
+- **plan で `--dirs` / `--exclude` を使った場合も、apply へは再掲しない。** 承認の単位は plan が返した `targets[]` のパスであり、ディレクトリではない。展開をやり直すと、plan と apply の間に増えたファイルが承認なしで対象に入る
+- `--exclude` は対象の出どころによらず、確定した対象集合へ適用される。落とした件数は `warnings` に出る（黙って対象から消えない）
+
+転記できなかった対象は `needs_ai[]` と `counts.needs_ai` に出るので、**転記だけで完結したか**はこの値で判断する（数え直さない）。
 
 stdout の単一 JSON から読む:
 
-| 観測                                | 意味                                                                                            |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `status == ok`                      | 全 entry が書き込まれ、すべて信頼できると判定された                                             |
-| `status == partial`                 | 一部の entry が失敗した、**または書き込めたが信頼判定に至らないものがある**。`results[]` を見る |
-| `status == error`                   | 引数自体の不正。**書き込みは行われていない**                                                    |
-| `counts.written` / `counts.trusted` | 書き込み成功件数と、そのうち信頼できると判定された件数                                          |
-| `results[].ok`                      | **entry の成否はこれで判定する**（`error_code` が `null` でも失敗しうる）                       |
-| `results[].trust`                   | 書き込み後の信頼判定。偽なら索引時に AI 抽出へフォールバックする                                |
-| `results[].violations`              | 値域違反で書き込み前に弾かれた場合、または書けたが信頼されない場合の理由                        |
+| 観測                          | 意味                                                                                                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status == ok`                | 全 entry が書き込まれ、すべて信頼できると判定された                                                                                                                       |
+| `status == partial`           | 一部の entry が失敗した、**または書き込めたが信頼判定に至らないものがある**。`results[]` を見る                                                                           |
+| `status == error`             | 引数自体の不正。**書き込みは行われていない**                                                                                                                              |
+| `counts`                      | `total` / `written` / `failed` / `changed` / `formatted` / `trusted` / `needs_ai` / `skipped` / `unreadable`。**`--from-toc` の有無で形は変わらない**（該当が無ければ 0） |
+| `results[].ok`                | **entry の成否はこれで判定する**（`error_code` が `null` でも失敗しうる）                                                                                                 |
+| `results[].trust`             | 書き込み後の信頼判定。偽なら索引時に AI 抽出へフォールバックする                                                                                                          |
+| `results[].violations`        | 値域違反で書き込み前に弾かれた場合、または書けたが信頼されない場合の理由                                                                                                  |
+| `results[].normalized_fields` | 値域内へ収めるため表記を変換したフィールド名。空配列なら変換なし（変換の内容は `warnings` にも出る）                                                                      |
+| `warnings`                    | 表記を変換して書いた entry と、ToC 側の異常。**必ずユーザーに提示する**                                                                                                   |
+
+**`--entries-file` / `--entries-json` に `--dirs` / `--paths` / `--exclude` を併記してはならない**。対象を絞る指定は `--from-toc` 専用であり、併記は `error_code: UNSUPPORTED_ARG` で拒否される（黙って無視すると、絞ったつもりの指定が効かないまま原本へ書き込まれる）。
 
 ### Step 5: 報告
 
@@ -182,6 +224,7 @@ stdout の単一 JSON から読む:
 
 [Summary]
 - 対象 / 書き込み成功 / 失敗: {counts.total} / {counts.written} / {counts.failed}
+- メタデータの出どころ: ToC 転記 {Step 1 の counts.from_toc} / AI 起草 {Step 1 の counts.needs_ai}
 - 信頼判定: trusted {counts.trusted} / {counts.written}
 - 変更あり / 整形実行: {counts.changed} / {counts.formatted}
 - 整形コマンド: {format_command | 未指定}
@@ -207,7 +250,8 @@ stdout の単一 JSON から読む:
 - ❌ **対象を勝手に広げること**。`Glob` / `Grep` / `ls` / `find` で対象を自ら列挙・探索してはならない。対象は `plan` が返した `targets` のみ
 - ❌ **配布物・生成物・依存ディレクトリを対象に含めること**。プラグイン配布物、ビルド成果物、索引・作業ディレクトリ等の生成物、外部から取得した依存物は対象にしない。これらを含む指定を受けた場合は `AskUserQuestion` で除外の確認を取る
 - ❌ **`body_hash` / `type` を metadata として渡すこと**
-- ❌ **ToC（`toc.yaml`）・`.toc_work/`・checksums を読み書きすること**。索引は `index-docs` の責務
+- ❌ **`--from-toc` を渡せた対象のメタデータを AI が起草すること**。`targets[].source` が `toc` のものは script が転記する。再起草は `toc.yaml` と原本の食い違いを生む
+- ❌ **`toc.yaml` / `.toc_work/` / checksums を AI が `Read` すること**。ToC の参照は `--from-toc` で script に行わせる。索引の生成・更新は `index-docs` の責務であり、本スキルは ToC を書き換えない
 - ❌ **本文の言語に合わせてメタデータを書くこと**。言語は `formats/toc_format.md` の Language Rule に従い英語で固定する
 - ❌ commit / push を行うこと
 

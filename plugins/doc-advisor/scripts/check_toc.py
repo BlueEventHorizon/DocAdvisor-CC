@@ -33,6 +33,7 @@ from toc_store import (
     KeyError_,
     STATUS_OK,
     STATUS_ERROR,
+    TOC_FILENAME,
     resolve_store_dir,
     resolve_key_from_args,
     emit_json,
@@ -42,9 +43,6 @@ from toc_store import (
 # ---------------------------------------------------------------------------
 # 定数
 # ---------------------------------------------------------------------------
-
-# toc.yaml ファイル名
-TOC_FILENAME = "toc.yaml"
 
 # metadata 読み取りを打ち切る行（DES-009 §2.3）。toc.yaml は metadata が docs より前に置かれる
 # （formats/toc_format.md）。この行に到達したらエントリ本体は読まない。

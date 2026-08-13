@@ -15,19 +15,33 @@ DES-008 §4.1（確定スキーマ）/ §4.2（境界・正規化・body_hash）
 - 信頼判定（DES-008 §5.1 の述語。type はスカラ・配列の双方を受理）
 - 行保存型マージ（doc-advisor が単独所有する 6 キーのブロックのみを差し替え、
   それ以外の行は原文のままバイト保持する。type のみ和集合で更新する）
-- YAML 値のエスケープ（toc_utils.yaml_escape と同一出力になる独立実装）
 
 独立性（DES-008 §6.1）:
-- toc_store.py / toc_utils.py を import しない。key 解決も store_dir 解決も行わない
+- toc_store.py を import しない。key 解決も store_dir 解決も行わない
 - 判定に必要な違反コードは本モジュールに独立定義する
-- YAML エスケープも import せず独立実装する（一致はテストで固定する。§6.4）
+- YAML 値のエスケープは toc_utils.yaml_escape を import して共有する。表記規則を
+  2 実装で持つと、同じ値がフロントマターと toc.yaml で異なる表記になりうるため、
+  実装は 1 つに集約する（依存の向きは派生 → 中心であり、フロントマター方式を
+  撤回して frontmatter/ を削除しても toc_utils.py は残る）
 
 標準ライブラリのみ使用（REQ-001 NFR-N01）。
 """
 
 import hashlib
+import os
 import re
+import sys
 from collections import namedtuple
+
+# toc_utils は scripts/ 直下（frontmatter/ の外）にある。frontmatter/ 配下の script を
+# 直接起動した場合 sys.path には frontmatter/ しか入らないため、本モジュール（frontmatter/
+# 内の全 script が import する葉）で 1 度だけ親を通す。
+_SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+# 再輸出。同ディレクトリの script は本モジュール経由で使う（import 元を 1 つに保つ）。
+from toc_utils import normalize_field_value, yaml_escape  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 定数（DES-008 §4.1 / §4.2 / §5.1、上限の正本は formats/toc_format.md）
@@ -79,6 +93,7 @@ class Violation:
     FIELD_TYPE_MISMATCH = "FIELD_TYPE_MISMATCH"
     FIELD_TOO_LONG = "FIELD_TOO_LONG"
     FIELD_TOO_MANY_ITEMS = "FIELD_TOO_MANY_ITEMS"
+    FIELD_UNSUPPORTED_CHARACTER = "FIELD_UNSUPPORTED_CHARACTER"
 
     # body_hash
     BODY_HASH_MISSING = "BODY_HASH_MISSING"
@@ -97,6 +112,7 @@ VIOLATIONS = frozenset({
     Violation.FIELD_TYPE_MISMATCH,
     Violation.FIELD_TOO_LONG,
     Violation.FIELD_TOO_MANY_ITEMS,
+    Violation.FIELD_UNSUPPORTED_CHARACTER,
     Violation.BODY_HASH_MISSING,
     Violation.BODY_HASH_MALFORMED,
     Violation.BODY_HASH_UNKNOWN_ALGORITHM,
@@ -184,7 +200,7 @@ def split_document(text):
 def unquote_yaml_value(value):
     """引用符付きスカラを素の文字列へ戻す（yaml_escape の逆変換）。
 
-    本モジュールの yaml_escape が出力する二重引用符形式（バックスラッシュ・
+    yaml_escape が出力する二重引用符形式（バックスラッシュ・
     引用符・改行・タブをエスケープ）を復元する。単一引用符は YAML の規約に従い
     '' のみを ' へ戻す。引用符で囲まれていない値はそのまま返す。
 
@@ -376,6 +392,84 @@ def has_marker(metadata):
     return MARKER in values
 
 
+def normalize_metadata_values(metadata):
+    """metadata の 5 フィールドを、意味を変えずに値域内へ収める。
+
+    変換規則そのものは中心側（`normalize_field_value`）に 1 つ置き、本関数は
+    「どのキーが 5 フィールドか」という派生側の知識だけを足す。規則を 2 実装に
+    分けると、片方だけが改訂される。
+
+    書き込みの入口で 1 度だけ呼ぶ。各書き込み点に散らすと、適用した箇所と忘れた
+    箇所の差が生まれ、それはこの値域規則が塞ごうとしている事故そのものである。
+
+    Args:
+        metadata: 書き込むメタデータの dict（None 可）
+
+    Returns:
+        tuple: (正規化後の dict, 変換したフィールド名の list)
+            入力が None の場合は (None, []) を返す
+    """
+    if not metadata:
+        return metadata, []
+
+    normalized = dict(metadata)
+    changed = []
+    for field in STRING_FIELDS:
+        if field not in normalized:
+            continue
+        value, did = normalize_field_value(normalized[field])
+        if did:
+            normalized[field] = value
+            changed.append(field)
+    for field in LIST_FIELDS:
+        if field not in normalized or not isinstance(normalized[field], list):
+            continue
+        items = []
+        field_changed = False
+        for item in normalized[field]:
+            value, did = normalize_field_value(item)
+            items.append(value)
+            field_changed = field_changed or did
+        if field_changed:
+            normalized[field] = items
+            changed.append(field)
+    return normalized, changed
+
+
+def unsupported_character_reason(value):
+    """値が「単一行の平文」の値域から外れていないかを判定する。
+
+    5 フィールドは単一行の平文であり、YAML 上で意味を持つ文字を含まない。この規則を
+    値域として**機械的に強制する**（Issue #41）。以前はこれが DES-008 の「前提」として
+    書かれているだけで、どの検査点も文字を見ていなかった。前提が守られる保証が無い
+    まま `yaml_escape` の側だけがエスケープで防御していたため、次の非対称が残った——
+    書く側はエスケープし、`toc.yaml` の読み側（`toc_utils.load_existing_toc`）は
+    引用符を外すだけで復元しない。結果として `"` を含む値は原本フロントマターへ
+    余分なバックスラッシュ付きで書かれ、索引サイクルごとに 1 層積まれていった。
+
+    **エスケープで往復を成立させるのではなく、エスケープを要する値を入れないことで
+    往復の必要そのものを無くす**（DES-008 §8.2「既知の制約」/ Issue #41）。したがって
+    ここで弾くのは、`yaml_escape` がバックスラッシュ・エスケープを施す文字と、
+    `strip` による引用符除去が値を削ってしまう位置の引用符だけである。`:` `#` 先頭の
+    `-` 末尾の空白などは引用符で囲まれるだけで正しく往復するため、禁止しない。
+
+    Returns:
+        str: 違反の理由（末尾に付ける文）。適合なら None
+    """
+    if not isinstance(value, str):
+        return None
+    if '"' in value:
+        return "に二重引用符を含めることはできません"
+    if "\\" in value:
+        return "にバックスラッシュを含めることはできません"
+    if any(ch in value for ch in "\n\r\t"):
+        return "に改行・タブを含めることはできません（単一行の平文であること）"
+    stripped = value.strip()
+    if stripped.startswith("'") or stripped.endswith("'"):
+        return "の先頭・末尾に単一引用符を置くことはできません"
+    return None
+
+
 def _string_value_violations(field, value):
     """文字列フィールドの値域を検証する（存在は前提。欠落は呼び出し側が扱う）。
 
@@ -402,6 +496,9 @@ def _string_value_violations(field, value):
             field,
             f"{field} が {PURPOSE_MAX_LENGTH} 文字を超えています（{len(value)} 文字）",
         )]
+    reason = unsupported_character_reason(value)
+    if reason:
+        return [(Violation.FIELD_UNSUPPORTED_CHARACTER, field, f"{field} {reason}")]
     return []
 
 
@@ -433,6 +530,14 @@ def _list_value_violations(field, value):
         return [(
             Violation.FIELD_EMPTY, field, f"{field} に空の要素が含まれています"
         )]
+    for item in value:
+        reason = unsupported_character_reason(item)
+        if reason:
+            return [(
+                Violation.FIELD_UNSUPPORTED_CHARACTER,
+                field,
+                f"{field} の要素 {item!r} {reason}",
+            )]
     return []
 
 
@@ -649,79 +754,6 @@ def evaluate(text):
         expected_body_hash=expected,
         actual_body_hash=actual,
     )
-
-
-# ---------------------------------------------------------------------------
-# YAML 値のエスケープ（DES-008 §6.4 の一致テストが固定する独立実装）
-# ---------------------------------------------------------------------------
-
-# 先頭 1 文字に来るとプレーンスカラとして解釈できなくなる指示文字。
-# toc_utils.yaml_escape の first_char_indicators と同一集合（空白文字も含む）。
-_FIRST_CHAR_INDICATORS = frozenset('-?:,[]{}#&*!|>\'"% @`~')
-
-# プレーンに書くと bool / null として解釈される語（小文字化して比較する）
-_YAML_KEYWORDS = frozenset({
-    "true", "false", "yes", "no", "on", "off", "null", "none", "~",
-})
-
-
-def yaml_escape(value):
-    """YAML の値として安全な表記へ変換する。
-
-    toc_utils.yaml_escape と **同一の出力** になるよう、判定の段と順序まで含めて
-    独立に再現する（DES-008 §6.1 により import できないため。両者が一致することは
-    §6.4 の一致テストで固定する）。判定は次の順に評価し、最後にまとめてクォートの
-    要否を決める。
-
-    1. 空値（''・None・0・[] 等）はそのまま '""'
-    2. 先頭 1 文字が YAML の指示文字
-    3. ': ' / ' #' / '"' / "'" を位置を問わず含む
-    4. ':' または空白で終わる
-    5. 改行・復帰・タブを含む
-    6. 数値として解釈できる
-    7. bool / null を表す語である
-
-    Args:
-        value: 出力したい値（文字列以外は str() で文字列化する）
-
-    Returns:
-        str: そのまま YAML に埋め込める表記（必要なら二重引用符で囲まれる）
-    """
-    if not value:
-        return '""'
-
-    s = str(value)
-
-    needs_quotes = s[0] in _FIRST_CHAR_INDICATORS
-
-    # ': ' と ' #' は YAML 仕様上の制約、引用符は往復時のずれを避けるため
-    if not needs_quotes:
-        needs_quotes = ": " in s or " #" in s or '"' in s or "'" in s
-
-    if not needs_quotes:
-        needs_quotes = s.endswith(":") or s.endswith(" ")
-
-    if not needs_quotes:
-        needs_quotes = any(c in s for c in "\n\r\t")
-
-    if not needs_quotes:
-        try:
-            float(s)
-            needs_quotes = True
-        except ValueError:
-            pass
-
-    # キーワード判定だけは他段の結果に関わらず評価する（toc_utils と同じ構造）
-    if s.lower() in _YAML_KEYWORDS:
-        needs_quotes = True
-
-    if needs_quotes:
-        # バックスラッシュ → 二重引用符 → 制御文字 の順に置換する（順序が重要）
-        escaped = s.replace("\\", "\\\\").replace('"', '\\"')
-        escaped = escaped.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-        return f'"{escaped}"'
-
-    return s
 
 
 # ---------------------------------------------------------------------------

@@ -113,6 +113,7 @@ from fm_core import (
     FrontmatterWriteError,
     compute_body_hash,
     merge_frontmatter,
+    normalize_metadata_values,
     read_text,
     split_document,
     validate_field_values,
@@ -295,7 +296,8 @@ def validate_metadata_argument(metadata):
 # ---------------------------------------------------------------------------
 
 def _result(path, *, ok, error_code=None, detail=None, changed=False,
-            formatted=False, body_hash=None, violations=None):
+            formatted=False, body_hash=None, violations=None,
+            normalized_fields=None):
     """results の要素 1 つ分の dict を組み立てる。
 
     Args:
@@ -309,6 +311,9 @@ def _result(path, *, ok, error_code=None, detail=None, changed=False,
         body_hash: 打刻した body_hash（失敗時は None）
         violations: 値域違反（fm_core の (code, field, detail) タプルの列）。
             書き込み前の検証で弾いた場合のみ入る。他の失敗・成功時は空配列
+        normalized_fields: 値域内へ収めるために表記を変換したフィールド名の list。
+            **書いた値と原本に入る値が違うことを黙って済ませないために返す**
+            （呼び出し側が報告する）。変換が無ければ空配列
 
     Returns:
         dict
@@ -322,6 +327,7 @@ def _result(path, *, ok, error_code=None, detail=None, changed=False,
         "formatted": formatted,
         "body_hash": body_hash,
         "violations": violations_json(violations or []),
+        "normalized_fields": list(normalized_fields or []),
     }
 
 
@@ -412,6 +418,13 @@ def write_entry(path, metadata=None, format_command=None):
         return _result(path, ok=False, error_code=ErrorCode.UNSUPPORTED_ARG,
                        detail=str(e))
 
+    # 0a. 値域内へ収まる表記へ変換する（書き込みの入口 1 箇所。DES-008 §4）。
+    # 意味を保つ代替がある文字（二重引用符・改行・両端の単一引用符）は拒否せず
+    # 変換する。拒否すると文字 1 つのために文書のメタデータ全体が AI 再抽出へ
+    # 回るが、原因は意味に関わらない表記であり、その費用を払う理由がない。
+    # 変換したことは normalized_fields で返し、呼び出し側が報告する。
+    metadata, normalized_fields = normalize_metadata_values(metadata)
+
     # 0. 値域を検証する（DES-008 §6.3 手順 0）。
     # 上限違反を書き込んでしまうと、書けたのに fm_read が信頼しない文書が生まれる。
     # DES-008 §5.2 は「script が書いた成果物が不完全であることは契約の外側で何かが
@@ -501,7 +514,7 @@ def write_entry(path, metadata=None, format_command=None):
         changed = True
 
     return _result(path, ok=True, changed=changed, formatted=formatted,
-                   body_hash=body_hash)
+                   body_hash=body_hash, normalized_fields=normalized_fields)
 
 
 def process_entries(entries, format_command=None):

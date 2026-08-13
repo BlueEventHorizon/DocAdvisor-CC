@@ -10,10 +10,10 @@ prepare_toc.py へ渡す --paths-json を生成するために呼び出す。
 - --dirs-json のディレクトリを rglob で展開し Markdown を収集
 - --dirs-json のエントリがグロブメタ文字（* ? [）を含む場合はグロブパターンとして解釈し、
   マッチしたディレクトリは rglob、マッチした Markdown ファイルは直接採用する（FR-N09-8）
-- SYSTEM_EXCLUDE_PATTERNS を常時適用（--exclude-json の有無に関わらず）
-- --exclude-json で指定したパス・ディレクトリを追加除外（システム固定除外と同じ
-  should_exclude セマンティクス: 裸名＝任意階層のディレクトリ名完全一致、
-  '/' 含み＝セグメント境界のパスマッチ）
+- SYSTEM_EXCLUDE_PATTERNS を常時適用（走査中に落とすのが本 script の責務）
+- **利用者指定の除外は扱わない。** 除外は「選び方」ではなく「選んだ結果から何を落とすか」
+  であり、適用点は対象集合の確定後（ラッパーが `toc_utils.filter_excluded` で行う /
+  DES-005 §4.2.2）。ここでも適用すると同じ規則の適用点が 2 つになる
 - root 外 symlink は論理 path を後段へ渡し、prepare_toc.py の承認フローに委ねる
 - --paths-json の明示ファイルと結合・重複除去
 - stdout に単一 JSON を出力（NFR / FR-N08）
@@ -22,7 +22,6 @@ CLI:
     python3 expand_dirs.py --dirs-json '["docs/rules/", "docs/specs/"]'
     python3 expand_dirs.py --dirs-json '["docs/specs/**/design/"]'   # グロブ（任意深さの design/）
     python3 expand_dirs.py --dirs-json '["docs/**/*.md"]'            # グロブ（ファイル直接マッチ）
-    python3 expand_dirs.py --dirs-json '["docs/"]' --exclude-json '["docs/draft/"]'
     python3 expand_dirs.py --dirs-json '["docs/"]' --paths-json '["extra.md"]'
 
 標準ライブラリのみ使用（NFR-N01）。
@@ -118,20 +117,18 @@ def _normalize_glob_pattern(raw):
     return p
 
 
-def _collect_file(md_file, project_root, exclude_list, collected):
-    """単一 Markdown ファイルを検証して collected に追加する（除外適用）。
+def _collect_file(md_file, project_root, collected):
+    """単一 Markdown ファイルを検証して collected に追加する。
 
-    システム固定除外（SYSTEM_EXCLUDE_PATTERNS）とユーザー除外（--exclude-json）は
-    同一の should_exclude セマンティクスで判定する（裸名＝任意階層のディレクトリ名
-    完全一致、'/' 含み＝セグメント境界のパスマッチ）。
+    適用するのは**システム固定除外のみ**である。利用者指定の除外は対象集合の確定後に
+    ラッパーが適用する（DES-005 §4.2.2）。ここでも適用すると同じ規則の適用点が 2 つに
+    なり、片方だけが改訂される。
 
     root 外 symlink はここで除外しない（論理 path を採用）。`--dirs` は呼び出し元が
     索引対象として渡したディレクトリであり、その配下の symlink も索引する（NFR-N06）。
     確認を要求するのは project root 全体を走査する単体モードのみである。
     """
     if should_exclude(md_file, project_root, SYSTEM_EXCLUDE_PATTERNS):
-        return
-    if should_exclude(md_file, project_root, exclude_list):
         return
     try:
         rel = normalize_path(str(md_file.relative_to(project_root)))
@@ -144,18 +141,19 @@ def _collect_file(md_file, project_root, exclude_list, collected):
     collected.add(rel)
 
 
-def _collect_dir(abs_dir, project_root, exclude_list, collected):
+def _collect_dir(abs_dir, project_root, collected):
     """ディレクトリ配下の Markdown を rglob で収集し collected に追加する。"""
     for md_file in rglob_follow_symlinks(abs_dir, MARKDOWN_GLOB):
-        _collect_file(md_file, project_root, exclude_list, collected)
+        _collect_file(md_file, project_root, collected)
 
 
-def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
+def expand(dirs_json, paths_json=None, project_root=None):
     """ディレクトリ配列を展開し、ファイルパス配列を返す。
+
+    利用者指定の除外は受け取らない（DES-005 §4.2.2）。
 
     Args:
         dirs_json: project-root-relative ディレクトリパスのリスト
-        exclude_json: 除外するパス・ディレクトリのリスト（省略可）
         paths_json: 追加で結合する明示ファイルパスのリスト（省略可）
         project_root: プロジェクトルート（省略時は get_project_root()）
 
@@ -167,7 +165,6 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
     else:
         project_root = Path(project_root).resolve()
 
-    exclude_list = exclude_json or []
     extra_paths = paths_json or []
 
     collected = set()
@@ -194,10 +191,10 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
             matched_any = False
             for m in matches:
                 if m.is_dir():
-                    _collect_dir(m, project_root, exclude_list, collected)
+                    _collect_dir(m, project_root, collected)
                     matched_any = True
                 elif m.is_file() and m.suffix.lower() == ".md":
-                    _collect_file(m, project_root, exclude_list, collected)
+                    _collect_file(m, project_root, collected)
                     matched_any = True
                 # それ以外（非 Markdown ファイル等）は無視
             if not matched_any:
@@ -210,7 +207,7 @@ def expand(dirs_json, exclude_json=None, paths_json=None, project_root=None):
         except ValueError as e:
             rejected_dirs.append({"dir": raw_dir, "reason": str(e)})
             continue
-        _collect_dir(abs_dir, project_root, exclude_list, collected)
+        _collect_dir(abs_dir, project_root, collected)
 
     # --paths-json の明示ファイルと結合
     for raw_path in extra_paths:
@@ -230,11 +227,6 @@ def parse_args(argv=None):
         required=True,
         help="展開するディレクトリの JSON 配列（project-root-relative）。"
         "エントリにグロブメタ文字（* ? [）を含めるとパターン展開する（例: docs/specs/**/design/）",
-    )
-    parser.add_argument(
-        "--exclude-json",
-        default=None,
-        help="除外するパス・ディレクトリの JSON 配列",
     )
     parser.add_argument(
         "--paths-json",
@@ -261,14 +253,6 @@ def main(argv=None):
         _emit(STATUS_ERROR, error_code="INVALID_JSON", message="--dirs-json はリストである必要があります")
         return 1
 
-    exclude_json = None
-    if args.exclude_json:
-        try:
-            exclude_json = json.loads(args.exclude_json)
-        except json.JSONDecodeError as e:
-            _emit(STATUS_ERROR, error_code="INVALID_JSON", message=f"--exclude-json: {e}")
-            return 1
-
     paths_json = None
     if args.paths_json:
         try:
@@ -280,7 +264,7 @@ def main(argv=None):
     project_root = Path(args.project_root) if args.project_root else None
 
     try:
-        result = expand(dirs_json, exclude_json=exclude_json, paths_json=paths_json, project_root=project_root)
+        result = expand(dirs_json, paths_json=paths_json, project_root=project_root)
     except Exception as e:
         log(f"expand_dirs error: {e}")
         _emit(STATUS_ERROR, error_code="INTERNAL_ERROR", message=str(e))

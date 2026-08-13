@@ -54,16 +54,22 @@ class ErrorCode:
     rejected_paths[].reason のような入れ子フィールドにも同じ値域が適用されるため、
     共通列挙の外の値を独自に作らない（toc_store.ERROR_CODES との包含をテストで固定）。
 
-    key 解決を行わないため KEY_EMPTY / KEY_RESERVED は持たない。
     NOT_FOUND / READ_ERROR は個々のファイルの失敗理由（rejected_paths[].reason /
     results[].error_code）としてのみ使い、script 全体の成否を表す最上位の
     error_code には使わない。同じ値域の中での使い分けである。
     文書の規約違反は error_code ではなく violations として報告する（別軸）。
+
+    KEY_EMPTY / TOC_NOT_FOUND は `fm_run.py` の書き戻し経路（`--from-toc`）が
+    使う。key を受け取るのはその経路だけであり、`fm_read.py` 自身は key を扱わない。
+    KEY_RESERVED は持たない（書き戻しは ToC を読むだけであり、予約 key `all` の
+    ToC を読むことは正当である。DES-008 §8.2）。
     """
 
     # 最上位の error_code（script 実行の成否）
     INVALID_PATH = "INVALID_PATH"
     UNSUPPORTED_ARG = "UNSUPPORTED_ARG"
+    KEY_EMPTY = "KEY_EMPTY"
+    TOC_NOT_FOUND = "TOC_NOT_FOUND"
 
     # 個々のファイルの失敗理由
     NOT_FOUND = "NOT_FOUND"
@@ -74,6 +80,8 @@ class ErrorCode:
 ERROR_CODES = frozenset({
     ErrorCode.INVALID_PATH,
     ErrorCode.UNSUPPORTED_ARG,
+    ErrorCode.KEY_EMPTY,
+    ErrorCode.TOC_NOT_FOUND,
     ErrorCode.NOT_FOUND,
     ErrorCode.READ_ERROR,
 })

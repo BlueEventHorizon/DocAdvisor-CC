@@ -70,6 +70,11 @@ DEFAULT_LEASE_TTL_SEC = 900
 PENDING_CHECKSUMS_FILENAME = ".toc_checksums_pending.yaml"
 CHECKSUMS_FILENAME = ".toc_checksums.yaml"
 
+# store_dir 直下の ToC 本体。store 配下のファイル名は本モジュールに集約する
+# （かつて 4 つの script が個別に定義しており、置き場所を知る唯一のモジュールという
+# 本モジュールの位置づけと食い違っていた）。
+TOC_FILENAME = "toc.yaml"
+
 # prepare → merge の協調で deleted（desired から外れた path）を引き渡すサイドカー。
 # store_dir/.toc_work/ 配下に置き、merge が読んで toc.yaml から除去する（DES-005 §6.1 / §6.2 / FR-N02-2）。
 DELETED_SIDECAR_FILENAME = ".deleted.json"
