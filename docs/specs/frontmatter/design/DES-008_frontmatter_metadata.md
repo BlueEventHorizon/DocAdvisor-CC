@@ -1,39 +1,37 @@
 ---
 type: doc-advisor
 title: DES-008 doc-advisor Frontmatter Design
-purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, script layout, and the write SKILL argument contract.
+purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering schema, trust predicate, script layout, and write SKILL argument contract
 content_details:
-  - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
-  - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
-  - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
-  - body_hash covers the body only (self-reference avoidance), stamped after the formatter
-  - Language Rule - every field value in English regardless of the body language
-  - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
-  - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
-  - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
-  - Withdrawal by deleting one directory depends on the indexing side treating its absence as normal
-  - write-frontmatter argument contract - --paths / --dirs / --exclude / --format-command, with fm_run.py plan resolving targets and apply verifying trust
+  - Why OKF v0.1 compliance was rejected - type works only paired with resource, tags pulls against keywords rule
+  - Frontmatter schema - doc-advisor type marker plus 5 ToC fields plus body_hash
+  - body_hash covers body only, self-reference avoidance, stamped after formatter
+  - Language rule - every field value in English regardless of source body language
+  - Trust predicate - doc-advisor in type, 5 fields matching schema, body_hash matching body
+  - Validations split between write side (values) and read side (fields, marker, hash)
+  - Type as multi-valued identification marker coexisting with forge temporary-feature labels
+  - Script architecture - fm_core, fm_read, fm_write, fm_to_pending, fm_run, fm_from_toc
 applicable_tasks:
-  - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
-  - Changing the trust predicate or the frontmatter schema
-  - Deciding where body_hash is stamped relative to formatting
-  - Deciding whether a validation belongs to the write side or the read side
-  - "Reviewing whether the type union update preserves other tools' markers"
-  - Changing the write-frontmatter SKILL arguments
+  - Implementing or modifying fm_core.py, fm_read.py, fm_write.py, fm_to_pending.py, fm_run.py
+  - Changing trust predicate or frontmatter schema
+  - Deciding body_hash stamping timing relative to formatting
+  - Determining whether validation belongs to write or read side
+  - "Reviewing type union update for preserving other tools' markers"
+  - Modifying write-frontmatter SKILL arguments
   - Adding frontmatter to existing documents via write-frontmatter
-  - Designing the write-back of AI extraction results
+  - Designing write-back of AI extraction results to frontmatter
 keywords:
   - DES-008
   - body_hash
   - fm_core.py
   - fm_run.py
   - fm_to_pending.py
-  - type union update
   - trust predicate
-  - OKF
+  - type union update
   - extracted_by
-  - "--format-command"
-body_hash: sha256:cafb8f2fd2560d0fa3f0750b5aae139f8ddef726c3194badd82c16fe08791496
+  - OKF
+  - frontmatter metadata
+body_hash: sha256:5703b85ab6bcd7447afbc1af99a22185a3d5bbc3e48d43844b4c9db7ffb77f12
 ---
 
 # DES-008: doc-advisor フロントマター設計書
@@ -349,16 +347,10 @@ tests/scripts/frontmatter/test_fm_*.py
 独立性の境界を次のとおり定義する。
 
 - **key 解決も store_dir 解決も行わない**。key / `store_dir` / ToC の置き場所を知る `toc_store.py` は import しない。**例外は `fm_from_toc.py` のみ**とする。ToC の値を原本へ写すには ToC の在り処を知る必要があり、その知識は 1 モジュールに閉じる（`fm_core` / `fm_read` / `fm_write` は ToC を知らないまま、任意のパスに対して使える汎用モジュールとして保つ）
-- `toc_utils.py` は **中心側に 1 つだけ置くべき規則の共有に限って** import してよい。共有してよいのは、フロントマターと `toc.yaml` の**両方に等しく効く規則**である。現在の共有は次の 4 つに限る。
+- `toc_utils.py` は **中心側に 1 つだけ置くべき実装の共有に限って** import してよい。共有してよいのは、フロントマターと `toc.yaml` の**両方に等しく効く規則**（表記・値域・走査・パス基準）と、その規則が依存する読み取り補助（hash 算出・checksums / ToC の読み込み・パス正規化）である。同じ規則を 2 実装で持つと、同じ値がフロントマターと `toc.yaml` で異なる表記になる（あるいは走査規則が `prepare_toc.py` と食い違う、パスの起点が 2 つになる / DES-005 §4.2.1）。撤回時に `frontmatter/` を削除しても中心側の実装は残るため、この向きの依存は撤回容易性を損なわない
 
-  | 共有するもの                | import 元 | 種別           |
-  | --------------------------- | --------- | -------------- |
-  | `yaml_escape`               | `fm_core` | 表記規則       |
-  | `normalize_field_value`     | `fm_core` | 値域の変換規則 |
-  | `expand_dirs`（モジュール） | `fm_run`  | 走査規則       |
-  | `ensure_project_root_cwd`   | `fm_run`  | パス基準       |
+  **共有している項目を網羅列挙しない [MANDATORY]**。以前ここに 4 件の表を置いたが、**書いた時点で既に実装と食い違っていた**（`fm_run` の `filter_excluded` / `get_project_root`、`fm_from_toc` の `calculate_file_hash` / `load_checksums` / `load_existing_toc` / `normalize_path` が漏れていた）。import は 1 行足すだけで増えるため、列挙は必ず腐り、腐った列挙は「正本」として機能しないどころか、実装が規範に違反しているように見せる。**判定は上の規範（両方に等しく効く規則か）で行い、実際の共有項目は import 文を読む。**
 
-  同じ規則を 2 実装で持つと、同じ値がフロントマターと `toc.yaml` で異なる表記になる（あるいは走査規則が `prepare_toc.py` と食い違う、パスの起点が 2 つになる / DES-005 §4.2.1）。撤回時に `frontmatter/` を削除しても中心側の実装は残るため、この向きの依存は撤回容易性を損なわない。**この表に無いものを共有する場合は、同じ変更で本表と DES-005 §4.1 の依存列を更新する**（片方だけを直すと、どちらが正本か分からなくなる）
 - どの script も**対象を自ら探索しない**。処理対象はコマンド引数で受け取る。`fm_read.py` は `--paths-json` で対象パスの配列を受け取り、ディレクトリを走査しない
 - `fm_to_pending.py` は pending の**形式は知るが、置き場所は知らない**
 - 呼び出し側（`index-docs` SKILL / `write-frontmatter` SKILL / `prepare_toc.py`）が場所を決めて渡す

@@ -795,6 +795,36 @@ class TestFilterExcluded(unittest.TestCase):
         self.assertEqual(kept, ['docs/a.md'])
         self.assertEqual(excluded, ['docs/draft/b.md'])
 
+    def test_absolute_path_outside_root_does_not_raise(self):
+        """root 配下に解決できない入力で例外を投げないこと。
+
+        should_exclude は relative_to(root) の成立を前提とする。ここで ValueError を
+        通すと、除外を伴うだけで CLI が traceback で落ちて JSON を返さなくなる
+        （DES-005 §8.1 の契約違反）。不正なパスの分類は下流の責務である。
+        """
+        kept, excluded = toc_utils.filter_excluded(
+            ['/etc/hosts.md', 'docs/a.md'], self.root, ['docs/draft']
+        )
+        self.assertEqual(kept, ['/etc/hosts.md', 'docs/a.md'])
+        self.assertEqual(excluded, [])
+
+    def test_absolute_path_inside_root_is_still_judged(self):
+        """root 配下を指す絶対パスは従来どおり判定する（過剰な素通しを防ぐ）。"""
+        inside = str(self.root / 'docs' / 'draft' / 'b.md')
+
+        kept, excluded = toc_utils.filter_excluded(
+            [inside], self.root, ['docs/draft']
+        )
+
+        self.assertEqual(kept, [])
+        self.assertEqual(excluded, [inside])
+
+    def test_parent_traversal_does_not_raise(self):
+        kept, _excluded = toc_utils.filter_excluded(
+            ['../outside.md'], self.root, ['docs/draft']
+        )
+        self.assertEqual(kept, ['../outside.md'])
+
     def test_semantics_match_should_exclude(self):
         """判定は should_exclude を共有する（規則を 2 実装に分けない）。"""
         paths = ['docs/a.md', 'docs/plan/b.md', 'docs/planning.md']

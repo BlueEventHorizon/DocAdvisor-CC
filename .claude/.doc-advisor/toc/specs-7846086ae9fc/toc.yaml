@@ -5,7 +5,7 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-08-13T09:21:13Z
+  generated_at: 2026-08-13T15:01:51Z
   file_count: 17
 
 docs:
@@ -129,38 +129,36 @@ docs:
       - single mode
   docs/specs/base/design/DES-005_toc_generation_flow.md:
     title: DES-005 key + path ToC Provider Design
-    purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and the SKILL argument contract
+    purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and SKILL argument contract
     content_details:
-      - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and action payload
-      - "action values: dispatch, wait, confirm, done, error with agents[].prompt ready to pass through"
-      - Core CLIs stay but SKILLs must not call them; a second entry point makes state diverge
-      - "SKILL argument contract: the spec is source of truth; upper layers pass --dirs-json and --paths-json"
-      - "Withdrawal vs breakage distinction: missing frontmatter dir allowed, unreadable dir is error; retried fill clears error state first"
-      - "store_dir(key) resolution: NFC-normalized slug, 40-char truncation, empty slug falls back to k"
-      - "Path validation flow: ABSOLUTE_PATH, PATH_TRAVERSAL, NOT_FOUND, NOT_MARKDOWN rejections; symlinks to external paths indexed when explicitly passed, confirmed only under --all"
-      - "desired-state diff against .toc_checksums.yaml: partial paths array deletes remainder"
-      - "merge_toc.py flow: backup, os.replace, validate, checksums update or restore on failure"
-      - "JSON contract: status and error_code required even on error, traceback breaks the contract"
+      - index_docs.py wrapper - single entry point for AI with stage detection and action payload
+      - action values - dispatch / wait / confirm / done / error with JSON contract
+      - store_dir(key) resolution with NFC normalization, 40-char truncation, slug fallback
+      - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlink escaping handling
+      - desired-state diff against .toc_checksums.yaml for partial path array support and deletions
+      - prepare/merge 2-phase design with frontmatter transcription between phases
+      - resolve_within_root() and find_escaping_symlink() logic for symlink validation
+      - continuation mode with .toc_work resumption and key-unit store isolation
+      - merge backup → validate → restore flow for atomic writes and failure recovery
+      - Frontmatter dependency closure - single transcription call point within wrapper for clean withdrawal
     applicable_tasks:
-      - Implementing or modifying index_docs.py, prepare_toc.py, or merge_toc.py
-      - Adding a script to ToC pipeline or changing what the wrapper plumbs
-      - Changing or removing SKILL arguments that upper layers call
+      - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
+      - Adding a script to the ToC pipeline or changing wrapper plumbing
+      - Changing SKILL argument contract or upper-layer API
       - Changing JSON output contract or error_code enum
-      - Designing path validation for symlinks escaping project root
-      - Deciding what AI does versus what script does in pipeline
-      - Debugging continuation, retry of failed fills, and .toc_work resume behavior
-      - Deciding whether doc-advisor may refuse something the caller passed in
+      - Designing path validation for external symlinks
+      - Debugging continuation, retry, and .toc_work resume behavior
     keywords:
       - DES-005
       - index_docs.py
       - resolve_store_dir
       - prepare_toc.py
       - merge_toc.py
-      - expand_dirs.py
       - desired-state sync
       - external symlink
       - ai_extracted_paths
-      - "--dirs-json"
+      - continuation mode
+      - symlink validation
   docs/specs/base/design/DES-009_check_toc_freshness_design.md:
     title: DES-009 check-toc (ToC Freshness Check) Design
     purpose: Defines the design for check-toc SKILL that validates ToC freshness by comparing generation timestamp against a configurable age threshold, with deterministic judgment logic in a dedicated script and read-only metadata inspection.
@@ -444,38 +442,36 @@ docs:
       - UnicodeDecodeError
   docs/specs/frontmatter/design/DES-008_frontmatter_metadata.md:
     title: DES-008 doc-advisor Frontmatter Design
-    purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering the schema, trust predicate, script layout, and the write SKILL argument contract.
+    purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering schema, trust predicate, script layout, and write SKILL argument contract
     content_details:
-      - Why OKF v0.1 compliance was rejected - type works only paired with resource, and tags pulls against the keywords rule
-      - Frontmatter schema - the type marker plus the 5 ToC fields plus body_hash
-      - "type as a multi-valued identification marker coexisting with forge's temporary-feature-* labels"
-      - body_hash covers the body only (self-reference avoidance), stamped after the formatter
-      - Language Rule - every field value in English regardless of the body language
-      - Merge semantics - unknown keys preserved, the 6 owned keys replaced, type updated as a union
-      - Trust predicate - doc-advisor in type, the 5 fields matching the schema, and body_hash matching the body
-      - Which validations belong to the write side (values) versus the read side (missing fields, marker, hash)
-      - Withdrawal by deleting one directory depends on the indexing side treating its absence as normal
-      - write-frontmatter argument contract - --paths / --dirs / --exclude / --format-command, with fm_run.py plan resolving targets and apply verifying trust
+      - Why OKF v0.1 compliance was rejected - type works only paired with resource, tags pulls against keywords rule
+      - Frontmatter schema - doc-advisor type marker plus 5 ToC fields plus body_hash
+      - body_hash covers body only, self-reference avoidance, stamped after formatter
+      - Language rule - every field value in English regardless of source body language
+      - Trust predicate - doc-advisor in type, 5 fields matching schema, body_hash matching body
+      - Validations split between write side (values) and read side (fields, marker, hash)
+      - Type as multi-valued identification marker coexisting with forge temporary-feature labels
+      - Script architecture - fm_core, fm_read, fm_write, fm_to_pending, fm_run, fm_from_toc
     applicable_tasks:
-      - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
-      - Changing the trust predicate or the frontmatter schema
-      - Deciding where body_hash is stamped relative to formatting
-      - Deciding whether a validation belongs to the write side or the read side
-      - "Reviewing whether the type union update preserves other tools' markers"
-      - Changing the write-frontmatter SKILL arguments
+      - Implementing or modifying fm_core.py, fm_read.py, fm_write.py, fm_to_pending.py, fm_run.py
+      - Changing trust predicate or frontmatter schema
+      - Deciding body_hash stamping timing relative to formatting
+      - Determining whether validation belongs to write or read side
+      - "Reviewing type union update for preserving other tools' markers"
+      - Modifying write-frontmatter SKILL arguments
       - Adding frontmatter to existing documents via write-frontmatter
-      - Designing the write-back of AI extraction results
+      - Designing write-back of AI extraction results to frontmatter
     keywords:
       - DES-008
       - body_hash
       - fm_core.py
       - fm_run.py
       - fm_to_pending.py
-      - type union update
       - trust predicate
-      - OKF
+      - type union update
       - extracted_by
-      - "--format-command"
+      - OKF
+      - frontmatter metadata
   docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
     title: REQ-006 Frontmatter Metadata Requirements Specification
     purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.

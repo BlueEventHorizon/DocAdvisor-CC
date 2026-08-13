@@ -285,6 +285,35 @@ class TestExpandTargets(FmRunTestBase):
         self.assertEqual(paths, [])
 
 
+class TestCliAlwaysEmitsJson(FmRunTestBase):
+    """**異常入力でも単一 JSON を返すこと**（DES-005 §8.1）。
+
+    正常系だけを固定していると、境界処理を足したときに traceback で落ちる形が通る。
+    実際に `filter_excluded` の新設で「絶対パス + --exclude」が traceback になる退行が
+    起きた（`--exclude` なしなら rejected_paths で正常に返っていた）。**その形をここで
+    落とす。**
+    """
+
+    ABNORMAL_ARGS = (
+        ('plan', '--paths', '/etc/hosts.md', '--exclude', 'docs/draft'),
+        ('plan', '--paths', '/etc/hosts.md'),
+        ('plan', '--paths', '../outside.md', '--exclude', 'docs/draft'),
+        ('plan', '--dirs', 'nosuchdir/', '--exclude', 'docs/draft'),
+        ('plan', '--paths', 'docs/missing.md', '--exclude', 'docs/draft'),
+    )
+
+    def test_abnormal_paths_still_return_single_json(self):
+        for args in self.ABNORMAL_ARGS:
+            with self.subTest(args=args):
+                proc, payload = self._run_cli(*args)
+                self.assertIn('status', payload, 'status は error でも必須')
+                self.assertIn('error_code', payload)
+                self.assertNotIn(
+                    'Traceback', proc.stderr,
+                    'traceback で落ちる形は JSON 契約違反',
+                )
+
+
 class TestCliContract(FmRunTestBase):
     """CLI 契約（単一 JSON / exit code / 引数の不正）"""
 
@@ -679,6 +708,27 @@ class TestExcludeAppliesToTheResolvedSet(FmRunTestBase):
             any('--exclude' in w for w in payload['warnings']),
             '黙って落とさず件数を報告する',
         )
+
+
+class TestApplyOutputShapeIsStable(FmRunTestBase):
+    """apply の出力が「フィールドの有無で呼び出し側に分岐させない」こと。
+
+    `plan` は空配列でも常に出す。apply だけが値が無いときキーごと消える形だと、
+    読み手に有無の分岐が残る（SKILL の観測表は warnings を無条件に挙げている）。
+    """
+
+    ALWAYS = ('warnings', 'needs_ai', 'skipped', 'rejected_dirs', 'rejected_paths')
+
+    def test_entries_json_path_emits_every_key(self):
+        self._write('a.md', BODY)
+        entries = json.dumps([{"path": "a.md", "metadata": FULL_METADATA}])
+
+        _proc, payload = self._run_cli('apply', '--entries-json', entries)
+
+        for key in self.ALWAYS:
+            with self.subTest(key=key):
+                self.assertIn(key, payload, '値が無くてもキーは出す')
+        self.assertEqual(payload['warnings'], [])
 
 
 class TestApplyRejectsTargetArgsWithEntries(FmRunTestBase):

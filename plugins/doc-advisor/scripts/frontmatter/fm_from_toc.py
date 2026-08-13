@@ -50,7 +50,13 @@ from pathlib import Path
 
 # fm_core が sys.path へ scripts/ を通すため、以降の toc_store / toc_utils の
 # import が成立する（本モジュールを import する経路はすべて fm_core を先に通る）。
-from fm_core import LIST_FIELDS, STRING_FIELDS, Violation, validate_field_values
+from fm_core import (
+    LIST_FIELDS,
+    STRING_FIELDS,
+    Violation,
+    normalize_metadata_values,
+    validate_field_values,
+)
 
 from toc_store import (  # noqa: E402
     CHECKSUMS_FILENAME,
@@ -169,6 +175,13 @@ def entry_violations(metadata):
     信頼判定が必ず落ちる。したがって欠落は本モジュールで検出し、当該文書を AI 抽出へ
     回す。値域の判定は `fm_core` の実装をそのまま使う（規則を 2 箇所に持たない）。
 
+    **値域は書き込み側と同じ前処理を通してから判定する [MANDATORY]**。`fm_write` は
+    書き込みの入口で意味を保つ表記へ変換してから検証する（DES-008 §4）。ここで生値の
+    まま検証すると、**書き込みなら変換して受理される値を転記だけが恒久的に拒否する**
+    非対称が生じ、当該文書は毎回 AI 再起草へ回る。DES-008 §8.2 が規則を共有する理由は
+    「転記が通した値を書き込み側が弾く、あるいはその逆」を避けることであり、向きが
+    逆でも同じ違反である。
+
     Args:
         metadata: `extract_metadata` の戻り値
 
@@ -183,7 +196,8 @@ def entry_violations(metadata):
                 field,
                 f"ToC のエントリに {field} がありません",
             ))
-    violations.extend(validate_field_values(metadata))
+    normalized, _changed = normalize_metadata_values(metadata)
+    violations.extend(validate_field_values(normalized))
     return violations
 
 

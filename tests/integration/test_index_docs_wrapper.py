@@ -685,6 +685,26 @@ class TestUpperLayerContract(WrapperTestBase):
         ]
         self.assertEqual(len(dispatched), 1, '明示 paths でも exclude が効く')
 
+    def test_exclude_count_is_reported_for_explicit_paths(self):
+        """明示 paths 経路でも落とした件数を warnings に載せること（DES-005 §4.2.2）。
+
+        `--dirs` 経路だけが warning を出す形では、除外が効いたのか対象が最初から
+        無かったのかを利用者が区別できない。
+        """
+        self._write_md('docs/keep.md')
+        self._write_md('docs/drop.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--paths-json', json.dumps(['docs/keep.md', 'docs/drop.md']),
+            '--exclude-json', json.dumps(['docs/drop.md']),
+        )
+
+        self.assertTrue(
+            any('--exclude' in w for w in payload.get('warnings') or []),
+            '除外件数が warnings に出ていない',
+        )
+
     def test_repeated_and_json_forms_are_merged(self):
         self._write_md('a/one.md')
         self._write_md('b/two.md')
@@ -833,6 +853,39 @@ class TestExternalSymlinkPassThrough(WrapperTestBase):
         )
 
         self.assertEqual(payload['counts']['added'], 1)
+
+
+class TestAbnormalPathsStillEmitJson(WrapperTestBase):
+    """**異常入力でも単一 JSON を返すこと**（DES-005 §8.1）。
+
+    `filter_excluded` の新設で「絶対パス + `--exclude`」がラッパーを traceback で
+    落とす退行が起きた（`--exclude` なしなら `prepare_toc` が `ABSOLUTE_PATH` を返して
+    いた）。除外の判定点で不正なパスを先取りせず、分類を下流へ委ねることを固定する。
+    """
+
+    def test_absolute_path_with_exclude_returns_json(self):
+        self._write_md('docs/a.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--paths', '/etc/hosts.md',
+            '--exclude', 'docs/draft',
+        )
+
+        self.assertIn('status', payload)
+        self.assertIn('error_code', payload)
+
+    def test_absolute_path_classification_matches_without_exclude(self):
+        """`--exclude` の有無で分類が変わらないこと。"""
+        self._write_md('docs/a.md')
+
+        without = self._index('--key', 'rules', '--paths', '/etc/hosts.md')
+        with_exclude = self._index(
+            '--key', 'rules', '--paths', '/etc/hosts.md', '--exclude', 'docs/draft'
+        )
+
+        self.assertEqual(with_exclude['error_code'], without['error_code'])
+        self.assertEqual(with_exclude['action'], without['action'])
 
 
 class TestArgumentContract(WrapperTestBase):

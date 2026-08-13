@@ -51,6 +51,7 @@ from fm_from_toc import (
     REASON_NOT_IN_TOC,
     REASON_UNVERIFIABLE,
     FromTocError,
+    entry_violations,
     extract_metadata,
     load_toc,
     resolve_entry,
@@ -263,6 +264,54 @@ class TestIndependenceBoundary(unittest.TestCase):
                     f"{name} が frontmatter 側の {token} を参照している"
                     "（依存は派生 → 中心の一方向。DES-008 §6.1）",
                 )
+
+
+class TestEntryViolationsSharesTheWriteSidePreprocessing(unittest.TestCase):
+    """値域判定を書き込み側と同じ前処理の上で行うこと（DES-008 §8.2）。
+
+    生値のまま判定すると「書き込みなら変換して受理される値を、転記だけが恒久的に
+    拒否する」非対称が生じ、当該文書は毎回 AI 再起草へ回る。§8.2 が規則を共有する
+    理由は「転記が通した値を書き込み側が弾く、あるいはその逆」を避けることであり、
+    向きが逆でも同じ違反である。
+
+    **実 ToC ファイル経由ではこの入力は到達しない**（writer が `"` を `\\"` へ
+    エスケープし、読み戻すとバックスラッシュを含む値になる）。到達するのは手で
+    編集された ToC や他実装が書いた ToC であり、判定の単位で固定する。
+    """
+
+    BASE = {
+        "title": "Title",
+        "purpose": "Purpose",
+        "content_details": ["detail"],
+        "applicable_tasks": ["task"],
+        "keywords": ["keyword"],
+    }
+
+    def test_double_quote_is_accepted(self):
+        metadata = dict(self.BASE, title='Say "hi" now')
+        self.assertEqual(entry_violations(metadata), [])
+
+    def test_edge_single_quote_is_accepted(self):
+        metadata = dict(self.BASE, keywords=["'quoted'"])
+        self.assertEqual(entry_violations(metadata), [])
+
+    def test_backslash_is_still_rejected(self):
+        """変換できない文字は従来どおり拒否する（過剰な受理を防ぐ）。"""
+        metadata = dict(self.BASE, title="back\\slash")
+
+        violations = entry_violations(metadata)
+
+        self.assertEqual(
+            [(code, field) for code, field, _detail in violations],
+            [("FIELD_UNSUPPORTED_CHARACTER", "title")],
+        )
+
+    def test_missing_field_is_still_detected(self):
+        metadata = {k: v for k, v in self.BASE.items() if k != "keywords"}
+
+        violations = entry_violations(metadata)
+
+        self.assertIn("keywords", [field for _code, field, _detail in violations])
 
 
 if __name__ == "__main__":
