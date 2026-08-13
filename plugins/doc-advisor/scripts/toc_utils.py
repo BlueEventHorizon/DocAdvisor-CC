@@ -793,6 +793,13 @@ def filter_excluded(paths, project_root, exclude_patterns):
     明示 paths / ToC 全件）によらず同じ 1 箇所で効く。判定そのものは
     `should_exclude` を共有し、システム固定除外との一貫性を保つ。
 
+    **root 配下に解決できない入力は判定せず素通しする [MANDATORY]**。`should_exclude` は
+    `relative_to(root)` が成立することを前提とするため、絶対パスで root 外を指す入力を
+    渡すと `ValueError` になる。ここで例外を投げると、除外を伴うだけで CLI が traceback
+    で落ちて JSON を返さなくなる（DES-005 §8.1 は error でも `status` / `error_code` を
+    必須としており、契約違反になる）。**不正なパスの分類は下流の責務**であり
+    （`ABSOLUTE_PATH` / `NOT_FOUND` 等）、除外の判定点で先取りしない。
+
     Args:
         paths: project-root-relative なパスの列
         project_root: project root
@@ -808,7 +815,12 @@ def filter_excluded(paths, project_root, exclude_patterns):
     kept = []
     excluded = []
     for rel in paths:
-        if should_exclude(root / rel, root, exclude_patterns):
+        candidate = root / rel
+        if not candidate.is_relative_to(root):
+            # root 配下でない（絶対パスで root 外）。除外判定の対象にしない。
+            kept.append(rel)
+            continue
+        if should_exclude(candidate, root, exclude_patterns):
             excluded.append(rel)
         else:
             kept.append(rel)

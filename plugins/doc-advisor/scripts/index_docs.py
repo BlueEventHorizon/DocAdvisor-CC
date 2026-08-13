@@ -504,11 +504,16 @@ def _expand_targets(args):
         argv.extend(["--paths-json", json.dumps(explicit_paths)])
 
     if not all_dirs:
-        # 展開するディレクトリが無い＝明示 paths のみ。expand_dirs を通す必要がない
-        paths, _excluded = filter_excluded(
+        # 展開するディレクトリが無い＝明示 paths のみ。expand_dirs を通す必要がない。
+        # 落とした件数は --dirs 経路と同じく warnings に載せる（DES-005 §4.2.2）。
+        # 黙って対象から消すと、除外が効いたのか対象が無かったのかを区別できない。
+        paths, excluded = filter_excluded(
             explicit_paths, get_project_root(), all_exclude
         )
-        return paths, [], []
+        warnings = []
+        if excluded:
+            warnings.append(f"excluded by --exclude: {len(excluded)} path(s)")
+        return paths, [], warnings
 
     _exit_code, payload = call_core(expand_dirs, argv)
     if payload.get("status") == STATUS_ERROR:
@@ -973,7 +978,7 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--exclude", nargs="+", metavar="PATH",
-        help="--dirs 展開時に除外するパス・ディレクトリ",
+        help="確定した対象集合から除外するパス・ディレクトリ（--dirs / --paths のどちらでも効く）",
     )
     parser.add_argument(
         "--exclude-json", dest="exclude_json",

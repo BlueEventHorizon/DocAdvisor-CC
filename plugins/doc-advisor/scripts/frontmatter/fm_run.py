@@ -453,7 +453,8 @@ def parse_args(argv=None):
     plan.add_argument("--paths", nargs="+", metavar="PATH",
                       help="対象ファイル（複数指定可。--dirs と併用可）")
     plan.add_argument("--exclude", nargs="+", metavar="PATH",
-                      help="--dirs 展開時に除外するパス・ディレクトリ")
+                      help="確定した対象集合から除外するパス・ディレクトリ"
+                           "（--dirs / --paths / --from-toc 全件のどれでも効く）")
     plan.add_argument("--from-toc", dest="from_toc", metavar="KEY",
                       help="当該 key の ToC からメタデータを写す（単体モードは 'all'）。"
                            "--paths / --dirs 省略時は ToC の全文書を対象にする")
@@ -473,7 +474,8 @@ def parse_args(argv=None):
     apply_p.add_argument("--paths", nargs="+", metavar="PATH",
                          help="対象ファイル（--from-toc 指定時のみ）")
     apply_p.add_argument("--exclude", nargs="+", metavar="PATH",
-                         help="--dirs 展開時に除外するパス・ディレクトリ")
+                         help="確定した対象集合から除外するパス・ディレクトリ"
+                              "（--from-toc 指定時のみ。--dirs / --paths / ToC 全件のどれでも効く）")
     apply_p.add_argument("--format-command", dest="format_command",
                          help="整形コマンド。{file} が対象パスへ置換される")
 
@@ -694,13 +696,23 @@ def main(argv=None):
             log(f"failed: {item['path']} - {item['detail']}")
         elif not item["trust"]:
             log(f"written but not trustworthy: {item['path']}")
+    # 空でもキーを落とさない。`plan` は空配列でも常に出しており、apply だけが
+    # 「値が無ければキーごと消える」形だと、読み手にフィールドの有無による分岐が
+    # 残る（SKILL の観測表は warnings を無条件に挙げている）。emit_json は None の
+    # 引数を出力しないため、空配列・空 dict を明示して渡す。
+    extra = plan_extra if plan_extra is not None else {
+        "needs_ai": [],
+        "skipped": [],
+        "rejected_dirs": [],
+        "rejected_paths": [],
+    }
     emit_json(
         status,
         error_code=None,
         counts=counts,
         results=results,
-        warnings=(plan_warnings + normalization_warnings) or None,
-        extra=plan_extra,
+        warnings=plan_warnings + normalization_warnings,
+        extra=extra,
     )
     return 0
 

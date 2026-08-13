@@ -1,39 +1,37 @@
 ---
 type: doc-advisor
 title: DES-005 key + path ToC Provider Design
-purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and the SKILL argument contract.
+purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and SKILL argument contract
 content_details:
-  - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and an action payload
-  - action values - dispatch / wait / confirm / done / error, with agents[].prompt ready to pass through
-  - Core CLIs stay but SKILLs must not call them (a second entry point makes state diverge)
-  - SKILL argument contract - the spec, not SKILL.md, is the source of truth; upper layers pass --dirs-json and a SKILL.md rewrite once deleted it
-  - Withdrawal vs breakage - a missing frontmatter dir is allowed, an unreadable one is an error; a retried fill clears the error state first so the normal claim lease applies
-  - store_dir(key) resolution - NFC-normalized slug, 40-char truncation, empty slug falls back to k
-  - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlinks that escape the root are indexed when passed explicitly and only confirmed under --all
-  - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
-  - merge_toc.py flow - backup, os.replace, validate, then checksums update or restore on failure
-  - JSON contract - status and error_code required even on error, so a traceback exit breaks the contract
+  - index_docs.py wrapper - single entry point for AI with stage detection and action payload
+  - action values - dispatch / wait / confirm / done / error with JSON contract
+  - store_dir(key) resolution with NFC normalization, 40-char truncation, slug fallback
+  - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlink escaping handling
+  - desired-state diff against .toc_checksums.yaml for partial path array support and deletions
+  - prepare/merge 2-phase design with frontmatter transcription between phases
+  - resolve_within_root() and find_escaping_symlink() logic for symlink validation
+  - continuation mode with .toc_work resumption and key-unit store isolation
+  - merge backup → validate → restore flow for atomic writes and failure recovery
+  - Frontmatter dependency closure - single transcription call point within wrapper for clean withdrawal
 applicable_tasks:
   - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
-  - Adding a script to the ToC pipeline or changing what the wrapper plumbs
-  - Changing or removing a SKILL argument that upper layers call
-  - Changing the JSON output contract or the error_code enum
-  - Designing path validation for symlinks that escape the project root
-  - Deciding what the AI does versus what a script does in the pipeline
-  - Debugging continuation, retry of failed fills, and .toc_work resume behavior
-  - Deciding whether doc-advisor may refuse something the caller passed in
+  - Adding a script to the ToC pipeline or changing wrapper plumbing
+  - Changing SKILL argument contract or upper-layer API
+  - Changing JSON output contract or error_code enum
+  - Designing path validation for external symlinks
+  - Debugging continuation, retry, and .toc_work resume behavior
 keywords:
   - DES-005
   - index_docs.py
   - resolve_store_dir
   - prepare_toc.py
   - merge_toc.py
-  - expand_dirs.py
   - desired-state sync
   - external symlink
   - ai_extracted_paths
-  - "--dirs-json"
-body_hash: sha256:58ecc6704c436f9ae96822c4b9d589d61d2020e5138df71a6f7fc3593713164e
+  - continuation mode
+  - symlink validation
+body_hash: sha256:aa931fa57c5f0850151d50def3164814de53c913e7696c739560241fe0e2c1ea
 ---
 
 # DES-005 key + path ToC Provider 設計書
@@ -185,24 +183,25 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 
 ### 4.1 モジュール一覧
 
-| モジュール                                                   | 責務                                                                                                                        | 依存                                                                                                           |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `index_docs.py`                                              | **索引パイプラインのラッパー**。AI が呼ぶ唯一の入口。段階判定 → 配管 → `action` 出力                                        | `expand_dirs`, `prepare_toc`, `merge_toc`, `toc_store`, `frontmatter/fm_to_pending`（§4.5）                    |
-| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                                                        | `toc_utils`                                                                                                    |
-| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                                                        | 標準ライブラリ                                                                                                 |
-| `expand_dirs.py`                                             | dirs / グロブを rglob 展開して paths 配列へ変換（**システム固定除外のみ**適用。ユーザー除外は扱わない / §4.2.2）、JSON 出力 | `toc_utils`                                                                                                    |
-| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力                                                  | `toc_store`, `toc_utils`                                                                                       |
-| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力                                        | `toc_store`, `toc_utils`                                                                                       |
-| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力                                            | `toc_store`, `toc_utils`                                                                                       |
-| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                                                        | `toc_store`, `toc_utils`                                                                                       |
-| `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009）                                        | `toc_store`, `toc_utils`                                                                                       |
-| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）                                            | `toc_utils`                                                                                                    |
-| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                                                                    | `toc_store`, `toc_utils`                                                                                       |
-| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証                                             | `toc_utils`（`yaml_escape` / `normalize_field_value` の共有。DES-008 §6.1 の表）。`toc_store` は import しない |
-| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                                                       | `fm_core`（`toc_store` を import しない）                                                                      |
-| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                                                                   | `fm_core`（同上）                                                                                              |
-| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力                                             | `fm_core`（同上）                                                                                              |
-| `frontmatter/fm_from_toc.py`                                 | `toc.yaml` のメタデータを原本フロントマターへ写す転記 + 陳腐化ガード（DES-008 §8.2）                                        | `fm_core`, `toc_store`, `toc_utils`（ToC の在り処を知る唯一のモジュール）                                      |
+| モジュール                                                   | 責務                                                                                                                        | 依存                                                                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `index_docs.py`                                              | **索引パイプラインのラッパー**。AI が呼ぶ唯一の入口。段階判定 → 配管 → `action` 出力                                        | `expand_dirs`, `prepare_toc`, `merge_toc`, `toc_store`, `frontmatter/fm_to_pending`（§4.5）                                   |
+| `toc_store.py`                                               | key → store_dir 解決、JSON 出力ヘルパ、予約 key 判定                                                                        | `toc_utils`                                                                                                                   |
+| `toc_utils.py`                                               | path 検証（traversal + symlink 実体解決）、glob、checksums、YAML I/O                                                        | 標準ライブラリ                                                                                                                |
+| `expand_dirs.py`                                             | dirs / グロブを rglob 展開して paths 配列へ変換（**システム固定除外のみ**適用。ユーザー除外は扱わない / §4.2.2）、JSON 出力 | `toc_utils`                                                                                                                   |
+| `prepare_toc.py`（旧 `create_pending_yaml.py` を改名・転用） | paths 検証 → desired-state 差分検出 → pending 生成、`--dry-run`、JSON 出力                                                  | `toc_store`, `toc_utils`                                                                                                      |
+| `merge_toc.py`                                               | 充填済み pending を統合 → `toc.yaml` 書き出し（削除反映、原子的書き込み）、JSON 出力                                        | `toc_store`, `toc_utils`                                                                                                      |
+| `get_toc.py`（旧 `filter_toc.py` を統合）                    | `toc.yaml` 取得（全体 or `--paths` 縮小抽出）、ranking しない、JSON or YAML 出力                                            | `toc_store`, `toc_utils`                                                                                                      |
+| `remove_toc.py`                                              | key 全体削除 / `--paths` 個別エントリ削除、JSON 出力                                                                        | `toc_store`, `toc_utils`                                                                                                      |
+| `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009）                                        | `toc_store`, `toc_utils`                                                                                                      |
+| `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）                                            | `toc_utils`                                                                                                                   |
+| `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                                                                    | `toc_store`, `toc_utils`                                                                                                      |
+| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証                                             | `toc_utils`（表記・値域の規則を共有。DES-008 §6.1）。`toc_store` は import しない                                             |
+| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                                                       | `fm_core`（`toc_store` を import しない）                                                                                     |
+| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                                                                   | `fm_core`（同上）                                                                                                             |
+| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力                                             | `fm_core`（同上）                                                                                                             |
+| `frontmatter/fm_run.py`                                      | **書き込み SKILL が呼ぶラッパー**（plan / apply）。対象確定・除外適用・転記・書き込み・信頼判定を配管                       | `fm_core`, `fm_read`, `fm_write`, `fm_from_toc`, `expand_dirs`, `toc_utils`（走査・除外・パス基準の規則を共有。DES-008 §6.1） |
+| `frontmatter/fm_from_toc.py`                                 | `toc.yaml` のメタデータを原本フロントマターへ写す転記 + 陳腐化ガード（DES-008 §8.2）                                        | `fm_core`, `toc_store`, `toc_utils`（ToC の在り処を知る唯一のモジュール）                                                     |
 
 `create_checksums.py` の `--promote-pending` / `--clean-work-dir` 機能は `toc_store.py` に統合し、key 単位で扱う。
 
