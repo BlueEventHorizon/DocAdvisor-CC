@@ -87,13 +87,15 @@ flowchart TB
         P4[remove_toc.py]
         P5[check_toc.py]
         C1[toc_store.py 共通]
+        C2[toc_utils.py 共通]
     end
 
-    subgraph FM["frontmatter 系統 (独立: toc_store / toc_utils に依存しない)"]
+    subgraph FM["frontmatter 系統 (派生: 中心へ一方向に依存する)"]
         F1[fm_to_pending.py 転記]
         F2[fm_read.py]
         F3[fm_write.py]
         F0[fm_core.py 共通]
+        F4[fm_from_toc.py ToC からの転記]
     end
 
     subgraph Store["key 単位 ToC ストア"]
@@ -114,6 +116,9 @@ flowchart TB
     F1 --> F0
     F2 --> F0
     F3 --> F0
+    F4 --> F0
+    F0 -->|yaml_escape 共有| C2
+    F4 -->|key 解決| C1
     A1 -->|充填| S1
     W1 --> P2
     W1 --> C1
@@ -132,7 +137,7 @@ flowchart TB
 
 1. AI 層 → script 層 → 共通モジュール（`toc_store.py` / `toc_utils.py`）→ ストアの単方向
 2. script 層は AI 層を呼ばない。`prepare → merge` の間はまず script 層が転記（`fm_to_pending.py`）を行い、転記できなかった pending のメタデータ抽出のみを AI 層が担う
-3. 循環依存を作らない。ToC パイプラインの共通ロジックは `toc_utils.py`（既存）と `toc_store.py`（key 解決・ストア I/O）に集約する。`frontmatter/fm_core.py` はこの 2 つを import しない独立系統の共通ロジックであり、意図的に第 3 の集約点として分離する（DES-008 §6.1。フロントマター方式を撤回する際に 1 ディレクトリの削除で戻せることを優先する）
+3. 循環依存を作らない。ToC パイプラインの共通ロジックは `toc_utils.py`（既存）と `toc_store.py`（key 解決・ストア I/O）に集約する。`frontmatter/` 配下は派生系統であり、依存は**派生 → 中心の一方向に限る**（中心側がフロントマターの知識を持つことは倒立であり許さない。例外は転記の起動 1 箇所のみ）。表記・走査規則は中心側の実装を共有し、2 実装に分けない（`fm_core.py` は `toc_utils.yaml_escape`、`fm_run.py` は `expand_dirs.py`）。key / store_dir を知るのは `fm_from_toc.py` だけとし、他は ToC を知らない汎用モジュールとして保つ。撤回時は `frontmatter/` の削除で戻せる（中心側の実装は残る）。境界の正本は DES-008 §6.1
 
 生成系 `index-docs` と検索系 `query-docs` はいずれも継承型 SKILL であり、カスタム Agent を Agent ツールで起動する（fork 型 SKILL は Agent を起動できないため）。`index-docs` は `toc-updater` を並列起動し、`query-docs` dispatcher は read-only な `query-worker` を起動して実検索を隔離する（ADR-002 改訂版）。
 
@@ -193,14 +198,15 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 | `check_toc.py`                                               | ToC の鮮度判定（read-only）。`metadata` のみ読み `freshness` を JSON 出力（DES-009）   | `toc_store`, `toc_utils`                                                                    |
 | `write_pending.py`                                           | toc-updater agent が pending にメタデータ充填（`--key` 対応、doc_type 引数なし）       | `toc_utils`                                                                                 |
 | `validate_toc.py`                                            | `toc.yaml` 検証（doc_type 必須なし、key ストアパス対応）                               | `toc_store`, `toc_utils`                                                                    |
-| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証        | 標準ライブラリのみ（`toc_store` / `toc_utils` を import しない）                            |
-| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                  | `fm_core`、標準ライブラリのみ（同上）                                                       |
-| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                              | `fm_core`、標準ライブラリのみ（同上）                                                       |
-| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力        | `fm_core`、標準ライブラリのみ（同上）                                                       |
+| `frontmatter/fm_core.py`                                     | フロントマターのパース / 生成、本文抽出・正規化、`body_hash` 計算、スキーマ検証        | `toc_utils`（表記規則 `yaml_escape` の共有のみ）。`toc_store` は import しない              |
+| `frontmatter/fm_read.py`                                     | 渡されたパスのフロントマターを読み信頼判定（DES-008 §5.1）→ JSON 出力                  | `fm_core`（`toc_store` を import しない）                                                   |
+| `frontmatter/fm_write.py`                                    | メタデータのマージ書き込み、整形実行後の `body_hash` 打刻                              | `fm_core`（同上）                                                                           |
+| `frontmatter/fm_to_pending.py`                               | 指定ディレクトリ直下の pending を転記で完了化（`status: completed`）、JSON 出力        | `fm_core`（同上）                                                                           |
+| `frontmatter/fm_from_toc.py`                                 | `toc.yaml` のメタデータを原本フロントマターへ写す転記 + 陳腐化ガード（DES-008 §8.2）   | `fm_core`, `toc_store`, `toc_utils`（ToC の在り処を知る唯一のモジュール）                   |
 
 `create_checksums.py` の `--promote-pending` / `--clean-work-dir` 機能は `toc_store.py` に統合し、key 単位で扱う。
 
-`frontmatter/` 配下は ToC パイプラインから独立した系統であり、フロントマターの読み書きと pending への転記のみを担う（DES-008 §6.1）。転記は prepare と AI 充填の間に置かれる独立したフェーズであり、key 解決も store_dir 解決も行わず、pending の置き場所は呼び出し側が引数で渡す。
+`frontmatter/` 配下は ToC パイプラインの派生系統であり、依存は派生 → 中心の一方向に限る（DES-008 §6.1）。pending への転記フェーズ（`fm_to_pending.py`）は prepare と AI 充填の間に置かれ、key 解決も store_dir 解決も行わず、pending の置き場所は呼び出し側が引数で渡す。key / store_dir を解決するのは `fm_from_toc.py` だけであり、ToC の在り処の知識はこの 1 モジュールに閉じる。
 
 各 script の主な CLI オプション:
 
@@ -217,6 +223,7 @@ store_dir(key) = .claude/.doc-advisor/toc/{slug}/
 | `frontmatter/fm_to_pending.py` | `--work-dir`                                                                                                                                                                                                                                                                                                            |
 | `frontmatter/fm_read.py`       | `--paths-json`                                                                                                                                                                                                                                                                                                          |
 | `frontmatter/fm_write.py`      | `--entries-json` / `--format-command`                                                                                                                                                                                                                                                                                   |
+| `frontmatter/fm_from_toc.py`   | CLI を持たない（`fm_run.py` から import して使う変換モジュール）                                                                                                                                                                                                                                                        |
 
 ### 4.1.1 ラッパー `index_docs.py`（AI が呼ぶ唯一の入口）
 
@@ -601,14 +608,14 @@ sequenceDiagram
 
 key + path 汎用化（REQ-001 §6.2）に伴い、SKILL / agent を以下のコンポーネントへ一本化する。
 
-| コンポーネント      | 種別                            | 責務                                                                                                                                                                                                                                                                     |
-| ------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `index-docs`        | SKILL（継承型）                 | **`index_docs.py` を呼び、返る `action` に従う**（§4.1.1）。Agent の起動と判断のみを担い、配管はラッパーが行う。`action: done` の `ai_extracted_paths` を提示し、承認された対象のみ `write-frontmatter` へ `--paths` で引き渡す（原本は自ら書き換えない / DES-008 §8.2） |
-| `query-docs`        | SKILL（継承型 dispatcher）      | `$ARGUMENTS`・親 context・guidance から検索依頼を構築し `query-worker` を起動。`--key` 省略時は予約 key `all`                                                                                                                                                            |
-| `check-toc`         | SKILL（継承型）                 | `check_toc.py` を 1 回呼び `freshness` を返す read-only なラッパ。`--key` / `--all` / `--max-age`（DES-009）                                                                                                                                                             |
-| `write-frontmatter` | SKILL（継承型）                 | 対象文書の本文からメタデータを作成し `fm_write.py` でフロントマターへ書き込む。原本を書き換えるため実行前にユーザ承認を取る（DES-008 §8.1 / §10.1）                                                                                                                      |
-| `query-worker`      | Agent（Read, Grep, Glob, Bash） | `get_toc` を呼び ToC 全エントリ読解・関連判断・`Required documents:` 返却（read-only）                                                                                                                                                                                   |
-| `toc-updater`       | Agent（Read, Bash）             | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填                                                                                                                                                                                                 |
+| コンポーネント      | 種別                            | 責務                                                                                                                                                                                                                                                                                           |
+| ------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index-docs`        | SKILL（継承型）                 | **`index_docs.py` を呼び、返る `action` に従う**（§4.1.1）。Agent の起動と判断のみを担い、配管はラッパーが行う。`action: done` の `ai_extracted_paths` を提示し、承認された対象のみ `write-frontmatter` へ `--paths` と `--from-toc <key>` で引き渡す（原本は自ら書き換えない / DES-008 §8.2） |
+| `query-docs`        | SKILL（継承型 dispatcher）      | `$ARGUMENTS`・親 context・guidance から検索依頼を構築し `query-worker` を起動。`--key` 省略時は予約 key `all`                                                                                                                                                                                  |
+| `check-toc`         | SKILL（継承型）                 | `check_toc.py` を 1 回呼び `freshness` を返す read-only なラッパ。`--key` / `--all` / `--max-age`（DES-009）                                                                                                                                                                                   |
+| `write-frontmatter` | SKILL（継承型）                 | 対象文書の本文からメタデータを作成し `fm_write.py` でフロントマターへ書き込む。原本を書き換えるため実行前にユーザ承認を取る（DES-008 §8.1 / §10.1）                                                                                                                                            |
+| `query-worker`      | Agent（Read, Grep, Glob, Bash） | `get_toc` を呼び ToC 全エントリ読解・関連判断・`Required documents:` 返却（read-only）                                                                                                                                                                                                         |
+| `toc-updater`       | Agent（Read, Bash）             | pending を読み元文書からメタデータ抽出 → `write_pending.py --key` で充填                                                                                                                                                                                                                       |
 
 ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-docs` / `query-worker` が実装する。orchestrator パターン（Phase 2 並列・中断耐性・continue モード、§6.6）を `index-docs` が用いる。
 

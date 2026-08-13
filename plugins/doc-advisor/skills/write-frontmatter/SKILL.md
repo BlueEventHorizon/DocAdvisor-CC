@@ -98,17 +98,18 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/frontmatter/fm_run.py plan \
 
 stdout の単一 JSON から読む:
 
-| フィールド             | 意味                                                                                                 |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- |
-| `targets[]`            | **書き込むべき対象**。`path` / `reason` / `source` / `violations` を持つ。この配列以外を対象にしない |
-| `targets[].source`     | `toc` = script が ToC から転記する（**AI は内容を作らない**）／ `ai` = AI が起草する                 |
-| `targets[].metadata`   | `source: toc` のときのみ存在する。転記される 5 フィールドの実値（承認のために提示する）              |
-| `targets[].toc_reason` | `source: ai` のときのみ存在する。転記できなかった理由（下表）                                        |
-| `skipped[]`            | 既に信頼できるフロントマターを持つため対象外になった文書（`reason: already trusted`）                |
-| `rejected_paths[]`     | 読めなかった文書。理由とともにユーザーへ報告する                                                     |
-| `rejected_dirs[]`      | 不在・非ディレクトリだった `--dirs`、および不正なグロブ                                              |
-| `warnings`             | `doc-advisor` の標識を持つのに信頼できない文書。規約違反の可能性があるため**必ずユーザーに提示する** |
-| `counts`               | `total` / `targets` / `from_toc` / `needs_ai` / `skipped` / `unreadable`                             |
+| フィールド                 | 意味                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `targets[]`                | **書き込むべき対象**。`path` / `reason` / `source` / `violations` を持つ。この配列以外を対象にしない                         |
+| `targets[].source`         | `toc` = script が ToC から転記する（**AI は内容を作らない**）／ `ai` = AI が起草する                                         |
+| `targets[].metadata`       | `source: toc` のときのみ存在する。転記される 5 フィールドの実値（承認のために提示する）                                      |
+| `targets[].toc_reason`     | `source: ai` のときのみ存在する。転記できなかった理由（下表）                                                                |
+| `targets[].toc_violations` | `toc_reason: incomplete_entry` のときのみ存在する。ToC のエントリが 5 フィールドを満たさない理由（欠落フィールド・値域違反） |
+| `skipped[]`                | 既に信頼できるフロントマターを持つため対象外になった文書（`reason: already trusted`）                                        |
+| `rejected_paths[]`         | 読めなかった文書。理由とともにユーザーへ報告する                                                                             |
+| `rejected_dirs[]`          | 不在・非ディレクトリだった `--dirs`、および不正なグロブ                                                                      |
+| `warnings`                 | `doc-advisor` の標識を持つのに信頼できない文書。規約違反の可能性があるため**必ずユーザーに提示する**                         |
+| `counts`                   | `total` / `targets` / `from_toc` / `needs_ai` / `skipped` / `unreadable`                                                     |
 
 `toc_reason` の値域:
 
