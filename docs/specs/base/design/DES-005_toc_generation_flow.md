@@ -3,35 +3,38 @@ type: doc-advisor
 title: DES-005 key + path ToC Provider Design
 purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and SKILL argument contract
 content_details:
-  - index_docs.py wrapper - single entry point for AI with stage detection and action payload
-  - action values - dispatch / wait / confirm / done / error with JSON contract
-  - store_dir(key) resolution with NFC normalization, 40-char truncation, slug fallback
-  - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlink escaping handling
-  - desired-state diff against .toc_checksums.yaml for partial path array support and deletions
-  - prepare/merge 2-phase design with frontmatter transcription between phases
-  - resolve_within_root() and find_escaping_symlink() logic for symlink validation
-  - continuation mode with .toc_work resumption and key-unit store isolation
-  - merge backup → validate → restore flow for atomic writes and failure recovery
-  - Frontmatter dependency closure - single transcription call point within wrapper for clean withdrawal
+  - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and an action payload
+  - action values - dispatch / wait / confirm / done / error, with agents[].prompt ready to pass through
+  - Core CLIs stay but SKILLs must not call them; a second entry point makes state diverge
+  - SKILL argument contract - the spec, not SKILL.md, is the source of truth; upper layers pass --dirs-json and a SKILL.md rewrite once deleted it
+  - Withdrawal vs breakage - a missing frontmatter dir is allowed, an unreadable one is an error; a retried fill clears the error state first so the normal claim lease applies
+  - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlinks that escape the root are indexed when passed explicitly and only confirmed under --all
+  - One path basis per entry point - the wrapper aligns cwd with the project root, so joining and passing a path through cannot resolve to different files
+  - Exclusion applies to the resolved target set, not during directory expansion; paths where the set is not materialized reject --exclude instead of dropping it
+  - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
 applicable_tasks:
   - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
-  - Adding a script to the ToC pipeline or changing wrapper plumbing
-  - Changing SKILL argument contract or upper-layer API
-  - Changing JSON output contract or error_code enum
-  - Designing path validation for external symlinks
-  - Debugging continuation, retry, and .toc_work resume behavior
+  - Adding a script to the ToC pipeline or changing what the wrapper plumbs
+  - Changing or removing a SKILL argument that upper layers call
+  - Changing the JSON output contract or the error_code enum
+  - Designing path validation for symlinks that escape the project root
+  - Deciding how a relative path is resolved in a new entry point
+  - Deciding where an exclusion is applied, or why one is refused
+  - Deciding what the AI does versus what a script does in the pipeline
+  - Debugging continuation, retry of failed fills, and .toc_work resume behavior
+  - Deciding whether doc-advisor may refuse something the caller passed in
 keywords:
   - DES-005
   - index_docs.py
-  - resolve_store_dir
   - prepare_toc.py
   - merge_toc.py
+  - expand_dirs.py
+  - "--dirs-json"
+  - "--exclude"
+  - ensure_project_root_cwd
   - desired-state sync
-  - external symlink
-  - ai_extracted_paths
   - continuation mode
-  - symlink validation
-body_hash: sha256:aa931fa57c5f0850151d50def3164814de53c913e7696c739560241fe0e2c1ea
+body_hash: sha256:03795c2f265aec3108afb1166b71ad0678b06579dad06c1aeb8f8a95951b07e4
 ---
 
 # DES-005 key + path ToC Provider 設計書
@@ -326,18 +329,28 @@ project-root-relative なパスからファイルを開く作法が 2 つある�
 
 以前はユーザー除外を `expand_dirs` の rglob 中でのみ適用していた。その結果、対象の出どころが `--dirs` 以外のとき（明示 paths のみ / `--from-toc` の ToC 全件）は**黙って無視された**。とくに `apply --from-toc --exclude`（`--dirs` なし）は対象 0 件から全件フォールバックへ落ち、「除外して」と指定した原本まで書き換えた ——**指定と正反対の結果**である。同じ黙殺が `index_docs`（明示 paths のみの経路）にもあった。
 
-| 対象の出どころ           | 除外の適用                                             |
-| ------------------------ | ------------------------------------------------------ |
-| `--dirs` の展開結果      | 確定後に `toc_utils.filter_excluded` で適用            |
-| 明示 `--paths`           | 同上                                                   |
-| `--from-toc` の ToC 全件 | 同上                                                   |
-| `--all` の全走査         | システム固定除外のみ（ユーザー除外を受け取らない経路） |
+| 対象の出どころ           | 除外の適用                                                                    |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `--dirs` の展開結果      | 確定後に `toc_utils.filter_excluded` で適用                                   |
+| 明示 `--paths`           | 同上                                                                          |
+| `--from-toc` の ToC 全件 | 同上                                                                          |
+| `--all` の全走査         | システム固定除外のみ。**ユーザー除外との併用は拒否する**（`UNSUPPORTED_ARG`） |
+| `--paths-file` の配列    | 同上。配列はファイルのまま prepare へ渡され、ラッパーの手元で確定しない       |
 
 - **`expand_dirs` はユーザー除外の引数を持たない**（`--exclude-json` を削除した）。渡さないだけでは同じ規則の適用点が 2 つ残るため、機構ごと消して適用点を 1 つにする。`expand_dirs` は**システム固定除外**の適用を続ける ——走査中に落とすことがその責務であり、利用者の指定とは別の規則である
 - 判定そのものは `should_exclude` を共有する。システム固定除外とユーザー除外で意味論が食い違わないようにするため、規則の実装は 1 つだけ置く
+- **適用できない経路では拒否する（黙って捨てない）[MANDATORY]**。`--all` は prepare が project root 以下を自分で走査し、`--paths-file` は配列をファイルのまま prepare へ渡すため、どちらも**対象集合がラッパーの手元に無い**。適用できないまま受理すると「除外したつもりの文書が索引される」ので、`UNSUPPORTED_ARG` で拒否して理由を伝える。適用できる経路（`--dirs` / `--paths`）では従来どおり適用する
 - **落とした件数を `warnings` に載せる。** 黙って対象から消すと、指定が効いたのか対象が無かったのかを呼び出し側が区別できない
 
 `--exclude` はディレクトリ専用ではない。`should_exclude` の意味論により、ファイル指定（`docs/drop.md`）・サブツリー指定（`docs/draft`）・任意階層のディレクトリ名（`draft`）のいずれも書ける。
+
+### 4.2.3 対象指定の出どころは 1 つに限る [MANDATORY]
+
+`--paths-file` は `--dirs` / `--paths` / `--dirs-json` / `--paths-json` と**併用できない**。併用は `UNSUPPORTED_ARG` で拒否する。
+
+`--dirs` と `--paths`、およびそれぞれの JSON 形は連結される（§4.1.1）。一方 `--paths-file` は配列をファイルのまま prepare へ渡す経路であり、連結する先が無い。**優先関係を推定して片方を黙って捨てることが、§4.2.2 の黙殺と同じ欠陥になる。** 指定が競合したときに正しい方を当てる方法は無く、当てられなかったとき利用者には「指定したのに索引されない文書がある」ことしか見えない。
+
+拒否は `--exclude` の併用拒否（§4.2.2）と同じ理屈である。**適用できない指定を受理しない。**
 
 ### 4.3 主要関数のクラス図（共通モジュール）
 
@@ -665,19 +678,19 @@ ADR-002 改訂版（継承型 dispatcher + read-only worker 隔離）を `query-
 
 `index-docs`:
 
-| 引数                     | 主な呼び出し元                                                       | 備考                                                                  |
-| ------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `--key <key>`            | 上位層 / 利用者                                                      | `all` は予約語のため任意指定不可                                      |
-| `--dirs <dir>...`        | 人間・AI が手で打つ                                                  | グロブメタ文字可                                                      |
-| `--dirs-json '[...]'`    | **上位層（forge）**                                                  | 設定から解決した配列をそのまま渡す形。`--dirs` と併用可               |
-| `--paths <path>...`      | 人間・AI が手で打つ                                                  | 当該 key の完全な desired state                                       |
-| `--paths-json '[...]'`   | 上位層 / README 記載                                                 | 同上                                                                  |
-| `--paths-file <path>`    | 上位層（中身は **paths 配列そのもの**。`{"paths": [...]}` ではない） | 長大な配列を argv に載せないための形                                  |
-| `--exclude <path>...`    | 人間・AI が手で打つ                                                  | 確定した対象集合からの除外（出どころを問わない。§4.2.2）              |
-| `--exclude-json '[...]'` | **上位層（forge）**                                                  | `--exclude` と併用可                                                  |
-| `--all`                  | 利用者                                                               | 予約 key `all`。対象指定と併用不可                                    |
-| ~~`--allow-external`~~   | —                                                                    | **公開しない**。`--all` の confirm の答えを戻す隠しオプション（§5.3） |
-| `--on-fill-error <mode>` | 利用者（`confirm` 後）                                               | 例外経路のみ（`reason: fill_error`）。`retry` / `merge` / `abort`     |
+| 引数                     | 主な呼び出し元                                                       | 備考                                                                        |
+| ------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `--key <key>`            | 上位層 / 利用者                                                      | `all` は予約語のため任意指定不可                                            |
+| `--dirs <dir>...`        | 人間・AI が手で打つ                                                  | グロブメタ文字可                                                            |
+| `--dirs-json '[...]'`    | **上位層（forge）**                                                  | 設定から解決した配列をそのまま渡す形。`--dirs` と併用可                     |
+| `--paths <path>...`      | 人間・AI が手で打つ                                                  | 当該 key の完全な desired state                                             |
+| `--paths-json '[...]'`   | 上位層 / README 記載                                                 | 同上                                                                        |
+| `--paths-file <path>`    | 上位層（中身は **paths 配列そのもの**。`{"paths": [...]}` ではない） | 長大な配列を argv に載せないための形。他の対象指定との併用不可              |
+| `--exclude <path>...`    | 人間・AI が手で打つ                                                  | 確定した対象集合からの除外（`--all` / `--paths-file` とは併用不可。§4.2.2） |
+| `--exclude-json '[...]'` | **上位層（forge）**                                                  | `--exclude` と併用可                                                        |
+| `--all`                  | 利用者                                                               | 予約 key `all`。対象指定と併用不可                                          |
+| ~~`--allow-external`~~   | —                                                                    | **公開しない**。`--all` の confirm の答えを戻す隠しオプション（§5.3）       |
+| `--on-fill-error <mode>` | 利用者（`confirm` 後）                                               | 例外経路のみ（`reason: fill_error`）。`retry` / `merge` / `abort`           |
 
 `query-docs`: `--key <key>`（省略時は予約 key `all`）＋ 自然文のタスク記述。
 `check-toc`: `--key <key>` / `--all` / `--max-age <秒>`（必須。DES-009）。

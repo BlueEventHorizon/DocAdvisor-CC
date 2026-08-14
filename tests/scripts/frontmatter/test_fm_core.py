@@ -694,13 +694,11 @@ class TestYamlEscapeIsShared(unittest.TestCase):
     def test_implementation_is_not_duplicated(self):
         self.assertIs(yaml_escape, toc_utils.yaml_escape)
 
-    def test_frontmatter_inputs_are_escaped_as_expected(self):
-        """フロントマター経路で通る入力の表記を固定する（回帰検出）。"""
-        for value in YAML_ESCAPE_CASES:
-            with self.subTest(value=value):
-                escaped = yaml_escape(value)
-                self.assertIsInstance(escaped, str)
-                self.assertNotIn("\n", escaped)
+    # 表記そのものの固定は tests/scripts/test_toc_utils.py の TestYamlEscape が、
+    # 往復（unquote_yaml_value との逆変換関係）は本ファイルの
+    # TestUnquoteYamlValueRoundTrip が YAML_ESCAPE_CASES 全件で担保している。
+    # ここに「型と改行不在だけを見る」テストを置くと、名前と docstring が担保内容を
+    # 過大に述べるだけで何も固定しないため置かない。
 
     def test_empty_values_become_empty_quotes(self):
         """'' / None / 0 / [] は str() より前に空判定される（評価順序の固定）。"""

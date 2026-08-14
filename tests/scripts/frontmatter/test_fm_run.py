@@ -470,6 +470,54 @@ class TestFromToc(FmRunTestBase):
             '内訳の合計が total に一致する（基準が 1 つ）',
         )
 
+    def test_exclude_applies_to_the_toc_wide_target_set(self):
+        """`--from-toc` の ToC 全件にも `--exclude` が効くこと。
+
+        効かないと「除外して」と指定した原本まで書き換わる（指定と正反対の結果）。
+        `resolve_targets` の docstring が原本を壊す理由付きで規定している挙動である。
+        """
+        self._write('docs/a.md', BODY)
+        self._write('docs/draft/b.md', BODY)
+        self._prepare_toc({
+            'docs/a.md': dict(self.TOC_ENTRY),
+            'docs/draft/b.md': dict(self.TOC_ENTRY),
+        })
+
+        _proc, payload = self._run_cli(
+            'plan', '--from-toc', self.KEY, '--exclude', 'docs/draft')
+
+        self.assertEqual(
+            [t['path'] for t in payload['targets']], ['docs/a.md'],
+            'ToC 全件が対象のときも除外が効く',
+        )
+        self.assertTrue(
+            any('--exclude' in w for w in payload['warnings']),
+            '落とした件数を報告する',
+        )
+
+    def test_empty_dirs_does_not_fall_back_to_the_whole_toc(self):
+        """`--dirs` の展開結果が 0 件でも ToC 全件へ落ちないこと。
+
+        落ちると `--from-toc` は原本へ書く経路であるため、利用者が指定した範囲外の
+        原本を書き換える。**apply で実行し、原本が 1 バイトも変わらないことまで確認する**
+        （`changed` の自己申告ではなくバイト列の読み比べ）。
+        """
+        self._write('docs/a.md', BODY)
+        empty_dir = os.path.join(self.tmpdir, 'empty')
+        os.makedirs(empty_dir, exist_ok=True)
+        self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
+        before = self._read(os.path.join(self.tmpdir, 'docs/a.md'))
+
+        _proc, payload = self._run_cli(
+            'apply', '--from-toc', self.KEY, '--dirs', 'empty/')
+
+        self.assertEqual(payload['counts']['total'], 0, '対象 0 件のまま')
+        self.assertEqual(payload['counts']['written'], 0)
+        self.assertEqual(
+            self._read(os.path.join(self.tmpdir, 'docs/a.md')), before,
+            'ToC に載っている文書が 1 バイトも書き換えられない',
+        )
+
     def test_plan_carries_the_toc_metadata(self):
         self._write('docs/a.md', BODY)
         self._prepare_toc({'docs/a.md': dict(self.TOC_ENTRY)})
