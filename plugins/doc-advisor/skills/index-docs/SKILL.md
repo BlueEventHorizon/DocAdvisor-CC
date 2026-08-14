@@ -81,6 +81,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all
 
 `$ARGUMENTS` から `--key` / `--dirs` / `--dirs-json` / `--paths` / `--paths-json` / `--paths-file` / `--exclude` / `--exclude-json` / `--all` を解釈して渡す。引数が空なら `--all` として扱う。**JSON 形（`--dirs-json` 等）は形を変えずそのまま渡す**（前掲の [MANDATORY]）。
 
+> **`--key` の省略は「引数が空」とは別である [MANDATORY]**（REQ-001 FR-N04-1 / FR-N04-5）。`--key` を省くと、対象指定の有無にかかわらず**単体モード**（project root 以下の全走査）になる。したがって `--key` を省いたまま `--dirs` / `--paths` / `--exclude` を渡すことはできず、script が `UNSUPPORTED_ARG` で拒否する。**対象を指定して索引するなら `--key` を必ず渡すこと。** 上位層から key を受け取っていない場合に、対象指定だけを渡して呼んではならない（拒否されるか、拒否が無い実装では project root 全体が索引され、desired-state のため ToC の内容が全件へ置き換わる）。
+
 **初回と再開を区別しない [MANDATORY]**。状態は `.toc_work/` が持ち、script が今どの段階かを判定する。**Agent の完了通知を受けたら、同じコマンドをそのまま再実行する**。前回セッションの続きであっても、compaction を越えていても、同じコマンドで再開できる。
 
 > **コア script を直接呼ばない [MANDATORY]**: `prepare_toc.py` / `merge_toc.py` / `toc_store.py` / `expand_dirs.py` / `frontmatter/fm_to_pending.py` を本 SKILL から呼んではならない。これらは `index_docs.py` が内部で配管しており、直接呼ぶと二重の入口になって状態が食い違う（例: prepare を再実行して充填済み pending を壊す、claim せずに Agent を起動して二重投入する）。これらの CLI はテストと障害切り分けのために残されている。
