@@ -622,6 +622,44 @@ def run(args):
             ErrorCode.UNSUPPORTED_ARG,
         )
 
+    # 0a. --paths-file と他の対象指定の併用を弾く（DES-005 §4.2.3）。
+    #     --dirs / --paths とそれぞれの JSON 形は連結されるが、--paths-file は
+    #     配列をファイルのまま prepare へ渡す経路であり、連結する先が無い。
+    #     実装は --paths-file を優先して他を捨てるため、黙って受理すると
+    #     「指定したのに索引されない文書がある」状態になる（§4.2.2 の黙殺と同型）。
+    #     どちらを優先すべきか推定せずエラーにする。
+    if args.paths_file:
+        conflicting = [flag for flag in explicit_targets if flag != "--paths-file"]
+        if conflicting:
+            raise WrapperError(
+                f"--paths-file は {' / '.join(conflicting)} と併用できない"
+                "（配列をファイルのまま渡す経路であり、連結する先が無い）。"
+                "対象をひとつの指定にまとめて実行する",
+                ErrorCode.UNSUPPORTED_ARG,
+            )
+
+    # 0b. 除外を適用できない経路での --exclude を弾く（DES-005 §4.2.2）。
+    #     除外は「確定した対象集合」へ適用する規則だが、次の 2 経路では対象集合が
+    #     ラッパーの手元に無い。
+    #       --all       : prepare が project root 以下を自分で走査する
+    #       --paths-file: 長大な配列を argv に載せないためファイルのまま prepare へ渡す
+    #     黙って捨てると「除外したつもりの文書が索引される」ため、拒否して知らせる
+    #     （--dirs / --paths 経路では対象集合が確定するので従来どおり適用される）。
+    if _merge_list_arg(args.exclude, args.exclude_json, "--exclude-json"):
+        blocked = None
+        if args.all:
+            blocked = "--all"
+        elif args.paths_file:
+            blocked = "--paths-file"
+        if blocked:
+            raise WrapperError(
+                f"--exclude / --exclude-json は {blocked} と併用できない"
+                "（対象集合がラッパーの手元に無いため適用できない）。"
+                f"{blocked} をやめて --dirs / --paths で対象を渡すか、"
+                "除外を外して実行する",
+                ErrorCode.UNSUPPORTED_ARG,
+            )
+
     # 1. key 解決
     if args.all or args.key is None:
         key = DEFAULT_KEY

@@ -5,7 +5,7 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-08-13T15:01:51Z
+  generated_at: 2026-08-14T13:36:59Z
   file_count: 17
 
 docs:
@@ -131,34 +131,37 @@ docs:
     title: DES-005 key + path ToC Provider Design
     purpose: Defines the generic ToC provider keyed by an opaque key and project-root-relative paths, covering path validation, desired-state sync, transcription, merge, and SKILL argument contract
     content_details:
-      - index_docs.py wrapper - single entry point for AI with stage detection and action payload
-      - action values - dispatch / wait / confirm / done / error with JSON contract
-      - store_dir(key) resolution with NFC normalization, 40-char truncation, slug fallback
-      - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlink escaping handling
-      - desired-state diff against .toc_checksums.yaml for partial path array support and deletions
-      - prepare/merge 2-phase design with frontmatter transcription between phases
-      - resolve_within_root() and find_escaping_symlink() logic for symlink validation
-      - continuation mode with .toc_work resumption and key-unit store isolation
-      - merge backup → validate → restore flow for atomic writes and failure recovery
-      - Frontmatter dependency closure - single transcription call point within wrapper for clean withdrawal
+      - index_docs.py wrapper - the single entry point AI calls; stage detection, plumbing, and an action payload
+      - action values - dispatch / wait / confirm / done / error, with agents[].prompt ready to pass through
+      - Core CLIs stay but SKILLs must not call them; a second entry point makes state diverge
+      - SKILL argument contract - the spec, not SKILL.md, is the source of truth; upper layers pass --dirs-json and a SKILL.md rewrite once deleted it
+      - Withdrawal vs breakage - a missing frontmatter dir is allowed, an unreadable one is an error; a retried fill clears the error state first so the normal claim lease applies
+      - Path validation flow - ABSOLUTE_PATH / PATH_TRAVERSAL / NOT_FOUND / NOT_MARKDOWN rejections; symlinks that escape the root are indexed when passed explicitly and only confirmed under --all
+      - One path basis per entry point - the wrapper aligns cwd with the project root, so joining and passing a path through cannot resolve to different files
+      - Exclusion applies to the resolved target set, not during directory expansion; paths where the set is not materialized reject --exclude instead of dropping it
+      - desired-state diff against .toc_checksums.yaml - a partial paths array deletes the remainder
     applicable_tasks:
       - Implementing or modifying index_docs.py / prepare_toc.py / merge_toc.py
-      - Adding a script to the ToC pipeline or changing wrapper plumbing
-      - Changing SKILL argument contract or upper-layer API
-      - Changing JSON output contract or error_code enum
-      - Designing path validation for external symlinks
-      - Debugging continuation, retry, and .toc_work resume behavior
+      - Adding a script to the ToC pipeline or changing what the wrapper plumbs
+      - Changing or removing a SKILL argument that upper layers call
+      - Changing the JSON output contract or the error_code enum
+      - Designing path validation for symlinks that escape the project root
+      - Deciding how a relative path is resolved in a new entry point
+      - Deciding where an exclusion is applied, or why one is refused
+      - Deciding what the AI does versus what a script does in the pipeline
+      - Debugging continuation, retry of failed fills, and .toc_work resume behavior
+      - Deciding whether doc-advisor may refuse something the caller passed in
     keywords:
       - DES-005
       - index_docs.py
-      - resolve_store_dir
       - prepare_toc.py
       - merge_toc.py
+      - expand_dirs.py
+      - "--dirs-json"
+      - "--exclude"
+      - ensure_project_root_cwd
       - desired-state sync
-      - external symlink
-      - ai_extracted_paths
       - continuation mode
-      - symlink validation
   docs/specs/base/design/DES-009_check_toc_freshness_design.md:
     title: DES-009 check-toc (ToC Freshness Check) Design
     purpose: Defines the design for check-toc SKILL that validates ToC freshness by comparing generation timestamp against a configurable age threshold, with deterministic judgment logic in a dedicated script and read-only metadata inspection.
@@ -444,34 +447,37 @@ docs:
     title: DES-008 doc-advisor Frontmatter Design
     purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering schema, trust predicate, script layout, and write SKILL argument contract
     content_details:
-      - Why OKF v0.1 compliance was rejected - type works only paired with resource, tags pulls against keywords rule
-      - Frontmatter schema - doc-advisor type marker plus 5 ToC fields plus body_hash
-      - body_hash covers body only, self-reference avoidance, stamped after formatter
-      - Language rule - every field value in English regardless of source body language
-      - Trust predicate - doc-advisor in type, 5 fields matching schema, body_hash matching body
-      - Validations split between write side (values) and read side (fields, marker, hash)
-      - Type as multi-valued identification marker coexisting with forge temporary-feature labels
-      - Script architecture - fm_core, fm_read, fm_write, fm_to_pending, fm_run, fm_from_toc
+      - Why OKF v0.1 compliance was rejected
+      - Frontmatter schema with type marker, 5 ToC fields, body_hash
+      - "type as multi-valued identification marker coexisting with forge's temporary-feature labels"
+      - body_hash covers body only, stamped after formatter
+      - Merge semantics - unknown keys preserved, owned keys replaced
+      - Trust predicate - doc-advisor marker, schema compliance, body_hash matching
+      - Which validations belong to write side versus read side
+      - Character domain rules with conversion and rejection policies
+      - Withdrawal by directory deletion and normal absence handling
+      - write-frontmatter SKILL argument contract and fm_run.py plan/apply design
     applicable_tasks:
-      - Implementing or modifying fm_core.py, fm_read.py, fm_write.py, fm_to_pending.py, fm_run.py
-      - Changing trust predicate or frontmatter schema
-      - Deciding body_hash stamping timing relative to formatting
-      - Determining whether validation belongs to write or read side
-      - "Reviewing type union update for preserving other tools' markers"
-      - Modifying write-frontmatter SKILL arguments
-      - Adding frontmatter to existing documents via write-frontmatter
-      - Designing write-back of AI extraction results to frontmatter
+      - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
+      - Changing the trust predicate or frontmatter schema
+      - Deciding where body_hash is stamped relative to formatting
+      - Deciding whether validation belongs to write side or read side
+      - Deciding which characters metadata values may carry
+      - "Reviewing whether type union update preserves other tools' markers"
+      - Changing write-frontmatter SKILL arguments
+      - Adding frontmatter to existing documents via write-frontmatter SKILL
+      - Designing write-back of AI extraction results
     keywords:
       - DES-008
       - body_hash
       - fm_core.py
       - fm_run.py
-      - fm_to_pending.py
+      - fm_from_toc.py
       - trust predicate
       - type union update
+      - character domain
       - extracted_by
-      - OKF
-      - frontmatter metadata
+      - format-command
   docs/specs/frontmatter/requirements/REQ-006_frontmatter_metadata_spec.md:
     title: REQ-006 Frontmatter Metadata Requirements Specification
     purpose: Specifies requirements for embedding search metadata in Markdown frontmatter so indexing can skip re-reading document bodies.
