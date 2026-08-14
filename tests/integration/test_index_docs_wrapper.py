@@ -871,10 +871,94 @@ class TestExternalSymlinkPassThrough(WrapperTestBase):
         self.assertEqual(payload['counts']['added'], 1)
 
 
+class TestSingleModeHasTwoEntrances(WrapperTestBase):
+    """単体モードの制約は `--all` と `--key` 省略の**両方**にかかること。
+
+    REQ-001 FR-N04-1 / FR-N04-5 は `--all` の明示と `--key` の省略を同義と定める。
+    ガードを `args.all` だけで書くと後者が素通りし、渡した対象指定が prepare の
+    単体モード分岐で捨てられる。**その帰結は「1 件だけ索引するつもりが project root
+    全体が索引され、desired-state のため ToC の内容も全件へ置き換わる」**である。
+
+    実際にこの欠陥が発生したため、2 つの入口が同じ扱いを受けることを固定する。
+    """
+
+    def test_omitted_key_with_paths_is_rejected(self):
+        """`--key` 省略 + `--paths` を黙って全件索引に変えない。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/other.md')
+
+        payload = self._index('--paths', 'docs/keep.md')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths', payload['message'])
+        self.assertIn('--key', payload['message'], '対処方法として --key を案内する')
+
+    def test_omitted_key_with_dirs_is_rejected(self):
+        self._write_md('docs/keep.md')
+
+        payload = self._index('--dirs', 'docs/')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--dirs', payload['message'])
+
+    def test_omitted_key_with_exclude_is_rejected(self):
+        """`--exclude` 側のガードも同じ条件で働く。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index('--exclude', 'docs/draft')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--exclude', payload['message'])
+
+    def test_omitted_key_with_dirs_and_exclude_is_rejected(self):
+        """`--all --exclude` の拒否メッセージが案内する形へ書き換えても素通りしない。
+
+        以前はこの形が「excluded by --exclude: N path(s)」と警告を出しながら
+        除外対象を索引しており、報告と実態が食い違っていた。
+        """
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index('--dirs', 'docs/', '--exclude', 'docs/draft')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+
+    def test_omitted_key_without_targets_still_scans_everything(self):
+        """引数なしの単体モードは従来どおり全件索引する（過剰な拒否を防ぐ）。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index()
+
+        self.assertEqual(payload['action'], 'dispatch')
+        self.assertEqual(payload['key'], 'all')
+        self.assertEqual(
+            self._pending_sources(payload),
+            ['docs/draft/drop.md', 'docs/keep.md'],
+        )
+
+    def test_explicit_key_with_targets_still_works(self):
+        """`--key` を渡す通常経路は影響を受けない（過剰な拒否を防ぐ）。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index(
+            '--key', 'rules', '--dirs', 'docs/', '--exclude', 'docs/draft'
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        self.assertEqual(self._pending_sources(payload), ['docs/keep.md'])
+
+
 class TestExcludeIsNeverSilentlyIgnored(WrapperTestBase):
     """除外を適用できない経路で `--exclude` を黙って捨てないこと（DES-005 §4.2.2）。
 
-    除外は「確定した対象集合」へ適用する規則だが、`--all`（prepare が自分で走査する）と
+    除外は「確定した対象集合」へ適用する規則だが、単体モード（prepare が自分で走査する）と
     `--paths-file`（配列をファイルのまま渡す）では対象集合がラッパーの手元に無い。
     黙って捨てると「除外したつもりの文書が索引される」ため拒否する。
     """
