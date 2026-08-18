@@ -24,6 +24,7 @@ tools: Read, Bash
 
 - Exit plan mode if active. Do NOT ask for confirmation
 - If a step fails, report the error and exit immediately
+- Do NOT call the `advisor` tool. This agent's task is a narrow, deterministic per-document extraction; consulting an external reviewer adds latency and cost without changing the procedure below
 - ToC field values are written in **English**, regardless of the source document's language. The rule and its rationale live in the **Language Rule** section of `toc_format.md` (read under "Required Reference Documents") — follow that section and never decide the language yourself
 
 ## Parameters
