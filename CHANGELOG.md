@@ -4,6 +4,14 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.9] - 2026-08-18
+
+### Fixed
+
+- **`--key` を省略したまま `--paths` / `--dirs` / `--exclude` を渡すと、対象指定が黙って捨てられ project root 全体が索引される欠陥を修正**。単体モードへ入る書き方は `--all` の明示と `--key` の省略の2つがあり、既存の併用拒否ガードは `--all` だけを見ていたため `--key` 省略の経路が素通りしていた。判定を `_is_single_mode()`（`--all` または `--key` 省略）に統一した
+- **`--paths-file` と `--dirs` / `--paths`（およびそれぞれの JSON 形）の併用が黙って捨てられていた欠陥を修正**。`--paths-file` を優先して他方を無視していたため「指定したのに索引されない文書がある」状態になっていた。`UNSUPPORTED_ARG` で拒否するようにした
+- `toc-updater` Agent が不要に `advisor` ツールを呼び出していたのを抑止する制約を追加
+
 ## [0.4.8] - 2026-08-14
 
 ### Fixed

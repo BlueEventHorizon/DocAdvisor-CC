@@ -410,8 +410,27 @@ TARGET_ARGS = (
 
 
 def _explicit_target_flags(args):
-    """明示された対象指定のフラグ名を返す（`--all` との排他判定と報告に使う）。"""
+    """明示された対象指定のフラグ名を返す（単体モードとの排他判定と報告に使う）。"""
     return [flag for flag, attr in TARGET_ARGS if getattr(args, attr, None)]
+
+
+def _is_single_mode(args):
+    """単体モード（project root 以下の全走査）へ入るか。
+
+    単体モードへ入る書き方は **2 つある**——`--all` の明示と `--key` の省略で
+    あり、REQ-001 FR-N04-1 と一元定義表がこれを同義と定めている（DES-005 §10.1）。
+    key 解決（`args.all or args.key is None`）と `prepare_toc.single_mode` は
+    どちらもこの 2 つを見ており、**判定を `args.all` だけで行うと片方が漏れる**。
+
+    漏らした場合の帰結は「対象指定が黙って捨てられ、project root 全体が索引される」
+    ことであり、desired-state のため当該 key の ToC の内容も全件へ置き換わる。
+    """
+    return bool(args.all) or args.key is None
+
+
+def _single_mode_flag(args):
+    """エラーメッセージに出す、単体モードへ入った原因の呼び方。"""
+    return "--all" if args.all else "--key の省略（単体モード）"
 
 
 def _has_explicit_target(args):
@@ -611,16 +630,69 @@ def run(args):
     """
     project_root = get_project_root()
 
-    # 0. 矛盾する対象指定を弾く。--all は project root 以下を自分で走査するため、
-    #    ディレクトリ・パスの指定と併用しても片方が黙って無視される。
+    # 0. 矛盾する対象指定を弾く。単体モードは project root 以下を prepare が自分で
+    #    走査するため、ディレクトリ・パスの指定と併用しても片方が黙って無視される。
     #    どちらを優先すべきか推定せずエラーにする。
+    #
+    #    **判定はフラグではなくモードで行う [MANDATORY]**（REQ-001 FR-N04-1 /
+    #    DES-005 §10.1）。単体モードへ入る書き方は --all の明示と --key の省略の
+    #    2 つがあり、仕様はこれを同義と定めている。args.all だけを見ると、
+    #    --key を省いた呼び出しがガードを素通りし、渡した対象指定が prepare の
+    #    単体モード分岐（prepare_toc の single_mode）で捨てられる。
     explicit_targets = _explicit_target_flags(args)
-    if args.all and explicit_targets:
+    if _is_single_mode(args) and explicit_targets:
         raise WrapperError(
-            "--all は project root 以下の全 Markdown を対象にするため "
-            f"{' / '.join(explicit_targets)} と併用できない",
+            f"{_single_mode_flag(args)} は project root 以下の全 Markdown を"
+            f"対象にするため {' / '.join(explicit_targets)} と併用できない"
+            + ("。対象を指定して索引するなら --key <key> を渡す"
+               if args.key is None else ""),
             ErrorCode.UNSUPPORTED_ARG,
         )
+
+    # 0a. --paths-file と他の対象指定の併用を弾く（DES-005 §4.2.3）。
+    #     --dirs / --paths とそれぞれの JSON 形は連結されるが、--paths-file は
+    #     配列をファイルのまま prepare へ渡す経路であり、連結する先が無い。
+    #     実装は --paths-file を優先して他を捨てるため、黙って受理すると
+    #     「指定したのに索引されない文書がある」状態になる（§4.2.2 の黙殺と同型）。
+    #     どちらを優先すべきか推定せずエラーにする。
+    if args.paths_file:
+        conflicting = [flag for flag in explicit_targets if flag != "--paths-file"]
+        if conflicting:
+            raise WrapperError(
+                f"--paths-file は {' / '.join(conflicting)} と併用できない"
+                "（配列をファイルのまま渡す経路であり、連結する先が無い）。"
+                "対象をひとつの指定にまとめて実行する",
+                ErrorCode.UNSUPPORTED_ARG,
+            )
+
+    # 0b. 除外を適用できない経路での --exclude を弾く（DES-005 §4.2.2）。
+    #     除外は「確定した対象集合」へ適用する規則だが、次の 2 経路では対象集合が
+    #     ラッパーの手元に無い。
+    #       単体モード  : prepare が project root 以下を自分で走査する
+    #                     （--all の明示と --key の省略の 2 つの入口がある）
+    #       --paths-file: 長大な配列を argv に載せないためファイルのまま prepare へ渡す
+    #     黙って捨てると「除外したつもりの文書が索引される」ため、拒否して知らせる
+    #     （--dirs / --paths 経路では対象集合が確定するので従来どおり適用される）。
+    if _merge_list_arg(args.exclude, args.exclude_json, "--exclude-json"):
+        blocked = None
+        remedy = ""
+        if _is_single_mode(args):
+            blocked = _single_mode_flag(args)
+            remedy = (
+                "--key <key> を渡して対象を指定する"
+                if args.key is None
+                else "--all をやめて --key <key> と --dirs / --paths で対象を渡す"
+            )
+        elif args.paths_file:
+            blocked = "--paths-file"
+            remedy = "--paths-file をやめて --dirs / --paths で対象を渡す"
+        if blocked:
+            raise WrapperError(
+                f"--exclude / --exclude-json は {blocked} と併用できない"
+                "（対象集合がラッパーの手元に無いため適用できない）。"
+                f"{remedy}か、除外を外して実行する",
+                ErrorCode.UNSUPPORTED_ARG,
+            )
 
     # 1. key 解決
     if args.all or args.key is None:

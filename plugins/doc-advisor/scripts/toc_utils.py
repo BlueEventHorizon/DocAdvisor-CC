@@ -850,7 +850,8 @@ def should_exclude(filepath, root_dir, exclude_patterns):
           avoiding the over-match where 'a/b' would otherwise hit 'za/bc'.
         - NFC normalization is applied for macOS NFD compatibility
         - This matcher is shared by both the system-fixed excludes
-          (SYSTEM_EXCLUDE_PATTERNS) and the user excludes (--exclude-json), so
+          (SYSTEM_EXCLUDE_PATTERNS, applied during traversal) and the user
+          excludes (applied to the resolved target set by filter_excluded), so
           the two stay self-consistent.
     """
     rel_path = normalize_path(filepath.relative_to(root_dir))

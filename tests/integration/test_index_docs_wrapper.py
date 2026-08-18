@@ -144,6 +144,22 @@ class WrapperTestBase(unittest.TestCase):
             f"write_pending failed: {proc.stdout} {proc.stderr}",
         )
 
+    def _pending_sources(self, payload):
+        """dispatch された pending が指す source_file をソートして返す。
+
+        「何件か」ではなく「何が残り、何が落ちたか」を固定するために使う。
+        """
+        sources = []
+        for agent in payload.get('agents') or []:
+            for entry_file in agent['entry_files']:
+                text = (self.project_root / entry_file).read_text(encoding='utf-8')
+                for line in text.split('\n'):
+                    # source_file は _meta ブロック配下にあるためインデントされる
+                    if line.strip().startswith('source_file:'):
+                        sources.append(line.split(':', 1)[1].strip().strip('"\''))
+                        break
+        return sorted(sources)
+
     def _fill_all_dispatched(self, key, payload):
         """dispatch された全 entry を充填する。"""
         for agent in payload['agents']:
@@ -853,6 +869,217 @@ class TestExternalSymlinkPassThrough(WrapperTestBase):
         )
 
         self.assertEqual(payload['counts']['added'], 1)
+
+
+class TestSingleModeHasTwoEntrances(WrapperTestBase):
+    """単体モードの制約は `--all` と `--key` 省略の**両方**にかかること。
+
+    REQ-001 FR-N04-1 / FR-N04-5 は `--all` の明示と `--key` の省略を同義と定める。
+    ガードを `args.all` だけで書くと後者が素通りし、渡した対象指定が prepare の
+    単体モード分岐で捨てられる。**その帰結は「1 件だけ索引するつもりが project root
+    全体が索引され、desired-state のため ToC の内容も全件へ置き換わる」**である。
+
+    実際にこの欠陥が発生したため、2 つの入口が同じ扱いを受けることを固定する。
+    """
+
+    def test_omitted_key_with_paths_is_rejected(self):
+        """`--key` 省略 + `--paths` を黙って全件索引に変えない。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/other.md')
+
+        payload = self._index('--paths', 'docs/keep.md')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths', payload['message'])
+        self.assertIn('--key', payload['message'], '対処方法として --key を案内する')
+
+    def test_omitted_key_with_dirs_is_rejected(self):
+        self._write_md('docs/keep.md')
+
+        payload = self._index('--dirs', 'docs/')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--dirs', payload['message'])
+
+    def test_omitted_key_with_exclude_is_rejected(self):
+        """`--exclude` 側のガードも同じ条件で働く。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index('--exclude', 'docs/draft')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--exclude', payload['message'])
+
+    def test_omitted_key_with_dirs_and_exclude_is_rejected(self):
+        """`--all --exclude` の拒否メッセージが案内する形へ書き換えても素通りしない。
+
+        以前はこの形が「excluded by --exclude: N path(s)」と警告を出しながら
+        除外対象を索引しており、報告と実態が食い違っていた。
+        """
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index('--dirs', 'docs/', '--exclude', 'docs/draft')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+
+    def test_omitted_key_without_targets_still_scans_everything(self):
+        """引数なしの単体モードは従来どおり全件索引する（過剰な拒否を防ぐ）。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index()
+
+        self.assertEqual(payload['action'], 'dispatch')
+        self.assertEqual(payload['key'], 'all')
+        self.assertEqual(
+            self._pending_sources(payload),
+            ['docs/draft/drop.md', 'docs/keep.md'],
+        )
+
+    def test_explicit_key_with_targets_still_works(self):
+        """`--key` を渡す通常経路は影響を受けない（過剰な拒否を防ぐ）。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index(
+            '--key', 'rules', '--dirs', 'docs/', '--exclude', 'docs/draft'
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        self.assertEqual(self._pending_sources(payload), ['docs/keep.md'])
+
+
+class TestExcludeIsNeverSilentlyIgnored(WrapperTestBase):
+    """除外を適用できない経路で `--exclude` を黙って捨てないこと（DES-005 §4.2.2）。
+
+    除外は「確定した対象集合」へ適用する規則だが、単体モード（prepare が自分で走査する）と
+    `--paths-file`（配列をファイルのまま渡す）では対象集合がラッパーの手元に無い。
+    黙って捨てると「除外したつもりの文書が索引される」ため拒否する。
+    """
+
+    def test_all_with_exclude_is_rejected(self):
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index('--all', '--exclude', 'docs/draft')
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--all', payload['message'])
+
+    def test_paths_file_with_exclude_is_rejected(self):
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+        paths_file = self.project_root / 'paths.json'
+        paths_file.write_text(
+            json.dumps(['docs/keep.md', 'docs/draft/drop.md']), encoding='utf-8'
+        )
+
+        payload = self._index(
+            '--key', 'rules', '--paths-file', str(paths_file),
+            '--exclude', 'docs/draft',
+        )
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths-file', payload['message'])
+
+    def test_dirs_with_exclude_still_applies(self):
+        """適用できる経路では従来どおり除外し、件数を報告する（過剰な拒否を防ぐ）。
+
+        **残ったパスを固定する。** action と警告文だけを見ると、除外が過剰に
+        マッチして残すべき文書まで落とす退行を検出できない（`filter_excluded` が
+        残す側と落とす側を取り違えても、dispatch も警告も成立してしまう）。
+        """
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/drop.md')
+
+        payload = self._index(
+            '--key', 'rules', '--dirs', 'docs/', '--exclude', 'docs/draft'
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        self.assertTrue(
+            any('--exclude' in w for w in payload.get('warnings') or [])
+        )
+        self.assertEqual(self._pending_sources(payload), ['docs/keep.md'])
+
+
+class TestPathsFileIsExclusive(WrapperTestBase):
+    """`--paths-file` と他の対象指定の併用を拒否すること（DES-005 §4.2.3）。
+
+    `--dirs` / `--paths` とそれぞれの JSON 形は連結されるが、`--paths-file` は
+    配列をファイルのまま prepare へ渡す経路であり連結する先が無い。実装は
+    `--paths-file` を優先して他を捨てるため、黙って受理すると「指定したのに
+    索引されない文書がある」状態になる（§4.2.2 の黙殺と同型）。
+    """
+
+    def _paths_file(self, *rel_paths):
+        paths_file = self.project_root / 'paths.json'
+        paths_file.write_text(json.dumps(list(rel_paths)), encoding='utf-8')
+        return str(paths_file)
+
+    def test_paths_file_with_dirs_is_rejected(self):
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/d.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--paths-file', self._paths_file('docs/keep.md'),
+            '--dirs', 'docs/draft',
+        )
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths-file', payload['message'])
+        self.assertIn('--dirs', payload['message'])
+
+    def test_paths_file_with_paths_is_rejected(self):
+        self._write_md('docs/keep.md')
+        self._write_md('docs/other.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--paths-file', self._paths_file('docs/keep.md'),
+            '--paths', 'docs/other.md',
+        )
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--paths', payload['message'])
+
+    def test_paths_file_with_dirs_json_is_rejected(self):
+        """JSON 形（上位層が渡す経路）でも同じく拒否する。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/d.md')
+
+        payload = self._index(
+            '--key', 'rules',
+            '--paths-file', self._paths_file('docs/keep.md'),
+            '--dirs-json', json.dumps(['docs/draft']),
+        )
+
+        self.assertEqual(payload['action'], 'error')
+        self.assertEqual(payload['error_code'], 'UNSUPPORTED_ARG')
+        self.assertIn('--dirs-json', payload['message'])
+
+    def test_paths_file_alone_still_works(self):
+        """単独指定は従来どおり通ること（過剰な拒否を防ぐ）。"""
+        self._write_md('docs/keep.md')
+        self._write_md('docs/draft/d.md')
+
+        payload = self._index(
+            '--key', 'rules', '--paths-file', self._paths_file('docs/keep.md')
+        )
+
+        self.assertEqual(payload['action'], 'dispatch')
+        self.assertEqual(self._pending_sources(payload), ['docs/keep.md'])
 
 
 class TestAbnormalPathsStillEmitJson(WrapperTestBase):

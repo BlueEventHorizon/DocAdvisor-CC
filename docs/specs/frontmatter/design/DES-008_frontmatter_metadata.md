@@ -3,35 +3,38 @@ type: doc-advisor
 title: DES-008 doc-advisor Frontmatter Design
 purpose: Defines the design for embedding ToC metadata as frontmatter so index-docs can skip toc-updater cold reads, covering schema, trust predicate, script layout, and write SKILL argument contract
 content_details:
-  - Why OKF v0.1 compliance was rejected - type works only paired with resource, tags pulls against keywords rule
-  - Frontmatter schema - doc-advisor type marker plus 5 ToC fields plus body_hash
-  - body_hash covers body only, self-reference avoidance, stamped after formatter
-  - Language rule - every field value in English regardless of source body language
-  - Trust predicate - doc-advisor in type, 5 fields matching schema, body_hash matching body
-  - Validations split between write side (values) and read side (fields, marker, hash)
-  - Type as multi-valued identification marker coexisting with forge temporary-feature labels
-  - Script architecture - fm_core, fm_read, fm_write, fm_to_pending, fm_run, fm_from_toc
+  - Why OKF v0.1 compliance was rejected
+  - Frontmatter schema with type marker, 5 ToC fields, body_hash
+  - "type as multi-valued identification marker coexisting with forge's temporary-feature labels"
+  - body_hash covers body only, stamped after formatter
+  - Merge semantics - unknown keys preserved, owned keys replaced
+  - Trust predicate - doc-advisor marker, schema compliance, body_hash matching
+  - Which validations belong to write side versus read side
+  - Character domain rules with conversion and rejection policies
+  - Withdrawal by directory deletion and normal absence handling
+  - write-frontmatter SKILL argument contract and fm_run.py plan/apply design
 applicable_tasks:
-  - Implementing or modifying fm_core.py, fm_read.py, fm_write.py, fm_to_pending.py, fm_run.py
-  - Changing trust predicate or frontmatter schema
-  - Deciding body_hash stamping timing relative to formatting
-  - Determining whether validation belongs to write or read side
-  - "Reviewing type union update for preserving other tools' markers"
-  - Modifying write-frontmatter SKILL arguments
-  - Adding frontmatter to existing documents via write-frontmatter
-  - Designing write-back of AI extraction results to frontmatter
+  - Implementing or modifying fm_core.py / fm_read.py / fm_write.py / fm_to_pending.py / fm_run.py
+  - Changing the trust predicate or frontmatter schema
+  - Deciding where body_hash is stamped relative to formatting
+  - Deciding whether validation belongs to write side or read side
+  - Deciding which characters metadata values may carry
+  - "Reviewing whether type union update preserves other tools' markers"
+  - Changing write-frontmatter SKILL arguments
+  - Adding frontmatter to existing documents via write-frontmatter SKILL
+  - Designing write-back of AI extraction results
 keywords:
   - DES-008
   - body_hash
   - fm_core.py
   - fm_run.py
-  - fm_to_pending.py
+  - fm_from_toc.py
   - trust predicate
   - type union update
+  - character domain
   - extracted_by
-  - OKF
-  - frontmatter metadata
-body_hash: sha256:5703b85ab6bcd7447afbc1af99a22185a3d5bbc3e48d43844b4c9db7ffb77f12
+  - format-command
+body_hash: sha256:ab422ea739a8628f4bd54e7ea6fd6e6153a843d380b97e602e61526bb3d5052c
 ---
 
 # DES-008: doc-advisor フロントマター設計書
@@ -149,7 +152,7 @@ body_hash: sha256:3f2a9c...(64 hex digits)
 
 `title` / `purpose` / `content_details` / `applicable_tasks` / `keywords` の内容規約（文字数上限・件数上限・**使える文字の値域**・書き方の指針）は `toc_format` の Field Guidelines をそのまま適用する。本設計書で新たに定義するのは `type` と `body_hash` の 2 つのみである。
 
-**使える文字の値域は「前提」ではなく検査項目である [MANDATORY]**。5 フィールドは単一行の平文であり、`"` / `\` / 改行・タブ、および先頭末尾の `'` を含めない。これらは書く側がバックスラッシュ・エスケープを施す一方、`toc.yaml` の読み側が復元しないため、値が読み戻しで変わる（§8.2「既知の制約」）。**この制約は機械的に強制し、AI の努力目標として残さない**。以前は本設計書が「単一行の平文であることが前提」と書くだけで、どの検査点も文字を見ていなかったため、AI が引用符を書けば通り、通れば script が確実に壊す構造になっていた。
+**使える文字の値域は「前提」ではなく検査項目である [MANDATORY]**。5 フィールドは単一行の平文であり、`"` / `\` / 改行・タブ、および先頭末尾の `'` を含めない。これらは書く側がバックスラッシュ・エスケープを施す一方、`toc.yaml` の読み側が復元しないため、値が読み戻しで変わる（§8.2「読み側と書き側の非対称」に経緯を記す）。**この制約は機械的に強制し、AI の努力目標として残さない**。以前は本設計書が「単一行の平文であることが前提」と書くだけで、どの検査点も文字を見ていなかったため、AI が引用符を書けば通り、通れば script が確実に壊す構造になっていた。
 
 **値域外の文字は「意味を保つ代替が存在するか」で扱いを分ける [MANDATORY]**。表記だけを理由に拒否すると、その文書のメタデータ全体が AI 再抽出へ回る。原因が意味に関わらない表記であるとき、その費用を払う理由がない。
 
@@ -586,12 +589,12 @@ JSON 形（`--paths-json` 等）は持たない。上位層の呼び出し元が
 
 **`toc.yaml` のエントリは `title` / `purpose` / `content_details` / `applicable_tasks` / `keywords` の 5 フィールドを持ち、これはフロントマターと同一である。**したがって書き戻しに必要なものは `body_hash` を除いて既に揃っており、決定論的な転記で完結する。転記は `fm_from_toc.py` が行い、`body_hash` は §6.3 の手順どおり整形後に `fm_write` が打刻する。
 
-当初の設計（本節の初版と §8.1）は AI が対象文書を読み直して 5 フィールドを**再起草**する形だった。これは誤りである。害は 2 つある。
+AI に 5 フィールドを起草し直させてはならない。理由は 2 つある。
 
-1. **同じ本文に対する AI の読解を 2 回払う**。フロントマター方式の目的は「1 度読めば以後は転記だけ」（§7.2）であるのに、その 1 度目の結果を捨てていた
-2. **決定論でない**。再起草の結果が索引時の値と一致する保証はないため、`toc.yaml` と原本フロントマターが食い違う。書き戻しでファイル hash が変わるので次回の索引はその文書を `updated` と見て転記し、**本文が 1 文字も変わっていないのに ToC の内容が入れ替わる**。ToC は本文の関数であるべきところに、起草のブレが混入する
+1. **同じ本文に対する AI の読解を 2 回払うことになる**。フロントマター方式の目的は「1 度読めば以後は転記だけ」（§7.2）であり、その 1 度目の結果を捨てる形は目的に反する
+2. **決定論でなくなる**。起草の結果が索引時の値と一致する保証はないため、`toc.yaml` と原本フロントマターが食い違う。書き戻しでファイル hash が変わるので次回の索引はその文書を `updated` と見て転記し、**本文が 1 文字も変わっていないのに ToC の内容が入れ替わる**。ToC は本文の関数であるべきところに、起草のブレが混入する
 
-これは「決定論的な定型処理（列挙・転記・集計・ファイル生成）は script 化する。AI は判断のみ担う」というプロジェクト規約にも反していた。
+「決定論的な定型処理（列挙・転記・集計・ファイル生成）は script 化する。AI は判断のみ担う」というプロジェクト規約からも、ここは script の担当である。
 
 #### 陳腐化ガード
 
@@ -610,15 +613,19 @@ ToC のメタデータは**索引時点の本文**から作られている。索
 
 値域の検証は `fm_core` の実装をそのまま共有する。転記側が独自の規則を持つと、「転記が通した値を書き込み側が弾く」あるいはその逆が生じる。必須フィールドの充足（欠落）は `fm_write` が検査しない（部分更新を許すため。§6.2）ので、転記側で検査する。転記は「ToC の内容で 5 フィールドを揃える」操作であり、欠けたまま書けば書き込み後の信頼判定が必ず落ちる。
 
-#### 既知の制約
+#### 転記が成立する前提は、値域が保証する
 
-`toc.yaml` の reader（`toc_utils.load_existing_toc`）は値の引用符を単純除去するため、`yaml_escape` が施したエスケープ（`\n` / `\"` / `\\`）を復元しない。したがって改行や引用符を含むメタデータは、転記後の原本に余分なバックスラッシュを含んだ形で書かれる。
+`toc.yaml` の reader（`toc_utils.load_existing_toc`）は値の引用符を単純除去するため、`yaml_escape` が施したエスケープ（`\n` / `\"` / `\\`）を復元しない。**逆変換が 2 つ存在する**——原本フロントマターは正しい逆変換（`fm_core.unquote_yaml_value`）で読まれ、`toc.yaml` は劣化する逆変換（`strip`）で読まれる。
 
-**この非対称は転記の前後で一貫しておらず、索引サイクルごとに悪化する。** 原本フロントマターは正しい逆変換（`fm_core.unquote_yaml_value`）で読まれ、`toc.yaml` は劣化する逆変換（`strip`）で読まれるため、**逆変換が 2 つ存在してその差が毎周期 1 層ずつ積まれる**。`title: Say "hi" now` を索引 → 転記のサイクルに通すと、原本に入る値のバックスラッシュは 1 → 3 → 7 → 15 と倍加する（実測）。「5 フィールドは単一行の平文である」は前提であって検証されておらず、値域規則（§6.3）は使える文字を規定していない。したがって実害は限定的ではない。
+この非対称は転記経路で問題になりうる。索引 → 転記のサイクルを回すたびにエスケープが復元されないまま再度エスケープされ、値が壊れていくためである。
 
-同種の破損は統制できない値でも既に起きている。`_meta.error_message` に捕捉した例外文字列（例: `FileNotFoundError: [Errno 2] No such file or directory: 'docs/x.md'`）を書き込むと、読み戻しで末尾のアポストロフィが失われる。
+**これを塞いでいるのは §4 の値域である。** 値域外の文字は書き込みの入口 2 箇所で変換され（`"` / 改行・CR・タブ / 先頭末尾の `'`）、変換できないバックスラッシュは拒否される。**エスケープを要する値がフロントマターへ入らないため、逆変換の非対称が表面化しない。** 統制できない値（`_meta.error_message` の例外文字列）も入口で正規化される（`toc_utils.sanitize_uncontrolled_text`）。
 
-恒久対処は reader と writer の一致ではなく、**変換の必要をなくすこと**である（値域の定義 + 入口での正規化 + `yaml_escape` からのバックスラッシュ・エスケープ削除）。Issue #41 で扱う。当初は Issue #14（PyYAML 移行）での解消を想定していたが、NFR-003 に PyYAML 採用の当面延期が記録されたため、#14 は当面この問題の解消手段にならない。
+したがって転記の正しさは reader の実装ではなく**値域の強制に依存している**。値域を緩めるときは、この節の前提が崩れないかを確認すること。
+
+**残っている範囲は 1 つだけである**——`yaml_escape` からバックスラッシュ・エスケープ分岐そのものを削除すること。これはファイルシステム由来のパスと利用者指定 key を入口で制約するのが前提であり、後者は文書化済みの `error_code` enum への追加を伴う。Issue #41 で扱う。当初は Issue #14（PyYAML 移行）での解消を想定していたが、NFR-003 に PyYAML 採用の当面延期が記録されたため、#14 は当面この問題の解消手段にならない。
+
+なお `toc.yaml` の**書き込み点**（`write_pending` / `merge_toc`）には値域検証を置いていない。その理由と、置くべき条件は §4 に記す。
 
 ---
 

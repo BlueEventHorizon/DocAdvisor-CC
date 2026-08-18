@@ -1,7 +1,7 @@
 {
   "name": "doc-advisor",
   "description": "AI-searchable document index (ToC) generator for Claude Code",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "author": { "name": "moons" },
   "license": "MIT",
   "homepage": "https://github.com/BlueEventHorizon/DocAdvisor",
