@@ -63,7 +63,7 @@ metadata の値域:
   （type / title / purpose / content_details / applicable_tasks / keywords）
 - body_hash は本 script が整形後に算出して打刻するため、呼び出し側からは渡せない
 - 値は文字列、または文字列の配列
-- DES-008 §5.1 の**値域**（purpose 200 文字・配列 1〜10 件・非空・型）は書き込みの
+- DES-008 §5.1 の**値域**（purpose 220 文字・配列 1〜10 件・非空・型）は書き込みの
   **前**に検証し、違反があればその entry を書き込まない（手順 0）。判定は
   fm_core.validate_field_values が行い、読み取り側（fm_read の信頼判定）と同一の
   値域規則を共有する。書ける値の集合が信頼される値の集合に収まることを、

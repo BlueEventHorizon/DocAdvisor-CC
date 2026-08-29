@@ -62,8 +62,12 @@ STRING_FIELDS = ("title", PURPOSE_FIELD)
 LIST_FIELDS = ("content_details", "applicable_tasks", "keywords")
 DOC_ADVISOR_FIELDS = (TYPE_FIELD,) + STRING_FIELDS + LIST_FIELDS + (BODY_HASH_FIELD,)
 
-# purpose の文字数上限・各配列の件数上限（formats/toc_format.md の Field Guidelines）
-PURPOSE_MAX_LENGTH = 200
+# purpose の文字数上限・各配列の件数上限（formats/toc_format.md の Field Guidelines）。
+# 起草の目標値は 200 文字だが、LLM は文字数を正確に数えられず僅かに超えることが
+# 実運用で観測された（206 文字）。受け入れ判定には +10% のマージンを取り、
+# 目標値どおりに書こうとした結果の僅差の超過を弾かない（DES-008 §4）。
+PURPOSE_GUIDELINE_LENGTH = 200
+PURPOSE_MAX_LENGTH = 220
 LIST_MIN_ITEMS = 1
 LIST_MAX_ITEMS = 10
 
@@ -607,7 +611,7 @@ def validate_metadata(metadata):
                 f"type に {MARKER} が含まれていません",
             ))
 
-    # title / purpose: 非空文字列（purpose は 200 文字以内）
+    # title / purpose: 非空文字列（purpose は PURPOSE_MAX_LENGTH 文字以内）
     for field in STRING_FIELDS:
         if field not in metadata:
             violations.append((Violation.FIELD_MISSING, field, f"{field} がありません"))

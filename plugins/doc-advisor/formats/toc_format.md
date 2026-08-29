@@ -139,7 +139,7 @@ The `metadata.key` field holds the **original key** so the ToC is self-contained
 docs:
   <file_path>: # Path from project root
     title: string # Title (extracted from H1)
-    purpose: string # Purpose (max 200 chars)
+    purpose: string # Purpose (aim for 200 chars; hard limit 220)
     content_details: array[string] # Content details (max 10 items)
     applicable_tasks: array[string] # Applicable tasks (max 10 items)
     keywords: array[string] # Keywords (max 10 words)
@@ -224,7 +224,7 @@ Values whose content cannot be chosen (captured exception text written to a pend
 
 ### purpose
 
-- Describe the file's role concisely (max 200 characters)
+- Describe the file's role concisely (aim for 200 characters). Machine validation rejects values over 220 characters — the 10% margin absorbs slight overshoot, since an LLM cannot count characters exactly; do not treat 220 as the drafting target
 - State plainly what the document establishes and for what subject; e.g. "Defines rules for ...", "Specifies requirements for ...", "Describes design for ...". What matters is the subject, not the opening phrase
 
 ### content_details

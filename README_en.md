@@ -143,10 +143,10 @@ By default indexing reads each document's body to extract metadata (a cold read)
 /doc-advisor:write-frontmatter --paths docs/a.md --format-command "dprint fmt {file}"
 ```
 
-- **This skill edits your files.** It shows the targets and the metadata and asks for approval before writing
+- **This skill edits your files.** Documents that already carry a doc-advisor frontmatter are refreshed automatically after the targets and metadata are shown — no approval needed. Adding frontmatter to a document that has none, or only another tool's, still shows the targets and the metadata and asks for approval first
 - Existing frontmatter keys are preserved, and `type` gains `doc-advisor` as a union so other tools' markers survive
 - Editing the body makes `body_hash` stop matching, so that metadata is no longer trusted — indexing falls back to AI extraction rather than indexing stale metadata
-- After a ToC finishes, `index-docs` offers the AI-extracted documents as write-back candidates and hands only the approved ones to this skill
+- After a ToC finishes, `index-docs` hands the AI-extracted documents to this skill as write-back candidates; this skill decides per document whether approval is required
 
 ## Requirements
 

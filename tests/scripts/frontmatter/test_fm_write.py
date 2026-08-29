@@ -48,6 +48,8 @@ for _path in (FRONTMATTER_DIR, SCRIPTS_DIR):
 import fm_write as fm_write_module
 from fm_core import (
     MARKER,
+    PURPOSE_GUIDELINE_LENGTH,
+    PURPOSE_MAX_LENGTH,
     compute_body_hash,
     evaluate,
     parse_frontmatter,
@@ -525,14 +527,29 @@ class TestValueValidationBeforeWrite(FmWriteTestBase):
         self.assertEqual(self._read(path), text, '1 バイトも書き換えられない')
 
     def test_purpose_over_the_limit_is_rejected(self):
-        metadata = dict(WRITE_METADATA, purpose='x' * 201)
+        metadata = dict(WRITE_METADATA, purpose='x' * (PURPOSE_MAX_LENGTH + 1))
         self._assert_rejected_without_writing(metadata, 'FIELD_TOO_LONG')
 
     def test_purpose_at_the_limit_is_accepted(self):
-        """上限ちょうど（200 文字）は違反でない（境界の固定）。"""
+        """上限ちょうど（PURPOSE_MAX_LENGTH 文字）は違反でない（境界の固定）。"""
         path = self._write('docs/a.md', plain_document())
 
-        result = write_entry(path, dict(WRITE_METADATA, purpose='x' * 200))
+        result = write_entry(
+            path, dict(WRITE_METADATA, purpose='x' * PURPOSE_MAX_LENGTH))
+
+        self.assertTrue(result['ok'], result.get('detail'))
+        self.assertEqual(result['violations'], [])
+
+    def test_purpose_slightly_over_the_guideline_is_accepted(self):
+        """起草目標（200 文字）を僅かに超えた値は受理される（+10% マージン）。
+
+        LLM は文字数を正確に数えられず、目標どおりに書こうとして僅かに超える
+        （実運用で 206 文字を観測）。受け入れ上限は目標値より広く取る。
+        """
+        path = self._write('docs/a.md', plain_document())
+
+        result = write_entry(
+            path, dict(WRITE_METADATA, purpose='x' * (PURPOSE_GUIDELINE_LENGTH + 6)))
 
         self.assertTrue(result['ok'], result.get('detail'))
         self.assertEqual(result['violations'], [])
@@ -577,9 +594,10 @@ class TestValueValidationBeforeWrite(FmWriteTestBase):
         """detail に実測値が入ること（AI に数え直させないため）。"""
         path = self._write('docs/a.md', plain_document())
 
-        result = write_entry(path, dict(WRITE_METADATA, purpose='x' * 206))
+        over = PURPOSE_MAX_LENGTH + 6
+        result = write_entry(path, dict(WRITE_METADATA, purpose='x' * over))
 
-        self.assertIn('206', result['violations'][0]['detail'])
+        self.assertIn(str(over), result['violations'][0]['detail'])
 
     def test_written_metadata_never_violates_the_read_side_value_rules(self):
         """一方向の包含: 書けた値は読み取り側の値域判定を通る。
@@ -595,7 +613,7 @@ class TestValueValidationBeforeWrite(FmWriteTestBase):
         }
         accepted = [
             dict(WRITE_METADATA),
-            dict(WRITE_METADATA, purpose='x' * 200),
+            dict(WRITE_METADATA, purpose='x' * PURPOSE_MAX_LENGTH),
             dict(WRITE_METADATA, keywords=[f'k{i}' for i in range(10)]),
             dict(WRITE_METADATA, content_details=['single']),
         ]

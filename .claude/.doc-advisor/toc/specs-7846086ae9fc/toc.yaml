@@ -5,7 +5,7 @@
 metadata:
   name: Document Search Index (specs)
   key: specs
-  generated_at: 2026-08-14T13:36:59Z
+  generated_at: 2026-08-29T14:46:59Z
   file_count: 17
 
 docs:
@@ -246,37 +246,35 @@ docs:
       - NFR-003
       - semantic search
   docs/specs/base/requirements/REQ-001_doc_advisor.md:
-    title: REQ-001 doc-advisor Requirements Definition
-    purpose: Defines requirements for doc-advisor as a generic ToC Provider managing documents by opaque key plus project-root-relative paths without interpreting document classification
+    title: "REQ-001: doc-advisor Requirements Definition"
+    purpose: Defines functional and non-functional requirements for doc-advisor ToC management system, including key-based scope, desired-state sync, path validation, single mode, and script-agent layer responsibilities
     content_details:
-      - Key unit ToC management with opaque keys and reserved all mode
-      - Desired-state sync using SHA-256 hash change detection for add/update/delete
-      - Path input validation rejecting absolute paths, traversal, and invalid targets
-      - Single mode (all) for project-root Markdown indexing with fixed exclusions
-      - ToC retrieval and search with lexical ranking-free extraction
-      - Deletion operations at key or path level
-      - Directory input expansion with glob support and system fixed exclusions in SKILL layer
-      - Layer responsibility boundary between script and AI metadata extraction
-      - Symlink policy for passed targets with cross-boundary warning transparency
-      - Python 3.11 minimum with no doc_type field
+      - Key-based ToC management with opaque key concept and reserved key `all` for single mode
+      - "Desired-state sync operations: add/update/delete/unchanged with JSON counts and deleted path lists"
+      - "Path validation policy: project-root-relative, traversal rejection, symlink handling and warning for cross-border references"
+      - Single mode `--all` with fixed exclusion patterns and project-root-relative Markdown walk
+      - "Layer responsibility separation: script layer (deterministic validation, diff, pending generation, merge) vs AI layer (metadata extraction, relevance judgment)"
+      - "Script cooperation pipeline: prepare_toc.py (diff detection) → agent parallel metadata fill → merge_toc.py (merge and apply deletions)"
+      - Directory input at SKILL layer with --dirs-json expansion, --exclude-json filtering, and system fixed exclusions
+      - Python 3.11 minimum, stdlib-only implementation, test coverage for all script layer modules
     applicable_tasks:
-      - ToC Provider implementation and design
-      - Key and path interface validation
-      - Desired-state sync and change detection
-      - Path validation and symlink security review
-      - Single mode and exclusion pattern verification
-      - Script AI layer responsibility boundary testing
-      - Requirements compliance and acceptance criteria
+      - Implementing doc-advisor plugin architecture and interfaces
+      - Designing key-based ToC management and desired-state sync
+      - Setting path validation and security policies for document indexing
+      - Defining script and agent layer responsibility boundaries
+      - Implementing directory expansion and exclusion filtering in SKILL layer
+      - Acceptance criteria specification and requirements testing
     keywords:
-      - key + path interface
+      - doc-advisor
+      - ToC
+      - key-based management
       - desired-state sync
-      - ToC Provider
       - path validation
-      - symlink policy
-      - single mode
-      - REQ-001
-      - functional requirements FR-N01 to FR-N09
-      - metadata extraction
+      - pending YAML
+      - symlink handling
+      - directory expansion
+      - script-agent layer
+      - JSON schema
   docs/specs/base/requirements/REQ-002_upgrade_v2_to_v3.md:
     title: "REQ-002: Upgrade Requirements (v2.0 → Current)"
     purpose: Defines requirements for upgrading doc-advisor from legacy v2.0/v3.x to the current key+path provider, including legacy file detection, user asset protection, and migration guidance
