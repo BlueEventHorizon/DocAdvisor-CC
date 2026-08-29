@@ -4,7 +4,7 @@
   "owner": { "name": "moons" },
   "metadata": {
     "description": "AI-searchable document index (ToC) generator for Claude Code",
-    "version": "0.4.9"
+    "version": "0.4.10"
   },
   "plugins": [
     {
