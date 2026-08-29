@@ -4,6 +4,13 @@ All notable changes to doc-advisor are documented in this file.
 
 > このリポジトリは `bw-cc-plugins` マーケットプレイス（forge / anvil / doc-advisor / doc-db の 4 プラグイン集）から `doc-advisor` を分離したものです。0.3.0 より前の詳細な変更履歴は git log および旧リポジトリ `BlueEventHorizon/bw-cc-plugins` を参照してください。
 
+## [0.4.10] - 2026-08-29
+
+### Changed
+
+- **フロントマターの書き戻し承認を `write_policy` で自動化**。doc-advisor の標識（`type: doc-advisor`）を持つ既存フロントマターの更新（`auto`）は対象と内容の提示のみで承認なしに書き戻し、フロントマターが無い文書への新規追加・他ツールのフロントマターしか持たない文書への追記（`confirm`）のみユーザー承認を取る。分類は `fm_run.py plan` が `targets[].write_policy` と `counts.auto` / `counts.confirm` で決定論的に返す。あわせて `index-docs` 側の書き戻し確認ゲートを撤去し、二重承認を解消（承認の判定と取得は `write-frontmatter` に一元化）
+- **`purpose` の受け入れ上限を 220 文字（起草目標 200 文字 +10%）へ緩和**。LLM は文字数を正確に数えられず、目標どおりに書こうとした僅差の超過（実運用で 206 文字を観測）が値域違反となり、当該 ToC エントリが転記段階で恒久的に `incomplete_entry` に固定されていた。起草目標は 200 文字のまま変更しない
+
 ## [0.4.9] - 2026-08-18
 
 ### Fixed

@@ -43,6 +43,8 @@ from merge_toc import write_toc_atomic
 from toc_store import CHECKSUMS_FILENAME, DEFAULT_KEY, TOC_FILENAME, resolve_store_dir
 from toc_utils import calculate_file_hash, write_checksums_yaml
 
+from fm_core import PURPOSE_MAX_LENGTH
+
 from fm_from_toc import (
     COPIED_FIELDS,
     NEEDS_AI_REASONS,
@@ -223,7 +225,7 @@ class TestStalenessGuard(FromTocTestBase):
     def test_value_range_violation_in_the_entry_is_rejected(self):
         """値域規則は fm_core の実装を共有する（転記側で別の規則を持たない）。"""
         entry = dict(TOC_ENTRY)
-        entry["purpose"] = "x" * 201
+        entry["purpose"] = "x" * (PURPOSE_MAX_LENGTH + 1)
         self._write_doc("docs/a.md")
         self._write_toc({"docs/a.md": entry})
         self._write_checksums(["docs/a.md"])

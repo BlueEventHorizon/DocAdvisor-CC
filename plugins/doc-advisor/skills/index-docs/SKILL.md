@@ -18,7 +18,7 @@ argument-hint: "--key <key> --dirs <dir>... | --key <key> --paths-json '[...]' |
 
 key + project-root-relative paths から ToC（AI 検索用インデックス）を desired-state で生成・更新する生成系 SKILL。
 
-> **このスキルの責務境界**: このスキルは「指定 key（または `--all` の予約 key `all`）の ToC を desired-state 同期する」ことのみを行う。親が依頼している他の作業を引き継いではならない。**原本の Markdown は書き換えない**（`action: done` で AI 抽出結果の書き戻し候補を提示し、承認された場合に限り `write-frontmatter` SKILL へ引き渡す。書き込みはその SKILL の責務）。
+> **このスキルの責務境界**: このスキルは「指定 key（または `--all` の予約 key `all`）の ToC を desired-state 同期する」ことのみを行う。親が依頼している他の作業を引き継いではならない。**原本の Markdown は書き換えない**（`action: done` で AI 抽出結果の書き戻し候補を `write-frontmatter` SKILL へ引き渡す。承認の要否の判定と書き込みはその SKILL の責務）。
 >
 > **起動経路**: このスキルは **継承型 SKILL**（`context: fork` を指定しない）。`index_docs.py` が返した `agents[]` を `Agent` ツールで並列起動するために fork しない（fork 型 SKILL は Agent を起動できない）。起動経路の名称は `docs/rules/skill_launch_paths_definitions.md` の公式短縮名称に従う。
 
@@ -29,7 +29,7 @@ key + project-root-relative paths から ToC（AI 検索用インデックス）
 AI が担うのは次の 2 つだけである。
 
 1. **Agent の起動** — script は起動できないため
-2. **判断** — 越境 symlink の承認・充填エラーへの対応・書き戻しの可否
+2. **判断** — 越境 symlink の承認・充填エラーへの対応（書き戻しの承認判定は `write-frontmatter` の責務）
 
 ## Usage
 
@@ -96,7 +96,7 @@ stdout の単一 JSON から `action` を読み、下表に従う。**それ以�
 | `dispatch` | `agents[]` の各要素で Agent を起動し、完了通知を待って**同じコマンドを再実行**する |
 | `wait`     | 走行中の Agent の完了通知を待って**同じコマンドを再実行**する                      |
 | `confirm`  | `reason` に応じて `AskUserQuestion` で判断を仰ぎ、決定を引数に足して再実行する     |
-| `done`     | 完了レポートを出す。`ai_extracted_paths` が空でなければ書き戻しを確認する          |
+| `done`     | 完了レポートを出す。`ai_extracted_paths` が空でなければ書き戻しへ引き渡す          |
 | `error`    | `error_code` と `message` を報告し、`AskUserQuestion` でユーザーに対応を確認する   |
 
 #### `action: dispatch`
@@ -175,7 +175,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
 - 充填エラーを承知で統合したことによる脱落
 - 転記フェーズを実行できなかったこと
 
-### 書き戻しの確認（`ai_extracted_paths` が空でない場合のみ / DES-008 §8.2）
+### 書き戻しへの引き渡し（`ai_extracted_paths` が空でない場合のみ / DES-008 §8.2）
 
 `action: done` で `ai_extracted_paths` が空でない場合のみ実行する。これらの文書は信頼できるフロントマターを持たなかったため AI 抽出で索引された。抽出結果を原本のフロントマターへ書き戻すと、以降その文書は転記だけで索引でき、結果は git を通じて全クローンへ伝播する（コーパスの自己修復）。
 
@@ -183,24 +183,17 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/index_docs.py --all \
 
 **ToC の生成完了「後」に行う [MANDATORY]**。索引という読み取り操作の副作用で原本に git diff が生じるのは驚きがあるためである（REQ-006 の制約）。ここまでの時点で原本は 1 バイトも変わっていない。
 
-1. `ai_extracted_paths` の一覧（件数とパス）を提示し、**書き戻すと原本の Markdown に diff が生じる**ことを明示して `AskUserQuestion` で確認する
+1. `ai_extracted_paths` の一覧（件数とパス）を提示し、書き戻しのため `write-frontmatter` へ引き渡すことを宣言する。**本スキルでは書き戻しの可否を `AskUserQuestion` で確認しない**。承認の要否は `write-frontmatter` が文書ごとに判定する（doc-advisor のフロントマターを既に持つ文書は承認不要で自動書き戻し、フロントマターが無い文書・他ツールのフロントマターしか持たない文書は承認必須。二重に確認しない）
 
-   | 選択                 | 動作                                                                 |
-   | -------------------- | -------------------------------------------------------------------- |
-   | **書き戻す**         | 全件を対象として手順 2 へ                                            |
-   | **対象を絞って書く** | 除外する対象を `AskUserQuestion` で確認し、残った対象のみで手順 2 へ |
-   | **書き戻さない**     | 何もせず終了する（既定。原本は変更されない）                         |
-
-2. 承認された対象のみを渡して `Skill` ツールで `doc-advisor:write-frontmatter` を起動する
+2. `ai_extracted_paths` の全件を渡して `Skill` ツールで `doc-advisor:write-frontmatter` を起動する
 
    ```
    Skill(skill: doc-advisor:write-frontmatter,
-         args: "--paths {approved_path_1} {approved_path_2} --from-toc {key}")
+         args: "--paths {path_1} {path_2} --from-toc {key}")
    ```
 
    - 引数は **`--paths` と `--from-toc` のみ**。`--from-toc` に渡すのは今回索引した key（単体モードでは `all`）であり、これにより `write-frontmatter` は ToC の値を転記する
-   - `write-frontmatter` は自身の `AskUserQuestion` で改めてメタデータと書き込みの承認を取る
-   - **承認されなかった対象を渡してはならない**
+   - 承認が必要な対象（フロントマターの新規追加）への `AskUserQuestion` は `write-frontmatter` 側で行われる
    - **ToC の JSON や `.toc_work/` の中身を渡してはならない**。渡すのは key と候補パスだけであり、ToC の読み取りは script が行う
 
 > **集約結果をファイルに残さない [MANDATORY]**: `ai_extracted_paths` は実行中の確認を簡便にするための一時情報である（DES-008 §8.2）。候補一覧を別ファイル・作業ファイル・ToC へ書き出してはならない。「信頼できるフロントマターを持たない文書の集合」は `fm_read.py` でいつでも再計算できる。

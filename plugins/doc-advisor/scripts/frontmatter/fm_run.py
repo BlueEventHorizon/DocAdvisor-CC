@@ -16,7 +16,8 @@ AI に残っていた**。write-frontmatter SKILL の実運用では AI が次�
 - 書き込み後に `fm_read` を再度呼び、`counts.trusted` と書き込み件数を自分で比較する
 
 本 script は AI が呼ぶ入口を 2 つに畳む。AI に残る責務は **メタデータの内容を作ること**
-と **書き込みの承認を取ること** だけである。
+と **`write_policy: confirm` の対象について書き込みの承認を取ること** だけである。
+承認の要否も plan が `targets[].write_policy` で決定論的に分類する（AI に判断を残さない）。
 
 ## 使い方
 
@@ -119,6 +120,14 @@ from toc_utils import (  # noqa: E402
 REASON_NO_FRONTMATTER = "no frontmatter"
 REASON_NOT_TRUSTWORTHY = "frontmatter is not trustworthy"
 REASON_ALREADY_TRUSTED = "already trusted"
+
+# targets[].write_policy: 書き込み前にユーザー承認が要るか（DES-008 §8.2）。
+# `auto` は doc-advisor の標識（type に doc-advisor）を持つ既存フロントマターの
+# 更新であり、doc-advisor が過去に書いた値の刷新なので承認なしで書き戻せる。
+# `confirm` はフロントマターが無い文書への新規追加、または他ツールのフロント
+# マターしか持たない文書への doc-advisor キーの追記であり、承認を要する。
+WRITE_POLICY_AUTO = "auto"
+WRITE_POLICY_CONFIRM = "confirm"
 
 # targets[].source: メタデータの出どころ。`toc` は script が写したもの（AI は内容を
 # 作らない）、`ai` は AI が起草するもの。呼び出し側はこの値で「作る必要があるか」を
@@ -241,6 +250,10 @@ def run_plan(paths):
             "reason": reason,
             "has_frontmatter": result.has_frontmatter,
             "has_marker": result.has_marker,
+            "write_policy": (
+                WRITE_POLICY_AUTO if result.has_marker
+                else WRITE_POLICY_CONFIRM
+            ),
             "violations": violations_json(result.violations),
         })
 
@@ -503,6 +516,14 @@ def _target_counts(paths, targets, skipped, rejected_paths):
         "targets": len(targets),
         "from_toc": sum(1 for item in targets if item.get("source") == SOURCE_TOC),
         "needs_ai": sum(1 for item in targets if item.get("source") == SOURCE_AI),
+        "auto": sum(
+            1 for item in targets
+            if item.get("write_policy") == WRITE_POLICY_AUTO
+        ),
+        "confirm": sum(
+            1 for item in targets
+            if item.get("write_policy") == WRITE_POLICY_CONFIRM
+        ),
         "skipped": len(skipped),
         "unreadable": len(rejected_paths),
     }
