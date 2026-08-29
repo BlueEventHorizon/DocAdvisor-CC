@@ -41,12 +41,14 @@ from merge_toc import write_toc_atomic
 from toc_store import CHECKSUMS_FILENAME, TOC_FILENAME, resolve_store_dir
 from toc_utils import calculate_file_hash, write_checksums_yaml
 
-from fm_core import MARKER, compute_body_hash, evaluate
+from fm_core import MARKER, PURPOSE_MAX_LENGTH, compute_body_hash, evaluate
 from fm_read import STATUS_ERROR, STATUS_OK, STATUS_PARTIAL
 from fm_run import (
     REASON_ALREADY_TRUSTED,
     REASON_NO_FRONTMATTER,
     REASON_NOT_TRUSTWORTHY,
+    WRITE_POLICY_AUTO,
+    WRITE_POLICY_CONFIRM,
     expand_targets,
     run_apply,
     run_plan,
@@ -86,6 +88,16 @@ def marked_but_broken_document(body=BODY):
         "---\n"
         f"type: {MARKER}\n"
         "title: 標識はあるが不完全\n"
+        "---\n"
+    ) + body
+
+
+def foreign_frontmatter_document(body=BODY):
+    """doc-advisor の標識を持たない、他ツールのフロントマターだけの文書。"""
+    return (
+        "---\n"
+        "name: other-tool\n"
+        "description: 他ツールが所有するフロントマター\n"
         "---\n"
     ) + body
 
@@ -163,6 +175,28 @@ class TestPlanResolvesTargets(FmRunTestBase):
 
         self.assertEqual(len(targets), 1)
         self.assertEqual(warnings, [])
+
+    def test_marker_bearing_frontmatter_is_auto_writable(self):
+        """doc-advisor の標識を持つ既存フロントマターの更新は承認不要（write_policy: auto）。"""
+        broken = self._write('a.md', marked_but_broken_document())
+
+        _status, targets, _skipped, _rejected, _warnings = run_plan([broken])
+
+        self.assertEqual(targets[0]['write_policy'], WRITE_POLICY_AUTO)
+
+    def test_new_or_foreign_frontmatter_requires_confirmation(self):
+        """フロントマターなし・他ツールのみの文書への書き込みは承認必須（write_policy: confirm）。"""
+        plain = self._write('a.md', BODY)
+        foreign = self._write('b.md', foreign_frontmatter_document())
+
+        _status, targets, _skipped, _rejected, _warnings = run_plan([plain, foreign])
+
+        self.assertEqual(
+            [t['write_policy'] for t in targets],
+            [WRITE_POLICY_CONFIRM, WRITE_POLICY_CONFIRM],
+        )
+        self.assertTrue(targets[1]['has_frontmatter'],
+                        '他ツールのフロントマターは has_frontmatter 真かつ confirm')
 
     def test_unreadable_path_becomes_partial_without_dropping_others(self):
         missing = os.path.join(self.tmpdir, 'missing.md')
@@ -245,7 +279,7 @@ class TestApplyVerifiesWhatItWrote(FmRunTestBase):
         before = self._read(path)
 
         status, results, counts = run_apply([
-            (path, dict(FULL_METADATA, purpose='x' * 201)),
+            (path, dict(FULL_METADATA, purpose='x' * (PURPOSE_MAX_LENGTH + 1))),
         ])
 
         self.assertEqual(status, STATUS_PARTIAL)
@@ -335,6 +369,21 @@ class TestCliContract(FmRunTestBase):
 
         self.assertEqual(payload['counts']['targets'], 1)
         self.assertEqual(payload['counts']['skipped'], 1)
+
+    def test_plan_counts_partition_auto_and_confirm(self):
+        """counts.auto / counts.confirm が targets を write_policy で分割する。"""
+        self._write('docs/a.md', BODY)
+        self._write('docs/b.md', marked_but_broken_document())
+        self._write('docs/c.md', foreign_frontmatter_document())
+
+        _proc, payload = self._run_cli('plan', '--dirs', 'docs/')
+
+        self.assertEqual(payload['counts']['auto'], 1)
+        self.assertEqual(payload['counts']['confirm'], 2)
+        self.assertEqual(
+            payload['counts']['auto'] + payload['counts']['confirm'],
+            payload['counts']['targets'],
+        )
 
     def test_missing_entries_file_is_an_error(self):
         proc, payload = self._run_cli('apply', '--entries-file', 'nope.json')

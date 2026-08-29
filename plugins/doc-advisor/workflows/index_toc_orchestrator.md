@@ -161,7 +161,9 @@ wrapper.
 - **Resumable**: interrupted runs resume from the preserved work dir; the caller re-runs the same
   command
 - **Indexing never modifies sources**: the pipeline only writes under `.claude/`. Writing metadata
-  back into a document is a separate, explicitly-approved action (`write-frontmatter`)
+  back into a document is a separate action (`write-frontmatter`); that SKILL decides per document
+  whether user approval is required (updating an existing doc-advisor frontmatter is automatic;
+  adding frontmatter to a document that has none, or only another tool's, requires approval)
 - **Single Source of Truth**: `formats/toc_format.md` defines the ToC and pending file schemas
 
 ---
